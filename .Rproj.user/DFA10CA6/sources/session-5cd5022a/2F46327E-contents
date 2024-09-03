@@ -6,7 +6,9 @@
 #'
 #' @param df Description of the first parameter
 #' @param outcome_type Description of the second parameter
+#' @param glm_family
 #' @param interventions_list
+#' @param center_characteristic_list
 #' @param intervention_lower_bounds
 #' @param intervention_upper_bounds
 #' @param cost_list_of_lists
@@ -25,7 +27,9 @@
 #'
 calculate_recommended_interventions <- function(df,
                                                 outcome_type,
+                                                glm_family,
                                                 interventions_list,
+                                                center_characteristic_list,
                                                 intervention_lower_bounds,
                                                 intervention_upper_bounds,
                                                 cost_list_of_lists,
@@ -69,13 +73,29 @@ calculate_recommended_interventions <- function(df,
 
   # check if interventions_list are all columns in the data frame
   if (!all(unlist(interventions_list) %in% names(df))) {
-    stop("All elements in the interventions_list must be column names in the provided data frame")
+    stop("All elements in the interventions_list must be column names in the provided data frame.")
+  }
+
+  # If center characteristic is provided, check if it is in the data frame
+  if (!is.null(center_characteristic_list)) {
+    if (!is.list(center_characteristic_list) || !all(sapply(
+      center_characteristic_list,
+      is.character
+    ))) {
+      stop("center_characteristic_list must be a list of strings")
+    }
+    if (!all(unlist(center_characteristic_list) %in% names(df))) {
+      stop("All elements in the center_characteristic_list must be column names in the provided data frame.")
+    }
   }
 
   # check if lower bounds list and upper bounds list have the same length,
   # and if the lower bounds are <= upper bounds respectively
   if (length(intervention_lower_bounds) != length(intervention_upper_bounds)) {
     stop("The lengths of lower and upper bounds do not match.")
+  }
+  if (any(intervention_lower_bounds) < 0) {
+    stop("The intervention must have non-negative values only.")
   }
   invalid_indices <- which(intervention_upper_bounds < intervention_lower_bounds)
   if (length(invalid_indices) > 0) {
@@ -108,5 +128,54 @@ calculate_recommended_interventions <- function(df,
   }
 
 
-  #
+
+  # Convert glm family string to actual glm family object
+  # TODO: figure out which ones do we actually want to support?
+  family_object <- switch(glm_family,
+    "binomial" = binomial(),
+    "poisson" = poisson(),
+    "gaussian" = gaussian(),
+    "Gamma" = Gamma(),
+    "inverse.gaussian" = inverse.gaussian(),
+    "quasi" = quasi(),
+    "quasibinomial" = quasibinomial(),
+    "quasipoisson" = quasipoisson(),
+    stop("Unsupported family. Please use one of the supported family types.")
+  )
+
+  # fit the model
+  if (is.null(center_characteristic_list)) {
+    formula <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + ")))
+    model <- glm(formula, data = df, family = family_object)
+  } else {
+    formula_with_center_characteristics <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + "), paste(cost_list_of_lists, collapse = " + ")))
+    model <- glm(formula_with_center_characteristics, data = df, family = family_object)
+  }
+
+  if (!model$converged) {
+    stop("Model did not converge. Please check your data and model specifications.")
+  }
+
+  # TODO: with center characteristics, this would be different
+  coeff <- model$coefficients
+
+
+  # get the recommended interventions that satisfy the outcome goal while minimizing the cost
+  rec_int_results <- get_recommended_interventions_linear_cost(beta_vec,
+                                                               center_cha_coeff_vec = 0,
+                                                               cost_coef,
+                                                               x_min,
+                                                               x_max,
+                                                               goal,
+                                                               center_cha = 0,
+                                                               intercept = T,
+                                                               phase)
+
+  # TODO: with center characteristics, user would also have to provide value of z when getting the recommended interventions
+  # focus on the case with center characteristics for now
+  # TODO: add another function to handle cost functions that are not linear
+
+
+
+  return(list())
 }

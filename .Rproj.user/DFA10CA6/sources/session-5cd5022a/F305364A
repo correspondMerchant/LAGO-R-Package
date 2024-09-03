@@ -1,0 +1,26 @@
+{
+    "id": "F305364A",
+    "path": "~/Library/CloudStorage/Dropbox/LAGO r package paper/LAGO/R/get_recommended_interventions_linear_cost.R",
+    "project_path": "R/get_recommended_interventions_linear_cost.R",
+    "type": "r_source",
+    "hash": "2907232238",
+    "contents": "",
+    "dirty": false,
+    "created": 1725396591377.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "35,59",
+        "scrollLine": "9"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1725401959,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1725401959872,
+    "read_only": false,
+    "read_only_alternatives": []
+}
