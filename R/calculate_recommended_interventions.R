@@ -1,40 +1,62 @@
 #' calculate_recommended_interventions
 #'
-#' @description Calculate the LAGO recommended interventions for the next stage.
-#' The recommended interventions aim to satisfy the outcome goal and/or the
+#' @description Returns the LAGO recommended interventions for the next stage.
+#' The recommended interventions that aim to satisfy the outcome goal and/or the
 #' power goal.
 #'
-#' @param df Description of the first parameter
-#' @param outcome_type Description of the second parameter
-#' @param glm_family
-#' @param interventions_list
-#' @param center_characteristic_list
-#' @param intervention_lower_bounds
-#' @param intervention_upper_bounds
-#' @param cost_list_of_lists
-#' @param outcome_goal_optimization
-#' @param outcome_goal
+#' @param df data.frame, Input data
+#' @param outcome_type character, Outcome type, either "continuous" or "binary"
+#' @param glm_family character, Family for the GLM model
+#' For example: "binomial"
+#' @param interventions_list list, Names of the intervention components
+#' For example: list("component1", "component2")
+#' @param center_characteristic_list list, Names of the center characteristics
+#' For example: list("characteristic1")
+#' @param intervention_lower_bounds numeric vector, Lower bounds for the intervention components
+#' For example: c(0,0)
+#' @param intervention_upper_bounds numeric vector, Upper bounds for the intervention components
+#' For example: c(10,20)
+#' @param cost_list_of_lists list, A nested list structure defining cost functions for the intervention components.
+#' Each sublist represents a component and contains coefficients for its cost function.
+#' The position of each coefficient in the sublist corresponds to the power of x in the polynomial cost function.
+#' For example:
+#' list(list(1, 2), list(4), list(5)) represents:
+#' - First component: cost = 1x + 2x^2
+#' - Second component: cost = 4x
+#' - Third component: cost = 5x
+#' Empty sublists are not allowed. Each component must have at least one coefficient.
+#' @param outcome_goal_optimization character, Method used behind the scenes for
+#' calculating the recommended interventions. Either "numerical" or "grid_search"
+#' @param outcome_goal numeric, The outcome goal
 #'
-#' @return Description of what the function returns
+#' @return List(recommended interventions, associated cost for the interventions,
+#' estimated outcome mean/probability for the intervention group in the next stage)
 #'
 #' @examples
-#' example_function(1, 2)
+#' calculate_recommended_interventions(df = data_frame,
+#'                                     outcome_type = "binary",
+#'                                     glm_family = "binomial",
+#'                                     interventions_list = list("component1", "component2"),
+#'                                     intervention_lower_bounds = c(0, 0),
+#'                                     intervention_upper_bounds = c(10, 20),
+#'                                     cost_list_of_lists = list(list(1), list(4)),
+#'                                     outcome_goal = 0.8)
 #'
-#' @importFrom package function
-#' @importFrom package function
-#' @importFrom package function
 #' @export
 #'
 calculate_recommended_interventions <- function(df,
                                                 outcome_type,
                                                 glm_family,
                                                 interventions_list,
-                                                center_characteristic_list,
+                                                center_characteristic_list = NULL,
                                                 intervention_lower_bounds,
                                                 intervention_upper_bounds,
                                                 cost_list_of_lists,
                                                 outcome_goal_optimization = "numerical",
                                                 outcome_goal) {
+  # TODO: future versions of this package will use 'outcome_goal_optimization'
+  # For now, we are only working with linear cost, so no need for numerical solutions yet.
+
   # initial checks
   # check if the data frame is not null, is a data frame type, and not empty
   if (is.null(df)) {
@@ -53,8 +75,8 @@ calculate_recommended_interventions <- function(df,
   }
 
   # check if the data frame has all the required columns
-  # TODO: complete the required_columns
-  required_columns <- c("outcome", "group")
+  # TODO: specify the required_columns
+  required_columns <- c("outcome", "group", "center")
   missing_columns <- setdiff(required_columns, names(df))
   if (length(missing_columns) > 0) {
     stop(sprintf(
@@ -130,7 +152,8 @@ calculate_recommended_interventions <- function(df,
 
 
   # Convert glm family string to actual glm family object
-  # TODO: figure out which ones do we actually want to support?
+  # TODO: figure out which ones do we want to support?
+  # for v1, only binomial.
   family_object <- switch(glm_family,
     "binomial" = binomial(),
     "poisson" = poisson(),
@@ -148,7 +171,7 @@ calculate_recommended_interventions <- function(df,
     formula <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + ")))
     model <- glm(formula, data = df, family = family_object)
   } else {
-    formula_with_center_characteristics <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + "), paste(cost_list_of_lists, collapse = " + ")))
+    formula_with_center_characteristics <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + "), paste(center_characteristic_list, collapse = " + ")))
     model <- glm(formula_with_center_characteristics, data = df, family = family_object)
   }
 
@@ -156,26 +179,58 @@ calculate_recommended_interventions <- function(df,
     stop("Model did not converge. Please check your data and model specifications.")
   }
 
-  # TODO: with center characteristics, this would be different
+  # TODO: add the option for center characteristics in the model
   coeff <- model$coefficients
 
+  # TODO: add the option for non linear cost functions
+  # TODO: add another helper function to deal with non-linear cost functions
+  cost_coeff <- sapply(cost_list_of_lists, function(x) x[[1]])
 
   # get the recommended interventions that satisfy the outcome goal while minimizing the cost
-  rec_int_results <- get_recommended_interventions_linear_cost(beta_vec,
+  # TODO: add a programming check for whether the model is fitted with an intercept
+  # TODO: add "phase" option, to indicate if we are calculating the recommended interventions
+  # for the next stage, or calculating the optimal interventions for future studies. For the
+  # optimal intervention, for linear cost functions, see web appendix section 5.1 of Nevo et al.
+  rec_int_results <- get_recommended_interventions_linear_cost(coeff,
                                                                center_cha_coeff_vec = 0,
-                                                               cost_coef,
-                                                               x_min,
-                                                               x_max,
-                                                               goal,
+                                                               cost_coeff,
+                                                               intervention_lower_bounds,
+                                                               intervention_upper_bounds,
+                                                               outcome_goal,
                                                                center_cha = 0,
-                                                               intercept = T,
-                                                               phase)
+                                                               intercept = T)
+  rec_int <- rec_int_results$est_rec_int
+  rec_int_cost <- rec_int %*% cost_coeff
+  est_outcome_goal <- rec_int_results$est_reachable_goal
 
-  # TODO: with center characteristics, user would also have to provide value of z when getting the recommended interventions
-  # focus on the case with center characteristics for now
-  # TODO: add another function to handle cost functions that are not linear
+  # TODO: add confidence set for the recommended interventions
 
-
-
-  return(list())
+  return(list(
+    rec_int,
+    rec_int_cost,
+    est_outcome_goal
+  ))
 }
+
+
+
+
+
+
+############
+# TEST
+############
+# coeff <- c(0.1, 0.3, 0.15)
+# cost_list_of_lists <- list(list(1),list(4))
+# cost_coeff <- sapply(cost_list_of_lists, function(x) x[[1]])
+# intervention_lower_bounds <- c(0,0)
+# intervention_upper_bounds <- c(10,20)
+# outcome_goal <- 0.8
+#
+#
+# coeff <- c(0.05, 0.1, 0.15, 0.2)
+# cost_list_of_lists <- list(list(1),list(4), list(2.2))
+# cost_coeff <- sapply(cost_list_of_lists, function(x) x[[1]])
+# intervention_lower_bounds <- c(0,0,0)
+# intervention_upper_bounds <- c(3,20,5)
+# outcome_goal <- 0.9
