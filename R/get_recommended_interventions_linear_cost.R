@@ -32,16 +32,20 @@
 #' for the intervention group in the next stage )
 #'
 #' @examples
-#' get_recommended_interventions_linear_cost(beta_vec = c(0.1, 0.3, 0.15),
-#'                                           cost_coef = c(1, 4),
-#'                                           intervention_lower_bounds = c(0,0),
-#'                                           intervention_upper_bounds = c(10, 20),
-#'                                           outcome_goal = 0.8)
+#' get_recommended_interventions_linear_cost(
+#'   beta_vec = c(0.1, 0.3, 0.15),
+#'   cost_coef = c(1, 4),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(10, 20),
+#'   outcome_goal = 0.8
+#' )
 #'
-#' @importFrom rje expit
+#' @importFrom rje expit logit
+#' @import stats
 #'
-#' Note: no export, this is not a user facing function
-#'
+#' @export
+#
+#
 get_recommended_interventions_linear_cost <- function(beta_vec,
                                                       cost_coef,
                                                       intervention_lower_bounds,
@@ -50,7 +54,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
                                                       center_cha_coeff_vec = 0,
                                                       center_cha = 0,
                                                       intercept = T,
-                                                      phase="planning") {
+                                                      phase = "planning") {
   # check if center_cha and center_cha_coeff_vec have the same length
   if (length(center_cha) != length(center_cha_coeff_vec)) {
     stop("coefficients for the center charactersitics and the number of given center characteristics are not at the same length.")
@@ -72,7 +76,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
   # If all effects are non-positive, recommend minimum intervention
   if (all(cost_effects <= 0)) {
     # TODO: notice the "expit", need to generalize to other inverse of link functions.
-    est_reachable_outcome <- expit( beta0 + sum(center_cha_coeff_vec * center_cha) + sum(beta_vec * intervention_lower_bounds) )
+    est_reachable_outcome <- expit(beta0 + sum(center_cha_coeff_vec * center_cha) + sum(beta_vec * intervention_lower_bounds))
     return(list(
       est_rec_int = intervention_lower_bounds,
       outcome_goal = outcome_goal,
@@ -89,9 +93,11 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
 
   # Check if minimum intervention already reaches the outcome_goal
   if (expit(beta0.center + sum(beta_vec[pos_eff] * intervention_lower_bounds[pos_eff])) >= outcome_goal) {
-    return(list(est_rec_int = est_rec_int,
-                outcome_goal = outcome_goal,
-                est_reachable_outcome = outcome_goal))
+    return(list(
+      est_rec_int = est_rec_int,
+      outcome_goal = outcome_goal,
+      est_reachable_outcome = outcome_goal
+    ))
   }
 
   # Order positive effects by cost-effectiveness
@@ -178,5 +184,6 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
   return(list(
     est_rec_int = est_rec_int,
     outcome_goal = outcome_goal,
-    est_reachable_outcome = est_reachable_outcome))
+    est_reachable_outcome = est_reachable_outcome
+  ))
 }

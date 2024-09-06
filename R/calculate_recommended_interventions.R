@@ -5,6 +5,7 @@
 #' power goal.
 #'
 #' @param df data.frame, Input data
+#' @param outcome_name character, Outcome name
 #' @param outcome_type character, Outcome type, either "continuous" or "binary"
 #' @param glm_family character, Family for the GLM model
 #' For example: "binomial"
@@ -33,18 +34,22 @@
 #' estimated outcome mean/probability for the intervention group in the next stage)
 #'
 #' @examples
-#' calculate_recommended_interventions(df = data_frame,
-#'                                     outcome_type = "binary",
-#'                                     glm_family = "binomial",
-#'                                     interventions_list = list("component1", "component2"),
-#'                                     intervention_lower_bounds = c(0, 0),
-#'                                     intervention_upper_bounds = c(10, 20),
-#'                                     cost_list_of_lists = list(list(1), list(4)),
-#'                                     outcome_goal = 0.8)
+#' calculate_recommended_interventions(
+#'   df = infert,
+#'   outcome_name = "case",
+#'   outcome_type = "binary",
+#'   glm_family = "binomial",
+#'   interventions_list = list("age", "parity"),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(50, 10),
+#'   cost_list_of_lists = list(list(4), list(1)),
+#'   outcome_goal = 0.5
+#' )
 #'
 #' @export
 #'
 calculate_recommended_interventions <- function(df,
+                                                outcome_name,
                                                 outcome_type,
                                                 glm_family,
                                                 interventions_list,
@@ -69,14 +74,25 @@ calculate_recommended_interventions <- function(df,
     stop("The data frame 'df' is empty.")
   }
 
+  # check if outcome name is empty
+  if (nchar(outcome_name) == 0) {
+    stop("The outcome name is empty.")
+  }
+  # check if outcome name is one of the columns in the data frame
+  if (!(outcome_name %in% names(df))) {
+    stop("The outcome name is not present in the provided data frame.")
+  }
+
   allowed_outcome_types <- c("continuous", "binary")
   if (!(outcome_type %in% allowed_outcome_types)) {
     stop(paste("Outcome type", outcome_type, "is not 'continuous' or 'binary'."))
   }
 
   # check if the data frame has all the required columns
-  # TODO: specify the required_columns
-  required_columns <- c("outcome", "group", "center")
+  # TODO: specify the required_columns for later versions. We would need these
+  # columns for power calculations, and/or adding fixed center effects, etc.
+  # required_columns <- c("group", "center")
+  required_columns <- c()
   missing_columns <- setdiff(required_columns, names(df))
   if (length(missing_columns) > 0) {
     stop(sprintf(
@@ -132,10 +148,18 @@ calculate_recommended_interventions <- function(df,
   if (!is.list(cost_list_of_lists)) {
     stop("cost_list_of_lists must be a list.")
   }
-  for (i in seq_along(cost_list_of_lists)) {
-    if (!is.numeric(cost_list_of_lists[[i]])) {
-      stop(paste("Element", i, "of cost_list_of_lists must be a numeric vector."))
-    }
+
+  # Check if all elements of cost_list_of_lists are lists
+  if (!all(sapply(cost_list_of_lists, is.list))) {
+    stop("All elements of the cost_list_of_lists must be lists.")
+  }
+
+  # Check if all sub-elements of cost_list_of_lists are numeric
+  all_numeric <- all(sapply(cost_list_of_lists, function(sublist) {
+    all(sapply(sublist, is.numeric))
+  }))
+  if (!all_numeric) {
+    stop("All elements in the sublists of cost_list_of_lists must be numeric.")
   }
 
   # check if the dimension of cost_list_of_lists matches the dimension of interventions_list
@@ -143,9 +167,13 @@ calculate_recommended_interventions <- function(df,
     stop("The lengths of cost_list_of_lists and interventions_list do not match.")
   }
 
-  # check if the outcome goal >= intervention group average values
-  int_group_mean <- mean(df$outcome[df$group == 1], na.rm = TRUE)
-  if (outcome_goal <= int_group_mean) {
+  # check if the outcome goal is a numeric number
+  if (!is.numeric(outcome_goal)) {
+    stop("The outcome goal is not numeric.")
+  }
+
+  # check if the outcome goal >= outcome that we already observed
+  if (outcome_goal <= mean(df[[outcome_name]])) {
     stop("The outcome goal is smaller than the intervention group mean, please increase the outcome goal.")
   }
 
@@ -168,10 +196,10 @@ calculate_recommended_interventions <- function(df,
 
   # fit the model
   if (is.null(center_characteristic_list)) {
-    formula <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + ")))
+    formula <- as.formula(paste(outcome_name, "~", paste(interventions_list, collapse = " + ")))
     model <- glm(formula, data = df, family = family_object)
   } else {
-    formula_with_center_characteristics <- as.formula(paste("outcome", "~", paste(interventions_list, collapse = " + "), paste(center_characteristic_list, collapse = " + ")))
+    formula_with_center_characteristics <- as.formula(paste(outcome_name, "~", paste(interventions_list, collapse = " + "), paste(center_characteristic_list, collapse = " + ")))
     model <- glm(formula_with_center_characteristics, data = df, family = family_object)
   }
 
@@ -192,13 +220,14 @@ calculate_recommended_interventions <- function(df,
   # for the next stage, or calculating the optimal interventions for future studies. For the
   # optimal intervention, for linear cost functions, see web appendix section 5.1 of Nevo et al.
   rec_int_results <- get_recommended_interventions_linear_cost(coeff,
-                                                               center_cha_coeff_vec = 0,
-                                                               cost_coeff,
-                                                               intervention_lower_bounds,
-                                                               intervention_upper_bounds,
-                                                               outcome_goal,
-                                                               center_cha = 0,
-                                                               intercept = T)
+    center_cha_coeff_vec = 0,
+    cost_coeff,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
+    outcome_goal,
+    center_cha = 0,
+    intercept = T
+  )
   rec_int <- rec_int_results$est_rec_int
   rec_int_cost <- rec_int %*% cost_coeff
   est_outcome_goal <- rec_int_results$est_reachable_goal
@@ -234,3 +263,8 @@ calculate_recommended_interventions <- function(df,
 # intervention_lower_bounds <- c(0,0,0)
 # intervention_upper_bounds <- c(3,20,5)
 # outcome_goal <- 0.9
+
+
+# create the BB data frame so minh can test it out
+# maybe run the original bb check
+# then save the data frame itself on desktop, load in the package.

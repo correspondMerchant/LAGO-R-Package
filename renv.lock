@@ -18,6 +18,16 @@
         "utils"
       ],
       "Hash": "397b7b2a265bc5a7a06852524dabae20"
+    },
+    "rje": {
+      "Package": "rje",
+      "Version": "1.12.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R"
+      ],
+      "Hash": "6632231b14d2682d327460be5f6ef771"
     }
   }
 }
