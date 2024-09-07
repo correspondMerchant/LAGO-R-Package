@@ -164,31 +164,6 @@ calculate_recommended_interventions <- function(df,
     }
   }
 
-  # if (!is.list(interventions_list) || !all(sapply(
-  #   interventions_list,
-  #   is.character
-  # ))) {
-  #   stop("interventions_list must be a list of strings")
-  # }
-  # # check if interventions_list are all columns in the data frame
-  # if (!all(unlist(interventions_list) %in% names(df))) {
-  #   stop("All elements in the interventions_list must be column names in the provided data frame.")
-  # }
-
-  # If center characteristic list is provided, check if it is in the data frame
-  # if (!is.null(center_characteristic_list)) {
-  #   if (!is.list(center_characteristic_list) || !all(sapply(
-  #     center_characteristic_list,
-  #     is.character
-  #   ))) {
-  #     stop("center_characteristic_list must be a list of strings")
-  #   }
-  #   # check if center_characteristic_list are all columns in the data frame
-  #   if (!all(unlist(center_characteristic_list) %in% names(df))) {
-  #     stop("All elements in the center_characteristic_list must be column names in the provided data frame.")
-  #   }
-  # }
-
   # check if intervention_lower_bounds and intervention_upper_bounds are both
   # numerical vectors
   if ( !(is.vector(intervention_lower_bounds) && is.numeric(intervention_lower_bounds)) ) {
