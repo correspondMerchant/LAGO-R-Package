@@ -2,31 +2,37 @@
 #'
 #' @description Calculates the LAGO recommended interventions
 #' for the next stage based on a linear cost function and given parameters.
-#' The recommended interventions aim to satisfy the outcome outcome_goal and/or the power outcome_goal.
+#' The recommended interventions aim to satisfy the outcome goal and/or
+#' the power goal.
 #'
 #' @param beta_vec numeric vector, Coefficient estimates for the intervention
 #' components, including the intercept term, but not including any coefficient
 #' estimates for the center characteristics.
-#' For example: c(0.1, 0.3, 0.15)
+#' For example: c(0.1, 0.3, 0.15).
 #' If intercept == T, then the first element 0.1 is the estimate for the intercept.
 #' @param cost_coef numeric vector, Coefficients for the cost functions.
 #' For linear cost functions, one element per intervention component is required.
-#' @param intervention_lower_bounds numeric vector, Lower bounds for the intervention components
-#' For example: c(0,0)
-#' @param intervention_upper_bounds numeric vector, Upper bounds for the intervention components
-#' For example: c(10,20)
-#' @param outcome_goal numeric, The outcome goal
+#' @param intervention_lower_bounds numeric vector, Lower bounds for the
+#' intervention components.
+#' For example: c(0,0).
+#' @param intervention_upper_bounds numeric vector, Upper bounds for the
+#' intervention components.
+#' For example: c(10,20).
+#' @param outcome_goal numeric, The outcome goal.
 #' @param center_cha_coeff_vec numeric vector, Coefficients estimates for the
 #' center characteristics.
-#' For example: c(0.2, 0.4)
-#' @param center_cha numeric vector, Given values of the center characteristics
-#' @param intercept boolean, Whether the intercept was included in the fitted model
+#' For example: c(0.2, 0.4).
+#' @param center_cha numeric vector, Given values of the center characteristics.
+#' @param intercept boolean, Whether the intercept was included in the fitted model.
 #' @param phase character, Either "Planning" or "Optimal". "Planning" means
 #' we are calculating the recommended interventions for the next stage. When the
 #' outcome goal cannot be reached, we aim to bring the estimated outcome mean/probability
 #' for the intervention group in the next stage to be as close to the outcome goal
 #' as possible. "Optimal" means we are calculating the optimal interventions at the
 #' end of the stage, using the idea from web appendix section 5.1 of Nevo et al.
+#'
+#' For v1, this defaults to "planning". we can discuss whether we want to keep
+#' both "Planning" and "Optimal".
 #'
 #' @return List(recommended interventions, outcome goal, and estimated outcome mean/probability
 #' for the intervention group in the next stage )
@@ -53,7 +59,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
                                                       outcome_goal,
                                                       center_cha_coeff_vec = 0,
                                                       center_cha = 0,
-                                                      intercept = T,
+                                                      intercept = TRUE,
                                                       phase = "planning") {
   # check if center_cha and center_cha_coeff_vec have the same length
   if (length(center_cha) != length(center_cha_coeff_vec)) {
@@ -104,7 +110,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
   order.effect <- order(cost_effects[pos_eff], decreasing = T)
 
   # Check if maximum intervention can reach the outcome_goal
-  max.can.reach <- expit(beta0.center + sum(beta_vec[pos_eff] * intervention_upper_bounds[pos_eff]))
+  max.can.reach <- as.numeric(expit(beta0.center + sum(beta_vec[pos_eff] * intervention_upper_bounds[pos_eff])))
 
   if (max.can.reach < outcome_goal) {
     # cannot reach the outcome_goal. check if phase = planning, if so, we try to get the

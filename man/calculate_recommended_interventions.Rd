@@ -9,13 +9,15 @@ calculate_recommended_interventions(
   outcome_name,
   outcome_type,
   glm_family,
+  include_intercept = TRUE,
   interventions_list,
   center_characteristic_list = NULL,
+  center_characteristic_list_for_optimization = NULL,
   intervention_lower_bounds,
   intervention_upper_bounds,
   cost_list_of_lists,
-  outcome_goal_optimization = "numerical",
-  outcome_goal
+  outcome_goal,
+  outcome_goal_optimization = "numerical"
 )
 }
 \arguments{
@@ -26,13 +28,21 @@ calculate_recommended_interventions(
 \item{outcome_type}{character, Outcome type, either "continuous" or "binary"}
 
 \item{glm_family}{character, Family for the GLM model
-For example: "binomial"}
+For example: "binomial"
+For v1, we are only considering binomial family GLM.}
 
-\item{interventions_list}{list, Names of the intervention components
-For example: list("component1", "component2")}
+\item{include_intercept}{boolean, Whether the intercept should be included in the
+fitted model.}
 
-\item{center_characteristic_list}{list, Names of the center characteristics
-For example: list("characteristic1")}
+\item{interventions_list}{character vector, Names of the intervention components
+For example: c("component1", "component2")}
+
+\item{center_characteristic_list}{character vector, Names of the center characteristics
+For example: c("characteristic1")}
+
+\item{center_characteristic_list_for_optimization}{numeric vector, Given values of
+the center characteristics
+For example: c(1.74)}
 
 \item{intervention_lower_bounds}{numeric vector, Lower bounds for the intervention components
 For example: c(0,0)}
@@ -48,12 +58,15 @@ list(list(1, 2), list(4), list(5)) represents:
 - First component: cost = 1x + 2x^2
 - Second component: cost = 4x
 - Third component: cost = 5x
-Empty sublists are not allowed. Each component must have at least one coefficient.}
-
-\item{outcome_goal_optimization}{character, Method used behind the scenes for
-calculating the recommended interventions. Either "numerical" or "grid_search"}
+Empty sublists are not allowed. Each component must have at least one coefficient.
+For v1, we are only considering linear cost functions, more details below.}
 
 \item{outcome_goal}{numeric, The outcome goal}
+
+\item{outcome_goal_optimization}{character, Method used behind the scenes for
+calculating the recommended interventions. Either "numerical" or "grid_search"
+For v1, this does not matter since we work with linear cost functions and
+we only have one way of solving for the recommended interventions}
 }
 \value{
 List(recommended interventions, associated cost for the interventions,
@@ -70,7 +83,7 @@ calculate_recommended_interventions(
   outcome_name = "case",
   outcome_type = "binary",
   glm_family = "binomial",
-  interventions_list = list("age", "parity"),
+  interventions_list = c("age", "parity"),
   intervention_lower_bounds = c(0, 0),
   intervention_upper_bounds = c(50, 10),
   cost_list_of_lists = list(list(4), list(1)),
