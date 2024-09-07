@@ -1,7 +1,7 @@
 Package: LAGO
 Type: Package
 Title: LAGO Optimizations
-Version: 0.1.0
+Version: 1.0.0
 Author: Ante Bing, Jingyu Cui
 Maintainer: Ante Bing <abing@bu.edu>
 Description: Calculates LAGO recommended interventions for the next stage.
