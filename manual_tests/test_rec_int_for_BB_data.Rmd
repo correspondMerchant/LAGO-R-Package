@@ -18,7 +18,7 @@ editor_options:
 ## install and Load the LAGO pacakge 
 ```{r}
 # your path to the package tar.gz file
-# install.packages("path/to/LAGO_0.1.0.tar.gz", repos = NULL, type = "source")
+# install.packages("path/to/LAGO_1.0.0.tar.gz", repos = NULL, type = "source")
 library(LAGO)
 ```
 
