@@ -166,10 +166,10 @@ calculate_recommended_interventions <- function(df,
 
   # check if intervention_lower_bounds and intervention_upper_bounds are both
   # numerical vectors
-  if ( !(is.vector(intervention_lower_bounds) && is.numeric(intervention_lower_bounds)) ) {
+  if (!(is.vector(intervention_lower_bounds) && is.numeric(intervention_lower_bounds))) {
     stop("intervention_lower_bounds is not a numeric vector.")
   }
-  if ( !(is.vector(intervention_upper_bounds) && is.numeric(intervention_upper_bounds)) ) {
+  if (!(is.vector(intervention_upper_bounds) && is.numeric(intervention_upper_bounds))) {
     stop("intervention_upper_bounds is not a numeric vector.")
   }
 
@@ -274,7 +274,7 @@ calculate_recommended_interventions <- function(df,
 
   # get coefficients for the intervention components
   if (include_intercept == TRUE) {
-    int_coeff <- model$coefficients[c('(Intercept)', interventions_list)]
+    int_coeff <- model$coefficients[c("(Intercept)", interventions_list)]
   } else {
     int_coeff <- model$coefficients[interventions_list]
   }
