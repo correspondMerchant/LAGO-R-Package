@@ -3,7 +3,7 @@
 \docType{data}
 \name{BB_data}
 \alias{BB_data}
-\title{BetterBirth Data}
+\title{BetterBirth Data (for binary outcome analysis)}
 \format{
 A data frame with 6124 rows and 21 variables:
 \describe{

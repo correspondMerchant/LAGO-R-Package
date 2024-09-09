@@ -1,0 +1,67 @@
+---
+title: "manually test calculations of the recommended interventions with BB data and proportions as a continuous outcome."
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+# library(formatR)
+# knitr::opts_chunk$set(echo = TRUE)
+# knitr::opts_chunk$set(tidy=TRUE, tidy.opts=list(width.cutoff=70))
+```
+
+
+## We manually test the calculations of the recommended interventions with the BetterBirth data.
+
+## install and Load the LAGO pacakge 
+```{r}
+# install the LAGO package using the tar.gz file
+library(LAGO)
+```
+
+## Load the BetterBirth data with EBP proportions
+```{r}
+# BB data has been open sourced, so I pre-loaded the BB data in the LAGO package 
+BB_proportions <- LAGO::BB_proportions
+head(BB_proportions)
+```
+
+## Calculate the recommended interventions using the LAGO package 
+```{r}
+# Real use case. We expect this to be the user experience when 
+# using this R package. 
+
+optimization_results <- calculate_recommended_interventions(
+                                    df = BB_proportions,
+                                    outcome_name = "EBP_proportions",
+                                    outcome_type = "continuous", 
+                                    glm_family = "quasibinomial",
+                                    link = "logit",
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(list(1.7), list(8)),
+                                    outcome_goal = 0.8)
+```
+
+## Compare with the results from Bing et al. 
+```{r}
+# From Bing et al paper:
+# "... For a center with an average birth volume (z = 175), the estimated 
+# optimal intervention package under the linear cost function comprised a launch 
+# duration of 5 days and 31 coaching visits ... "
+optimization_results$rec_int
+# 30.52 approximates to 31, so same results as described in the paper 
+
+# cost for the recommended interventions
+optimization_results$rec_int_cost
+
+# estimated outcome mean/probability in the next stage 
+optimization_results$est_outcome_goal
+```
+
+

@@ -9,6 +9,7 @@ calculate_recommended_interventions(
   outcome_name,
   outcome_type,
   glm_family,
+  link = "logit",
   include_intercept = TRUE,
   interventions_list,
   center_characteristic_list = NULL,
@@ -29,7 +30,11 @@ calculate_recommended_interventions(
 
 \item{glm_family}{character, Family for the GLM model
 For example: "binomial"
-For v1, we are only considering binomial family GLM.}
+For v1.1, we are only considering binomial family, and quasibinomial(link="logit")}
+
+\item{link}{character, the link option when glm_family is set to quasibinomial.
+It has to be one of the following:
+logit (default), probit, cauchit, log and cloglog.}
 
 \item{include_intercept}{boolean, Whether the intercept should be included in the
 fitted model.}

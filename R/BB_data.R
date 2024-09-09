@@ -1,4 +1,4 @@
-#' BetterBirth Data
+#' BetterBirth Data (for binary outcome analysis)
 #'
 #' This is the cleaned version of the BetterBirth dataset used in Nevo et al.
 #'

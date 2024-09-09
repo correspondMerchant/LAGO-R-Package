@@ -9,7 +9,10 @@
 #' @param outcome_type character, Outcome type, either "continuous" or "binary"
 #' @param glm_family character, Family for the GLM model
 #' For example: "binomial"
-#' For v1, we are only considering binomial family GLM.
+#' For v1.1, we are only considering binomial family, and quasibinomial(link="logit")
+#' @param link character, the link option when glm_family is set to quasibinomial.
+#' It has to be one of the following:
+#' logit (default), probit, cauchit, log and cloglog.
 #' @param include_intercept boolean, Whether the intercept should be included in the
 #' fitted model.
 #' @param interventions_list character vector, Names of the intervention components
@@ -61,6 +64,7 @@ calculate_recommended_interventions <- function(df,
                                                 outcome_name,
                                                 outcome_type,
                                                 glm_family,
+                                                link = "logit",
                                                 include_intercept = TRUE,
                                                 interventions_list,
                                                 center_characteristic_list = NULL,
@@ -126,6 +130,16 @@ calculate_recommended_interventions <- function(df,
   }
   # TODO: for later versions, check if the user provided glm_family is one of
   # the supported family names. For v1, we are only considering binomial family.
+
+  # if glm_family is quasibinomial, check if the link option is a character type
+  if (!is.character(link)) {
+    stop("The link option for quasibinomial family is not a character type.")
+  }
+  # check if the provided link option is supported
+  supported_link_options <- c("logit", "probit", "cauchit", "log", "cloglog")
+  if (!(link %in% supported_link_options)) {
+    stop("The link option for quasibinomial family has to be one of the following: logit, probit, cauchit, log, and cloglog.")
+  }
 
   # check if interventions_list is a character vector type
   if (!(is.vector(interventions_list) && is.character(interventions_list))) {
@@ -243,17 +257,27 @@ calculate_recommended_interventions <- function(df,
   # need this step before fitting the models.
   # TODO: figure out which ones do we want to support?
   # for v1, we are only working with binomial family.
-  family_object <- switch(glm_family,
-    "binomial" = binomial(),
-    "poisson" = poisson(),
-    "gaussian" = gaussian(),
-    "Gamma" = Gamma(),
-    "inverse.gaussian" = inverse.gaussian(),
-    "quasi" = quasi(),
-    "quasibinomial" = quasibinomial(),
-    "quasipoisson" = quasipoisson(),
-    stop("Unsupported family. Please use one of the supported family types.")
-  )
+  if (glm_family != "quasibinomial") {
+    family_object <- switch(glm_family,
+                            "binomial" = binomial(),
+                            "poisson" = poisson(),
+                            "gaussian" = gaussian(),
+                            "Gamma" = Gamma(),
+                            "inverse.gaussian" = inverse.gaussian(),
+                            "quasi" = quasi(),
+                            "quasibinomial" = quasibinomial(),
+                            "quasipoisson" = quasipoisson()
+                            )
+  } else {
+    family_object <- switch(link,
+                            "logit" = quasibinomial(link="logit"),
+                            "probit" = quasibinomial(link="probit"),
+                            "cauchit" = quasibinomial(link="cauchit"),
+                            "log" = quasibinomial(link="log"),
+                            "cloglog" = quasibinomial(link="cloglog")
+                            )
+  }
+
 
   # fit the model
   # depending on the whether the user wants to include center characteristics
