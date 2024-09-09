@@ -1,7 +1,0 @@
-{
-    "installOptions": {
-        "installFromRepository": true,
-        "libraryPath": "/Users/antebing/Library/Caches/org.R-project.R/R/renv/library/LAGO-130a3f46/R-4.3/aarch64-apple-darwin20",
-        "installDependencies": true
-    }
-}
