@@ -85,7 +85,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
     est_reachable_outcome <- expit(beta0 + sum(center_cha_coeff_vec * center_cha) + sum(beta_vec * intervention_lower_bounds))
     return(list(
       est_rec_int = intervention_lower_bounds,
-      outcome_goal = outcome_goal,
+      rec_int_cost = cost_coef %*% intervention_lower_bounds,
       est_reachable_outcome = est_reachable_outcome
     ))
   }
@@ -101,7 +101,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
   if (expit(beta0.center + sum(beta_vec[pos_eff] * intervention_lower_bounds[pos_eff])) >= outcome_goal) {
     return(list(
       est_rec_int = est_rec_int,
-      outcome_goal = outcome_goal,
+      rec_int_cost = cost_coef %*% intervention_lower_bounds,
       est_reachable_outcome = outcome_goal
     ))
   }
@@ -189,7 +189,7 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
 
   return(list(
     est_rec_int = est_rec_int,
-    outcome_goal = outcome_goal,
+    rec_int_cost = cost_coef %*% est_rec_int,
     est_reachable_outcome = est_reachable_outcome
   ))
 }

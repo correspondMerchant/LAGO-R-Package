@@ -3,5 +3,6 @@
 export(calculate_recommended_interventions)
 export(get_recommended_interventions_linear_cost)
 import(stats)
+importFrom(NlcOptim,solnl)
 importFrom(rje,expit)
 importFrom(rje,logit)

@@ -30,17 +30,18 @@
 #' Each sublist represents a component and contains coefficients for its cost function.
 #' The position of each coefficient in the sublist corresponds to the power of x in the polynomial cost function.
 #' For example:
-#' list(list(1, 2), list(4), list(5)) represents:
+#' list(c(1, 2), c(4), c(5, 4, 3)) represents:
 #' - First component: cost = 1x + 2x^2
 #' - Second component: cost = 4x
-#' - Third component: cost = 5x
+#' - Third component: cost = 5x + 4x^2 + 3x^3
 #' Empty sublists are not allowed. Each component must have at least one coefficient.
-#' For v1, we are only considering linear cost functions, more details below.
 #' @param outcome_goal numeric, The outcome goal
 #' @param outcome_goal_optimization character, Method used behind the scenes for
 #' calculating the recommended interventions. Either "numerical" or "grid_search"
 #' For v1, this does not matter since we work with linear cost functions and
 #' we only have one way of solving for the recommended interventions
+#' @param grid_search_step_size numeric, step size for the grid search algorithm,
+#' default value is 0.01 for each intervention component.
 #'
 #' @return List(recommended interventions, associated cost for the interventions,
 #' estimated outcome mean/probability for the intervention group in the next stage)
@@ -54,7 +55,7 @@
 #'   interventions_list = c("age", "parity"),
 #'   intervention_lower_bounds = c(0, 0),
 #'   intervention_upper_bounds = c(50, 10),
-#'   cost_list_of_lists = list(list(4), list(1)),
+#'   cost_list_of_lists = list(c(4), c(1)),
 #'   outcome_goal = 0.5
 #' )
 #'
@@ -73,7 +74,8 @@ calculate_recommended_interventions <- function(df,
                                                 intervention_upper_bounds,
                                                 cost_list_of_lists,
                                                 outcome_goal,
-                                                outcome_goal_optimization = "numerical") {
+                                                outcome_goal_optimization = "numerical",
+                                                grid_search_step_size = 0.01) {
   # initial checks, very important
   # check if the data frame is not null
   if (is.null(df)) {
@@ -140,7 +142,7 @@ calculate_recommended_interventions <- function(df,
   if (!(link %in% supported_link_options)) {
     stop("The link option for quasibinomial family has to be one of the following: logit, probit, cauchit, log, and cloglog.")
   }
-  
+
   # check if interventions_list is a character vector type
   if (!(is.vector(interventions_list) && is.character(interventions_list))) {
     stop("Interventions list must be a character vector.")
@@ -209,9 +211,9 @@ calculate_recommended_interventions <- function(df,
     stop("cost_list_of_lists must be a list.")
   }
   # Check if all elements of cost_list_of_lists are lists
-  if (!all(sapply(cost_list_of_lists, is.list))) {
-    stop("All elements of the cost_list_of_lists must be lists.")
-  }
+  # if (!all(sapply(cost_list_of_lists, is.list))) {
+  #   stop("All elements of the cost_list_of_lists must be lists.")
+  # }
   # Check if all sub-elements of cost_list_of_lists are numeric
   all_numeric <- all(sapply(cost_list_of_lists, function(sublist) {
     all(sapply(sublist, is.numeric))
@@ -228,6 +230,11 @@ calculate_recommended_interventions <- function(df,
   if (!is.character(outcome_goal_optimization)) {
     stop("The outcome_goal_optimization is not a character type.")
   }
+  # check if the outcome goal optimization method is one of the defined methods
+  optimization_method_list <- c("numerical", "grid_search")
+  if (!(outcome_goal_optimization %in% optimization_method_list)) {
+    stop(paste("outcome_goal_optimization is not one of the supported methods. The supported methods are", optimization_method_list, "."))
+  }
   # V1 does not consider the value of outcome_goal_optimization, because we are
   # only working with linear cost functions for now. For linear cost functions,
   # we have a very robust and fast way of solving for recommended interventions,
@@ -241,6 +248,17 @@ calculate_recommended_interventions <- function(df,
   # Previously, we only had grid search method for working with cubic cost
   # function. For PULESA analysis, Jingyu added the numerical solution. Check
   # the dropbox folder 'LAGO r package paper' for Jingyu's code.
+
+  # when the outcome_goal_optimization is grid_search, check the number of intervention components
+  if (outcome_goal_optimization == "grid_search") {
+    if (length(interventions_list) > 3) {
+      warning(paste0("There are more than 3 intervention components, and the grid search ",
+              "algorithm may take significant amount of time to run. Please consider ",
+              "adjusting the step size, or switch to the numerical optimization ",
+              "method."))
+    }
+  }
+
 
   # check if the outcome goal is a numeric number
   if (!is.numeric(outcome_goal)) {
@@ -283,11 +301,11 @@ calculate_recommended_interventions <- function(df,
     "binary" = c("binomial", "quasibinomial"),
     "continuous" = c("gaussian", "Gamma", "inverse.gaussian", "quasi", "quasibinomial")
   )
-  
+
   # check if the specified family matches the outcome type
   if (!glm_family %in% valid_families[[outcome_type]]) {
-    stop(paste("The specified family '", glm_family, 
-               "' is not valid for the outcome type '", outcome_type, "'.", 
+    stop(paste("The specified family '", glm_family,
+               "' is not valid for the outcome type '", outcome_type, "'.",
                " Please select a compatible family.", sep = ""))
   }
   # MINH----------------------------------------------------------------------------------
@@ -320,11 +338,6 @@ calculate_recommended_interventions <- function(df,
     center_characteristics_coeff <- model$coefficients[center_characteristic_list]
   }
 
-  # TODO: add the option for non linear cost functions
-  # for v1, we are only supporting linear cost functions, so below, I'm using
-  # x[[1]], but this will need to be updated for other types of cost functions.
-  cost_coef <- sapply(cost_list_of_lists, function(x) x[[1]])
-
   # set the values of center_cha_coeff_vec and center_cha based on if
   # center_characteristic_list is defined. See parameter definitions in function
   # get_recommended_interventions_linear_cost for details.
@@ -338,23 +351,45 @@ calculate_recommended_interventions <- function(df,
 
   # get the recommended interventions that satisfy the outcome goal while
   # minimizing the total cost.
-  # TODO: add support for the "phase" option, the phase option is used to indicate
+  # check which optimization function to call based on the provided cost functions
+  if (all(sapply(cost_list_of_lists, length) <= 1)) {
+    # using linear cost functions
+    cost_coef <- sapply(cost_list_of_lists, function(x) x[1])
+
+    rec_int_results <- get_recommended_interventions_linear_cost(
+      beta_vec = int_coeff,
+      center_cha_coeff_vec = center_cha_coeff_vec,
+      cost_coef = cost_coef,
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      outcome_goal = outcome_goal,
+      center_cha = center_cha,
+      intercept = include_intercept
+    )
+  } else {
+    # using higher order cost functions
+    rec_int_results <- get_recommended_interventions_higher_order_cost(
+      beta_vec = int_coeff,
+      cost_list_of_lists = cost_list_of_lists,
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      outcome_goal = outcome_goal,
+      outcome_goal_optimization = outcome_goal_optimization,
+      grid_search_step_size = grid_search_step_size,
+      center_cha_coeff_vec = center_cha_coeff_vec,
+      center_cha = center_cha,
+      intercept = include_intercept
+    )
+  }
+
+  # TODO: also add support for the "phase" option (?), the phase option is used to indicate
   # if we are calculating the recommended interventions for the next stage, or
   # calculating the optimal interventions at the end of the LAGO trial. For the
   # optimal intervention at the end of the LAGO trial, using linear cost
   # functions, see web appendix section 5.1 of Nevo et al for details.
-  rec_int_results <- get_recommended_interventions_linear_cost(
-    beta_vec = int_coeff,
-    center_cha_coeff_vec = center_cha_coeff_vec,
-    cost_coef = cost_coef,
-    intervention_lower_bounds = intervention_lower_bounds,
-    intervention_upper_bounds = intervention_upper_bounds,
-    outcome_goal = outcome_goal,
-    center_cha = center_cha,
-    intercept = include_intercept
-  )
+
   rec_int <- rec_int_results$est_rec_int
-  rec_int_cost <- rec_int %*% cost_coef
+  rec_int_cost <- rec_int_results$rec_int_cost
   est_outcome_goal <- rec_int_results$est_reachable_outcome
 
   # TODO: add confidence set calculations for the recommended interventions
@@ -403,3 +438,5 @@ calculate_recommended_interventions <- function(df,
 #   cost_list_of_lists = list(list(4), list(1)),
 #   outcome_goal = 0.5
 # )
+#
+#
