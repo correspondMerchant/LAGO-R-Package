@@ -1,0 +1,82 @@
+---
+title: "test confidence set"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+# library(formatR)
+# knitr::opts_chunk$set(echo = TRUE)
+# knitr::opts_chunk$set(tidy=TRUE, tidy.opts=list(width.cutoff=70))
+```
+
+## we manually test confidence set calculations
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+## binary outcome
+```{r}
+BB_data <- LAGO::BB_data
+head(BB_data)
+```
+
+```{r}
+optimization_results <- calculate_recommended_interventions(
+                                    df = BB_data,
+                                    outcome_name = "pp3_oxytocin_mother",
+                                    outcome_type = "binary", 
+                                    glm_family = "binomial",
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(c(1.7), c(8)),
+                                    outcome_goal = 0.85,
+                                    include_confidence_set = TRUE,
+                                    confidence_set_step_size = c(1, 0.5),
+                                    confidence_set_alpha = 0.05)
+optimization_results
+# cs results are the same as described below
+
+# from Nevo et al:
+# Out of 360 potential intervention packages, 38 (10.5%) were included in the 
+# 95% confidence set. The set included the following combinations: 1.5 days 
+# launch duration and 40 coaching visits; 2 days launch durations and 27 or 
+# more coaching visits; 2.5 days launch duration and less than 20 coaching 
+# visits; and 3 days launch duration and less than 5 coaching visits. 
+```
+
+
+
+## continuous outcome
+```{r}
+BB_proportions <- LAGO::BB_proportions
+head(BB_proportions)
+```
+
+```{r}
+optimization_results <- calculate_recommended_interventions(
+                                    df = BB_proportions,
+                                    outcome_name = "EBP_proportions",
+                                    outcome_type = "continuous", 
+                                    glm_family = "quasibinomial",
+                                    link = "logit",
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(c(380, -24, 0.6), c(1700, -950, 220)),
+                                    outcome_goal = 0.8,
+                                    include_confidence_set = TRUE,
+                                    confidence_set_step_size = c(1, 0.5),
+                                    confidence_set_alpha = 0.05)
+optimization_results
+# I didn't report the cs results the same way as nevo et al in the continuous outcome paper
+```
+

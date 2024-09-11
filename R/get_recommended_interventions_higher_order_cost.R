@@ -46,11 +46,11 @@
 #' @examples
 #' get_recommended_interventions_higher_order_cost(
 #'   beta_vec = c(0.1, 0.3, 0.15),
-#'   cost_list_of_lists = list(c(1, 2), c(4), c(5)),
+#'   cost_list_of_lists = list(c(1, 2), c(4)),
 #'   intervention_lower_bounds = c(0, 0),
 #'   intervention_upper_bounds = c(10, 20),
 #'   outcome_goal = 0.8,
-#'   outcome_goal_optimization = "grid_search"
+#'   outcome_goal_optimization = "grid_search",
 #' )
 #'
 #' @importFrom rje expit logit
@@ -61,17 +61,16 @@
 #
 #
 get_recommended_interventions_higher_order_cost <- function(beta_vec,
-                                                      cost_list_of_lists,
-                                                      intervention_lower_bounds,
-                                                      intervention_upper_bounds,
-                                                      outcome_goal,
-                                                      outcome_goal_optimization = "numerical",
-                                                      grid_search_step_size = 0.01,
-                                                      center_cha_coeff_vec = 0,
-                                                      center_cha = 0,
-                                                      intercept = TRUE,
-                                                      phase = "planning"
-                                                      ) {
+                                                            cost_list_of_lists,
+                                                            intervention_lower_bounds,
+                                                            intervention_upper_bounds,
+                                                            outcome_goal,
+                                                            outcome_goal_optimization = "numerical",
+                                                            grid_search_step_size = 0.01,
+                                                            center_cha_coeff_vec = 0,
+                                                            center_cha = 0,
+                                                            intercept = TRUE,
+                                                            phase = "planning") {
   # check if center_cha and center_cha_coeff_vec have the same length
   if (length(center_cha) != length(center_cha_coeff_vec)) {
     stop("coefficients for the center charactersitics and the number of given center characteristics are not at the same length.")
@@ -128,30 +127,32 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
         valid_indices <- which(all_outcomes >= outcome_goal)
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
 
-        est_rec_int <- as.numeric(full_grid[best_index,])
+        est_rec_int <- as.numeric(full_grid[best_index, ])
         est_reachable_outcome <- outcome_goal
         rec_int_cost <- all_costs[best_index]
       } else {
         # if the outcome goal is not achievable, find the solution with the maximum outcome
         best_index <- which.max(all_outcomes)
 
-        est_rec_int <- as.numeric(full_grid[best_index,])
+        est_rec_int <- as.numeric(full_grid[best_index, ])
         est_reachable_outcome <- max_outcome
         rec_int_cost <- all_costs[best_index]
       }
 
-      return(list(est_rec_int = est_rec_int,
-                  rec_int_cost = rec_int_cost,
-                  est_reachable_outcome = est_reachable_outcome))
+      return(list(
+        est_rec_int = est_rec_int,
+        rec_int_cost = rec_int_cost,
+        est_reachable_outcome = est_reachable_outcome
+      ))
     }
 
     # calls the grid search optimization function
-    opt_results <- optimize_cost_grid_search(cost_list_of_lists, intervention_lower_bounds,
-                                             intervention_upper_bounds, beta_vec, outcome_goal,
-                                             center_cha_coeff_vec, center_cha, grid_search_step_size)
-  }
-
-  else if (outcome_goal_optimization == "numerical") {
+    opt_results <- optimize_cost_grid_search(
+      cost_list_of_lists, intervention_lower_bounds,
+      intervention_upper_bounds, beta_vec, outcome_goal,
+      center_cha_coeff_vec, center_cha, grid_search_step_size
+    )
+  } else if (outcome_goal_optimization == "numerical") {
     # we use the solnl() function from the NlcOptim library (Jingyu's idea)
     # the objective function is the function that we are trying to minimize
     # so in our case, the total cost, sum of cost for each intervention component.
@@ -178,7 +179,7 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
 
       # objective function for the total cost
       cost_obj_fun <- function(x) {
-        return( sum(mapply(function(f, xi) f(xi), cost_functions, x)))
+        return(sum(mapply(function(f, xi) f(xi), cost_functions, x)))
       }
 
       # check if the max achievable outcome is larger than the outcome goal
@@ -190,16 +191,18 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
         constraint_fun <- function(x) {
           f <- NULL
           int_vector <- if (intercept) c(1, x) else x
-          f <- rbind(f, outcome_goal - expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha) )
-          return( list(ceq=NULL, c=f) )
+          f <- rbind(f, outcome_goal - expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha))
+          return(list(ceq = NULL, c = f))
         }
 
         # run optimization
-        result <- solnl(X = (lo + up) / 2,
-                        objfun = cost_obj_fun,
-                        confun = constraint_fun,
-                        lb = lo,
-                        ub = up)
+        result <- solnl(
+          X = (lo + up) / 2,
+          objfun = cost_obj_fun,
+          confun = constraint_fun,
+          lb = lo,
+          ub = up
+        )
 
         est_rec_int <- result$par
         est_reachable_outcome <- outcome_goal
@@ -211,16 +214,20 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
         rec_int_cost <- cost_obj_fun(est_rec_int)
       }
 
-      return(list(est_rec_int = est_rec_int,
-                  rec_int_cost = rec_int_cost,
-                  est_reachable_outcome = est_reachable_outcome,
-                  max_achievable_outcome = max_achievable_outcome))
+      return(list(
+        est_rec_int = est_rec_int,
+        rec_int_cost = rec_int_cost,
+        est_reachable_outcome = est_reachable_outcome,
+        max_achievable_outcome = max_achievable_outcome
+      ))
     }
 
 
-    opt_results <- optimize_cost_nlcoptim(cost_list_of_lists, intervention_lower_bounds,
-                                          intervention_upper_bounds, beta_vec, outcome_goal,
-                                          center_cha_coeff_vec, center_cha)
+    opt_results <- optimize_cost_nlcoptim(
+      cost_list_of_lists, intervention_lower_bounds,
+      intervention_upper_bounds, beta_vec, outcome_goal,
+      center_cha_coeff_vec, center_cha
+    )
   }
 
   return(list(
