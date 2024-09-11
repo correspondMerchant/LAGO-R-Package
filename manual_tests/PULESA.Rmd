@@ -1,0 +1,78 @@
+---
+title: "manually test calculations of the recommended interventions with PULESA"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+# library(formatR)
+# knitr::opts_chunk$set(echo = TRUE)
+# knitr::opts_chunk$set(tidy=TRUE, tidy.opts=list(width.cutoff=70))
+```
+
+## install and Load the LAGO pacakge 
+```{r}
+# install the LAGO package using the tar.gz file
+# library(LAGO)
+
+# use the following to load the LAGO library while developing the r package:  
+devtools::load_all()
+```
+
+```{r}
+# manually load in the pulesa_test_data for now
+# main effect model (same fitting results as in Jingyu's code)
+# consider: old cost function, only the overall goal > 0.8, hyper_train="current"
+# [1,]  0.634
+# [2,]  1.000
+# [3,] 10.000
+# [4,]  0.000
+# [5,]  0.000
+# [6,]  0.000
+# [7,]  1.000
+optimization_cubic_results <- calculate_recommended_interventions(
+                                    df = pulesa_test_data,
+                                    outcome_name = "Proportions",
+                                    outcome_type = "binary", 
+                                    glm_family = "binomial",
+                                    weights = pulesa_test_data$Total_visit,
+                                    linear_cost_functions = FALSE,
+                                    link = "logit",
+                                    outcome_goal_optimization = "numerical",
+                                    interventions_list = c("AccessMedicines", 
+                                                           "AccessBPMachines",
+                                                           "HypertensionTraining",
+                                                           "DeliveryA",
+                                                           "DeliveryB",
+                                                           "RemoteMonitoring",
+                                                           "PerformanceImprovement"),
+                                    center_characteristic_list = c("Clinic",
+                                                                   "Period",
+                                                                   "MI_DeliveryB",
+                                                                   "MI_RemoteMonitoring",
+                                                                   "MI_PerformanceImprovement"),
+                                    center_characteristic_list_for_optimization = c(0,0,0,0,0),
+                                    intervention_lower_bounds = c(0,0,0,0,0,0,0),
+                                    intervention_upper_bounds = c(3,1,10,1,1,1,1),
+                                    cost_list_of_lists = list(c(1),c(2),c(3),c(4),c(5),c(6),c(7)),
+                                    outcome_goal = 0.8)
+optimization_cubic_results
+```
+
+
+
+
+```{r}
+# consider: old cost function, the overall goal > 0.8, and hypertension >  0.45
+# [1,] 2.455
+# [2,] 1.000
+# [3,] 9.525
+# [4,] 0.000
+# [5,] 0.079
+# [6,] 0.970
+# [7,] 1.000
+
+```
+

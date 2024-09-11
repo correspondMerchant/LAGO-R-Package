@@ -13,6 +13,7 @@
 #' @param link character, the link option when glm_family is set to quasibinomial.
 #' It has to be one of the following:
 #' logit (default), probit, cauchit, log and cloglog.
+#' @param weights numeric vector, the weights option for fitting GLM in R.
 #' @param include_intercept boolean, Whether the intercept should be included in the
 #' fitted model.
 #' @param interventions_list character vector, Names of the intervention components
@@ -26,15 +27,27 @@
 #' For example: c(0,0)
 #' @param intervention_upper_bounds numeric vector, Upper bounds for the intervention components
 #' For example: c(10,20)
+#' @param linear_cost_functions boolean, Whether the cost functions for the intervention
+#' components are linear cost functions. If using linear cost functions, a different algorithm,
+#' that is specific to linear cost functions, will be used for solving the LAGO optimization problem.
+#' See cost_list_of_lists for details.
 #' @param cost_list_of_lists list, A nested list structure defining cost functions for the intervention components.
 #' Each sublist represents a component and contains coefficients for its cost function.
 #' The position of each coefficient in the sublist corresponds to the power of x in the polynomial cost function.
-#' For example:
-#' list(c(1, 2), c(4), c(5, 4, 3)) represents:
-#' - First component: cost = 1x + 2x^2
+#' For example, if linear_cost_functions is set to TRUE, fixed costs are not supported,
+#' list(c(2), c(4), c(5)) represents:
+#' - First component: cost = 2x
 #' - Second component: cost = 4x
-#' - Third component: cost = 5x + 4x^2 + 3x^3
+#' - Third component: cost = 5x
 #' Empty sublists are not allowed. Each component must have at least one coefficient.
+#'
+#' For example, if linear_cost_functions is set to FALSE, we support
+#' more flexible cost function definitions.
+#' list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents:
+#' - First component: cost = 1 + 2x + 3x^2 + 4x^3
+#' - Second component: cost = 4 + 6x
+#' - Third component: cost = 5 + 4x + 3x^2
+#'
 #' @param outcome_goal numeric, The outcome goal
 #' @param outcome_goal_optimization character, Method used behind the scenes for
 #' calculating the recommended interventions. Either "numerical" or "grid_search"
@@ -47,11 +60,14 @@
 #' @param confidence_set_step_size numeric vector, Step size for the grid search
 #' algorithm used in the confidence set calculations.
 #' @param confidence_set_alpha numeric, Type I error of the confidence set.
+#' @param grid_search_step_size numeric, step size for the grid search algorithm,
+#' default value is 0.01 for each intervention component.
 #'
 #' @return List(recommended interventions, associated cost for the interventions,
 #' estimated outcome mean/probability for the intervention group in the next stage)
 #'
 #' @examples
+#' # Basic case showing how to carry out the optimization with a built-in data set.
 #' calculate_recommended_interventions(
 #'   df = infert,
 #'   outcome_name = "case",
@@ -60,6 +76,7 @@
 #'   interventions_list = c("age", "parity"),
 #'   intervention_lower_bounds = c(0, 0),
 #'   intervention_upper_bounds = c(50, 10),
+#'   linear_cost_functions = TRUE,
 #'   cost_list_of_lists = list(c(4), c(1)),
 #'   outcome_goal = 0.5
 #' )
@@ -78,6 +95,43 @@
 #'   confidence_set_step_size = c(1, 1)
 #' )
 #'
+#' # Using the BetterBirth data set, carry out the LAGO optimization for a binary outcome
+#' calculate_recommended_interventions(
+#'  df = BB_data,
+#'  outcome_name = "pp3_oxytocin_mother",
+#'  outcome_type = "binary",
+#'  glm_family = "binomial",
+#'  interventions_list = c("coaching_updt", "launch_duration"),
+#'  center_characteristic_list = c("birth_volume_100"),
+#'  center_characteristic_list_for_optimization = 1.75,
+#'  intervention_lower_bounds = c(1,1),
+#'  intervention_upper_bounds = c(40, 5),
+#'  linear_cost_functions = TRUE,
+#'  cost_list_of_lists = list(c(1.7), c(8)),
+#'  outcome_goal = 0.85,
+#'  include_confidence_set = TRUE,
+#'  confidence_set_step_size = c(1, 1)
+#'  )
+#'
+#'  # Using the BetterBirth data set, carry out the LAGO optimization for a continuous outcome
+#' calculate_recommended_interventions(
+#'  df = BB_proportions,
+#'  outcome_name = "EBP_proportions",
+#'  outcome_type = "continuous",
+#'  glm_family = "quasibinomial",
+#'  link = "logit",
+#'  interventions_list = c("coaching_updt", "launch_duration"),
+#'  center_characteristic_list = c("birth_volume_100"),
+#'  center_characteristic_list_for_optimization = 1.75,
+#'  intervention_lower_bounds = c(1,1),
+#'  intervention_upper_bounds = c(40, 5),
+#'  linear_cost_functions = TRUE,
+#'  cost_list_of_lists = list(c(1.7), c(8)),
+#'  outcome_goal = 0.85,
+#'  include_confidence_set = TRUE,
+#'  confidence_set_step_size = c(1, 1)
+#'  )
+#'
 #' @export
 #'
 calculate_recommended_interventions <- function(df,
@@ -85,12 +139,14 @@ calculate_recommended_interventions <- function(df,
                                                 outcome_type,
                                                 glm_family,
                                                 link = "logit",
+                                                weights = NULL,
                                                 include_intercept = TRUE,
                                                 interventions_list,
                                                 center_characteristic_list = NULL,
                                                 center_characteristic_list_for_optimization = NULL,
                                                 intervention_lower_bounds,
                                                 intervention_upper_bounds,
+                                                linear_cost_functions = FALSE,
                                                 cost_list_of_lists,
                                                 outcome_goal,
                                                 outcome_goal_optimization = "numerical",
@@ -173,6 +229,27 @@ calculate_recommended_interventions <- function(df,
   if (!is.logical(include_intercept)) {
     stop("The include_intercept indicator is not a boolean.")
   }
+  # if glm_family is quasibinomial, check if the link option is a character type
+  if (!is.character(link)) {
+    stop("The link option for quasibinomial family is not a character type.")
+  }
+  # check if the provided link option is supported
+  supported_link_options <- c("logit", "probit", "cauchit", "log", "cloglog")
+  if (!(link %in% supported_link_options)) {
+    stop("The link option for quasibinomial family has to be one of the following: logit, probit, cauchit, log, and cloglog.")
+  }
+
+  # check if the provided weights option is numeric
+  if (!is.null(weights)) {
+    if (!is.numeric(weights)) {
+      stop("The weights option is not numeric.")
+    }
+    # check if the provided weights option has the same length as the number of
+    # observations
+    if (length(weights) != length(df[,interventions_list[1]])) {
+      stop("The length of the weights is not the same as the number of observations in the provided data frame.")
+    }
+  }
 
   # check if interventions_list is a character vector type
   if (!(is.vector(interventions_list) && is.character(interventions_list))) {
@@ -237,14 +314,15 @@ calculate_recommended_interventions <- function(df,
     ))
   }
 
+  # check if linear_cost_functions is boolean
+  if (!is.logical(linear_cost_functions)) {
+    stop("linear_cost_functions is not a boolean.")
+  }
+
   # check if cost_list_of_lists is a list, and each list within the list is a numeric vector
   if (!is.list(cost_list_of_lists)) {
     stop("cost_list_of_lists must be a list.")
   }
-  # Check if all elements of cost_list_of_lists are lists
-  # if (!all(sapply(cost_list_of_lists, is.list))) {
-  #   stop("All elements of the cost_list_of_lists must be lists.")
-  # }
   # Check if all sub-elements of cost_list_of_lists are numeric
   all_numeric <- all(sapply(cost_list_of_lists, function(sublist) {
     all(sapply(sublist, is.numeric))
@@ -256,6 +334,16 @@ calculate_recommended_interventions <- function(df,
   if (length(cost_list_of_lists) != length(interventions_list)) {
     stop("The lengths of cost_list_of_lists and interventions_list do not match.")
   }
+  # check if each element of cost_list_of_lists has length 1 when linear_cost_functions
+  # is set to TRUE
+  if (linear_cost_functions) {
+    if (!all(sapply(cost_list_of_lists, length) == 1)) {
+      stop(paste0("Not all elements has length 1 in cost_list_of_lists.",
+                  "Please check the help files of linear_cost_functions and ",
+                  "cost_list_of_lists for definitions of the cost functions."))
+    }
+  }
+
 
   # check if the outcome goal optimization method is a character type
   if (!is.character(outcome_goal_optimization)) {
@@ -269,6 +357,9 @@ calculate_recommended_interventions <- function(df,
 
   # when the outcome_goal_optimization is grid_search, check the number of intervention components
   if (outcome_goal_optimization == "grid_search") {
+    print(paste0("The grid search optimization algorithm does not support fixed costs. ",
+                 "If you need to include fixed costs, please set outcome_goal_optimization ",
+                 "to 'numerical'."))
     if (length(interventions_list) > 3) {
       warning(paste0(
         "There are more than 3 intervention components, and the grid search ",
@@ -278,7 +369,6 @@ calculate_recommended_interventions <- function(df,
       ))
     }
   }
-
 
   # check if the outcome goal is a numeric number
   if (!is.numeric(outcome_goal)) {
@@ -336,7 +426,6 @@ calculate_recommended_interventions <- function(df,
     )
   }
 
-  # MINH----------------------------------------------------------------------------------
   valid_families <- list(
     "binary" = c("binomial", "quasibinomial"),
     "continuous" = c("gaussian", "Gamma", "inverse.gaussian", "quasi", "quasibinomial")
@@ -350,16 +439,15 @@ calculate_recommended_interventions <- function(df,
       sep = ""
     ))
   }
-  # MINH----------------------------------------------------------------------------------
   # fit the model
   # depending on the whether the user wants to include center characteristics
   # we fit the model differently.
   if (is.null(center_characteristic_list)) {
     formula <- as.formula(paste(outcome_name, "~", paste(interventions_list, collapse = " + ")))
-    model <- glm(formula, data = df, family = family_object)
+    model <- glm(formula, data = df, family = family_object, weights = weights)
   } else {
     formula_with_center_characteristics <- as.formula(paste(outcome_name, "~", paste(interventions_list, collapse = " + "), " + ", paste(center_characteristic_list, collapse = " + ")))
-    model <- glm(formula_with_center_characteristics, data = df, family = family_object)
+    model <- glm(formula_with_center_characteristics, data = df, family = family_object, weights = weights)
   }
 
   # if model did not converge, no need to continue to calculate the recommended
@@ -435,7 +523,6 @@ calculate_recommended_interventions <- function(df,
   est_outcome_goal <- rec_int_results$est_reachable_outcome
 
 
-
   # for now, we are only returning the following list:
   # TODO: Donna suggested that we should add an optional output to optimize for a new situation not in the original data
   # check Donna's 9/20/2024 email
@@ -482,7 +569,6 @@ calculate_recommended_interventions <- function(df,
 
 
 
-
 ################################
 # TEST (should be deleted later)
 ################################
@@ -502,7 +588,7 @@ calculate_recommended_interventions <- function(df,
 # outcome_goal <- 0.9
 #
 #
-# calculate_recommended_interventions(
+# results <- calculate_recommended_interventions(
 #   df = infert,
 #   outcome_name = "case",
 #   outcome_type = "binary",
@@ -526,5 +612,4 @@ calculate_recommended_interventions <- function(df,
 #   cost_list_of_lists = list(list(4), list(1)),
 #   outcome_goal = 0.5,
 #   include_confidence_set = TRUE,
-#   confidence_set_step_size = c(1,1)
-# )
+#   confidence_set_step_size = c(1,1))

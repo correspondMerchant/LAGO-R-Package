@@ -10,19 +10,23 @@ calculate_recommended_interventions(
   outcome_type,
   glm_family,
   link = "logit",
+  weights = NULL,
   include_intercept = TRUE,
   interventions_list,
   center_characteristic_list = NULL,
   center_characteristic_list_for_optimization = NULL,
   intervention_lower_bounds,
   intervention_upper_bounds,
+  linear_cost_functions = FALSE,
   cost_list_of_lists,
+  cost_function_weights = NULL,
   outcome_goal,
   outcome_goal_optimization = "numerical",
   grid_search_step_size = 0.01,
   include_confidence_set = FALSE,
   confidence_set_step_size = NULL,
-  confidence_set_alpha = 0.05
+  confidence_set_alpha = 0.05,
+  grid_search_step_size = 0.01
 )
 }
 \arguments{
@@ -39,6 +43,8 @@ For v1.1, we are only considering binomial family, and quasibinomial(link="logit
 \item{link}{character, the link option when glm_family is set to quasibinomial.
 It has to be one of the following:
 logit (default), probit, cauchit, log and cloglog.}
+
+\item{weights}{numeric vector, the weights option for fitting GLM in R.}
 
 \item{include_intercept}{boolean, Whether the intercept should be included in the
 fitted model.}
@@ -59,22 +65,39 @@ For example: c(0,0)}
 \item{intervention_upper_bounds}{numeric vector, Upper bounds for the intervention components
 For example: c(10,20)}
 
+\item{linear_cost_functions}{boolean, Whether the cost functions for the intervention
+components are linear cost functions. If using linear cost functions, a different algorithm,
+that is specific to linear cost functions, will be used for solving the LAGO optimization problem.
+See cost_list_of_lists for details.}
+
 \item{cost_list_of_lists}{list, A nested list structure defining cost functions for the intervention components.
 Each sublist represents a component and contains coefficients for its cost function.
 The position of each coefficient in the sublist corresponds to the power of x in the polynomial cost function.
-For example:
-list(c(1, 2), c(4), c(5, 4, 3)) represents:
-- First component: cost = 1x + 2x^2
+For example, if linear_cost_functions is set to TRUE, fixed costs are not supported,
+list(c(2), c(4), c(5)) represents:
+- First component: cost = 2x
 - Second component: cost = 4x
-- Third component: cost = 5x + 4x^2 + 3x^3
-Empty sublists are not allowed. Each component must have at least one coefficient.}
+- Third component: cost = 5x
+Empty sublists are not allowed. Each component must have at least one coefficient.
+
+For example, if linear_cost_functions is set to FALSE, we support
+more flexible cost function definitions.
+list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents:
+- First component: cost = 1 + 2x + 3x^2 + 4x^3
+- Second component: cost = 4 + 6x
+- Third component: cost = 5 + 4x + 3x^2}
+
+\item{cost_function_weights}{numeric vector, A numeric vector defining the weights for the
+cost functions of the intervention components.
+For example, if cost_list_of_lists = list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)),
+and cost_function_weights = c(0.2, 1.4, 1.6) then the total cost function is:
+(1 + 2x + 3x^2 + 4x^3)\*0.2 + (4 + 6x)\*1.4 + (5 + 4x + 3x^2)\*1.6.}
 
 \item{outcome_goal}{numeric, The outcome goal}
 
 \item{outcome_goal_optimization}{character, Method used behind the scenes for
-calculating the recommended interventions. Either "numerical" or "grid_search"
-For v1, this does not matter since we work with linear cost functions and
-we only have one way of solving for the recommended interventions}
+calculating the recommended interventions. Either "numerical" or "grid_search".
+add descriptions for both}
 
 \item{grid_search_step_size}{numeric, step size for the grid search algorithm,
 default value is 0.01 for each intervention component.}
@@ -86,6 +109,9 @@ calculated for the recommended intervention.}
 algorithm used in the confidence set calculations.}
 
 \item{confidence_set_alpha}{numeric, Type I error of the confidence set.}
+
+\item{grid_search_step_size}{numeric, step size for the grid search algorithm,
+default value is 0.01 for each intervention component.}
 }
 \value{
 List(recommended interventions, associated cost for the interventions,
@@ -97,6 +123,7 @@ The recommended interventions that aim to satisfy the outcome goal and/or the
 power goal.
 }
 \examples{
+# Basic case showing how to carry out the optimization with a built-in data set.
 calculate_recommended_interventions(
   df = infert,
   outcome_name = "case",
@@ -105,6 +132,7 @@ calculate_recommended_interventions(
   interventions_list = c("age", "parity"),
   intervention_lower_bounds = c(0, 0),
   intervention_upper_bounds = c(50, 10),
+  linear_cost_functions = TRUE,
   cost_list_of_lists = list(c(4), c(1)),
   outcome_goal = 0.5
 )
@@ -122,5 +150,4 @@ calculate_recommended_interventions(
   include_confidence_set = TRUE,
   confidence_set_step_size = c(1, 1)
 )
-
 }

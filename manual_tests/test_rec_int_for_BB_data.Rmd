@@ -39,6 +39,7 @@ optimization_results <- calculate_recommended_interventions(
                                     outcome_name = "pp3_oxytocin_mother",
                                     outcome_type = "binary", 
                                     glm_family = "binomial",
+                                    linear_cost_functions = TRUE,
                                     interventions_list = c("coaching_updt", "launch_duration"),
                                     center_characteristic_list = c("birth_volume_100"),
                                     center_characteristic_list_for_optimization = 1.75,

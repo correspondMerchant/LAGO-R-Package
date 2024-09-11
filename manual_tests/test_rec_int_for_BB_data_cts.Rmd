@@ -41,6 +41,7 @@ optimization_results <- calculate_recommended_interventions(
                                     outcome_name = "EBP_proportions",
                                     outcome_type = "continuous", 
                                     glm_family = "quasibinomial",
+                                    linear_cost_functions = TRUE,
                                     link = "logit",
                                     interventions_list = c("coaching_updt", "launch_duration"),
                                     center_characteristic_list = c("birth_volume_100"),
@@ -68,3 +69,45 @@ optimization_results$est_outcome_goal
 ```
 
 
+```{r}
+# using the cubic cost function with grid search
+optimization_cubic_results <- calculate_recommended_interventions(
+                                    df = BB_proportions,
+                                    outcome_name = "EBP_proportions",
+                                    outcome_type = "continuous", 
+                                    glm_family = "quasibinomial",
+                                    linear_cost_functions = FALSE,
+                                    link = "logit",
+                                    outcome_goal_optimization = "grid_search",
+                                    grid_search_step_size = 0.01,
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+                                    outcome_goal = 0.8)
+optimization_cubic_results
+# 35.50, 3.97, same as in the continuous outcome paper 
+```
+
+```{r}
+# using the cubic cost function with numerical algorithm
+optimization_cubic_results <- calculate_recommended_interventions(
+                                    df = BB_proportions,
+                                    outcome_name = "EBP_proportions",
+                                    outcome_type = "continuous", 
+                                    glm_family = "quasibinomial",
+                                    linear_cost_functions = FALSE,
+                                    link = "logit",
+                                    outcome_goal_optimization = "numerical",
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+                                    outcome_goal = 0.8)
+optimization_cubic_results
+# 35.50, 3.97, same as in the continuous outcome paper
+```

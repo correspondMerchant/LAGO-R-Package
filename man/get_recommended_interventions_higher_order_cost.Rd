@@ -12,6 +12,7 @@ get_recommended_interventions_higher_order_cost(
   intervention_upper_bounds,
   outcome_goal,
   outcome_goal_optimization = "numerical",
+  cost_function_weights = NULL,
   grid_search_step_size = 0.01,
   center_cha_coeff_vec = 0,
   center_cha = 0,
@@ -43,6 +44,12 @@ For example: c(10,20).}
 \item{outcome_goal_optimization}{character, Method used behind the scenes for
 calculating the recommended interventions. Either "numerical" or "grid_search".}
 
+\item{cost_function_weights}{numeric vector, A numeric vector defining the weights for the
+cost functions of the intervention components.
+For example, if cost_list_of_lists = list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)),
+and cost_function_weights = c(0.2, 1.4, 1.6) then the total cost function is:
+(1 + 2x + 3x^2 + 4x^3)\*0.2 + (4 + 6x)\*1.4 + (5 + 4x + 3x^2)\*1.6.}
+
 \item{grid_search_step_size}{numeric, step size for the grid search algorithm,
 default value is 0.01 for each intervention component.}
 
@@ -61,7 +68,7 @@ for the intervention group in the next stage to be as close to the outcome goal
 as possible. "Optimal" means we are calculating the optimal interventions at the
 end of the stage, using the idea from web appendix section 5.1 of Nevo et al.
 
-For now, this defaults to "planning". we can discuss whether we need
+For v1, this defaults to "planning". we can discuss whether we want to keep
 both "Planning" and "Optimal".}
 }
 \value{
@@ -76,13 +83,46 @@ The recommended interventions aim to satisfy the outcome goal and/or
 the power goal.
 }
 \examples{
+# Example for using the grid search
 get_recommended_interventions_higher_order_cost(
   beta_vec = c(0.1, 0.3, 0.15),
   cost_list_of_lists = list(c(1, 2), c(4)),
   intervention_lower_bounds = c(0, 0),
   intervention_upper_bounds = c(10, 20),
   outcome_goal = 0.8,
+  outcome_goal_optimization = "grid_search"
+)
+
+# Example for using the numerical method
+get_recommended_interventions_higher_order_cost(
+  beta_vec = c(0.1, 0.3, 0.15),
+  cost_list_of_lists = list(c(1, 2), c(4)),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 20),
+  outcome_goal = 0.8,
+  outcome_goal_optimization = "numerical"
+)
+
+# Example for using the grid search method with cost function weights
+get_recommended_interventions_higher_order_cost(
+  beta_vec = c(0.1, 0.3, 0.15),
+  cost_list_of_lists = list(c(0, 1, 2), c(0, 4, 4, 4)),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 20),
+  outcome_goal = 0.8,
   outcome_goal_optimization = "grid_search",
+  cost_function_weights = c(0.4, 1.6)
+)
+
+# Example for using the numerical method with cost function weights
+get_recommended_interventions_higher_order_cost(
+  beta_vec = c(0.1, 0.3, 0.15),
+  cost_list_of_lists = list(c(0, 1, 2), c(0, 4, 4, 4)),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 20),
+  outcome_goal = 0.8,
+  outcome_goal_optimization = "numerical",
+  cost_function_weights = c(0.4, 1.6)
 )
 
 }

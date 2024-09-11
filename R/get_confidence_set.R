@@ -105,7 +105,6 @@ get_confidence_set <- function(predictors,
     # predict outcomes using the fitted model
     pred_all <- predict(fitted_model, newdata = new_data, se.fit = T, type = "response")
 
-
     # lower and upper bounds of predictions
     lb_prob_all <- pred_all$fit - critical_value * pred_all$se.fit
     ub_prob_all <- pred_all$fit + critical_value * pred_all$se.fit
@@ -151,6 +150,7 @@ get_confidence_set <- function(predictors,
     # calculate the var-cov matrix
     print(predictors)
     print(fitted_model)
+
     vcov_matrix <- get_vcov(predictors, fitted_model, outcome)
 
     # get predicted values
@@ -180,7 +180,6 @@ get_confidence_set <- function(predictors,
     # calculate the confidence set
     cs <- new_data[(apply(ci_prob_all, 1, function(y) findInterval(x = outcome_goal, vec = y)) == 1) == 1, ]
   }
-
 
   return(list(
     confidence_set_size_percentage = confidence_set_size_percentage,

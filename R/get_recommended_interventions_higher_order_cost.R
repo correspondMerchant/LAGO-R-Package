@@ -23,6 +23,11 @@
 #' @param outcome_goal numeric, The outcome goal.
 #' @param outcome_goal_optimization character, Method used behind the scenes for
 #' calculating the recommended interventions. Either "numerical" or "grid_search".
+#' @param cost_function_weights numeric vector, A numeric vector defining the weights for the
+#' cost functions of the intervention components.
+#' For example, if cost_list_of_lists = list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)),
+#' and cost_function_weights = c(0.2, 1.4, 1.6) then the total cost function is:
+#' (1 + 2x + 3x^2 + 4x^3)\*0.2 + (4 + 6x)\*1.4 + (5 + 4x + 3x^2)\*1.6.
 #' @param grid_search_step_size numeric, step size for the grid search algorithm,
 #' default value is 0.01 for each intervention component.
 #' @param center_cha_coeff_vec numeric vector, Coefficients estimates for the
@@ -44,6 +49,7 @@
 #' for the intervention group in the next stage )
 #'
 #' @examples
+#' # Example for using the grid search
 #' get_recommended_interventions_higher_order_cost(
 #'   beta_vec = c(0.1, 0.3, 0.15),
 #'   cost_list_of_lists = list(c(1, 2), c(4)),
@@ -53,19 +59,52 @@
 #'   outcome_goal_optimization = "grid_search",
 #' )
 #'
+#' # Example for using the numerical method
+#' get_recommended_interventions_higher_order_cost(
+#'   beta_vec = c(0.1, 0.3, 0.15),
+#'   cost_list_of_lists = list(c(1, 2), c(4)),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(10, 20),
+#'   outcome_goal = 0.8,
+#'   outcome_goal_optimization = "numerical"
+#' )
+#'
+#' # Example for using the grid search method with cost function weights
+#' get_recommended_interventions_higher_order_cost(
+#'   beta_vec = c(0.1, 0.3, 0.15),
+#'   cost_list_of_lists = list(c(0, 1, 2), c(0, 4, 4, 4)),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(10, 20),
+#'   outcome_goal = 0.8,
+#'   outcome_goal_optimization = "grid_search",
+#'   cost_function_weights = c(0.4, 1.6)
+#' )
+#'
+#' # Example for using the numerical method with cost function weights
+#' get_recommended_interventions_higher_order_cost(
+#'   beta_vec = c(0.1, 0.3, 0.15),
+#'   cost_list_of_lists = list(c(0, 1, 2), c(0, 4, 4, 4)),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(10, 20),
+#'   outcome_goal = 0.8,
+#'   outcome_goal_optimization = "numerical",
+#'   cost_function_weights = c(0.4, 1.6)
+#' )
+#'
 #' @importFrom rje expit logit
 #' @import stats
 #' @importFrom NlcOptim solnl
 #'
 #' @export
-#
-#
+#'
+#'
 get_recommended_interventions_higher_order_cost <- function(beta_vec,
                                                             cost_list_of_lists,
                                                             intervention_lower_bounds,
                                                             intervention_upper_bounds,
                                                             outcome_goal,
                                                             outcome_goal_optimization = "numerical",
+                                                            cost_function_weights = NULL,
                                                             grid_search_step_size = 0.01,
                                                             center_cha_coeff_vec = 0,
                                                             center_cha = 0,
@@ -81,7 +120,7 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
   # to add fixed costs.
   create_cost_function <- function(coeffs) {
     function(x) {
-      sum(sapply(seq_along(coeffs), function(i) coeffs[i] * x^(i)))
+        sum(sapply(seq_along(coeffs), function(i) coeffs[i] * x^(i-1)))
     }
   }
 
@@ -107,7 +146,11 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
         # calculate the outcome for this intervention
         outcome <- expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha)
         # calculate the cost for this intervention
-        cost <- sum(mapply(function(f, x) f(x), cost_functions, int))
+        if (is.null(cost_function_weights)) {
+          cost <- sum(mapply(function(f, x) f(x), cost_functions, int))
+        } else {
+          cost <- sum(mapply(function(f, x, w) w*f(x), cost_functions, int, cost_function_weights))
+        }
 
         return(list(outcome = outcome, cost = cost))
       }
@@ -179,8 +222,13 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
 
       # objective function for the total cost
       cost_obj_fun <- function(x) {
-        return(sum(mapply(function(f, xi) f(xi), cost_functions, x)))
+        if (is.null(cost_function_weights)) {
+          return(sum(mapply(function(f, x) f(x), cost_functions, x)))
+        } else {
+          return(sum(mapply(function(f, x, w) w*f(x), cost_functions, x, cost_function_weights)))
+        }
       }
+      print(cost_obj_fun)
 
       # check if the max achievable outcome is larger than the outcome goal
       if (max_achievable_outcome >= outcome_goal) {
@@ -269,3 +317,15 @@ get_recommended_interventions_higher_order_cost <- function(beta_vec,
 #                                                     center_cha = 1.753519
 #                                                     )
 # print(result)
+#
+#
+# get_recommended_interventions_higher_order_cost(
+#    beta_vec = c(0.1, 0.3, 0.15),
+#    cost_list_of_lists = list(c(0, 1, 2), c(0, 4, 4, 4)),
+#    intervention_lower_bounds = c(1, 1),
+#    intervention_upper_bounds = c(10, 20),
+#    outcome_goal = 0.8,
+#    outcome_goal_optimization = "grid_search",
+#    grid_search_step_size = 0.1,
+#    cost_function_weights = c(0.4, 1.6)
+#  )
