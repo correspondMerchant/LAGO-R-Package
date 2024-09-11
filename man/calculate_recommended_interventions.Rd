@@ -5,122 +5,171 @@
 \title{calculate_recommended_interventions}
 \usage{
 calculate_recommended_interventions(
-  df,
+  data,
   outcome_name,
   outcome_type,
-  glm_family,
-  link = "logit",
-  include_intercept = TRUE,
-  interventions_list,
-  center_characteristic_list = NULL,
-  center_characteristic_list_for_optimization = NULL,
+  intervention_components,
   intervention_lower_bounds,
   intervention_upper_bounds,
-  cost_list_of_lists,
+  cost_list_of_vectors,
   outcome_goal,
-  outcome_goal_optimization = "numerical",
-  grid_search_step_size = 0.01,
-  include_confidence_set = FALSE,
-  confidence_set_step_size = NULL,
+  glm_family = "default",
+  link = "default",
+  weights = NULL,
+  center_characteristics = NULL,
+  center_characteristics_optimization_values = NULL,
+  optimization_method = "numerical",
+  optimization_grid_search_step_size = NULL,
+  include_confidence_set = TRUE,
+  confidence_set_grid_step_size = NULL,
   confidence_set_alpha = 0.05
 )
 }
 \arguments{
-\item{df}{data.frame, Input data}
+\item{data}{A data.frame. The input dataset containing the variables of interest.}
 
-\item{outcome_name}{character, Outcome name}
+\item{outcome_name}{A character string. The name of the column in the dataset
+that represents the outcome of interest.}
 
-\item{outcome_type}{character, Outcome type, either "continuous" or "binary"}
+\item{outcome_type}{A character string. Specifies the type of the outcome.
+Must be either "continuous" for continuous outcomes or "binary" for binary
+outcomes.}
 
-\item{glm_family}{character, Family for the GLM model
-For example: "binomial"
-For v1.1, we are only considering binomial family, and quasibinomial(link="logit")}
+\item{intervention_components}{A character vector. The names of the columns in
+the dataset that represent the intervention components.
+For example: c("component1", "component2").}
 
-\item{link}{character, the link option when glm_family is set to quasibinomial.
-It has to be one of the following:
-logit (default), probit, cauchit, log and cloglog.}
+\item{intervention_lower_bounds}{A numeric vector. Specifies the lower bounds
+of the intervention components.
+For example: for a two-component intervention package, lower bounds could be
+c(0,0).}
 
-\item{include_intercept}{boolean, Whether the intercept should be included in the
-fitted model.}
+\item{intervention_upper_bounds}{A numeric vector. Specifies the upper bounds
+of the intervention components.
+For example: for a two-component intervention package, upper bounds could be
+c(10,20).}
 
-\item{interventions_list}{character vector, Names of the intervention components
-For example: c("component1", "component2")}
+\item{cost_list_of_vectors}{A list of numeric vectors. Specifies the cost
+functions for each intervention component. Each numeric vector in the list
+contains coefficients of the cost function for one intervention component.
+For example:
+list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents:
+- First component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3
+- Second component: cost = 4 + 6x_2
+- Third component: cost = 5 + 4x_3 + 3x_3^2
+list(c(0, 2), c(0, 6), c(0, 4)) represents:
+- First component: cost = 2x_1
+- Second component: cost = 6x_2
+- Third component: cost = 4x_3
 
-\item{center_characteristic_list}{character vector, Names of the center characteristics
+## optional arguments:}
+
+\item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
+probability or mean value.}
+
+\item{glm_family}{A character string. The family of the glm() outcome model.
+Default value without user specification:
+"gaussian" for continuous outcomes, "binomial" for binary outcomes.}
+
+\item{link}{A character string. The link function of the glm() outcome model.
+Default value without user specification:
+"identity" for continuous outcomes, "logit" for binary outcomes.}
+
+\item{weights}{A numeric vector. The weights argument of the glm()
+outcome model.}
+
+\item{center_characteristics}{A character vector. The names of the columns in
+the dataset that represent the center characteristics.
 For example: c("characteristic1")}
 
-\item{center_characteristic_list_for_optimization}{numeric vector, Given values of
-the center characteristics
+\item{center_characteristics_optimization_values}{A numeric vector. The
+values of the center characteristics that will be used for LAGO optimization.
 For example: c(1.74)}
 
-\item{intervention_lower_bounds}{numeric vector, Lower bounds for the intervention components
-For example: c(0,0)}
+\item{optimization_method}{A character string. Specifies the method used for
+LAGO optimization. Must be either "numerical" or "grid_search".
+Default value without user specification: "numerical".
+- Use "grid_search" if you want to exhaustively test every possible
+intervention package compositions in LAGO optimization.
+- Use "numerical" if you want to use gradient-based technique in LAGO
+optimization.}
 
-\item{intervention_upper_bounds}{numeric vector, Upper bounds for the intervention components
-For example: c(10,20)}
+\item{optimization_grid_search_step_size}{A numeric vector. Specifies the
+step size of the grid search algorithm used in LAGO optimization.
+Default value without user specification:
+1/20 of the range for each intervention component.}
 
-\item{cost_list_of_lists}{list, A nested list structure defining cost functions for the intervention components.
-Each sublist represents a component and contains coefficients for its cost function.
-The position of each coefficient in the sublist corresponds to the power of x in the polynomial cost function.
-For example:
-list(c(1, 2), c(4), c(5, 4, 3)) represents:
-- First component: cost = 1x + 2x^2
-- Second component: cost = 4x
-- Third component: cost = 5x + 4x^2 + 3x^3
-Empty sublists are not allowed. Each component must have at least one coefficient.}
+\item{include_confidence_set}{A boolean. Specifies whether the confidence set
+should be calculated along with the recommended interventions.
+Default value without user specification: TRUE.}
 
-\item{outcome_goal}{numeric, The outcome goal}
+\item{confidence_set_grid_step_size}{A numeric vector. Specifies the step
+size of the grid search algorithm used in the confidence set calculation.
+Default value without user specification:
+1/20 of the range for each intervention component.}
 
-\item{outcome_goal_optimization}{character, Method used behind the scenes for
-calculating the recommended interventions. Either "numerical" or "grid_search"
-For v1, this does not matter since we work with linear cost functions and
-we only have one way of solving for the recommended interventions}
-
-\item{grid_search_step_size}{numeric, step size for the grid search algorithm,
-default value is 0.01 for each intervention component.}
-
-\item{include_confidence_set}{boolean, Whether the confidence set should be
-calculated for the recommended intervention.}
-
-\item{confidence_set_step_size}{numeric vector, Step size for the grid search
-algorithm used in the confidence set calculations.}
-
-\item{confidence_set_alpha}{numeric, Type I error of the confidence set.}
+\item{confidence_set_alpha}{A numeric value. The type I error considered in
+the confidence set calculations.
+Default value without user specification: 0.05.}
 }
 \value{
-List(recommended interventions, associated cost for the interventions,
-estimated outcome mean/probability for the intervention group in the next stage)
+List(recommended interventions,
+associated cost for the interventions,
+estimated outcome mean/probability for the intervention group in the next stage,
+95% confidence set percentage,
+95% confidence set)
 }
 \description{
-Returns the LAGO recommended interventions for the next stage.
-The recommended interventions that aim to satisfy the outcome goal and/or the
-power goal.
+Calculates the LAGO recommended interventions based on an outcome
+goal and/or a power goal.
+
+
+## required arguments:
 }
 \examples{
+# Basic case showing how to carry out the optimization with a built-in data set.
 calculate_recommended_interventions(
-  df = infert,
+  data = infert,
   outcome_name = "case",
   outcome_type = "binary",
   glm_family = "binomial",
-  interventions_list = c("age", "parity"),
+  intervention_components = c("age", "parity"),
   intervention_lower_bounds = c(0, 0),
   intervention_upper_bounds = c(50, 10),
-  cost_list_of_lists = list(c(4), c(1)),
-  outcome_goal = 0.5
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.5,
+  confidence_set_grid_step_size = c(1, 1)
 )
 
 calculate_recommended_interventions(
-  df = infert,
-  outcome_name = "case",
+  data = BB_data,
+  outcome_name = "pp3_oxytocin_mother",
   outcome_type = "binary",
   glm_family = "binomial",
-  interventions_list = c("age", "parity"),
-  intervention_lower_bounds = c(0, 0),
-  intervention_upper_bounds = c(50, 10),
-  cost_list_of_lists = list(c(4), c(1)),
-  outcome_goal = 0.5,
-  include_confidence_set = TRUE,
-  confidence_set_step_size = c(1, 1)
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  confidence_set_grid_step_size = c(1, 1)
+)
+
+calculate_recommended_interventions(
+  data = BB_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  confidence_set_grid_step_size = c(1, 1)
 )
 
 }
