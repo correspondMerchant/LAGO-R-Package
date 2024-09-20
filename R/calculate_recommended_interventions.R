@@ -359,6 +359,8 @@ calculate_recommended_interventions <- function(df,
 
   # TODO: add confidence set calculations for the recommended interventions
   # for v1, we are only returning the following list:
+  # TODO: Donna suggested that we should add an optional output to optimize for a new situation not in the original data
+  # check Donna's 9/20/2024 email
   return(list(
     rec_int = rec_int,
     rec_int_cost = rec_int_cost,
