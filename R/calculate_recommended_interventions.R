@@ -281,7 +281,7 @@ calculate_recommended_interventions <- function(df,
   # MINH----------------------------------------------------------------------------------
   valid_families <- list(
     "binary" = c("binomial", "quasibinomial"),
-    "continuous" = c("gaussian", "Gamma", "inverse.gaussian", "quasi")
+    "continuous" = c("gaussian", "Gamma", "inverse.gaussian", "quasi", "quasibinomial")
   )
   
   # check if the specified family matches the outcome type
