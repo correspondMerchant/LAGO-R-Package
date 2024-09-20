@@ -26,6 +26,9 @@ library(LAGO)
 # BB data has been open sourced, so I pre-loaded the BB data in the LAGO package 
 BB_proportions <- LAGO::BB_proportions
 head(BB_proportions)
+#load("/Users/minhthubui/Desktop/LAGO-R-Package/data/BB_proportions.rda")
+#BB_proportions <- get("BB_proportions")
+#ls(package:LAGO)
 ```
 
 ## Calculate the recommended interventions using the LAGO package 
