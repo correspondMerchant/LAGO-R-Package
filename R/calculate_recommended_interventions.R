@@ -140,7 +140,7 @@ calculate_recommended_interventions <- function(df,
   if (!(link %in% supported_link_options)) {
     stop("The link option for quasibinomial family has to be one of the following: logit, probit, cauchit, log, and cloglog.")
   }
-
+  
   # check if interventions_list is a character vector type
   if (!(is.vector(interventions_list) && is.character(interventions_list))) {
     stop("Interventions list must be a character vector.")
@@ -248,7 +248,7 @@ calculate_recommended_interventions <- function(df,
   }
   # check if the outcome goal >= outcome that we already observed
   if (outcome_goal <= mean(df[[outcome_name]])) {
-    stop("The outcome goal is smaller than the intervention group mean, please increase the outcome goal.")
+    stop("The specified outcome goal is below the observed mean of the intervention group. Please increase the goal.")
   }
 
 
@@ -278,7 +278,19 @@ calculate_recommended_interventions <- function(df,
                             )
   }
 
-
+  # MINH----------------------------------------------------------------------------------
+  valid_families <- list(
+    "binary" = c("binomial", "quasibinomial"),
+    "continuous" = c("gaussian", "Gamma", "inverse.gaussian", "quasi")
+  )
+  
+  # check if the specified family matches the outcome type
+  if (!glm_family %in% valid_families[[outcome_type]]) {
+    stop(paste("The specified family '", glm_family, 
+               "' is not valid for the outcome type '", outcome_type, "'.", 
+               " Please select a compatible family.", sep = ""))
+  }
+  # MINH----------------------------------------------------------------------------------
   # fit the model
   # depending on the whether the user wants to include center characteristics
   # we fit the model differently.
