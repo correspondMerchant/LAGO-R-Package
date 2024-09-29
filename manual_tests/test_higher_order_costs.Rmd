@@ -1,0 +1,67 @@
+---
+title: "test higher order costs"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+# library(formatR)
+# knitr::opts_chunk$set(echo = TRUE)
+# knitr::opts_chunk$set(tidy=TRUE, tidy.opts=list(width.cutoff=70))
+```
+
+## we manually test LAGO optimizations with higher order cost functions
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+BB_proportions <- LAGO::BB_proportions
+head(BB_proportions)
+```
+
+```{r}
+# defaults to numerical solution
+optimization_results <- calculate_recommended_interventions(
+                                    df = BB_proportions,
+                                    outcome_name = "EBP_proportions",
+                                    outcome_type = "continuous", 
+                                    glm_family = "quasibinomial",
+                                    link = "logit",
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(c(380, -24, 0.6), c(1700, -950, 220)),
+                                    outcome_goal = 0.8)
+optimization_results
+# should be (3.97, 35.50), same as in Bing et al.
+```
+
+```{r}
+# grid_search solution
+optimization_results <- calculate_recommended_interventions(
+                                    df = BB_proportions,
+                                    outcome_name = "EBP_proportions",
+                                    outcome_type = "continuous", 
+                                    glm_family = "quasibinomial",
+                                    link = "logit",
+                                    interventions_list = c("coaching_updt", "launch_duration"),
+                                    center_characteristic_list = c("birth_volume_100"),
+                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_lower_bounds = c(1,1),
+                                    intervention_upper_bounds = c(40, 5),
+                                    cost_list_of_lists = list(c(380, -24, 0.6), c(1700, -950, 220)),
+                                    outcome_goal_optimization = "grid_search",
+                                    grid_search_step_size = 0.1,
+                                    outcome_goal = 0.8)
+optimization_results
+# when step size is set to 0.1, we get (35.4, 4.0)
+# can lower step size for more accurate results, but clearly the numerical 
+# solution should be preferred, since it is much faster. 
+```
+

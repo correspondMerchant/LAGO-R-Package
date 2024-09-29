@@ -44,7 +44,7 @@ optimization_results <- calculate_recommended_interventions(
                                     center_characteristic_list_for_optimization = 1.75,
                                     intervention_lower_bounds = c(1,1),
                                     intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_lists = list(list(1.7), list(8)),
+                                    cost_list_of_lists = list(c(1.7), c(8)),
                                     outcome_goal = 0.85)
 ```
 
