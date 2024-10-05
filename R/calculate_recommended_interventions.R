@@ -42,6 +42,11 @@
 #' we only have one way of solving for the recommended interventions
 #' @param grid_search_step_size numeric, step size for the grid search algorithm,
 #' default value is 0.01 for each intervention component.
+#' @param include_confidence_set boolean, Whether the confidence set should be
+#' calculated for the recommended intervention.
+#' @param confidence_set_step_size numeric vector, Step size for the grid search
+#' algorithm used in the confidence set calculations.
+#' @param confidence_set_alpha numeric, Type I error of the confidence set.
 #'
 #' @return List(recommended interventions, associated cost for the interventions,
 #' estimated outcome mean/probability for the intervention group in the next stage)
@@ -57,6 +62,20 @@
 #'   intervention_upper_bounds = c(50, 10),
 #'   cost_list_of_lists = list(c(4), c(1)),
 #'   outcome_goal = 0.5
+#' )
+#'
+#' calculate_recommended_interventions(
+#'   df = infert,
+#'   outcome_name = "case",
+#'   outcome_type = "binary",
+#'   glm_family = "binomial",
+#'   interventions_list = c("age", "parity"),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(50, 10),
+#'   cost_list_of_lists = list(c(4), c(1)),
+#'   outcome_goal = 0.5,
+#'   include_confidence_set = TRUE,
+#'   confidence_set_step_size = c(1, 1)
 #' )
 #'
 #' @export
@@ -75,7 +94,10 @@ calculate_recommended_interventions <- function(df,
                                                 cost_list_of_lists,
                                                 outcome_goal,
                                                 outcome_goal_optimization = "numerical",
-                                                grid_search_step_size = 0.01) {
+                                                grid_search_step_size = 0.01,
+                                                include_confidence_set = FALSE,
+                                                confidence_set_step_size = NULL,
+                                                confidence_set_alpha = 0.05) {
   # initial checks, very important
   # check if the data frame is not null
   if (is.null(df)) {
@@ -107,13 +129,17 @@ calculate_recommended_interventions <- function(df,
   if (!is.character(outcome_name)) {
     stop("The outcome name is not a character type.")
   }
-  # check if outcome name is empty
+  # check if the outcome name is empty
   if (nchar(outcome_name) == 0) {
     stop("The outcome name is empty.")
   }
-  # check if outcome name is one of the columns in the data frame
+  # check if the outcome name is one of the columns in the data frame
   if (!(outcome_name %in% names(df))) {
     stop("The outcome name is not present in the provided data frame.")
+  }
+  # check if the outcome name contains more than one name
+  if (length(outcome_name) > 1) {
+    stop("Please provide only 1 outcome name for the LAGO optimization.")
   }
 
   # check if the outcome type is a character type
@@ -141,6 +167,11 @@ calculate_recommended_interventions <- function(df,
   supported_link_options <- c("logit", "probit", "cauchit", "log", "cloglog")
   if (!(link %in% supported_link_options)) {
     stop("The link option for quasibinomial family has to be one of the following: logit, probit, cauchit, log, and cloglog.")
+  }
+
+  # check if the include_intercept indicator is boolean
+  if (!is.logical(include_intercept)) {
+    stop("The include_intercept indicator is not a boolean.")
   }
 
   # check if interventions_list is a character vector type
@@ -235,27 +266,16 @@ calculate_recommended_interventions <- function(df,
   if (!(outcome_goal_optimization %in% optimization_method_list)) {
     stop(paste("outcome_goal_optimization is not one of the supported methods. The supported methods are", optimization_method_list, "."))
   }
-  # V1 does not consider the value of outcome_goal_optimization, because we are
-  # only working with linear cost functions for now. For linear cost functions,
-  # we have a very robust and fast way of solving for recommended interventions,
-  # which maximizes the most cost-effective intervention component first, if the
-  # outcome goal is not met, we max out the second most cost-effective intervention
-  # component, and so on, until the outcome goal is achieved.
-  #
-  # See get_recommended_intervention_linear_cost.R for details.
-  #
-  # TODO: future versions will consider both 'numerical' and 'grid_search'
-  # Previously, we only had grid search method for working with cubic cost
-  # function. For PULESA analysis, Jingyu added the numerical solution. Check
-  # the dropbox folder 'LAGO r package paper' for Jingyu's code.
 
   # when the outcome_goal_optimization is grid_search, check the number of intervention components
   if (outcome_goal_optimization == "grid_search") {
     if (length(interventions_list) > 3) {
-      warning(paste0("There are more than 3 intervention components, and the grid search ",
-              "algorithm may take significant amount of time to run. Please consider ",
-              "adjusting the step size, or switch to the numerical optimization ",
-              "method."))
+      warning(paste0(
+        "There are more than 3 intervention components, and the grid search ",
+        "algorithm may take significant amount of time to run. Please consider ",
+        "adjusting the step size, or switch to the numerical optimization ",
+        "method."
+      ))
     }
   }
 
@@ -269,6 +289,26 @@ calculate_recommended_interventions <- function(df,
     stop("The specified outcome goal is below the observed mean of the intervention group. Please increase the goal.")
   }
 
+  # check whether the include_confidence_set indicator is boolean
+  if (!is.logical(include_confidence_set)) {
+    stop("The include_confidence_set indicator is not a boolean.")
+  }
+
+  # check if confidence set step size is provided
+  if (include_confidence_set) {
+    if (is.null(confidence_set_step_size)) {
+      stop("Please provide confidence set step size for the grid search algorithm in calculating the confidence set.")
+    }
+    if (!is.numeric(confidence_set_step_size)) {
+      stop("The provided confidence set step size is not a numeric vector.")
+    }
+    print("The confidence set calculation may take considerate amount of time to run, if that is the case, consider increasing the confidence set step size. \n")
+  }
+
+  # check if confidence_set_alpha is a numeric type
+  if (!is.numeric(confidence_set_alpha)) {
+    stop("confidence_set_alpha is not numeric.")
+  }
 
 
   # Convert glm family strings to actual glm family objects
@@ -277,23 +317,23 @@ calculate_recommended_interventions <- function(df,
   # for v1, we are only working with binomial family.
   if (glm_family != "quasibinomial") {
     family_object <- switch(glm_family,
-                            "binomial" = binomial(),
-                            "poisson" = poisson(),
-                            "gaussian" = gaussian(),
-                            "Gamma" = Gamma(),
-                            "inverse.gaussian" = inverse.gaussian(),
-                            "quasi" = quasi(),
-                            "quasibinomial" = quasibinomial(),
-                            "quasipoisson" = quasipoisson()
-                            )
+      "binomial" = binomial(),
+      "poisson" = poisson(),
+      "gaussian" = gaussian(),
+      "Gamma" = Gamma(),
+      "inverse.gaussian" = inverse.gaussian(),
+      "quasi" = quasi(),
+      "quasibinomial" = quasibinomial(),
+      "quasipoisson" = quasipoisson()
+    )
   } else {
     family_object <- switch(link,
-                            "logit" = quasibinomial(link="logit"),
-                            "probit" = quasibinomial(link="probit"),
-                            "cauchit" = quasibinomial(link="cauchit"),
-                            "log" = quasibinomial(link="log"),
-                            "cloglog" = quasibinomial(link="cloglog")
-                            )
+      "logit" = quasibinomial(link = "logit"),
+      "probit" = quasibinomial(link = "probit"),
+      "cauchit" = quasibinomial(link = "cauchit"),
+      "log" = quasibinomial(link = "log"),
+      "cloglog" = quasibinomial(link = "cloglog")
+    )
   }
 
   # MINH----------------------------------------------------------------------------------
@@ -305,8 +345,10 @@ calculate_recommended_interventions <- function(df,
   # check if the specified family matches the outcome type
   if (!glm_family %in% valid_families[[outcome_type]]) {
     stop(paste("The specified family '", glm_family,
-               "' is not valid for the outcome type '", outcome_type, "'.",
-               " Please select a compatible family.", sep = ""))
+      "' is not valid for the outcome type '", outcome_type, "'.",
+      " Please select a compatible family.",
+      sep = ""
+    ))
   }
   # MINH----------------------------------------------------------------------------------
   # fit the model
@@ -327,7 +369,7 @@ calculate_recommended_interventions <- function(df,
   }
 
   # get coefficients for the intervention components
-  if (include_intercept == TRUE) {
+  if (include_intercept) {
     int_coeff <- model$coefficients[c("(Intercept)", interventions_list)]
   } else {
     int_coeff <- model$coefficients[interventions_list]
@@ -392,15 +434,48 @@ calculate_recommended_interventions <- function(df,
   rec_int_cost <- rec_int_results$rec_int_cost
   est_outcome_goal <- rec_int_results$est_reachable_outcome
 
-  # TODO: add confidence set calculations for the recommended interventions
-  # for v1, we are only returning the following list:
+
+
+  # for now, we are only returning the following list:
   # TODO: Donna suggested that we should add an optional output to optimize for a new situation not in the original data
   # check Donna's 9/20/2024 email
-  return(list(
-    rec_int = rec_int,
-    rec_int_cost = rec_int_cost,
-    est_outcome_goal = est_outcome_goal
-  ))
+
+  # get the confidence set for the recommended interventions
+  if (include_confidence_set) {
+    predictors_list <- c(interventions_list, center_characteristic_list)
+    cs <- get_confidence_set(
+      predictors = df[, predictors_list],
+      fitted_model = model,
+      outcome_goal = outcome_goal,
+      outcome_type = outcome_type,
+      outcome = df[, outcome_name],
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      confidence_set_step_size = confidence_set_step_size,
+      center_characteristic_list = center_characteristic_list,
+      center_cha = center_cha,
+      include_intercept = include_intercept,
+      confidence_set_alpha = confidence_set_alpha
+    )
+  }
+
+  return(
+    if (!include_confidence_set) {
+      list(
+        rec_int = rec_int,
+        rec_int_cost = rec_int_cost,
+        est_outcome_goal = est_outcome_goal
+      )
+    } else {
+      list(
+        rec_int = rec_int,
+        rec_int_cost = rec_int_cost,
+        est_outcome_goal = est_outcome_goal,
+        confidence_set_size_percentage = cs$confidence_set_size_percentage,
+        cs = cs$cs
+      )
+    }
+  )
 }
 
 
@@ -440,3 +515,16 @@ calculate_recommended_interventions <- function(df,
 # )
 #
 #
+# calculate_recommended_interventions(
+#   df = infert,
+#   outcome_name = "case",
+#   outcome_type = "binary",
+#   glm_family = "binomial",
+#   interventions_list = c("age", "parity"),
+#   intervention_lower_bounds = c(0, 0),
+#   intervention_upper_bounds = c(50, 10),
+#   cost_list_of_lists = list(list(4), list(1)),
+#   outcome_goal = 0.5,
+#   include_confidence_set = TRUE,
+#   confidence_set_step_size = c(1,1)
+# )

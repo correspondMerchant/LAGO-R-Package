@@ -193,3 +193,14 @@ get_recommended_interventions_linear_cost <- function(beta_vec,
     est_reachable_outcome = est_reachable_outcome
   ))
 }
+
+#
+# get_recommended_interventions_linear_cost(beta_vec = c(0.1, 0.3, 0.15, 0.2),
+#                                           cost_coef = c(1,2,3),
+#                                           intervention_lower_bounds = c(0,0,0),
+#                                           intervention_upper_bounds = c(2,3,10),
+#                                           outcome_goal = 0.8,
+#                                           center_cha_coeff_vec = 0,
+#                                           center_cha = 0,
+#                                           intercept = TRUE,
+#                                           phase = "planning")

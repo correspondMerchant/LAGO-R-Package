@@ -1,8 +1,8 @@
 Package: LAGO
 Type: Package
 Title: LAGO Optimizations
-Version: 1.0.0
-Author: Ante Bing, Jingyu Cui
+Version: 1.0.4
+Author: Ante Bing, Minh Bui, Jingyu Cui
 Maintainer: Ante Bing <abing@bu.edu>
 Description: Calculates LAGO recommended interventions for the next stage.
     The recommended interventions will be calculated based on the outcome goal
@@ -10,7 +10,7 @@ Description: Calculates LAGO recommended interventions for the next stage.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-Imports: rje
+Imports: rje, NlcOptim
 RoxygenNote: 7.3.2
 Depends: 
     R (>= 2.10)
