@@ -46,8 +46,11 @@
 #' Default value without user specification:
 #' 1/20 of the range for each intervention component.
 #'
-#' @return List(recommended interventions, outcome goal, and estimated outcome mean/probability
-#' for the intervention group in the next stage )
+#' @return List(
+#' recommended interventions,
+#' outcome goal,
+#' estimated outcome mean/probability for the intervention
+#' group in the next stage )
 #'
 #' @examples
 #' # Example for using the grid search
@@ -78,16 +81,18 @@
 #'
 #' @export
 #'
-get_recommended_interventions <- function(beta_vector,
-                                          cost_list_of_vectors,
-                                          intervention_lower_bounds,
-                                          intervention_upper_bounds,
-                                          outcome_goal,
-                                          optimization_method,
-                                          optimization_grid_search_step_size,
-                                          center_cha_coeff_vec = 0,
-                                          center_characteristics_optimization_values = 0) {
-  # Function to create a cost function based on coefficients in cost_list_of_vectors
+get_recommended_interventions <- function(
+    beta_vector,
+    cost_list_of_vectors,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
+    outcome_goal,
+    optimization_method,
+    optimization_grid_search_step_size,
+    center_cha_coeff_vec = 0,
+    center_characteristics_optimization_values = 0) {
+  # Function to create a cost function based on coefficients
+  # in cost_list_of_vectors
   create_cost_function <- function(coeffs) {
     function(x) {
       sum(sapply(seq_along(coeffs), function(i) coeffs[i] * x^(i - 1)))
@@ -97,8 +102,13 @@ get_recommended_interventions <- function(beta_vector,
   # implement the grid_search solution
   if (optimization_method == "grid_search") {
     # main optimization function using grid search
-    optimize_cost_grid_search <- function(cost_params, lo, up, beta, outcome_goal,
-                                          center_cha_coeff_vec, center_cha,
+    optimize_cost_grid_search <- function(cost_params,
+                                          lo,
+                                          up,
+                                          beta,
+                                          outcome_goal,
+                                          center_cha_coeff_vec,
+                                          center_cha,
                                           step_size) {
       # create sequence grids for each intervention component
       grids <- lapply(seq_along(cost_params), function(i) {
@@ -113,7 +123,9 @@ get_recommended_interventions <- function(beta_vector,
       f_combined <- function(int) {
         int_vector <- c(1, int)
         # calculate the outcome for this intervention
-        outcome <- expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha)
+        outcome <- expit(
+          sum(beta * int_vector) + center_cha_coeff_vec * center_cha
+        )
         # calculate the cost for this intervention
         cost <- sum(mapply(function(f, x) f(x), cost_functions, int))
 
@@ -131,7 +143,8 @@ get_recommended_interventions <- function(beta_vector,
       max_outcome <- max(all_outcomes)
 
       if (max_outcome >= outcome_goal) {
-        # if the outcome goal is achievable, find the minimum cost solution that meets the goal
+        # if the outcome goal is achievable,
+        # find the minimum cost solution that meets the goal
         valid_indices <- which(all_outcomes >= outcome_goal)
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
 
@@ -139,7 +152,8 @@ get_recommended_interventions <- function(beta_vector,
         est_reachable_outcome <- outcome_goal
         rec_int_cost <- all_costs[best_index]
       } else {
-        # if the outcome goal is not achievable, find the solution with the maximum outcome
+        # if the outcome goal is not achievable,
+        # find the solution with the maximum outcome
         best_index <- which.max(all_outcomes)
 
         est_rec_int <- as.numeric(full_grid[best_index, ])
@@ -163,12 +177,17 @@ get_recommended_interventions <- function(beta_vector,
     )
   } else if (optimization_method == "numerical") {
     # we use the solnl() function from the NlcOptim library (Jingyu's idea)
-    # the objective function is the function that we are trying to minimize
-    # so in our case, the total cost, sum of cost for each intervention component.
+    # the objective function is the function that we are trying to minimize:
+    # total cost, or the sum of cost for each intervention component.
 
     # Main optimization function using solnl()
-    optimize_cost_nlcoptim <- function(cost_params, lo, up, beta, outcome_goal,
-                                       center_cha_coeff_vec, center_cha) {
+    optimize_cost_nlcoptim <- function(cost_params,
+                                       lo,
+                                       up,
+                                       beta,
+                                       outcome_goal,
+                                       center_cha_coeff_vec,
+                                       center_cha) {
       # Create cost functions
       cost_functions <- lapply(cost_params, create_cost_function)
 
@@ -182,7 +201,12 @@ get_recommended_interventions <- function(beta_vector,
       }
 
       # get the max achievable outcome
-      result_max <- solnl(X = (lo + up) / 2, objfun = obj_fun_for_max_outcome, lb = lo, ub = up)
+      result_max <- solnl(
+        X = (lo + up) / 2,
+        objfun = obj_fun_for_max_outcome,
+        lb = lo,
+        ub = up
+      )
       max_achievable_outcome <- -result_max$fn
 
 
@@ -190,18 +214,21 @@ get_recommended_interventions <- function(beta_vector,
       cost_obj_fun <- function(x) {
         return(sum(mapply(function(f, x) f(x), cost_functions, x)))
       }
-      # print(cost_obj_fun)
 
       # check if the max achievable outcome is larger than the outcome goal
       if (max_achievable_outcome >= outcome_goal) {
-        # If the goal is achievable, get the recommended intervention that minimizes
-        # the total cost function
+        # If the goal is achievable, get the recommended intervention that
+        # minimizes the total cost function
 
-        # a vector of constraint equations (see helper doc of NlcOptim package for details)
+        # a vector of constraint equations
+        # (see helper doc of NlcOptim package for details)
         constraint_fun <- function(x) {
           f <- NULL
           int_vector <- c(1, x)
-          f <- rbind(f, outcome_goal - expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha))
+          f <- rbind(
+            f,
+            outcome_goal - expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha)
+          )
           return(list(ceq = NULL, c = f))
         }
 

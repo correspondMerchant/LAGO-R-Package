@@ -20,33 +20,34 @@ devtools::load_all()
 
 ## binary outcome
 ```{r}
-BB_data <- LAGO::BB_data
-head(BB_data)
+bb_data <- LAGO::BB_data
+head(bb_data)
 ```
 
 ```{r}
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_data,
-                                    outcome_name = "pp3_oxytocin_mother",
-                                    outcome_type = "binary", 
-                                    glm_family = "binomial",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
-                                    outcome_goal = 0.85,
-                                    confidence_set_grid_step_size = c(1, 0.5),
-                                    confidence_set_alpha = 0.05)
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  confidence_set_grid_step_size = c(1, 0.5),
+  confidence_set_alpha = 0.05
+)
 
 optimization_results$confidence_set_size_percentage
 # cs results are the same as in Nevo et al:
-# Out of 360 potential intervention packages, 38 (10.5%) were included in the 
-# 95% confidence set. The set included the following combinations: 1.5 days 
-# launch duration and 40 coaching visits; 2 days launch durations and 27 or 
-# more coaching visits; 2.5 days launch duration and less than 20 coaching 
-# visits; and 3 days launch duration and less than 5 coaching visits. 
+# Out of 360 potential intervention packages, 38 (10.5%) were included in the
+# 95% confidence set. The set included the following combinations: 1.5 days
+# launch duration and 40 coaching visits; 2 days launch durations and 27 or
+# more coaching visits; 2.5 days launch duration and less than 20 coaching
+# visits; and 3 days launch duration and less than 5 coaching visits.
 ```
 
 
@@ -59,20 +60,21 @@ head(BB_proportions)
 
 ```{r}
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_proportions,
-                                    outcome_name = "EBP_proportions",
-                                    outcome_type = "continuous", 
-                                    glm_family = "quasibinomial",
-                                    link = "logit",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
-                                    outcome_goal = 0.8,
-                                    confidence_set_grid_step_size = c(1, 0.5),
-                                    confidence_set_alpha = 0.05)
+  data = BB_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.8,
+  confidence_set_grid_step_size = c(1, 0.5),
+  confidence_set_alpha = 0.05
+)
 
 optimization_results
 ```

@@ -19,8 +19,8 @@ get_confidence_set(
 )
 }
 \arguments{
-\item{predictors_data}{A data.frame. The input data containing the intervention
-components and center characteristics.}
+\item{predictors_data}{A data.frame. The input data containing
+the intervention components and center characteristics.}
 
 \item{outcome_data}{A data.frame. The input data containing the outcome
 of interest.}
@@ -72,7 +72,9 @@ for the recommended interventions
 }
 \examples{
 # fit the model
-model <- glm(EBP_proportions ~ coaching_updt + launch_duration + birth_volume_100,
+model <- glm(
+  EBP_proportions ~ coaching_updt
+    + launch_duration + birth_volume_100,
   data = BB_proportions, family = quasibinomial(link = "logit")
 )
 # get the confidence set

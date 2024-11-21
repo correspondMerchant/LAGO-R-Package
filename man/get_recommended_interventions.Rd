@@ -69,8 +69,11 @@ values of the center characteristics that will be used for LAGO optimization.
 For example: c(1.74)}
 }
 \value{
-List(recommended interventions, outcome goal, and estimated outcome mean/probability
-for the intervention group in the next stage )
+List(
+recommended interventions,
+outcome goal,
+estimated outcome mean/probability for the intervention
+group in the next stage )
 }
 \description{
 Internal function that calculates the LAGO recommended
