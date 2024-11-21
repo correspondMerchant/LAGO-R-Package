@@ -17,38 +17,35 @@ editor_options:
 
 ## install and Load the LAGO pacakge 
 ```{r}
-# install the LAGO package using the tar.gz file
-library(LAGO)
+devtools::clean_dll()
+devtools::load_all()
 ```
 
 ## Load the BetterBirth data with EBP proportions
 ```{r}
-# BB data has been open sourced, so I pre-loaded the BB data in the LAGO package 
+# BB data has been open sourced, so it has been preloaded 
 BB_proportions <- LAGO::BB_proportions
 head(BB_proportions)
-#load("/Users/minhthubui/Desktop/LAGO-R-Package/data/BB_proportions.rda")
-#BB_proportions <- get("BB_proportions")
-#ls(package:LAGO)
 ```
 
 ## Calculate the recommended interventions using the LAGO package 
 ```{r}
-# Real use case. We expect this to be the user experience when 
-# using this R package. 
-
+# using a linear cost function
 optimization_results <- calculate_recommended_interventions(
-                                    df = BB_proportions,
+                                    data = BB_proportions,
                                     outcome_name = "EBP_proportions",
                                     outcome_type = "continuous", 
                                     glm_family = "quasibinomial",
                                     link = "logit",
-                                    interventions_list = c("coaching_updt", "launch_duration"),
-                                    center_characteristic_list = c("birth_volume_100"),
-                                    center_characteristic_list_for_optimization = 1.75,
+                                    intervention_components = c("coaching_updt", "launch_duration"),
+                                    center_characteristics = c("birth_volume_100"),
+                                    center_characteristics_optimization_values = 1.75,
                                     intervention_lower_bounds = c(1,1),
                                     intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_lists = list(c(1.7), c(8)),
-                                    outcome_goal = 0.8)
+                                    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+                                    outcome_goal = 0.8,
+                                    include_confidence_set = T)
+# for higher order cost, see test_higher_order_costs.Rmd 
 ```
 
 ## Compare with the results from Bing et al. 
@@ -66,5 +63,4 @@ optimization_results$rec_int_cost
 # estimated outcome mean/probability in the next stage 
 optimization_results$est_outcome_goal
 ```
-
 

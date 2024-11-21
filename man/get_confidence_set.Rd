@@ -5,58 +5,70 @@
 \title{get_confidence_set}
 \usage{
 get_confidence_set(
-  predictors,
+  predictors_data,
+  outcome_data,
   fitted_model,
   outcome_goal,
   outcome_type,
-  outcome,
   intervention_lower_bounds,
   intervention_upper_bounds,
-  confidence_set_step_size,
-  center_characteristic_list = NULL,
-  center_cha = 0,
-  include_intercept = TRUE,
+  confidence_set_grid_step_size,
+  center_characteristics = NULL,
+  center_characteristics_optimization_values = 0,
   confidence_set_alpha = 0.05
 )
 }
 \arguments{
-\item{predictors}{df, All predictors used in the fitted model.}
+\item{predictors_data}{A data.frame. The input data containing the intervention
+components and center characteristics.}
 
-\item{fitted_model}{glm(), The fitted model.}
+\item{outcome_data}{A data.frame. The input data containing the outcome
+of interest.}
 
-\item{outcome_goal}{numeric, The outcome goal.}
+\item{fitted_model}{A glm(). The fitted glm() outcome model.}
 
-\item{outcome_type}{character, Outcome type, either "continuous" or "binary".}
+\item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
+probability or mean value.}
 
-\item{outcome}{df, Outcome for the fitted model.}
+\item{outcome_type}{A character string. Specifies the type of the outcome.
+Must be either "continuous" for continuous outcomes or "binary" for binary
+outcomes.}
 
-\item{intervention_lower_bounds}{numeric vector, Lower bounds for the
-intervention components.
-For example: c(0,0).}
+\item{intervention_lower_bounds}{A numeric vector. Specifies the lower bounds
+of the intervention components.
+For example: for a two-component intervention package, lower bounds could be
+c(0,0).}
 
-\item{intervention_upper_bounds}{numeric vector, Upper bounds for the
-intervention components.
-For example: c(10,20).}
+\item{intervention_upper_bounds}{A numeric vector. Specifies the upper bounds
+of the intervention components.
+For example: for a two-component intervention package, upper bounds could be
+c(10,20).}
 
-\item{confidence_set_step_size}{numeric vector, step sizes of the grid for the
-intervention components.
-For example: c(1, 0.5)}
+\item{confidence_set_grid_step_size}{A numeric vector. Specifies the step
+size of the grid search algorithm used in the confidence set calculation.
+Default value without user specification:
+1/20 of the range for each intervention component.}
 
-\item{center_characteristic_list}{character vector, Names of the center characteristics
+\item{center_characteristics}{A character vector. The names of the columns in
+the dataset that represent the center characteristics.
 For example: c("characteristic1")}
 
-\item{center_cha}{numeric vector, Given values of the center characteristics.}
+\item{center_characteristics_optimization_values}{A numeric vector. The
+values of the center characteristics that will be used for LAGO optimization.
+For example: c(1.74)}
 
-\item{include_intercept}{boolean, Whether the intercept was included in the fitted model.}
-
-\item{confidence_set_alpha}{numeric, Type I error for the confidence interval.}
+\item{confidence_set_alpha}{A numeric value. The type I error considered in
+the confidence set calculations.
+Default value without user specification: 0.05.}
 }
 \value{
-List(percentage of interventions that are included in the confidence set,
+List(
+percentage of interventions that are included in the confidence set,
 confidence set)
 }
 \description{
-Calculates the confidence set for the recommended intervention
+Internal function that calculates the confidence set
+for the recommended interventions
 }
 \examples{
 # fit the model
@@ -65,17 +77,19 @@ model <- glm(EBP_proportions ~ coaching_updt + launch_duration + birth_volume_10
 )
 # get the confidence set
 cs_results <- get_confidence_set(
-  predictors = cbind(BB_proportions$coaching_updt, BB_proportions$launch_duration,
-  BB_proportions$birth_volume_100),
+  predictors_data = cbind(
+    BB_proportions$coaching_updt, BB_proportions$launch_duration,
+    BB_proportions$birth_volume_100
+  ),
   fitted_model = model,
   outcome_goal = 0.8,
   outcome_type = "continuous",
-  center_characteristic_list = "birth_volume_100",
-  center_cha = 1.74,
-  outcome = BB_proportions$EBP_proportions,
+  center_characteristics = "birth_volume_100",
+  center_characteristics_optimization_values = 1.74,
+  outcome_data = BB_proportions$EBP_proportions,
   intervention_lower_bounds = c(1, 1),
   intervention_upper_bounds = c(40, 5),
-  confidence_set_step_size = c(0.1, 0.1)
+  confidence_set_grid_step_size = c(0.1, 0.1)
 )
 
 }
