@@ -1,18 +1,18 @@
 #' calculate_recommended_interventions
 #'
-#' @description Calculates the LAGO recommended interventions based on an outcome
-#' goal and/or a power goal.
+#' @description Calculates the LAGO recommended interventions based on an
+#' outcome goal and/or a power goal.
 #'
-#'
-#' ## required arguments:
-#' @param data A data.frame. The input dataset containing the variables of interest.
+#' ### required arguments:
+#' @param data A data.frame. The input dataset containing the variables of
+#' interest.
 #' @param outcome_name A character string. The name of the column in the dataset
 #' that represents the outcome of interest.
 #' @param outcome_type A character string. Specifies the type of the outcome.
 #' Must be either "continuous" for continuous outcomes or "binary" for binary
 #' outcomes.
-#' @param intervention_components A character vector. The names of the columns in
-#' the dataset that represent the intervention components.
+#' @param intervention_components A character vector. The names of the columns
+#' in the dataset that represent the intervention components.
 #' For example: c("component1", "component2").
 #' @param intervention_lower_bounds A numeric vector. Specifies the lower bounds
 #' of the intervention components.
@@ -35,7 +35,7 @@
 #' - Second component: cost = 6x_2
 #' - Third component: cost = 4x_3
 #'
-#' ## optional arguments:
+#' ### optional arguments:
 #' @param glm_family A character string. The family of the glm() outcome model.
 #' Default value without user specification:
 #' "gaussian" for continuous outcomes, "binomial" for binary outcomes.
@@ -74,14 +74,16 @@
 #' the confidence set calculations.
 #' Default value without user specification: 0.05.
 #'
-#' @return List(recommended interventions,
+#' @return List(
+#' recommended interventions,
 #' associated cost for the interventions,
-#' estimated outcome mean/probability for the intervention group in the next stage,
+#' estimated outcome mean/probability for the intervention group,
 #' 95% confidence set percentage,
 #' 95% confidence set)
 #'
 #' @examples
-#' # Basic case showing how to carry out the optimization with a built-in data set.
+#' # Basic case showing how to carry out the optimization with
+#' # a built-in data set.
 #' calculate_recommended_interventions(
 #'   data = infert,
 #'   outcome_name = "case",
@@ -128,24 +130,25 @@
 #'
 #' @export
 #'
-calculate_recommended_interventions <- function(data,
-                                                outcome_name,
-                                                outcome_type,
-                                                intervention_components,
-                                                intervention_lower_bounds,
-                                                intervention_upper_bounds,
-                                                cost_list_of_vectors,
-                                                outcome_goal, # later, make this optional once power goal is included
-                                                glm_family = "default",
-                                                link = "default",
-                                                weights = NULL,
-                                                center_characteristics = NULL,
-                                                center_characteristics_optimization_values = NULL,
-                                                optimization_method = "numerical",
-                                                optimization_grid_search_step_size = NULL,
-                                                include_confidence_set = TRUE,
-                                                confidence_set_grid_step_size = NULL,
-                                                confidence_set_alpha = 0.05) {
+calculate_recommended_interventions <- function(
+    data,
+    outcome_name,
+    outcome_type,
+    intervention_components,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
+    cost_list_of_vectors,
+    outcome_goal,
+    glm_family = "default",
+    link = "default",
+    weights = NULL,
+    center_characteristics = NULL,
+    center_characteristics_optimization_values = NULL,
+    optimization_method = "numerical",
+    optimization_grid_search_step_size = NULL,
+    include_confidence_set = TRUE,
+    confidence_set_grid_step_size = NULL,
+    confidence_set_alpha = 0.05) {
   # check if the data frame is null
   if (is.null(data)) {
     stop("The data frame 'data' is NULL.")
@@ -160,7 +163,8 @@ calculate_recommended_interventions <- function(data,
   }
   # check if the data frame has all the required columns
   # for now, we are not requiring any columns.
-  # TODO: for adding a power goal or adding fixed center effects in model fitting,
+  # TODO: for adding a power goal or adding fixed center effects
+  # in model fitting,
   # we would need to specify a few required columns: groups, center.
   required_columns <- c()
   missing_columns <- setdiff(required_columns, names(data))
@@ -191,7 +195,10 @@ calculate_recommended_interventions <- function(data,
   # check if the outcome type is either continuous or binary
   allowed_outcome_types <- c("continuous", "binary")
   if (!(outcome_type %in% allowed_outcome_types)) {
-    stop(paste("Outcome type", outcome_type, "is not 'continuous' or 'binary'."))
+    stop(paste(
+      "Outcome type", outcome_type,
+      "is not 'continuous' or 'binary'."
+    ))
   }
 
   # check if the glm family is a character type
@@ -214,7 +221,13 @@ calculate_recommended_interventions <- function(data,
   # check if the provided link option is supported
   supported_link_options <- c("logit", "probit", "identity", "log", "default")
   if (!(link %in% supported_link_options)) {
-    stop(paste("link=", link, ".", "The link option has to be one of the following: logit, probit, identity, and log."))
+    stop(paste(
+      "link=", link, ".",
+      paste0(
+        "The link option has to be one of ",
+        "the following: logit, probit, identity, and log."
+      )
+    ))
   }
   # assign link based on the glm_family
   if (link == "default") {
@@ -233,42 +246,62 @@ calculate_recommended_interventions <- function(data,
     # check if the provided weights option has the same length as the number of
     # observations
     if (length(weights) != length(data[, intervention_components[1]])) {
-      stop("The length of the weights is not the same as the number of observations in the provided data frame.")
+      stop(paste0(
+        "The length of the weights is not the same as the ",
+        "number of observations in the provided data frame."
+      ))
     }
   }
 
   # check if intervention_components is a character vector type
-  if (!(is.vector(intervention_components) && is.character(intervention_components))) {
+  if (!(is.vector(intervention_components) &&
+    is.character(intervention_components))) {
     stop("Interventions list must be a character vector.")
   }
   # check if intervention_components are all columns in the data frame
   if (!all(intervention_components %in% names(data))) {
-    stop("All elements in intervention_components must be columns in the data frame.")
+    stop(paste0(
+      "All elements in intervention_components ",
+      "must be columns in the data frame."
+    ))
   }
 
   # check if center_characteristics is a character vector type
   if (!is.null(center_characteristics)) {
-    if (!(is.vector(center_characteristics) && is.character(center_characteristics))) {
+    if (!(is.vector(center_characteristics) &&
+      is.character(center_characteristics))) {
       stop("center_characteristics must be a character vector.")
     }
     # check if intervention_components are all columns in the data frame
     if (!all(center_characteristics %in% names(data))) {
-      stop("All elements in center_characteristics must be columns in the data frame.")
+      stop(paste0(
+        "All elements in center_characteristics ",
+        "must be columns in the data frame."
+      ))
     }
-    # check if center_characteristics_optimization_values is a numeric vector type
-    if (!(is.vector(center_characteristics_optimization_values) && is.numeric(center_characteristics_optimization_values))) {
-      stop("center_characteristics_optimization_values must be a numeric vector.")
+    # check if center_characteristics_optimization_values
+    # is a numeric vector type
+    if (!(is.vector(center_characteristics_optimization_values) &&
+      is.numeric(center_characteristics_optimization_values))) {
+      stop(paste0(
+        "center_characteristics_optimization_values ",
+        "must be a numeric vector."
+      ))
     }
     # check if center_characteristics_optimization_values is not null
     if (is.null(center_characteristics_optimization_values)) {
-      stop("center_characteristics_optimization_values is NULL. You decided to
-           include center characteristics in the model, please either provide
-           values of the center characteristics for LAGO optimization, or consider
-           dropping the center characteristics.")
+      stop(paste0(
+        "center_characteristics_optimization_values is NULL. ",
+        "You decided to include center characteristics in ",
+        "the model, please either provide values of the ",
+        "center characteristics for LAGO optimization, ",
+        "or consider dropping the center characteristics."
+      ))
     }
     # check if length of center_characteristics_optimization_values is the same
     # as the length of center_characteristics
-    if (length(center_characteristics) != length(center_characteristics_optimization_values)) {
+    if (length(center_characteristics) !=
+      length(center_characteristics_optimization_values)) {
       stop("The length of center_characteristics does not equal to the length of
            center_characteristics_optimization_values.")
     }
@@ -276,10 +309,12 @@ calculate_recommended_interventions <- function(data,
 
   # check if intervention_lower_bounds and intervention_upper_bounds are both
   # numerical vectors
-  if (!(is.vector(intervention_lower_bounds) && is.numeric(intervention_lower_bounds))) {
+  if (!(is.vector(intervention_lower_bounds) &&
+    is.numeric(intervention_lower_bounds))) {
     stop("intervention_lower_bounds is not a numeric vector.")
   }
-  if (!(is.vector(intervention_upper_bounds) && is.numeric(intervention_upper_bounds))) {
+  if (!(is.vector(intervention_upper_bounds) &&
+    is.numeric(intervention_upper_bounds))) {
     stop("intervention_upper_bounds is not a numeric vector.")
   }
 
@@ -291,16 +326,21 @@ calculate_recommended_interventions <- function(data,
   if (any(intervention_lower_bounds < 0)) {
     stop("The intervention must have non-negative values only.")
   }
-  invalid_indices <- which(intervention_upper_bounds < intervention_lower_bounds)
+  invalid_indices <- which(intervention_upper_bounds <
+    intervention_lower_bounds)
   if (length(invalid_indices) > 0) {
     stop(paste(
       "Invalid bounds at position(s):",
       paste(invalid_indices, collapse = ", "),
-      "\nUpper bounds for the interventions must be greater than or equal to the lower bounds."
+      paste0(
+        "\nUpper bounds for the interventions must be greater ",
+        "than or equal to the lower bounds."
+      )
     ))
   }
 
-  # check if cost_list_of_vectors is a list, and each sublist is a numeric vector
+  # check if cost_list_of_vectors is a list,
+  # and each sublist is a numeric vector
   if (!is.list(cost_list_of_vectors)) {
     stop("cost_list_of_vectors must be a list.")
   }
@@ -309,11 +349,18 @@ calculate_recommended_interventions <- function(data,
     all(sapply(sublist, is.numeric))
   }))
   if (!all_numeric) {
-    stop("All elements in the sublists of cost_list_of_vectors must be numeric.")
+    stop(paste(
+      "All elements in the sublists of cost_list_of_vectors",
+      "must be numeric."
+    ))
   }
-  # check if the dimension of cost_list_of_vectors matches the dimension of intervention_components
+  # check if the dimension of cost_list_of_vectors matches
+  # the dimension of intervention_components
   if (length(cost_list_of_vectors) != length(intervention_components)) {
-    stop("The lengths of cost_list_of_vectors and intervention_components do not match.")
+    stop(paste(
+      "The lengths of cost_list_of_vectors and",
+      "intervention_components do not match."
+    ))
   }
 
   # check if the outcome goal optimization method is a character type
@@ -323,30 +370,42 @@ calculate_recommended_interventions <- function(data,
   # check if the outcome goal optimization method is one of the defined methods
   optimization_method_list <- c("numerical", "grid_search")
   if (!(optimization_method %in% optimization_method_list)) {
-    stop(paste("optimization_method is not one of the supported methods. The supported methods are", optimization_method_list, "."))
+    stop(paste(
+      "optimization_method is not one of the supported methods.",
+      "The supported methods are", optimization_method_list, "."
+    ))
   }
 
-  # when the optimization_method is grid_search, check the number of intervention components
+  # when the optimization_method is grid_search,
+  # check the number of intervention components
   if (optimization_method == "grid_search") {
     if (length(intervention_components) > 3) {
       warning(paste0(
         "There are more than 3 intervention components, and the grid search ",
-        "algorithm may take significant amount of time to run. Please consider ",
-        "adjusting the step size, or switch to the numerical optimization ",
-        "method."
+        "algorithm may take significant amount of time to run. ",
+        "Please consider adjusting the step size, or switch to the ",
+        "numerical optimization method."
       ))
     }
   }
 
-  # if optimization_grid_search_step_size is provided, it needs to be a numeric vector
+  # if optimization_grid_search_step_size is provided,
+  # it needs to be a numeric vector
   if (!is.null(optimization_grid_search_step_size)) {
-    if (!(is.vector(optimization_grid_search_step_size) && is.numeric(optimization_grid_search_step_size))) {
+    if (!(is.vector(optimization_grid_search_step_size) &&
+      is.numeric(optimization_grid_search_step_size))) {
       stop("optimization_grid_search_step_size is not a numeric vector.")
     }
-    # if optimization_grid_search_step_size is provided, it needs to have the same length as the
-    # number of intervention components
-    if (length(optimization_grid_search_step_size) != length(intervention_components)) {
-      stop("The number of step sizes provided for the grid search algorithm does not equal to the number of intervention components. Please check the length of optimization_grid_search_step_size.")
+    # if optimization_grid_search_step_size is provided,
+    # it needs to have the same length as the number of intervention components
+    if (length(optimization_grid_search_step_size) !=
+      length(intervention_components)) {
+      stop(paste(
+        "The number of step sizes provided for the grid search",
+        "algorithm does not equal to the number of intervention",
+        "components. Please check the length of",
+        "optimization_grid_search_step_size."
+      ))
     }
   }
 
@@ -356,7 +415,10 @@ calculate_recommended_interventions <- function(data,
   }
   # check if the outcome goal >= outcome that we already observed
   if (outcome_goal <= mean(data[[outcome_name]])) {
-    stop("The specified outcome goal is below the observed mean of the intervention group. Please increase the goal.")
+    stop(paste(
+      "The specified outcome goal is below the observed mean of the",
+      "intervention group. Please increase the goal."
+    ))
   }
 
   # check whether the include_confidence_set indicator is boolean
@@ -366,14 +428,22 @@ calculate_recommended_interventions <- function(data,
 
   # check if confidence set step size is provided
   if (include_confidence_set && !is.null(confidence_set_grid_step_size)) {
-    # if confidence_set_grid_step_size is provided, it needs to be a numeric vector
-    if (!(is.vector(confidence_set_grid_step_size) && is.numeric(confidence_set_grid_step_size))) {
+    # if confidence_set_grid_step_size is provided,
+    # it needs to be a numeric vector
+    if (!(is.vector(confidence_set_grid_step_size) &&
+      is.numeric(confidence_set_grid_step_size))) {
       stop("confidence_set_grid_step_size is not a numeric vector.")
     }
-    # if confidence_set_grid_step_size is provided, it needs to have the same length as the
-    # number of intervention components
-    if (length(confidence_set_grid_step_size) != length(intervention_components)) {
-      stop("The number of step sizes provided for the grid search algorithm in the confidence set calculation does not equal to the number of intervention components. Please check the length of confidence_set_grid_step_size.")
+    # if confidence_set_grid_step_size is provided,
+    # it needs to have the same length as the number of intervention components
+    if (length(confidence_set_grid_step_size) !=
+      length(intervention_components)) {
+      stop(paste(
+        "The number of step sizes provided for the grid",
+        "search algorithm in the confidence set calculation",
+        "does not equal to the number of intervention components.",
+        "Please check the length of confidence_set_grid_step_size."
+      ))
     }
   }
 
@@ -410,16 +480,46 @@ calculate_recommended_interventions <- function(data,
   # TODO: add the option to fit the outcome model with fixed center effects,
   # and/or fixed time effects, and/or interaction terms.
   if (is.null(center_characteristics)) {
-    formula <- as.formula(paste(outcome_name, "~", paste(intervention_components, collapse = " + ")))
-    model <- glm(formula, data = data, family = family_object, weights = weights)
+    formula <- as.formula(paste(
+      outcome_name,
+      "~",
+      paste(intervention_components,
+        collapse = " + "
+      )
+    ))
+    model <- glm(formula,
+      data = data,
+      family = family_object,
+      weights = weights
+    )
   } else {
-    formula_with_center_characteristics <- as.formula(paste(outcome_name, "~", paste(intervention_components, collapse = " + "), " + ", paste(center_characteristics, collapse = " + ")))
-    model <- glm(formula_with_center_characteristics, data = data, family = family_object, weights = weights)
+    formula_with_center_characteristics <- as.formula(paste(
+      outcome_name,
+      "~",
+      paste(
+        intervention_components,
+        collapse = " + "
+      ),
+      " + ",
+      paste(
+        center_characteristics,
+        collapse = " + "
+      )
+    ))
+    model <- glm(
+      formula_with_center_characteristics,
+      data = data,
+      family = family_object,
+      weights = weights
+    )
   }
 
   # if model did not converge, stop the function
   if (!model$converged) {
-    stop("Model did not converge. Please check your data and model specifications.")
+    stop(paste(
+      "Model did not converge. Please check",
+      "your data and model specifications."
+    ))
   }
 
   # get coefficients for the intervention components
@@ -450,7 +550,8 @@ calculate_recommended_interventions <- function(data,
   }
 
   # assign grid search step size
-  if (optimization_method == "grid_search" && is.null(optimization_grid_search_step_size)) {
+  if (optimization_method == "grid_search" &&
+    is.null(optimization_grid_search_step_size)) {
     optimization_grid_search_step_size <- step_size_results
   }
 
@@ -465,7 +566,8 @@ calculate_recommended_interventions <- function(data,
     optimization_method = optimization_method,
     optimization_grid_search_step_size = optimization_grid_search_step_size,
     center_cha_coeff_vec = center_cha_coeff_vec,
-    center_characteristics_optimization_values = center_characteristics_optimization_values
+    center_characteristics_optimization_values =
+      center_characteristics_optimization_values
   )
   message("Done")
 
@@ -481,7 +583,10 @@ calculate_recommended_interventions <- function(data,
 
   # calculate the confidence set for the recommended interventions
   if (include_confidence_set) {
-    cat("If the confidence set calculation takes a long time to run, please consider increasing the confidence set step size. \n")
+    cat(paste(
+      "If the confidence set calculation takes a long time to run,",
+      "please consider increasing the confidence set step size. \n"
+    ))
     message("Calculating the confidence set...")
     if (!is.null(center_characteristics)) {
       predictors_list <- c(intervention_components, center_characteristics)
@@ -499,7 +604,8 @@ calculate_recommended_interventions <- function(data,
       intervention_upper_bounds = intervention_upper_bounds,
       confidence_set_grid_step_size = confidence_set_grid_step_size,
       center_characteristics = center_characteristics,
-      center_characteristics_optimization_values = center_characteristics_optimization_values,
+      center_characteristics_optimization_values =
+        center_characteristics_optimization_values,
       confidence_set_alpha = confidence_set_alpha
     )
     message("Done")
@@ -530,7 +636,10 @@ calculate_recommended_interventions <- function(data,
   cat("\t family:", family_object$family, "\n")
   cat("\t link:", family_object$link, "\n")
   cat("Outcome goal:", outcome_goal, "\n")
-  cat("List of intervention component costs:", toString(cost_list_of_vectors), "\n")
+  cat(
+    "List of intervention component costs:",
+    toString(cost_list_of_vectors), "\n"
+  )
 
   cat("\n===================================================")
   cat("\n===========  Recommended Interventions  ===========\n")
@@ -550,7 +659,10 @@ calculate_recommended_interventions <- function(data,
     cat("\n========================================")
     cat("\n============ Confidence Set ============\n")
     cat("========================================\n")
-    cat("Confidence set size percentage:", cs$confidence_set_size_percentage, "\n")
+    cat(
+      "Confidence set size percentage:",
+      cs$confidence_set_size_percentage, "\n"
+    )
     cat("Confidence set: \n")
     print(cs$cs)
   }

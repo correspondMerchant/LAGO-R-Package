@@ -23,54 +23,57 @@ devtools::load_all()
 
 ## Load the BetterBirth data
 ```{r}
-# BB data has been open sourced, so I pre-loaded the BB data in the LAGO package 
-BB_data <- LAGO::BB_data
-head(BB_data)
+# BB data has been open sourced, so I pre-loaded the BB data in the LAGO package
+bb_data <- LAGO::BB_data
+head(bb_data)
 ```
 
 ## Calculate the recommended interventions using the LAGO package 
 ```{r}
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_data,
-                                    outcome_name = "pp3_oxytocin_mother",
-                                    outcome_type = "binary", 
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
-                                    outcome_goal = 0.85)
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85
+)
 ```
 
 ```{r}
 optimization_results_wo_cs <- calculate_recommended_interventions(
-                                    data = BB_data,
-                                    outcome_name = "pp3_oxytocin_mother",
-                                    outcome_type = "binary", 
-                                    glm_family = "binomial",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
-                                    outcome_goal = 0.85,
-                                    include_confidence_set = FALSE)
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  include_confidence_set = FALSE
+)
 ```
 
 ## Compare with the results from Nevo et al. 
 ```{r}
 # From Nevo et al paper:
-# "... we estimated the optimal intervention for a center with average 
-# birth volumn (z=175) to be a launch duration of 2.78 days and 1 coaching visit."
+# "... we estimated the optimal intervention for a center with average
+# birth volumn (z=175) to be a launch duration of
+# 2.78 days and 1 coaching visit."
 optimization_results$rec_int
-# same results as described in the paper 
+# same results as described in the paper
 
 # cost for the recommended interventions
 optimization_results$rec_int_cost
 
-# estimated outcome mean/probability in the next stage 
+# estimated outcome mean/probability in the next stage
 optimization_results$est_outcome_goal
 ```
 

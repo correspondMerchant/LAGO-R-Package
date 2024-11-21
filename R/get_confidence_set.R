@@ -3,8 +3,8 @@
 #' @description Internal function that calculates the confidence set
 #' for the recommended interventions
 #'
-#' @param predictors_data A data.frame. The input data containing the intervention
-#' components and center characteristics.
+#' @param predictors_data A data.frame. The input data containing
+#' the intervention components and center characteristics.
 #' @param outcome_data A data.frame. The input data containing the outcome
 #' of interest.
 #' @param fitted_model A glm(). The fitted glm() outcome model.
@@ -41,7 +41,9 @@
 #'
 #' @examples
 #' # fit the model
-#' model <- glm(EBP_proportions ~ coaching_updt + launch_duration + birth_volume_100,
+#' model <- glm(
+#'   EBP_proportions ~ coaching_updt
+#'     + launch_duration + birth_volume_100,
 #'   data = BB_proportions, family = quasibinomial(link = "logit")
 #' )
 #' # get the confidence set
@@ -94,7 +96,10 @@ get_confidence_set <- function(predictors_data,
   # set for predictions
   if (!is.null(center_characteristics)) {
     n_center_cha <- length(center_characteristics_optimization_values)
-    repeated_center_cha <- rep(center_characteristics_optimization_values, length.out = n_rows * n_center_cha)
+    repeated_center_cha <- rep(
+      center_characteristics_optimization_values,
+      length.out = n_rows * n_center_cha
+    )
     repeated_center_cha_mat <- matrix(repeated_center_cha,
       nrow = n_rows,
       ncol = n_center_cha, byrow = T
@@ -113,49 +118,60 @@ get_confidence_set <- function(predictors_data,
 
   if (outcome_type == "binary") {
     # predict outcomes using the fitted model
-    pred_all <- predict(fitted_model, newdata = new_data, se.fit = T, type = "response")
+    pred_all <- predict(
+      fitted_model,
+      newdata = new_data,
+      se.fit = TRUE,
+      type = "response"
+    )
 
     # lower and upper bounds of predictions
     lb_prob_all <- pred_all$fit - critical_value * pred_all$se.fit
     ub_prob_all <- pred_all$fit + critical_value * pred_all$se.fit
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
 
-    # calculate percentage of interventions that are included in the confidence set
-    set_size_intervals <- sum(apply(ci_prob_all, 1, function(y) findInterval(x = outcome_goal, vec = y)) == 1)
+    # calculate percentage of interventions
+    # that are included in the confidence set
+    set_size_intervals <- sum(apply(
+      ci_prob_all,
+      1,
+      function(y) findInterval(x = outcome_goal, vec = y)
+    ) == 1)
     confidence_set_size_percentage <- set_size_intervals / n_rows
 
     # calculate the confidence set
-    cs <- new_data[(apply(ci_prob_all, 1, function(y) findInterval(x = outcome_goal, vec = y)) == 1) == 1, ]
+    cs <- new_data[(apply(
+      ci_prob_all,
+      1,
+      function(y) findInterval(x = outcome_goal, vec = y)
+    ) == 1) == 1, ]
   } else if (outcome_type == "continuous") {
     # define the function to manually calculate var-cov matrix according to the
     # formulas in Bing et al.
     # TODO: for other link functions, we may need separate functions to manually
     # calculate their vcov matrix. this is not straightforward.
     get_vcov <- function(predictors_data, model, outcome_data) {
-      matrix.J <- 0
-      matrix.V <- 0
+      matrix_j <- 0
+      matrix_v <- 0
       n <- length(predictors_data[, 1])
       probs <- model$fitted.values
 
       for (i in 1:n) {
-        x.i <- as.matrix(c(1, as.numeric(predictors_data[i, ])))
-        p.i <- probs[i]
-        ddbeta.i <- (p.i * (1 - p.i)) * x.i
+        x_i <- as.matrix(c(1, as.numeric(predictors_data[i, ])))
+        p_i <- probs[i]
+        ddbeta_i <- (p_i * (1 - p_i)) * x_i
 
-        J.i <- ddbeta.i %*% t(ddbeta.i)
-        matrix.J <- matrix.J + J.i / n
+        j_i <- ddbeta_i %*% t(ddbeta_i)
+        matrix_j <- matrix_j + j_i / n
 
-        V.i <- (ddbeta.i) %*% ((outcome_data[i] - p.i)^2) %*% t(ddbeta.i)
-        matrix.V <- matrix.V + V.i / n
+        v_i <- (ddbeta_i) %*% ((outcome_data[i] - p_i)^2) %*% t(ddbeta_i)
+        matrix_v <- matrix_v + v_i / n
       }
 
-      return(solve(matrix.J) %*% matrix.V %*% t(solve(matrix.J)) / n)
+      return(solve(matrix_j) %*% matrix_v %*% t(solve(matrix_j)) / n)
     }
 
     # calculate the var-cov matrix
-    # print(predictors_data)
-    # print(fitted_model)
-
     vcov_matrix <- get_vcov(predictors_data, fitted_model, outcome_data)
 
     # get predicted values
@@ -174,12 +190,21 @@ get_confidence_set <- function(predictors_data,
     # Combine and apply expit function
     ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
 
-    # calculate percentage of interventions that are included in the confidence set
-    set_size_intervals <- sum(apply(ci_prob_all, 1, function(y) findInterval(x = outcome_goal, vec = y)) == 1)
+    # calculate percentage of interventions that are
+    # included in the confidence set
+    set_size_intervals <- sum(apply(
+      ci_prob_all,
+      1,
+      function(y) findInterval(x = outcome_goal, vec = y)
+    ) == 1)
     confidence_set_size_percentage <- set_size_intervals / n_rows
 
     # calculate the confidence set
-    cs <- new_data[(apply(ci_prob_all, 1, function(y) findInterval(x = outcome_goal, vec = y)) == 1) == 1, ]
+    cs <- new_data[(apply(
+      ci_prob_all,
+      1,
+      function(y) findInterval(x = outcome_goal, vec = y)
+    ) == 1) == 1, ]
   }
 
   return(list(

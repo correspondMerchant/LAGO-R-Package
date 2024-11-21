@@ -19,68 +19,71 @@ devtools::load_all()
 ```
 
 ```{r}
-BB_proportions <- LAGO::BB_proportions
-head(BB_proportions)
+bb_proportions <- LAGO::BB_proportions
+head(bb_proportions)
 ```
 
 ```{r}
 # defaults to numerical solution
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_proportions,
-                                    outcome_name = "EBP_proportions",
-                                    outcome_type = "continuous", 
-                                    glm_family = "quasibinomial",
-                                    link = "logit",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
-                                    outcome_goal = 0.8,
-                                    include_confidence_set = FALSE)
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.8,
+  include_confidence_set = FALSE
+)
 optimization_results
 # should be (3.97, 35.50), same as in Bing et al.
 ```
 
 ```{r}
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_proportions,
-                                    outcome_name = "EBP_proportions",
-                                    outcome_type = "continuous", 
-                                    glm_family = "quasibinomial",
-                                    link = "logit",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
-                                    outcome_goal = 0.8)
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.8
+)
 ```
 
 
 ```{r}
 # grid_search solution
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_proportions,
-                                    outcome_name = "EBP_proportions",
-                                    outcome_type = "continuous", 
-                                    glm_family = "quasibinomial",
-                                    link = "logit",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
-                                    optimization_method = "grid_search",
-                                    optimization_grid_search_step_size = c(0.1, 0.5),
-                                    outcome_goal = 0.8,
-                                    include_confidence_set = FALSE)
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(0.1, 0.5),
+  outcome_goal = 0.8,
+  include_confidence_set = FALSE
+)
 optimization_results
 # (35.4, 4.0)
-# can lower step size for more accurate results, but the numerical 
-# solution should be preferred since it runs much faster. 
+# can lower step size for more accurate results, but the numerical
+# solution should be preferred since it runs much faster.
 ```
 

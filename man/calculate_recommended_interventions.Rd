@@ -26,7 +26,8 @@ calculate_recommended_interventions(
 )
 }
 \arguments{
-\item{data}{A data.frame. The input dataset containing the variables of interest.}
+\item{data}{A data.frame. The input dataset containing the variables of
+interest.}
 
 \item{outcome_name}{A character string. The name of the column in the dataset
 that represents the outcome of interest.}
@@ -35,8 +36,8 @@ that represents the outcome of interest.}
 Must be either "continuous" for continuous outcomes or "binary" for binary
 outcomes.}
 
-\item{intervention_components}{A character vector. The names of the columns in
-the dataset that represent the intervention components.
+\item{intervention_components}{A character vector. The names of the columns
+in the dataset that represent the intervention components.
 For example: c("component1", "component2").}
 
 \item{intervention_lower_bounds}{A numeric vector. Specifies the lower bounds
@@ -62,7 +63,7 @@ list(c(0, 2), c(0, 6), c(0, 4)) represents:
 - Second component: cost = 6x_2
 - Third component: cost = 4x_3
 
-## optional arguments:}
+### optional arguments:}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
 probability or mean value.}
@@ -113,21 +114,22 @@ the confidence set calculations.
 Default value without user specification: 0.05.}
 }
 \value{
-List(recommended interventions,
+List(
+recommended interventions,
 associated cost for the interventions,
-estimated outcome mean/probability for the intervention group in the next stage,
+estimated outcome mean/probability for the intervention group,
 95% confidence set percentage,
 95% confidence set)
 }
 \description{
-Calculates the LAGO recommended interventions based on an outcome
-goal and/or a power goal.
+Calculates the LAGO recommended interventions based on an
+outcome goal and/or a power goal.
 
-
-## required arguments:
+### required arguments:
 }
 \examples{
-# Basic case showing how to carry out the optimization with a built-in data set.
+# Basic case showing how to carry out the optimization with
+# a built-in data set.
 calculate_recommended_interventions(
   data = infert,
   outcome_name = "case",

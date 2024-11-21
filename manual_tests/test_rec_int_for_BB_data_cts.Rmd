@@ -23,44 +23,45 @@ devtools::load_all()
 
 ## Load the BetterBirth data with EBP proportions
 ```{r}
-# BB data has been open sourced, so it has been preloaded 
-BB_proportions <- LAGO::BB_proportions
-head(BB_proportions)
+# BB data has been open sourced, so it has been preloaded
+bb_proportions <- LAGO::BB_proportions
+head(bb_proportions)
 ```
 
 ## Calculate the recommended interventions using the LAGO package 
 ```{r}
 # using a linear cost function
 optimization_results <- calculate_recommended_interventions(
-                                    data = BB_proportions,
-                                    outcome_name = "EBP_proportions",
-                                    outcome_type = "continuous", 
-                                    glm_family = "quasibinomial",
-                                    link = "logit",
-                                    intervention_components = c("coaching_updt", "launch_duration"),
-                                    center_characteristics = c("birth_volume_100"),
-                                    center_characteristics_optimization_values = 1.75,
-                                    intervention_lower_bounds = c(1,1),
-                                    intervention_upper_bounds = c(40, 5),
-                                    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
-                                    outcome_goal = 0.8,
-                                    include_confidence_set = T)
-# for higher order cost, see test_higher_order_costs.Rmd 
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.8,
+  include_confidence_set = TRUE
+)
+# for higher order cost, see test_higher_order_costs.Rmd
 ```
 
 ## Compare with the results from Bing et al. 
 ```{r}
 # From Bing et al paper:
-# "... For a center with an average birth volume (z = 175), the estimated 
-# optimal intervention package under the linear cost function comprised a launch 
+# "... For a center with an average birth volume (z = 175), the estimated
+# optimal intervention package under the linear cost function comprised a launch
 # duration of 5 days and 31 coaching visits ... "
 optimization_results$rec_int
-# 30.52 approximates to 31, so same results as described in the paper 
+# 30.52 approximates to 31, so same results as described in the paper
 
 # cost for the recommended interventions
 optimization_results$rec_int_cost
 
-# estimated outcome mean/probability in the next stage 
+# estimated outcome mean/probability in the next stage
 optimization_results$est_outcome_goal
 ```
 
