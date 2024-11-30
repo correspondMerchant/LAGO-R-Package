@@ -5,7 +5,12 @@
 \title{get_recommended_interventions}
 \usage{
 get_recommended_interventions(
-  beta_vector,
+  intervention_components_coeff,
+  include_interaction_terms,
+  main_components,
+  intervention_components,
+  all_center_lvl_effects,
+  center_weights_for_outcome_goal,
   cost_list_of_vectors,
   intervention_lower_bounds,
   intervention_upper_bounds,
@@ -17,9 +22,25 @@ get_recommended_interventions(
 )
 }
 \arguments{
-\item{beta_vector}{A numeric vector. The coefficient estimates for the
-intervention components including the intercept term
-For example: c(0.1, 0.3, 0.15).}
+\item{intervention_components_coeff}{A numeric vector.
+The coefficient estimates for the intervention components
+including the intercept term. For example: c(0.1, 0.3, 0.15).}
+
+\item{include_interaction_terms}{A boolean. Specifies whether there are
+interaction terms in the intervention components.}
+
+\item{main_components}{A character vector. Specifies the main intervention
+components in the presence of interaction terms.}
+
+\item{intervention_components}{A character vector. The names of the columns
+in the dataset that represent the intervention components.}
+
+\item{all_center_lvl_effects}{A numeric vector.
+The coefficient estimates for the facilities, which includes the fixed
+center effects and the fixed time effects.}
+
+\item{center_weights_for_outcome_goal}{A numeric vector. Specifies the
+weights of all facilities. The weights should sum up to 1.}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. Specifies the cost
 functions for each intervention component. Each numeric vector in the list
@@ -82,7 +103,12 @@ interventions based on an outcome goal and/or a power goal.
 \examples{
 # Example for using the grid search
 get_recommended_interventions(
-  beta_vector = c(0.1, 0.3, 0.15),
+  intervention_components_coeff = c(0.1, 0.3, 0.15),
+  include_interaction_terms = FALSE,
+  main_components = NULL,
+  intervention_components = c("name1", "name2"),
+  all_center_lvl_effects = 0,
+  center_weights_for_outcome_goal = 1,
   cost_list_of_vectors = list(c(0, 1, 2), c(0, 4)),
   intervention_lower_bounds = c(0, 0),
   intervention_upper_bounds = c(10, 20),
@@ -93,7 +119,12 @@ get_recommended_interventions(
 
 # Example for using the numerical method
 get_recommended_interventions(
-  beta_vector = c(0.1, 0.3, 0.15),
+  intervention_components_coeff = c(0.1, 0.3, 0.15),
+  include_interaction_terms = FALSE,
+  main_components = NULL,
+  intervention_components = c("name1", "name2"),
+  all_center_lvl_effects = 0,
+  center_weights_for_outcome_goal = 1,
   cost_list_of_vectors = list(c(0, 1, 2), c(0, 4)),
   intervention_lower_bounds = c(0, 0),
   intervention_upper_bounds = c(10, 20),

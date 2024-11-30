@@ -1,0 +1,405 @@
+---
+title: "test pulesa model related changes"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+# throws error when columns are missing from input data
+# for input_data_structure = "center_level"
+bb_data <- LAGO::BB_data
+
+optimization_results <- calculate_recommended_interventions(
+    data = bb_data,
+    input_data_structure = "center_level",
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85
+)
+```
+
+```{r}
+# throws error when input_data_sturcutre
+# is not "individual_level" or "center_level"
+optimization_results <- calculate_recommended_interventions(
+    data = bb_data,
+    input_data_structure = "level",
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85
+)
+```
+
+```{r}
+# throws error when outcome type is not binary
+# for input_data_structure = "center_level"
+optimization_results <- calculate_recommended_interventions(
+    data = bb_data,
+    input_data_structure = "center_level",
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "continuous",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85
+)
+```
+
+
+## the following tests use the PULESA data 
+## main_pulesa_data, and new_pulesa_data
+## confidential datasets
+## should be removed before publishing the R package 
+
+```{r}
+# test the "main" PULESA model with the main_pulesa_data
+main_pulesa_data <- LAGO::main_pulesa_data
+head(main_pulesa_data)
+main_pulesa_data$proportion <- main_pulesa_data$Success /
+    main_pulesa_data$Total_visit
+main_pulesa_data$period <- main_pulesa_data$Period
+main_pulesa_data$center_sample_size <- main_pulesa_data$Total_visit
+main_pulesa_data$center <- main_pulesa_data$Clinic
+```
+
+```{r}
+# "main" PULESA model, no confidence set calculation
+# print out the coefficient estimates and compare with results
+# obtained from Jingyu's code
+optimization_results <- calculate_recommended_interventions(
+    data = main_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "AccessMedicines",
+        "AccessBPMachines",
+        "HypertensionTraining",
+        "DeliveryA",
+        "DeliveryB",
+        "RemoteMonitoring",
+        "PerformanceImprovement"
+    ),
+    additional_covariates = c(
+        "MI_DeliveryB",
+        "MI_RemoteMonitoring",
+        "MI_PerformanceImprovement"
+    ),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    include_confidence_set = FALSE
+)
+# coefficients are the same as the results calculated using
+# Jingyu's code:
+# coef for intervention components
+coef_intervention_all <- c(
+    0.02574541, 3.05477149, 0.02858655, -0.01414000,
+    -0.24840744, -0.01412070, 0.22094251
+)
+# clinic effects in the last period (period 13)
+# meaning need to add the coefficient for period13
+# after that, the numbers are the same!
+coef_clinic_all <- c(
+    -2.758192, -1.973129, -1.999936, -2.077562,
+    -2.379168, -2.284975, -2.106937, -2.093274,
+    -1.953535, -1.999254, -2.376087, -2.521707,
+    -1.899561, -2.433208, -1.641754, -2.537827
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+# "main" PULESA model, now with confidence set calculations
+optimization_results_cs <- calculate_recommended_interventions(
+    data = main_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "AccessMedicines",
+        "AccessBPMachines",
+        "HypertensionTraining",
+        "DeliveryA",
+        "DeliveryB",
+        "RemoteMonitoring",
+        "PerformanceImprovement"
+    ),
+    additional_covariates = c(
+        "MI_DeliveryB",
+        "MI_RemoteMonitoring",
+        "MI_PerformanceImprovement"
+    ),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    confidence_set_grid_step_size = c(10, 1, 2, 3, 4, 5, 5), # fake
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+# test the "new" PULESA model with the new_pulesa_data
+new_pulesa_data <- LAGO::new_pulesa_data
+head(new_pulesa_data)
+new_pulesa_data$proportion <- new_pulesa_data$Success /
+    new_pulesa_data$Total_visit
+new_pulesa_data$period <- new_pulesa_data$Period
+new_pulesa_data$center_sample_size <- new_pulesa_data$Total_visit
+new_pulesa_data$center <- new_pulesa_data$Clinic
+
+# i think interaction terms have to follow a specific pattern
+# for this to work, e.g., "X1:X3"
+new_pulesa_data$X1 <- new_pulesa_data$W1
+new_pulesa_data$X2 <- new_pulesa_data$W2
+new_pulesa_data$X3 <- new_pulesa_data$W3
+new_pulesa_data$`X1:X4` <- new_pulesa_data$W4
+new_pulesa_data$`X1:X5` <- new_pulesa_data$W5
+new_pulesa_data$`X1:X4:X5` <- new_pulesa_data$W6
+new_pulesa_data$`X2:X6` <- new_pulesa_data$W7
+new_pulesa_data$X7 <- new_pulesa_data$W8
+
+# main effect columns
+new_pulesa_data$X4 <- new_pulesa_data$DeliveryA
+new_pulesa_data$X5 <- new_pulesa_data$DeliveryB
+new_pulesa_data$X6 <- new_pulesa_data$RemoteMonitoring
+```
+
+```{r}
+# "new" PULESA model, no confidence set calculation
+# print out the coefficient estimates and compare with results
+# obtained from Jingyu's code
+optimization_results <- calculate_recommended_interventions(
+    data = new_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "X1",
+        "X2",
+        "X3",
+        "X1:X4",
+        "X1:X5",
+        "X1:X4:X5",
+        "X2:X6",
+        "X7"
+    ),
+    additional_covariates = c(
+        "MI_W5",
+        "MI_W7",
+        "MI_W8"
+    ),
+    include_interaction_terms = TRUE,
+    main_components = c("X1", "X2", "X3", "X4", "X5", "X6", "X7"),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    include_confidence_set = FALSE
+)
+
+# same as the results obtained from Jingyu's code:
+# for period 13:
+coef_clinic_all <- c(
+    -2.752658, -1.977470, -2.009640, -2.086622,
+    -2.431341, -2.296375, -2.152757, -2.104643,
+    -1.961219, -2.008060, -2.389524, -2.509495,
+    -1.908690, -2.446948, -1.654909, -2.545548
+)
+
+coef_intervention_all <- c(
+    0.009837163, 3.056936530,
+    0.029303695, 0.016810281,
+    -0.109998356, 0.164177907,
+    -0.122436143, 0.214574843
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+```{r}
+# "new" model, no confidence set yet.
+# test both grid search and numerical solutions for rec int
+# numerical method:
+optimization_results <- calculate_recommended_interventions(
+    data = new_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "X1",
+        "X2",
+        "X3",
+        "X1:X4",
+        "X1:X5",
+        "X1:X4:X5",
+        "X2:X6",
+        "X7"
+    ),
+    additional_covariates = c(
+        "MI_W5",
+        "MI_W7",
+        "MI_W8"
+    ),
+    include_interaction_terms = TRUE,
+    main_components = c("X1", "X2", "X3", "X4", "X5", "X6", "X7"),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    include_confidence_set = FALSE
+)
+```
+
+
+```{r}
+# "new" model, no confidence set yet.
+# grid_search method:
+optimization_results <- calculate_recommended_interventions(
+    data = new_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "X1",
+        "X2",
+        "X3",
+        "X1:X4",
+        "X1:X5",
+        "X1:X4:X5",
+        "X2:X6",
+        "X7"
+    ),
+    additional_covariates = c(
+        "MI_W5",
+        "MI_W7",
+        "MI_W8"
+    ),
+    include_interaction_terms = TRUE,
+    main_components = c("X1", "X2", "X3", "X4", "X5", "X6", "X7"),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    optimization_method = "grid_search",
+    optimization_grid_search_step_size = c(20, 2, 2, 2, 2, 2, 2),
+    include_confidence_set = FALSE
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+```{r}
+# "new" model, with confidence set yet.
+optimization_results <- calculate_recommended_interventions(
+    data = new_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "X1",
+        "X2",
+        "X3",
+        "X1:X4",
+        "X1:X5",
+        "X1:X4:X5",
+        "X2:X6",
+        "X7"
+    ),
+    additional_covariates = c(
+        "MI_W5",
+        "MI_W7",
+        "MI_W8"
+    ),
+    include_interaction_terms = TRUE,
+    main_components = c("X1", "X2", "X3", "X4", "X5", "X6", "X7"),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    confidence_set_grid_step_size = c(20, 2, 2, 2, 2, 2, 2)
+)
+```

@@ -3,9 +3,20 @@
 #' @description Internal function that calculates the LAGO recommended
 #' interventions based on an outcome goal and/or a power goal.
 #'
-#' @param beta_vector A numeric vector. The coefficient estimates for the
-#' intervention components including the intercept term
-#' For example: c(0.1, 0.3, 0.15).
+#' @param intervention_components_coeff A numeric vector.
+#' The coefficient estimates for the intervention components
+#' including the intercept term. For example: c(0.1, 0.3, 0.15).
+#' @param include_interaction_terms A boolean. Specifies whether there are
+#' interaction terms in the intervention components.
+#' @param main_components A character vector. Specifies the main intervention
+#' components in the presence of interaction terms.
+#' @param intervention_components A character vector. The names of the columns
+#' in the dataset that represent the intervention components.
+#' @param all_center_lvl_effects A numeric vector.
+#' The coefficient estimates for the facilities, which includes the fixed
+#' center effects and the fixed time effects.
+#' @param center_weights_for_outcome_goal A numeric vector. Specifies the
+#' weights of all facilities. The weights should sum up to 1.
 #' @param center_cha_coeff_vec A numeric vector. The coefficients estimates for
 #' the center characteristics.
 #' For example: c(-0.4).
@@ -55,7 +66,12 @@
 #' @examples
 #' # Example for using the grid search
 #' get_recommended_interventions(
-#'   beta_vector = c(0.1, 0.3, 0.15),
+#'   intervention_components_coeff = c(0.1, 0.3, 0.15),
+#'   include_interaction_terms = FALSE,
+#'   main_components = NULL,
+#'   intervention_components = c("name1", "name2"),
+#'   all_center_lvl_effects = 0,
+#'   center_weights_for_outcome_goal = 1,
 #'   cost_list_of_vectors = list(c(0, 1, 2), c(0, 4)),
 #'   intervention_lower_bounds = c(0, 0),
 #'   intervention_upper_bounds = c(10, 20),
@@ -66,7 +82,12 @@
 #'
 #' # Example for using the numerical method
 #' get_recommended_interventions(
-#'   beta_vector = c(0.1, 0.3, 0.15),
+#'   intervention_components_coeff = c(0.1, 0.3, 0.15),
+#'   include_interaction_terms = FALSE,
+#'   main_components = NULL,
+#'   intervention_components = c("name1", "name2"),
+#'   all_center_lvl_effects = 0,
+#'   center_weights_for_outcome_goal = 1,
 #'   cost_list_of_vectors = list(c(0, 1, 2), c(0, 4)),
 #'   intervention_lower_bounds = c(0, 0),
 #'   intervention_upper_bounds = c(10, 20),
@@ -82,7 +103,12 @@
 #' @export
 #'
 get_recommended_interventions <- function(
-    beta_vector,
+    intervention_components_coeff,
+    include_interaction_terms,
+    main_components,
+    intervention_components,
+    all_center_lvl_effects,
+    center_weights_for_outcome_goal,
     cost_list_of_vectors,
     intervention_lower_bounds,
     intervention_upper_bounds,
@@ -107,6 +133,11 @@ get_recommended_interventions <- function(
                                           up,
                                           beta,
                                           outcome_goal,
+                                          include_interaction_terms,
+                                          main_components,
+                                          intervention_components,
+                                          all_center_lvl_effects,
+                                          center_weights_for_outcome_goal,
                                           center_cha_coeff_vec,
                                           center_cha,
                                           step_size) {
@@ -116,24 +147,78 @@ get_recommended_interventions <- function(
       })
       # create the full grid
       full_grid <- do.call(expand.grid, grids)
+
+      # create a new grid based on the full grid if there are
+      # interaction terms. The full grid should only include
+      # main effects, and the new grid should account for
+      # the interaction terms properly.
+      if (include_interaction_terms) {
+        colnames(full_grid) <- main_components
+
+        new_grid <- data.frame(
+          matrix(
+            nrow = nrow(full_grid),
+            ncol = length(intervention_components)
+          )
+        )
+        colnames(new_grid) <- intervention_components
+
+        # Fill in the new grid
+        for (i in seq_along(intervention_components)) {
+          # Split the component string by ":"
+          components <- strsplit(
+            gsub("`", "", intervention_components[i]), ":"
+          )[[1]]
+
+          if (length(components) == 1) {
+            # Single component - just copy the column
+            new_grid[, i] <- full_grid[, (components)]
+          } else {
+            # Multiple components - multiply the corresponding columns
+            # Initialize with first component
+            result <- full_grid[, (components[1])]
+            # Multiply by remaining components
+            for (j in 2:length(components)) {
+              result <- result * full_grid[, (components[j])]
+            }
+            new_grid[, i] <- result
+          }
+        }
+      } else {
+        new_grid <- full_grid
+      }
+
       # create cost functions
       cost_functions <- lapply(cost_params, create_cost_function)
 
       # optimization function
-      f_combined <- function(int) {
-        int_vector <- c(1, int)
+      f_combined <- function(int, main_effects_int) {
+        int_vector <- as.numeric(c(1, int))
         # calculate the outcome for this intervention
-        outcome <- expit(
-          sum(beta * int_vector) + center_cha_coeff_vec * center_cha
+        outcome <- sum(
+          center_weights_for_outcome_goal *
+            expit(
+              all_center_lvl_effects +
+                sum(beta * int_vector) +
+                center_cha_coeff_vec * center_cha
+            )
         )
         # calculate the cost for this intervention
-        cost <- sum(mapply(function(f, x) f(x), cost_functions, int))
+        cost <- sum(mapply(
+          function(f, x) f(x),
+          cost_functions,
+          as.numeric(main_effects_int)
+        ))
 
         return(list(outcome = outcome, cost = cost))
       }
 
       # apply f_combined to all grid points
-      all_results <- apply(full_grid, 1, f_combined)
+      all_results <- mapply(
+        function(i) f_combined(new_grid[i, ], full_grid[i, ]),
+        1:nrow(new_grid),
+        SIMPLIFY = FALSE # so it rerturns a list
+      )
 
       # extract outcomes and costs
       all_outcomes <- sapply(all_results, function(x) x$outcome)
@@ -170,9 +255,18 @@ get_recommended_interventions <- function(
 
     # calls the grid search optimization function
     opt_results <- optimize_cost_grid_search(
-      cost_list_of_vectors, intervention_lower_bounds,
-      intervention_upper_bounds, beta_vector, outcome_goal,
-      center_cha_coeff_vec, center_characteristics_optimization_values,
+      cost_list_of_vectors,
+      intervention_lower_bounds,
+      intervention_upper_bounds,
+      intervention_components_coeff,
+      outcome_goal,
+      include_interaction_terms,
+      main_components,
+      intervention_components,
+      all_center_lvl_effects,
+      center_weights_for_outcome_goal,
+      center_cha_coeff_vec,
+      center_characteristics_optimization_values,
       optimization_grid_search_step_size
     )
   } else if (optimization_method == "numerical") {
@@ -186,18 +280,51 @@ get_recommended_interventions <- function(
                                        up,
                                        beta,
                                        outcome_goal,
+                                       all_center_lvl_effects,
+                                       center_weights_for_outcome_goal,
                                        center_cha_coeff_vec,
                                        center_cha) {
-      # Create cost functions
-      cost_functions <- lapply(cost_params, create_cost_function)
-
       # Objective function to maximize outcome
       # TODO: for now, the objective function is just expit, we will need to
-      # make it work with other link functions when fitting GLM
+      # make it work with other link functions
       obj_fun_for_max_outcome <- function(int) {
-        int_vector <- c(1, int)
+        # In the presence of interaction terms
+        if (include_interaction_terms) {
+          int_vector <- numeric(length(intervention_components))
+          for (i in seq_along(intervention_components)) {
+            components <- strsplit(
+              gsub("`", "", intervention_components[i]), ":"
+            )[[1]]
+            if (length(components) == 1) {
+              # For single components, use the value directly
+              idx <- which(main_components == components[1])
+              int_vector[i] <- int[idx]
+            } else {
+              # For interaction terms, multiply the corresponding values
+              prod_result <- 1
+              for (comp in components) {
+                # identify which component in the main_components corresponds
+                # to "comp".
+                idx <- which(main_components == comp)
+                prod_result <- prod_result * int[idx]
+              }
+              int_vector[i] <- prod_result
+            }
+          }
+          int_vector <- c(1, int_vector)
+        } else {
+          # no interaction term
+          int_vector <- c(1, int)
+        }
         # negative because NlcOptim minimizes this objective function by default
-        -expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha)
+        return(-sum(
+          center_weights_for_outcome_goal *
+            expit(
+              all_center_lvl_effects +
+                sum(beta * int_vector) +
+                center_cha_coeff_vec * center_cha
+            )
+        ))
       }
 
       # get the max achievable outcome
@@ -209,7 +336,8 @@ get_recommended_interventions <- function(
       )
       max_achievable_outcome <- -result_max$fn
 
-
+      # Create cost functions
+      cost_functions <- lapply(cost_params, create_cost_function)
       # objective function for the total cost
       cost_obj_fun <- function(x) {
         return(sum(mapply(function(f, x) f(x), cost_functions, x)))
@@ -224,10 +352,44 @@ get_recommended_interventions <- function(
         # (see helper doc of NlcOptim package for details)
         constraint_fun <- function(x) {
           f <- NULL
-          int_vector <- c(1, x)
+          if (include_interaction_terms) {
+            int_vector <- numeric(length(intervention_components))
+            for (i in seq_along(intervention_components)) {
+              components <- strsplit(
+                gsub("`", "", intervention_components[i]), ":"
+              )[[1]]
+
+              if (length(components) == 1) {
+                # For single components, use the value directly
+                idx <- which(main_components == components[1])
+                int_vector[i] <- x[idx]
+              } else {
+                # For interaction terms, multiply the corresponding values
+                prod_result <- 1
+                for (comp in components) {
+                  # identify which component in the main_components corresponds
+                  # to "comp".
+                  idx <- which(main_components == comp)
+                  prod_result <- prod_result * x[idx]
+                }
+                int_vector[i] <- prod_result
+              }
+            }
+            int_vector <- c(1, int_vector)
+          } else {
+            int_vector <- c(1, x)
+          }
           f <- rbind(
             f,
-            outcome_goal - expit(sum(beta * int_vector) + center_cha_coeff_vec * center_cha)
+            outcome_goal -
+              sum(
+                center_weights_for_outcome_goal *
+                  expit(
+                    all_center_lvl_effects +
+                      sum(beta * int_vector) +
+                      center_cha_coeff_vec * center_cha
+                  )
+              )
           )
           return(list(ceq = NULL, c = f))
         }
@@ -259,11 +421,16 @@ get_recommended_interventions <- function(
       ))
     }
 
-
     opt_results <- optimize_cost_nlcoptim(
-      cost_list_of_vectors, intervention_lower_bounds,
-      intervention_upper_bounds, beta_vector, outcome_goal,
-      center_cha_coeff_vec, center_characteristics_optimization_values
+      cost_list_of_vectors,
+      intervention_lower_bounds,
+      intervention_upper_bounds,
+      intervention_components_coeff,
+      outcome_goal,
+      all_center_lvl_effects,
+      center_weights_for_outcome_goal,
+      center_cha_coeff_vec,
+      center_characteristics_optimization_values
     )
   }
 
