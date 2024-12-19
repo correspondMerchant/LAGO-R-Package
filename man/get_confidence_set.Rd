@@ -6,6 +6,13 @@
 \usage{
 get_confidence_set(
   predictors_data,
+  include_center_effects = FALSE,
+  center_weights_for_outcome_goal = 1,
+  include_time_effects = FALSE,
+  additional_covariates = NULL,
+  intervention_components,
+  include_interaction_terms = FALSE,
+  main_components = NULL,
   outcome_data,
   fitted_model,
   outcome_goal,
@@ -15,12 +22,38 @@ get_confidence_set(
   confidence_set_grid_step_size,
   center_characteristics = NULL,
   center_characteristics_optimization_values = 0,
-  confidence_set_alpha = 0.05
+  confidence_set_alpha = 0.05,
+  cluster_id = NULL
 )
 }
 \arguments{
 \item{predictors_data}{A data.frame. The input data containing
 the intervention components and center characteristics.}
+
+\item{include_center_effects}{A boolean. Specifies whether the fixed effects
+should be included in the outcome model.}
+
+\item{center_weights_for_outcome_goal}{A numeric vector. Specifies the
+weights that will be used for calculating recommended interventions that
+satisfy the outcome goal for an (weighted) average center.
+The weights need to sum up to 1.}
+
+\item{include_time_effects}{A boolean. Specifies whether the fixed time
+effects should be included in the outcome model.}
+
+\item{additional_covariates}{A character vector. The names of the columns in
+the dataset that represent additional covaraites that need to be included
+in the outcome model. This includes interaction terms or any other additional
+covariates.}
+
+\item{intervention_components}{A character vector. The names of the columns
+in the dataset that represent the intervention components.}
+
+\item{include_interaction_terms}{A boolean. Specifies whether there are
+interaction terms in the intervention components.}
+
+\item{main_components}{A character vector. Specifies the main intervention
+components in the presence of interaction terms.}
 
 \item{outcome_data}{A data.frame. The input data containing the outcome
 of interest.}
@@ -60,6 +93,9 @@ For example: c(1.74)}
 \item{confidence_set_alpha}{A numeric value. The type I error considered in
 the confidence set calculations.
 Default value without user specification: 0.05.}
+
+\item{cluster_id}{A list. Specifies the columns of data that will be used
+as clustering effects when the "outcome_type" is continuous.}
 }
 \value{
 List(
@@ -79,10 +115,12 @@ model <- glm(
 )
 # get the confidence set
 cs_results <- get_confidence_set(
-  predictors_data = cbind(
-    BB_proportions$coaching_updt, BB_proportions$launch_duration,
-    BB_proportions$birth_volume_100
-  ),
+  predictors_data = BB_proportions[, c(
+    "coaching_updt",
+    "launch_duration",
+    "birth_volume_100"
+  )],
+  intervention_components = c("coaching_updt", "launch_duration"),
   fitted_model = model,
   outcome_goal = 0.8,
   outcome_type = "continuous",
@@ -91,7 +129,7 @@ cs_results <- get_confidence_set(
   outcome_data = BB_proportions$EBP_proportions,
   intervention_lower_bounds = c(1, 1),
   intervention_upper_bounds = c(40, 5),
-  confidence_set_grid_step_size = c(0.1, 0.1)
+  confidence_set_grid_step_size = c(1, 0.5)
 )
 
 }

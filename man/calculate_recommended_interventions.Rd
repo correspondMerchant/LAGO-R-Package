@@ -6,6 +6,7 @@
 \usage{
 calculate_recommended_interventions(
   data,
+  input_data_structure = "individual_level",
   outcome_name,
   outcome_type,
   intervention_components,
@@ -18,6 +19,13 @@ calculate_recommended_interventions(
   weights = NULL,
   center_characteristics = NULL,
   center_characteristics_optimization_values = NULL,
+  include_center_effects = NULL,
+  include_time_effects = FALSE,
+  include_interaction_terms = FALSE,
+  main_components = NULL,
+  time_effect_optimization_value = NULL,
+  additional_covariates = NULL,
+  center_weights_for_outcome_goal = NULL,
   optimization_method = "numerical",
   optimization_grid_search_step_size = NULL,
   include_confidence_set = TRUE,
@@ -28,6 +36,10 @@ calculate_recommended_interventions(
 \arguments{
 \item{data}{A data.frame. The input dataset containing the variables of
 interest.}
+
+\item{input_data_structure}{A character string. The data structure of the
+input data. Must be either "individual_level" or "center_level".
+Default value without user specification: "individual_level".}
 
 \item{outcome_name}{A character string. The name of the column in the dataset
 that represents the outcome of interest.}
@@ -86,6 +98,43 @@ For example: c("characteristic1")}
 \item{center_characteristics_optimization_values}{A numeric vector. The
 values of the center characteristics that will be used for LAGO optimization.
 For example: c(1.74)}
+
+\item{include_center_effects}{A boolean. Specifies whether the fixed effects
+should be included in the outcome model.
+Default value without user specification: FALSE for individual level data,
+TRUE for center level data.}
+
+\item{include_time_effects}{A boolean. Specifies whether the fixed time
+effects should be included in the outcome model.
+Default value without user specification: FALSE.}
+
+\item{include_interaction_terms}{A boolean. Specifies whether there are
+interaction terms in the intervention components. Please make sure the
+interaciton terms are included in "intervention_components", and they
+follow the correct naming scheme: "component1:component3".
+Default value without user specification: FALSE.}
+
+\item{main_components}{A character vector. Specifies the main intervention
+components in the presence of interaction terms.
+For example: c("component1", "component2").}
+
+\item{time_effect_optimization_value}{A numeric value. The value of the time
+effect that will be used for LAGO optimization.}
+
+\item{additional_covariates}{A character vector. The names of the columns in
+the dataset that represent additional covaraites that need to be included
+in the outcome model. This includes interaction terms or any other additional
+covariates.
+For example: c("component2xcomponent4").}
+
+\item{center_weights_for_outcome_goal}{A numeric vector. Specifies the
+weights that will be used for calculating recommended interventions that
+satisfy the outcome goal for an (weighted) average center.
+The weights need to sum up to 1.
+Default value without user specification:
+For each center, calculate what percentage its sample size is of the total
+samples across all facilities - this percentage serves as that
+center's weight.}
 
 \item{optimization_method}{A character string. Specifies the method used for
 LAGO optimization. Must be either "numerical" or "grid_search".

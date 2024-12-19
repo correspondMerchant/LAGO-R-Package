@@ -6,12 +6,6 @@ author: "Ante Bing"
 editor_options: 
   chunk_output_type: console
 ---
-```{r setup, include=FALSE}
-# library(formatR)
-# knitr::opts_chunk$set(echo = TRUE)
-# knitr::opts_chunk$set(tidy=TRUE, tidy.opts=list(width.cutoff=70))
-```
-
 ## we manually test LAGO optimizations with higher order cost functions
 ```{r}
 devtools::clean_dll()
