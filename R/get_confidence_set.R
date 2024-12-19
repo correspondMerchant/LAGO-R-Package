@@ -252,7 +252,7 @@ get_confidence_set <- function(
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
-
+  # ----------------------------------------------------------------------------
   if (outcome_type == "binary") {
     # TODO: this part needs to handle more than logit link.
     new_data <- as.matrix(new_data)
@@ -274,9 +274,12 @@ get_confidence_set <- function(
       function(y) findInterval(x = outcome_goal, vec = y)
     ) == 1)
     confidence_set_size_percentage <- set_size_intervals / n_rows
+    # ----------------------------------------------------------------------------
   } else if (outcome_type == "continuous") {
-    # TODO: for other link functions, we need separate functions to manually
-    # calculate their vcov matrix.
+    # link is either "binary" or "identity"
+    # If link == "binary", use the old logic (logistic-like) for variance
+    # If link == "identity", use the identity link logic.
+
     # define the function to manually calculate var-cov matrix
     get_vcov <- function(predictors_data,
                          model,
@@ -309,7 +312,7 @@ get_confidence_set <- function(
         return(X)
       }
 
-      # Calculate single-clustering vcov
+      # Original single cluster vcov (logistic-like)
       get_single_cluster_vcov <- function(X,
                                           cluster_id,
                                           n_params,
@@ -340,92 +343,168 @@ get_confidence_set <- function(
           }
 
           matrix_j <- matrix_j + cluster_hessian / n_clusters
-          matrix_v <- matrix_v +
-            (cluster_score %*% t(cluster_score)) / n_clusters
+          matrix_v <- matrix_v + (cluster_score %*% t(cluster_score)) / n_clusters
         }
 
         bread <- solve(matrix_j)
         return(bread %*% matrix_v %*% t(bread) / n_clusters)
       }
 
-      # Prepare design matrix
+      # Identity link single cluster vcov
+      get_single_cluster_vcov_identity <- function(X,
+                                                   cluster_id,
+                                                   outcome,
+                                                   fitted_values) {
+        residuals <- outcome - fitted_values
+        # Bread matrix for linear model: (X'X)^(-1)
+        bread <- solve(t(X) %*% X)
+
+        # Initialize cluster sum
+        n_params <- ncol(X)
+        cluster_sum <- matrix(0, nrow = n_params, ncol = n_params)
+
+        clusters <- unique(cluster_id)
+
+        for (c in clusters) {
+          cluster_idx <- which(cluster_id == c)
+          X_c <- X[cluster_idx, , drop = FALSE]
+          e_c <- residuals[cluster_idx]
+
+          # Cluster score S_c = X_c'e_c
+          cluster_score <- t(X_c) %*% e_c
+
+          # Add S_c S_c' to cluster_sum
+          cluster_sum <- cluster_sum + (cluster_score %*% t(cluster_score))
+        }
+        return(bread %*% cluster_sum %*% bread)
+      }
+
       print(names(predictors_data))
       X <- prepare_design_matrix(predictors_data)
       n <- nrow(X)
       n_params <- ncol(X)
+      fitted_values <- model$fitted.values
 
       if (is.null(cluster_ids)) {
         # Non-clustered case
-        matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
-        matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
+        if (link == "identity") {
+          # For identity link (linear model):
+          # sigma^2 = sum of squared residuals / (n - n_params)
+          residuals <- outcome_data - fitted_values
+          sigma2 <- sum(residuals^2) / (n - n_params)
+          bread <- solve(t(X) %*% X)
+          vcov_matrix <- bread * sigma2
+        } else {
+          matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
+          matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
 
-        for (i in 1:n) {
-          x_i <- as.matrix(X[i, ])
-          p_i <- model$fitted.values[i]
-          ddbeta_i <- (p_i * (1 - p_i)) * x_i
+          for (i in 1:n) {
+            x_i <- as.matrix(X[i, ])
+            p_i <- fitted_values[i]
+            ddbeta_i <- (p_i * (1 - p_i)) * x_i
 
-          j_i <- ddbeta_i %*% t(ddbeta_i)
-          matrix_j <- matrix_j + j_i / n
+            j_i <- ddbeta_i %*% t(ddbeta_i)
+            matrix_j <- matrix_j + j_i / n
 
-          v_i <- (ddbeta_i) %*% ((outcome_data[i] - p_i)^2) %*% t(ddbeta_i)
-          matrix_v <- matrix_v + v_i / n
+            v_i <- (ddbeta_i) %*% ((outcome_data[i] - p_i)^2) %*% t(ddbeta_i)
+            matrix_v <- matrix_v + v_i / n
+          }
+
+          bread <- solve(matrix_j)
+          vcov_matrix <- (bread %*% matrix_v %*% t(bread)) / n
         }
-
-        bread <- solve(matrix_j)
-        vcov_matrix <- (bread %*% matrix_v %*% t(bread)) / n
       } else if (length(cluster_ids) == 1) {
         # Single clustering
-        cluster_id <- if (is.list(cluster_ids)) {
-          cluster_ids[[1]]
+        cluster_id <- if (is.list(cluster_ids)) cluster_ids[[1]] else cluster_ids
+
+        if (link == "identity") {
+          vcov_matrix <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id,
+            outcome_data,
+            fitted_values
+          )
         } else {
-          cluster_ids
+          vcov_matrix <- get_single_cluster_vcov(
+            X,
+            cluster_id,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
         }
-        vcov_matrix <- get_single_cluster_vcov(
-          X,
-          cluster_id,
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
       } else if (length(cluster_ids) == 2) {
         # Two-way clustering
-        # Get single-clustered vcov for each dimension
-        vcov1 <- get_single_cluster_vcov(
-          X,
-          cluster_ids[[1]],
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
-        vcov2 <- get_single_cluster_vcov(
-          X,
-          cluster_ids[[2]],
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
+        cluster_id1 <- cluster_ids[[1]]
+        cluster_id2 <- cluster_ids[[2]]
 
-        # Get intersection clustering
-        intersection_id <- paste(cluster_ids[[1]], cluster_ids[[2]], sep = "_")
-        vcov12 <- get_single_cluster_vcov(
-          X,
-          intersection_id,
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
+        if (link == "identity") {
+          vcov1 <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id1,
+            outcome_data,
+            fitted_values
+          )
+          vcov2 <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id2,
+            outcome_data,
+            fitted_values
+          )
+          intersection_id <- paste(cluster_id1, cluster_id2, sep = "_")
+          vcov12 <- get_single_cluster_vcov_identity(
+            X,
+            intersection_id,
+            outcome_data,
+            fitted_values
+          )
+        } else {
+          vcov1 <- get_single_cluster_vcov(
+            X,
+            cluster_id1,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+          vcov2 <- get_single_cluster_vcov(
+            X,
+            cluster_id2,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+          intersection_id <- paste(cluster_id1, cluster_id2, sep = "_")
+          vcov12 <- get_single_cluster_vcov(
+            X,
+            intersection_id,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+        }
 
         # Cameron-Gelbach-Miller (2011) two-way clustering
         vcov_matrix <- vcov1 + vcov2 - vcov12
       } else if (length(cluster_ids) == 1) {
-        # Single clustering
-        vcov_matrix <- get_single_cluster_vcov(
-          X,
-          cluster_ids[[1]],
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
+        # Single clustering (duplicate else condition can be removed,
+        # this was in original code, just keep one version above)
+        cluster_id <- cluster_ids[[1]]
+        if (link == "identity") {
+          vcov_matrix <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id,
+            outcome_data,
+            fitted_values
+          )
+        } else {
+          vcov_matrix <- get_single_cluster_vcov(
+            X,
+            cluster_id,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+        }
       }
 
       rownames(vcov_matrix) <- colnames(X)
@@ -453,11 +532,15 @@ get_confidence_set <- function(
     lb_prob_all <- pred_all - critical_value * std_er_all
     ub_prob_all <- pred_all + critical_value * std_er_all
 
-    # Combine and apply expit function
-    ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
+    if (link == "identity") {
+      # For identity link, predictions are on the correct scale already.
+      ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
+    } else {
+      # For binary link (or the original logic), use expit.
+      ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
+    }
 
-    # calculate percentage of interventions that are
-    # included in the confidence set
+    # calculate percentage of interventions that are included in the confidence set
     set_size_intervals <- sum(apply(
       ci_prob_all,
       1,
