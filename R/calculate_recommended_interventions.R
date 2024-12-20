@@ -488,6 +488,23 @@ calculate_recommended_interventions <- function(
     stop(paste("'include_time_effects' must be a boolean."))
   }
 
+  if (link == "default") {
+    if (glm_family == "binomial") {
+      link <- "logit"
+    } else if (glm_family == "gaussian") {
+      link <- "identity"
+    }
+  }
+
+  family_object <- switch(
+    glm_family,
+    "binomial" = binomial(link = link),
+    "gaussian" = gaussian(link = link),
+    "quasibinomial" = quasibinomial(link = link),
+    stop(paste("Unsupported glm_family:", glm_family))
+  )
+
+
   # if include_time_effects is set to TRUE
   if (include_time_effects) {
     # the input data must have a 'period' column
@@ -820,12 +837,6 @@ calculate_recommended_interventions <- function(
     ))
   }
 
-  # Convert glm family strings to glm family objects
-  family_object <- switch(glm_family,
-    "binomial" = binomial(link = link),
-    "gaussian" = gaussian(link = link),
-    "quasibinomial" = quasibinomial(link = link),
-  )
 
   # fit the outcome model
   if (input_data_structure == "center_level") {
@@ -950,7 +961,8 @@ calculate_recommended_interventions <- function(
     optimization_grid_search_step_size = optimization_grid_search_step_size,
     center_cha_coeff_vec = center_cha_coeff_vec,
     center_characteristics_optimization_values =
-      center_characteristics_optimization_values
+      center_characteristics_optimization_values,
+    link = link
   )
   message("Done")
 
@@ -1120,3 +1132,19 @@ calculate_recommended_interventions <- function(
     }
   )
 }
+
+calculate_recommended_interventions(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("wt"),
+  intervention_lower_bounds = c(0),
+  intervention_upper_bounds = c(1),
+  cost_list_of_vectors = list(c(0, 4)),
+  outcome_goal = 24,
+  confidence_set_grid_step_size = c(1)
+)
+

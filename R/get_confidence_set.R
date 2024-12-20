@@ -255,7 +255,6 @@ get_confidence_set <- function(
   # ----------------------------------------------------------------------------
   if (outcome_type == "binary") {
     # TODO: this part needs to handle more than logit link.
-    new_data <- as.matrix(new_data)
     pred_all <- expit(new_data %*% coef(fitted_model))
     se_pred_all <- sqrt(
       diag((new_data) %*% vcov(fitted_model) %*% t(new_data))
@@ -277,7 +276,7 @@ get_confidence_set <- function(
     # ----------------------------------------------------------------------------
   } else if (outcome_type == "continuous") {
     # link is either "binary" or "identity"
-    # If link == "binary", use the old logic (logistic-like) for variance
+    # If link == "logit", use the old logic (logistic-like) for variance
     # If link == "identity", use the identity link logic.
 
     # define the function to manually calculate var-cov matrix
