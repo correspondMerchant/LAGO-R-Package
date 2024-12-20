@@ -116,7 +116,8 @@ get_recommended_interventions <- function(
     optimization_method,
     optimization_grid_search_step_size,
     center_cha_coeff_vec = 0,
-    center_characteristics_optimization_values = 0) {
+    center_characteristics_optimization_values = 0,
+    link = "default") {
   # Function to create a cost function based on coefficients
   # in cost_list_of_vectors
   create_cost_function <- function(coeffs) {
@@ -195,14 +196,24 @@ get_recommended_interventions <- function(
       f_combined <- function(int, main_effects_int) {
         int_vector <- as.numeric(c(1, int))
         # calculate the outcome for this intervention
-        outcome <- sum(
-          center_weights_for_outcome_goal *
-            expit(
-              all_center_lvl_effects +
-                sum(beta * int_vector) +
-                center_cha_coeff_vec * center_cha
+        if (link == "logit") {
+            outcome <- sum(
+              center_weights_for_outcome_goal *
+                expit(
+                  all_center_lvl_effects +
+                    sum(beta * int_vector) +
+                    center_cha_coeff_vec * center_cha
+                )
             )
-        )
+        } else {
+            outcome <- sum(
+              center_weights_for_outcome_goal *
+                  all_center_lvl_effects +
+                    sum(beta * int_vector) +
+                    center_cha_coeff_vec * center_cha
+                )
+        }
+
         # calculate the cost for this intervention
         cost <- sum(mapply(
           function(f, x) f(x),
@@ -317,14 +328,25 @@ get_recommended_interventions <- function(
           int_vector <- c(1, int)
         }
         # negative because NlcOptim minimizes this objective function by default
-        return(-sum(
-          center_weights_for_outcome_goal *
-            expit(
-              all_center_lvl_effects +
+        return(
+          if (link == "logit") {
+            -sum(
+              center_weights_for_outcome_goal *
+                expit(
+                  all_center_lvl_effects +
+                    sum(beta * int_vector) +
+                    center_cha_coeff_vec * center_cha
+                )
+            )
+          } else {
+            -sum(
+              center_weights_for_outcome_goal *
+                all_center_lvl_effects +
                 sum(beta * int_vector) +
                 center_cha_coeff_vec * center_cha
             )
-        ))
+          }
+        )
       }
 
       # get the max achievable outcome

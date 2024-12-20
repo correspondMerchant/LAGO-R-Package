@@ -28,9 +28,9 @@ devtools::load_all()
 #
 # code below are shared by Jingyu:
 # 
-setwd("/Users/antebing/Library/CloudStorage/Dropbox/LAGO r package paper/Optimization R code-Jingyu")
+#setwd("/Users/antebing/Library/CloudStorage/Dropbox/LAGO r package paper/Optimization R code-Jingyu")
 
-original_data<-read.csv("data_all_patients_complete_cumulative (selected).csv", header = TRUE, sep = ',', encoding = "UTF-8")
+original_data<-read.csv("/Users/minhthubui/Desktop/data_all_patients_complete_cumulative (selected).csv", header = TRUE, sep = ',', encoding = "UTF-8")
 
 original_data<-original_data[,c(-6, -14: -16)]
 
@@ -135,17 +135,17 @@ coef_clinic_all<-c(-2.758192, -1.973129, -1.999936, -2.077562,
 ```{r}
 # 
 library(readr)
-data_all_patients_complete <- read_csv("data_all_patients_complete_cumulative (selected).csv")
+data_all_patients_complete <- read_csv("/Users/minhthubui/Desktop/data_all_patients_complete_cumulative (selected).csv")
 
 weights_all<-sapply(unique(data_all_patients_complete$Clinics), 
                     FUN = function(x) sum(data_all_patients_complete$`Total visits (no restrictions)`[data_all_patients_complete$Clinics==x]))/sum(data_all_patients_complete$`Total visits (no restrictions)`)
-data_hypertensive_complete_data <- read_csv("data_hypertensive_complete_cumulative (selected).csv")
+data_hypertensive_complete_data <- read_csv("/Users/minhthubui/Desktop/data_hypertensive_complete_cumulative (selected).csv")
 weights_hypertension<-sapply(unique(data_hypertensive_complete_data$Clinics), FUN = function(x) sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`[data_hypertensive_complete_data$Clinics==x]))/sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`)
 
 avg_n_all_patients<-sum(data_all_patients_complete$`Total visits (no restrictions)`, na.rm = T)/12
 avg_n_hypertension_patients<-sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`, na.rm = T)/12
 n_providers_permonth<-233.33
-data_n_drugs_dispensed <- read_csv("PULESA data with interventions_4292024.csv")
+data_n_drugs_dispensed <- read_csv("/Users/minhthubui/Desktop/PULESA data with interventions_4292024.csv")
 n_patients_drugs_dispensed_permonth<-sum(data_n_drugs_dispensed$`Number with medication Dispensed`)/12
 
 
