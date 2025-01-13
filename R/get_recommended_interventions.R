@@ -117,7 +117,7 @@ get_recommended_interventions <- function(
     optimization_grid_search_step_size,
     center_cha_coeff_vec = 0,
     center_characteristics_optimization_values = 0,
-    link = "default") {
+    link = "identity") {
   # Function to create a cost function based on coefficients
   # in cost_list_of_vectors
   create_cost_function <- function(coeffs) {
@@ -141,7 +141,8 @@ get_recommended_interventions <- function(
                                           center_weights_for_outcome_goal,
                                           center_cha_coeff_vec,
                                           center_cha,
-                                          step_size) {
+                                          step_size,
+                                          link) {
       # create sequence grids for each intervention component
       grids <- lapply(seq_along(cost_params), function(i) {
         seq(lo[i], up[i], by = step_size[i])
@@ -294,7 +295,8 @@ get_recommended_interventions <- function(
                                        all_center_lvl_effects,
                                        center_weights_for_outcome_goal,
                                        center_cha_coeff_vec,
-                                       center_cha) {
+                                       center_cha,
+                                       link) {
       # Objective function to maximize outcome
       # TODO: for now, the objective function is just expit, we will need to
       # make it work with other link functions
@@ -401,18 +403,32 @@ get_recommended_interventions <- function(
           } else {
             int_vector <- c(1, x)
           }
-          f <- rbind(
-            f,
-            outcome_goal -
-              sum(
-                center_weights_for_outcome_goal *
-                  expit(
-                    all_center_lvl_effects +
-                      sum(beta * int_vector) +
-                      center_cha_coeff_vec * center_cha
-                  )
-              )
-          )
+          if (link == "logit") {
+            f <- rbind(
+              f,
+              outcome_goal -
+                sum(
+                  center_weights_for_outcome_goal *
+                    expit(
+                      all_center_lvl_effects +
+                        sum(beta * int_vector) +
+                        center_cha_coeff_vec * center_cha
+                    )
+                )
+            )
+          } else {
+            f <- rbind(
+              f,
+              outcome_goal -
+                sum(
+                  center_weights_for_outcome_goal *
+                      all_center_lvl_effects +
+                        sum(beta * int_vector) +
+                        center_cha_coeff_vec * center_cha
+                )
+            )
+          }
+
           return(list(ceq = NULL, c = f))
         }
 
@@ -452,7 +468,8 @@ get_recommended_interventions <- function(
       all_center_lvl_effects,
       center_weights_for_outcome_goal,
       center_cha_coeff_vec,
-      center_characteristics_optimization_values
+      center_characteristics_optimization_values,
+      link = link
     )
   }
 

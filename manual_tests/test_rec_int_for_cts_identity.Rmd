@@ -14,18 +14,17 @@ devtools::load_all()
 
 ```{r}
 calculate_recommended_interventions(
-   data = mtcars,
-   input_data_structure = "individual_level",
-   outcome_name = "mpg",
-   outcome_type = "continuous",
-   glm_family = "gaussian",
-   link = "identity",
-   intervention_components = c("wt", "hp"),
-   intervention_lower_bounds = c(0, 0),
-   intervention_upper_bounds = c(10, 350),
-   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
-   outcome_goal = 24,
-   confidence_set_grid_step_size = c(1, 1)
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  confidence_set_grid_step_size = c(1, 1)
 )
-
 ```
