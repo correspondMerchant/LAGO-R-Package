@@ -14,7 +14,7 @@
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model.
 #' @param additional_covariates A character vector. The names of the columns in
-#' the dataset that represent additional covaraites that need to be included
+#' the dataset that represent additional covariates that need to be included
 #' in the outcome model. This includes interaction terms or any other additional
 #' covariates.
 #' @param intervention_components A character vector. The names of the columns
@@ -23,9 +23,10 @@
 #' interaction terms in the intervention components.
 #' @param main_components A character vector. Specifies the main intervention
 #' components in the presence of interaction terms.
-#' @param outcome_data A data.frame. The input data containing the outcome
+#' @param outcome_data A vector. The input data containing the outcome
 #' of interest.
 #' @param fitted_model A glm(). The fitted glm() outcome model.
+#' @param link A character string. The link function (e.g. "logit", "identity"). # <-- ADDED
 #' @param outcome_goal A numeric value. Specifies the outcome goal, a desired
 #' probability or mean value.
 #' @param outcome_type A character string. Specifies the type of the outcome.
@@ -33,56 +34,22 @@
 #' outcomes.
 #' @param intervention_lower_bounds A numeric vector. Specifies the lower bounds
 #' of the intervention components.
-#' For example: for a two-component intervention package, lower bounds could be
-#' c(0,0).
 #' @param intervention_upper_bounds A numeric vector. Specifies the upper bounds
 #' of the intervention components.
-#' For example: for a two-component intervention package, upper bounds could be
-#' c(10,20).
 #' @param confidence_set_grid_step_size A numeric vector. Specifies the step
 #' size of the grid search algorithm used in the confidence set calculation.
-#' Default value without user specification:
-#' 1/20 of the range for each intervention component.
 #' @param center_characteristics A character vector. The names of the columns in
 #' the dataset that represent the center characteristics.
-#' For example: c("characteristic1")
 #' @param center_characteristics_optimization_values A numeric vector. The
 #' values of the center characteristics that will be used for LAGO optimization.
-#' For example: c(1.74)
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
-#' Default value without user specification: 0.05.
-#' @param cluster_id A list. Specifies the columns of data that will be used
-#' as clustering effects when the "outcome_type" is continuous.
+#' @param cluster_id A list or NULL. Specifies the columns of data that will be
+#' used as clustering effects when the "outcome_type" is continuous.
 #'
 #' @return List(
-#' percentage of interventions that are included in the confidence set,
-#' confidence set)
-#'
-#' @examples
-#' # fit the model
-#' model <- glm(
-#'   EBP_proportions ~ coaching_updt
-#'     + launch_duration + birth_volume_100,
-#'   data = BB_proportions, family = quasibinomial(link = "logit")
-#' )
-#' # get the confidence set
-#' cs_results <- get_confidence_set(
-#'   predictors_data = BB_proportions[, c(
-#'     "coaching_updt",
-#'     "launch_duration",
-#'     "birth_volume_100"
-#'   )],
-#'   intervention_components = c("coaching_updt", "launch_duration"),
-#'   fitted_model = model,
-#'   outcome_goal = 0.8,
-#'   outcome_type = "continuous",
-#'   center_characteristics = "birth_volume_100",
-#'   center_characteristics_optimization_values = 1.74,
-#'   outcome_data = BB_proportions$EBP_proportions,
-#'   intervention_lower_bounds = c(1, 1),
-#'   intervention_upper_bounds = c(40, 5),
-#'   confidence_set_grid_step_size = c(1, 0.5)
+#'   confidence_set_size_percentage = <number>,
+#'   cs = <data.frame of interventions in the confidence set>
 #' )
 #'
 #' @import stats
@@ -101,6 +68,7 @@ get_confidence_set <- function(
     main_components = NULL,
     outcome_data,
     fitted_model,
+    link,  # <-- ADDED
     outcome_goal,
     outcome_type,
     intervention_lower_bounds,
@@ -109,7 +77,8 @@ get_confidence_set <- function(
     center_characteristics = NULL,
     center_characteristics_optimization_values = 0,
     confidence_set_alpha = 0.05,
-    cluster_id = NULL) {
+    cluster_id = NULL
+) {
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
@@ -252,10 +221,9 @@ get_confidence_set <- function(
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
-
+  # ----------------------------------------------------------------------------
   if (outcome_type == "binary") {
     # TODO: this part needs to handle more than logit link.
-    new_data <- as.matrix(new_data)
     pred_all <- expit(new_data %*% coef(fitted_model))
     se_pred_all <- sqrt(
       diag((new_data) %*% vcov(fitted_model) %*% t(new_data))
@@ -274,14 +242,19 @@ get_confidence_set <- function(
       function(y) findInterval(x = outcome_goal, vec = y)
     ) == 1)
     confidence_set_size_percentage <- set_size_intervals / n_rows
+    # ----------------------------------------------------------------------------
   } else if (outcome_type == "continuous") {
-    # TODO: for other link functions, we need separate functions to manually
-    # calculate their vcov matrix.
+    # link is either "logit" or "identity" in your usage
+    # If link == "logit", use the logistic-like approach
+    # If link == "identity", use linear approach.
+
     # define the function to manually calculate var-cov matrix
     get_vcov <- function(predictors_data,
                          model,
                          outcome_data,
-                         cluster_ids = NULL) {
+                         cluster_ids = NULL,
+                         link  # <-- ADDED
+    ) {
       # First prepare the full design matrix
       # (including fixed effects dummies if any)
       prepare_design_matrix <- function(data) {
@@ -309,7 +282,7 @@ get_confidence_set <- function(
         return(X)
       }
 
-      # Calculate single-clustering vcov
+      # Original single cluster vcov (logistic-like)
       get_single_cluster_vcov <- function(X,
                                           cluster_id,
                                           n_params,
@@ -340,97 +313,173 @@ get_confidence_set <- function(
           }
 
           matrix_j <- matrix_j + cluster_hessian / n_clusters
-          matrix_v <- matrix_v +
-            (cluster_score %*% t(cluster_score)) / n_clusters
+          matrix_v <- matrix_v + (cluster_score %*% t(cluster_score)) / n_clusters
         }
 
         bread <- solve(matrix_j)
         return(bread %*% matrix_v %*% t(bread) / n_clusters)
       }
 
-      # Prepare design matrix
-      print(names(predictors_data))
+      # Identity link single cluster vcov
+      get_single_cluster_vcov_identity <- function(X,
+                                                   cluster_id,
+                                                   outcome,
+                                                   fitted_values) {
+        residuals <- outcome - fitted_values
+        # Bread matrix for linear model: (X'X)^(-1)
+        bread <- solve(t(X) %*% X)
+
+        # Initialize cluster sum
+        n_params <- ncol(X)
+        cluster_sum <- matrix(0, nrow = n_params, ncol = n_params)
+
+        clusters <- unique(cluster_id)
+
+        for (c in clusters) {
+          cluster_idx <- which(cluster_id == c)
+          X_c <- X[cluster_idx, , drop = FALSE]
+          e_c <- residuals[cluster_idx]
+
+          # Cluster score S_c = X_c'e_c
+          cluster_score <- t(X_c) %*% e_c
+
+          # Add S_c S_c' to cluster_sum
+          cluster_sum <- cluster_sum + (cluster_score %*% t(cluster_score))
+        }
+        return(bread %*% cluster_sum %*% bread)
+      }
+
+      # Identity link or logistic link
       X <- prepare_design_matrix(predictors_data)
       n <- nrow(X)
       n_params <- ncol(X)
+      fitted_values <- model$fitted.values
 
       if (is.null(cluster_ids)) {
         # Non-clustered case
-        matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
-        matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
+        if (link == "identity") {
+          # For identity link (linear model):
+          # sigma^2 = sum of squared residuals / (n - n_params)
+          residuals <- outcome_data - fitted_values
+          sigma2 <- sum(residuals^2) / (n - n_params)
+          bread <- solve(t(X) %*% X)
+          vcov_matrix <- bread * sigma2
+        } else {
+          # logistic-like approach
+          matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
+          matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
 
-        for (i in 1:n) {
-          x_i <- as.matrix(X[i, ])
-          p_i <- model$fitted.values[i]
-          ddbeta_i <- (p_i * (1 - p_i)) * x_i
+          for (i in 1:n) {
+            x_i <- as.matrix(X[i, ])
+            p_i <- fitted_values[i]
+            ddbeta_i <- (p_i * (1 - p_i)) * x_i
 
-          j_i <- ddbeta_i %*% t(ddbeta_i)
-          matrix_j <- matrix_j + j_i / n
+            j_i <- ddbeta_i %*% t(ddbeta_i)
+            matrix_j <- matrix_j + j_i / n
 
-          v_i <- (ddbeta_i) %*% ((outcome_data[i] - p_i)^2) %*% t(ddbeta_i)
-          matrix_v <- matrix_v + v_i / n
+            v_i <- (ddbeta_i) %*% ((outcome_data[i] - p_i)^2) %*% t(ddbeta_i)
+            matrix_v <- matrix_v + v_i / n
+          }
+
+          bread <- solve(matrix_j)
+          vcov_matrix <- (bread %*% matrix_v %*% t(bread)) / n
         }
-
-        bread <- solve(matrix_j)
-        vcov_matrix <- (bread %*% matrix_v %*% t(bread)) / n
       } else if (length(cluster_ids) == 1) {
         # Single clustering
-        cluster_id <- if (is.list(cluster_ids)) {
-          cluster_ids[[1]]
+        cluster_id <- if (is.list(cluster_ids)) cluster_ids[[1]] else cluster_ids
+
+        if (link == "identity") {
+          vcov_matrix <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id,
+            outcome_data,
+            fitted_values
+          )
         } else {
-          cluster_ids
+          vcov_matrix <- get_single_cluster_vcov(
+            X,
+            cluster_id,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
         }
-        vcov_matrix <- get_single_cluster_vcov(
-          X,
-          cluster_id,
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
       } else if (length(cluster_ids) == 2) {
         # Two-way clustering
-        # Get single-clustered vcov for each dimension
-        vcov1 <- get_single_cluster_vcov(
-          X,
-          cluster_ids[[1]],
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
-        vcov2 <- get_single_cluster_vcov(
-          X,
-          cluster_ids[[2]],
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
+        cluster_id1 <- cluster_ids[[1]]
+        cluster_id2 <- cluster_ids[[2]]
 
-        # Get intersection clustering
-        intersection_id <- paste(cluster_ids[[1]], cluster_ids[[2]], sep = "_")
-        vcov12 <- get_single_cluster_vcov(
-          X,
-          intersection_id,
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
+        if (link == "identity") {
+          vcov1 <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id1,
+            outcome_data,
+            fitted_values
+          )
+          vcov2 <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id2,
+            outcome_data,
+            fitted_values
+          )
+          intersection_id <- paste(cluster_id1, cluster_id2, sep = "_")
+          vcov12 <- get_single_cluster_vcov_identity(
+            X,
+            intersection_id,
+            outcome_data,
+            fitted_values
+          )
+        } else {
+          vcov1 <- get_single_cluster_vcov(
+            X,
+            cluster_id1,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+          vcov2 <- get_single_cluster_vcov(
+            X,
+            cluster_id2,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+          intersection_id <- paste(cluster_id1, cluster_id2, sep = "_")
+          vcov12 <- get_single_cluster_vcov(
+            X,
+            intersection_id,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+        }
 
         # Cameron-Gelbach-Miller (2011) two-way clustering
         vcov_matrix <- vcov1 + vcov2 - vcov12
       } else if (length(cluster_ids) == 1) {
-        # Single clustering
-        vcov_matrix <- get_single_cluster_vcov(
-          X,
-          cluster_ids[[1]],
-          n_params,
-          model$fitted.values,
-          outcome_data
-        )
+        # Single clustering (duplicate else condition can be removed,
+        # but kept for minimal change)
+        cluster_id <- cluster_ids[[1]]
+        if (link == "identity") {
+          vcov_matrix <- get_single_cluster_vcov_identity(
+            X,
+            cluster_id,
+            outcome_data,
+            fitted_values
+          )
+        } else {
+          vcov_matrix <- get_single_cluster_vcov(
+            X,
+            cluster_id,
+            n_params,
+            fitted_values,
+            outcome_data
+          )
+        }
       }
 
       rownames(vcov_matrix) <- colnames(X)
       colnames(vcov_matrix) <- colnames(X)
-
       return(vcov_matrix)
     }
 
@@ -439,7 +488,8 @@ get_confidence_set <- function(
       predictors_data,
       fitted_model,
       outcome_data,
-      cluster_id
+      cluster_id,
+      link = link  # <-- PASS LINK HERE
     )
 
     # get predicted values
@@ -453,11 +503,15 @@ get_confidence_set <- function(
     lb_prob_all <- pred_all - critical_value * std_er_all
     ub_prob_all <- pred_all + critical_value * std_er_all
 
-    # Combine and apply expit function
-    ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
+    if (link == "identity") {
+      # For identity link, predictions are on the correct scale already.
+      ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
+    } else {
+      # For "logit" (or other logistic-like) link, apply expit.
+      ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
+    }
 
-    # calculate percentage of interventions that are
-    # included in the confidence set
+    # calculate percentage of interventions that are included in the confidence set
     set_size_intervals <- sum(apply(
       ci_prob_all,
       1,

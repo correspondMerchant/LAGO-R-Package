@@ -487,6 +487,14 @@ calculate_recommended_interventions <- function(
   if (!is.logical(include_time_effects)) {
     stop(paste("'include_time_effects' must be a boolean."))
   }
+  family_object <- switch(
+    glm_family,
+    "binomial" = binomial(link = link),
+    "gaussian" = gaussian(link = link),
+    "quasibinomial" = quasibinomial(link = link),
+    stop(paste("Unsupported glm_family:", glm_family))
+  )
+
 
   # if include_time_effects is set to TRUE
   if (include_time_effects) {
@@ -820,12 +828,6 @@ calculate_recommended_interventions <- function(
     ))
   }
 
-  # Convert glm family strings to glm family objects
-  family_object <- switch(glm_family,
-    "binomial" = binomial(link = link),
-    "gaussian" = gaussian(link = link),
-    "quasibinomial" = quasibinomial(link = link),
-  )
 
   # fit the outcome model
   if (input_data_structure == "center_level") {
@@ -936,6 +938,7 @@ calculate_recommended_interventions <- function(
   message("Calculating LAGO recommended interventions...")
   # calculate recommended interventions
   rec_int_results <- get_recommended_interventions(
+    link = link,
     intervention_components_coeff = intervention_components_coeff,
     include_interaction_terms = include_interaction_terms,
     main_components = main_components,
@@ -1007,6 +1010,7 @@ calculate_recommended_interventions <- function(
       main_components,
       outcome_data = data[, outcome_name],
       fitted_model = model,
+      link = family_object$link,
       outcome_goal = outcome_goal,
       outcome_type = outcome_type,
       intervention_lower_bounds = intervention_lower_bounds,
@@ -1120,3 +1124,19 @@ calculate_recommended_interventions <- function(
     }
   )
 }
+
+#calculate_recommended_interventions(
+#  data = mtcars,
+#  input_data_structure = "individual_level",
+#  outcome_name = "mpg",
+#  outcome_type = "continuous",
+#  glm_family = "gaussian",
+#  link = "identity",
+#  intervention_components = c("wt"),
+#  intervention_lower_bounds = c(0),
+#  intervention_upper_bounds = c(1),
+#  cost_list_of_vectors = list(c(0, 4)),
+#  outcome_goal = 24,
+#  confidence_set_grid_step_size = c(1)
+#)
+

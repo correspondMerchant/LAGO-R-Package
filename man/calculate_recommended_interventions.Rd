@@ -16,21 +16,21 @@ calculate_recommended_interventions(
   outcome_goal,
   glm_family = "default",
   link = "default",
+  optimization_method = "numerical",
+  confidence_set_alpha = 0.05,
   weights = NULL,
   center_characteristics = NULL,
   center_characteristics_optimization_values = NULL,
-  include_center_effects = NULL,
-  include_time_effects = FALSE,
-  include_interaction_terms = FALSE,
   main_components = NULL,
   time_effect_optimization_value = NULL,
   additional_covariates = NULL,
   center_weights_for_outcome_goal = NULL,
-  optimization_method = "numerical",
   optimization_grid_search_step_size = NULL,
-  include_confidence_set = TRUE,
   confidence_set_grid_step_size = NULL,
-  confidence_set_alpha = 0.05
+  include_confidence_set = TRUE,
+  include_center_effects = FALSE,
+  include_time_effects = FALSE,
+  include_interaction_terms = FALSE
 )
 }
 \arguments{
@@ -88,31 +88,30 @@ Default value without user specification:
 Default value without user specification:
 "identity" for continuous outcomes, "logit" for binary outcomes.}
 
+\item{optimization_method}{A character string. Specifies the method used for
+LAGO optimization. Must be either "numerical" or "grid_search".
+Default value without user specification: "numerical".
+- Use "grid_search" if you want to exhaustively test every possible
+intervention package compositions in LAGO optimization.
+- Use "numerical" if you want to use gradient-based technique in LAGO
+optimization.}
+
+\item{confidence_set_alpha}{A numeric value. The type I error considered in
+the confidence set calculations.
+Default value without user specification: 0.05.}
+
 \item{weights}{A numeric vector. The weights argument of the glm()
 outcome model.}
 
 \item{center_characteristics}{A character vector. The names of the columns in
 the dataset that represent the center characteristics.
+Note, include_center_effects and center_characteristics cannot be used
+together at the same time.
 For example: c("characteristic1")}
 
 \item{center_characteristics_optimization_values}{A numeric vector. The
 values of the center characteristics that will be used for LAGO optimization.
 For example: c(1.74)}
-
-\item{include_center_effects}{A boolean. Specifies whether the fixed effects
-should be included in the outcome model.
-Default value without user specification: FALSE for individual level data,
-TRUE for center level data.}
-
-\item{include_time_effects}{A boolean. Specifies whether the fixed time
-effects should be included in the outcome model.
-Default value without user specification: FALSE.}
-
-\item{include_interaction_terms}{A boolean. Specifies whether there are
-interaction terms in the intervention components. Please make sure the
-interaciton terms are included in "intervention_components", and they
-follow the correct naming scheme: "component1:component3".
-Default value without user specification: FALSE.}
 
 \item{main_components}{A character vector. Specifies the main intervention
 components in the presence of interaction terms.
@@ -136,16 +135,13 @@ For each center, calculate what percentage its sample size is of the total
 samples across all facilities - this percentage serves as that
 center's weight.}
 
-\item{optimization_method}{A character string. Specifies the method used for
-LAGO optimization. Must be either "numerical" or "grid_search".
-Default value without user specification: "numerical".
-- Use "grid_search" if you want to exhaustively test every possible
-intervention package compositions in LAGO optimization.
-- Use "numerical" if you want to use gradient-based technique in LAGO
-optimization.}
-
 \item{optimization_grid_search_step_size}{A numeric vector. Specifies the
 step size of the grid search algorithm used in LAGO optimization.
+Default value without user specification:
+1/20 of the range for each intervention component.}
+
+\item{confidence_set_grid_step_size}{A numeric vector. Specifies the step
+size of the grid search algorithm used in the confidence set calculation.
 Default value without user specification:
 1/20 of the range for each intervention component.}
 
@@ -153,14 +149,25 @@ Default value without user specification:
 should be calculated along with the recommended interventions.
 Default value without user specification: TRUE.}
 
-\item{confidence_set_grid_step_size}{A numeric vector. Specifies the step
-size of the grid search algorithm used in the confidence set calculation.
-Default value without user specification:
-1/20 of the range for each intervention component.}
+\item{include_center_effects}{A boolean. Specifies whether the fixed effects
+should be included in the outcome model. If set to TRUE, please make sure
+that the input data has a 'center' column to identify the centers.
+Note, include_center_effects and center_characteristics cannot be used
+together at the same time.
+Default value without user specification: FALSE for individual level data,
+TRUE for center level data.}
 
-\item{confidence_set_alpha}{A numeric value. The type I error considered in
-the confidence set calculations.
-Default value without user specification: 0.05.}
+\item{include_time_effects}{A boolean. Specifies whether the fixed time
+effects should be included in the outcome model. If set to TRUE, please
+make sure that the input data has a 'period' column to identify the time
+periods.
+Default value without user specification: FALSE.}
+
+\item{include_interaction_terms}{A boolean. Specifies whether there are
+interaction terms in the intervention components. Please make sure the
+interaciton terms are included in "intervention_components", and they
+follow the correct naming scheme: "component1:component3".
+Default value without user specification: FALSE.}
 }
 \value{
 List(

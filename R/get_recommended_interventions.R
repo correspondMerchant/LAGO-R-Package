@@ -56,6 +56,8 @@
 #' step size of the grid search algorithm used in LAGO optimization.
 #' Default value without user specification:
 #' 1/20 of the range for each intervention component.
+#' @param link A character string. Specifies the link function used when fitting
+#' the outcome model.
 #'
 #' @return List(
 #' recommended interventions,
@@ -116,7 +118,8 @@ get_recommended_interventions <- function(
     optimization_method,
     optimization_grid_search_step_size,
     center_cha_coeff_vec = 0,
-    center_characteristics_optimization_values = 0) {
+    center_characteristics_optimization_values = 0,
+    link = "identity") {
   # Function to create a cost function based on coefficients
   # in cost_list_of_vectors
   create_cost_function <- function(coeffs) {
@@ -140,7 +143,8 @@ get_recommended_interventions <- function(
                                           center_weights_for_outcome_goal,
                                           center_cha_coeff_vec,
                                           center_cha,
-                                          step_size) {
+                                          step_size,
+                                          link) {
       # create sequence grids for each intervention component
       grids <- lapply(seq_along(cost_params), function(i) {
         seq(lo[i], up[i], by = step_size[i])
@@ -192,17 +196,27 @@ get_recommended_interventions <- function(
       cost_functions <- lapply(cost_params, create_cost_function)
 
       # optimization function
-      f_combined <- function(int, main_effects_int) {
+      f_combined <- function(int, main_effects_int, link) {
         int_vector <- as.numeric(c(1, int))
         # calculate the outcome for this intervention
-        outcome <- sum(
-          center_weights_for_outcome_goal *
-            expit(
+        if (link == "logit") {
+          outcome <- sum(
+            center_weights_for_outcome_goal *
+              expit(
+                all_center_lvl_effects +
+                  sum(beta * int_vector) +
+                  center_cha_coeff_vec * center_cha
+              )
+          )
+        } else {
+          outcome <- sum(
+            center_weights_for_outcome_goal *
               all_center_lvl_effects +
-                sum(beta * int_vector) +
-                center_cha_coeff_vec * center_cha
-            )
-        )
+              sum(beta * int_vector) +
+              center_cha_coeff_vec * center_cha
+          )
+        }
+
         # calculate the cost for this intervention
         cost <- sum(mapply(
           function(f, x) f(x),
@@ -215,7 +229,7 @@ get_recommended_interventions <- function(
 
       # apply f_combined to all grid points
       all_results <- mapply(
-        function(i) f_combined(new_grid[i, ], full_grid[i, ]),
+        function(i) f_combined(new_grid[i, ], full_grid[i, ], link),
         1:nrow(new_grid),
         SIMPLIFY = FALSE # so it rerturns a list
       )
@@ -267,7 +281,8 @@ get_recommended_interventions <- function(
       center_weights_for_outcome_goal,
       center_cha_coeff_vec,
       center_characteristics_optimization_values,
-      optimization_grid_search_step_size
+      optimization_grid_search_step_size,
+      link
     )
   } else if (optimization_method == "numerical") {
     # we use the solnl() function from the NlcOptim library (Jingyu's idea)
@@ -283,7 +298,8 @@ get_recommended_interventions <- function(
                                        all_center_lvl_effects,
                                        center_weights_for_outcome_goal,
                                        center_cha_coeff_vec,
-                                       center_cha) {
+                                       center_cha,
+                                       link) {
       # Objective function to maximize outcome
       # TODO: for now, the objective function is just expit, we will need to
       # make it work with other link functions
@@ -317,14 +333,25 @@ get_recommended_interventions <- function(
           int_vector <- c(1, int)
         }
         # negative because NlcOptim minimizes this objective function by default
-        return(-sum(
-          center_weights_for_outcome_goal *
-            expit(
-              all_center_lvl_effects +
+        return(
+          if (link == "logit") {
+            -sum(
+              center_weights_for_outcome_goal *
+                expit(
+                  all_center_lvl_effects +
+                    sum(beta * int_vector) +
+                    center_cha_coeff_vec * center_cha
+                )
+            )
+          } else {
+            -sum(
+              center_weights_for_outcome_goal *
+                all_center_lvl_effects +
                 sum(beta * int_vector) +
                 center_cha_coeff_vec * center_cha
             )
-        ))
+          }
+        )
       }
 
       # get the max achievable outcome
@@ -379,18 +406,32 @@ get_recommended_interventions <- function(
           } else {
             int_vector <- c(1, x)
           }
-          f <- rbind(
-            f,
-            outcome_goal -
-              sum(
-                center_weights_for_outcome_goal *
-                  expit(
+          if (link == "logit") {
+            f <- rbind(
+              f,
+              outcome_goal -
+                sum(
+                  center_weights_for_outcome_goal *
+                    expit(
+                      all_center_lvl_effects +
+                        sum(beta * int_vector) +
+                        center_cha_coeff_vec * center_cha
+                    )
+                )
+            )
+          } else {
+            f <- rbind(
+              f,
+              outcome_goal -
+                sum(
+                  center_weights_for_outcome_goal *
                     all_center_lvl_effects +
-                      sum(beta * int_vector) +
-                      center_cha_coeff_vec * center_cha
-                  )
-              )
-          )
+                    sum(beta * int_vector) +
+                    center_cha_coeff_vec * center_cha
+                )
+            )
+          }
+
           return(list(ceq = NULL, c = f))
         }
 
@@ -430,7 +471,8 @@ get_recommended_interventions <- function(
       all_center_lvl_effects,
       center_weights_for_outcome_goal,
       center_cha_coeff_vec,
-      center_characteristics_optimization_values
+      center_characteristics_optimization_values,
+      link = link
     )
   }
 
