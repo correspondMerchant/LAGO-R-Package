@@ -251,67 +251,35 @@ calculate_recommended_interventions <- function(
   # unpack the recommended intervention results to the environment
   list2env(rec_int_results, envir = environment())
 
-  # assign confidence set step size if not specified
-  if (include_confidence_set && is.null(confidence_set_grid_step_size)) {
-    confidence_set_grid_step_size <- step_size_results
-  }
-
-  # calculate the confidence set for the recommended interventions
+  # calculate the confidence set
   if (include_confidence_set) {
-    cat(paste(
-      "If the confidence set calculation takes a long time to run,",
-      "please consider increasing the confidence set step size. \n"
-    ))
-    message("Calculating the confidence set...")
-    predictors_list <- c(
-      if (include_center_effects) "center",
-      if (include_time_effects) "period",
-      intervention_components,
-      if (!is.null(additional_covariates)) additional_covariates,
-      if (!is.null(center_characteristics)) center_characteristics
-    )
-    predictors_list <- gsub("`", "", predictors_list)
-
-
-    # convert columns of the fixed effects to factor type
-    if (include_center_effects || include_time_effects) {
-      cluster_id <- list()
-      if (include_center_effects) {
-        data$center <- factor(data$center)
-        cluster_id <- append(cluster_id, list(data$center))
-      }
-      if (include_time_effects) {
-        data$period <- factor(data$period)
-        cluster_id <- append(cluster_id, list(data$period))
-      }
-    } else {
-      cluster_id <- NULL
-    }
-
-    cs <- get_confidence_set(
-      predictors_data = data[, predictors_list],
-      include_center_effects,
-      center_weights_for_outcome_goal,
-      include_time_effects,
-      additional_covariates,
-      intervention_components,
-      include_interaction_terms,
-      main_components,
-      outcome_data = data[, outcome_name],
-      fitted_model = model,
-      link = family_object$link,
+    cs_results <- confidence_set_processor(
+      data = data,
+      include_confidence_set = include_confidence_set,
+      confidence_set_grid_step_size = confidence_set_grid_step_size,
+      step_size_results = step_size_results,
+      include_center_effects = include_center_effects,
+      include_time_effects = include_time_effects,
+      intervention_components = intervention_components,
+      additional_covariates = additional_covariates,
+      center_characteristics = center_characteristics,
+      center_weights_for_outcome_goal = center_weights_for_outcome_goal,
+      include_interaction_terms = include_interaction_terms,
+      main_components = main_components,
+      outcome_name = outcome_name,
+      model = model,
+      family_object = family_object,
       outcome_goal = outcome_goal,
       outcome_type = outcome_type,
       intervention_lower_bounds = intervention_lower_bounds,
       intervention_upper_bounds = intervention_upper_bounds,
-      confidence_set_grid_step_size = confidence_set_grid_step_size,
-      center_characteristics = center_characteristics,
       center_characteristics_optimization_values =
         center_characteristics_optimization_values,
-      confidence_set_alpha = confidence_set_alpha,
-      cluster_id = cluster_id
+      confidence_set_alpha = confidence_set_alpha
     )
-    message("Done")
+
+    # unpack the confidence set results to the environment
+    list2env(cs_results, envir = environment())
   }
 
   # input errors are very common, we show some of the key user inputs so
