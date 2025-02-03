@@ -282,86 +282,25 @@ calculate_recommended_interventions <- function(
     list2env(cs_results, envir = environment())
   }
 
-  # input errors are very common, we show some of the key user inputs so
-  # users can double check their inputs
-  cat("\n==================================")
-  cat("\n============  Inputs  ============\n")
-  cat("==================================\n")
-  cat(
-    "Input data dimensions:", dim(data)[1], "rows, and",
-    dim(data)[2], "columns \n"
+  # print the output, including some user inputs
+  print_output(
+    data = data,
+    outcome_name = outcome_name,
+    outcome_type = outcome_type,
+    intervention_components = intervention_components,
+    include_interaction_terms = include_interaction_terms,
+    main_components = main_components,
+    center_characteristics = center_characteristics,
+    family_object = family_object,
+    outcome_goal = outcome_goal,
+    cost_list_of_vectors = cost_list_of_vectors,
+    model = model,
+    rec_int = rec_int,
+    rec_int_cost = rec_int_cost,
+    est_outcome_goal = est_outcome_goal,
+    include_confidence_set = include_confidence_set,
+    cs = cs
   )
-  cat("Outcome name:", outcome_name, "\n")
-  cat("Outcome type:", outcome_type, "\n")
-  cat(
-    length(intervention_components),
-    "intervention package component(s): \n",
-    paste("\t", intervention_components, collapse = "\n"),
-    "\n"
-  )
-  if (include_interaction_terms) {
-    cat(
-      length(main_components),
-      "main effect component(s): \n",
-      paste("\t", main_components, collapse = "\n"),
-      "\n"
-    )
-  }
-  if (!is.null(center_characteristics)) {
-    cat(
-      length(center_characteristics),
-      "center characteristic(s):", center_characteristics, "\n"
-    )
-  }
-  cat("The outcome model: \n")
-  cat("\t family:", family_object$family, "\n")
-  cat("\t link:", family_object$link, "\n")
-  cat("Outcome goal:", outcome_goal, "\n")
-  cat(
-    "List of intervention component costs:",
-    toString(cost_list_of_vectors), "\n"
-  )
-
-  cat("\n=====================================")
-  cat("\n============  Model Fit  ============\n")
-  cat("=====================================\n")
-  print(summary(model))
-
-  cat("\n===================================================")
-  cat("\n===========  Recommended Interventions  ===========\n")
-  cat("===================================================\n")
-  rec_int_df <- data.frame(
-    component = if (include_interaction_terms) {
-      main_components
-    } else {
-      intervention_components
-    },
-    value = rec_int
-  )
-  print(rec_int_df, row.names = FALSE)
-  cat("\nCost for using the recommended interventions:", rec_int_cost, "\n")
-  cat(
-    "Estimated outcome goal using the recommended interventions:",
-    est_outcome_goal, "\n"
-  )
-
-  if (include_confidence_set) {
-    cat("\n========================================")
-    cat("\n============ Confidence Set ============\n")
-    cat("========================================\n")
-    cat(
-      "Confidence set size percentage:",
-      cs$confidence_set_size_percentage, "\n"
-    )
-
-    if (cs$confidence_set_size_percentage > 0) {
-      cat("Confidence set (only first few rows are shown): \n")
-      cat("Please use $cs to get the full confidence set. \n")
-      print(head(cs$cs))
-    } else {
-      cat("No confidense set was found. \n")
-    }
-  }
 
   return(
     if (!include_confidence_set) {
