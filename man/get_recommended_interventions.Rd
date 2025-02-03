@@ -18,7 +18,8 @@ get_recommended_interventions(
   optimization_method,
   optimization_grid_search_step_size,
   center_cha_coeff_vec = 0,
-  center_characteristics_optimization_values = 0
+  center_characteristics_optimization_values = 0,
+  link = "identity"
 )
 }
 \arguments{
@@ -88,6 +89,9 @@ For example: c(-0.4).}
 \item{center_characteristics_optimization_values}{A numeric vector. The
 values of the center characteristics that will be used for LAGO optimization.
 For example: c(1.74)}
+
+\item{link}{A character string. Specifies the link function used when fitting
+the outcome model.}
 }
 \value{
 List(

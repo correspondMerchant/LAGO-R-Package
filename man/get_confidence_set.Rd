@@ -15,6 +15,7 @@ get_confidence_set(
   main_components = NULL,
   outcome_data,
   fitted_model,
+  link,
   outcome_goal,
   outcome_type,
   intervention_lower_bounds,
@@ -42,7 +43,7 @@ The weights need to sum up to 1.}
 effects should be included in the outcome model.}
 
 \item{additional_covariates}{A character vector. The names of the columns in
-the dataset that represent additional covaraites that need to be included
+the dataset that represent additional covariates that need to be included
 in the outcome model. This includes interaction terms or any other additional
 covariates.}
 
@@ -55,10 +56,12 @@ interaction terms in the intervention components.}
 \item{main_components}{A character vector. Specifies the main intervention
 components in the presence of interaction terms.}
 
-\item{outcome_data}{A data.frame. The input data containing the outcome
+\item{outcome_data}{A vector. The input data containing the outcome
 of interest.}
 
 \item{fitted_model}{A glm(). The fitted glm() outcome model.}
+
+\item{link}{A character string. The link function (e.g. "logit", "identity").}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
 probability or mean value.}
@@ -68,68 +71,33 @@ Must be either "continuous" for continuous outcomes or "binary" for binary
 outcomes.}
 
 \item{intervention_lower_bounds}{A numeric vector. Specifies the lower bounds
-of the intervention components.
-For example: for a two-component intervention package, lower bounds could be
-c(0,0).}
+of the intervention components.}
 
 \item{intervention_upper_bounds}{A numeric vector. Specifies the upper bounds
-of the intervention components.
-For example: for a two-component intervention package, upper bounds could be
-c(10,20).}
+of the intervention components.}
 
 \item{confidence_set_grid_step_size}{A numeric vector. Specifies the step
-size of the grid search algorithm used in the confidence set calculation.
-Default value without user specification:
-1/20 of the range for each intervention component.}
+size of the grid search algorithm used in the confidence set calculation.}
 
 \item{center_characteristics}{A character vector. The names of the columns in
-the dataset that represent the center characteristics.
-For example: c("characteristic1")}
+the dataset that represent the center characteristics.}
 
 \item{center_characteristics_optimization_values}{A numeric vector. The
-values of the center characteristics that will be used for LAGO optimization.
-For example: c(1.74)}
+values of the center characteristics that will be used for LAGO optimization.}
 
 \item{confidence_set_alpha}{A numeric value. The type I error considered in
-the confidence set calculations.
-Default value without user specification: 0.05.}
+the confidence set calculations.}
 
-\item{cluster_id}{A list. Specifies the columns of data that will be used
-as clustering effects when the "outcome_type" is continuous.}
+\item{cluster_id}{A list or NULL. Specifies the columns of data that will be
+used as clustering effects when the "outcome_type" is continuous.}
 }
 \value{
 List(
-percentage of interventions that are included in the confidence set,
-confidence set)
+  confidence_set_size_percentage = <number>,
+  cs = <data.frame of interventions in the confidence set>
+)
 }
 \description{
 Internal function that calculates the confidence set
 for the recommended interventions
-}
-\examples{
-# fit the model
-model <- glm(
-  EBP_proportions ~ coaching_updt
-    + launch_duration + birth_volume_100,
-  data = BB_proportions, family = quasibinomial(link = "logit")
-)
-# get the confidence set
-cs_results <- get_confidence_set(
-  predictors_data = BB_proportions[, c(
-    "coaching_updt",
-    "launch_duration",
-    "birth_volume_100"
-  )],
-  intervention_components = c("coaching_updt", "launch_duration"),
-  fitted_model = model,
-  outcome_goal = 0.8,
-  outcome_type = "continuous",
-  center_characteristics = "birth_volume_100",
-  center_characteristics_optimization_values = 1.74,
-  outcome_data = BB_proportions$EBP_proportions,
-  intervention_lower_bounds = c(1, 1),
-  intervention_upper_bounds = c(40, 5),
-  confidence_set_grid_step_size = c(1, 0.5)
-)
-
 }
