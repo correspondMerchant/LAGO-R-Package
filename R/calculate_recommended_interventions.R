@@ -275,7 +275,8 @@ calculate_recommended_interventions <- function(
       intervention_upper_bounds = intervention_upper_bounds,
       center_characteristics_optimization_values =
         center_characteristics_optimization_values,
-      confidence_set_alpha = confidence_set_alpha
+      confidence_set_alpha = confidence_set_alpha,
+      cost_list_of_vectors = cost_list_of_vectors
     )
 
     # unpack the confidence set results to the environment
