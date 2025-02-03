@@ -217,9 +217,6 @@ get_confidence_set <- function(
   new_data <- as.data.frame(do.call(cbind, components))
   new_data <- cbind(Intercept = 1, new_data)
   colnames(new_data) <- names(fitted_model$coefficients)
-  print("new data is:")
-  print(head(new_data))
-  print(coef(fitted_model))
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
