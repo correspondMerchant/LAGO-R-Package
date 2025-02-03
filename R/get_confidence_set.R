@@ -26,7 +26,7 @@
 #' @param outcome_data A vector. The input data containing the outcome
 #' of interest.
 #' @param fitted_model A glm(). The fitted glm() outcome model.
-#' @param link A character string. The link function (e.g. "logit", "identity"). # <-- ADDED
+#' @param link A character string. The link function (e.g. "logit", "identity").
 #' @param outcome_goal A numeric value. Specifies the outcome goal, a desired
 #' probability or mean value.
 #' @param outcome_type A character string. Specifies the type of the outcome.
@@ -68,7 +68,7 @@ get_confidence_set <- function(
     main_components = NULL,
     outcome_data,
     fitted_model,
-    link,  # <-- ADDED
+    link,
     outcome_goal,
     outcome_type,
     intervention_lower_bounds,
@@ -77,8 +77,7 @@ get_confidence_set <- function(
     center_characteristics = NULL,
     center_characteristics_optimization_values = 0,
     confidence_set_alpha = 0.05,
-    cluster_id = NULL
-) {
+    cluster_id = NULL) {
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
@@ -218,12 +217,15 @@ get_confidence_set <- function(
   new_data <- as.data.frame(do.call(cbind, components))
   new_data <- cbind(Intercept = 1, new_data)
   colnames(new_data) <- names(fitted_model$coefficients)
+  print("new data is:")
+  print(head(new_data))
+  print(coef(fitted_model))
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
   # ----------------------------------------------------------------------------
   if (outcome_type == "binary") {
-    # TODO: this part needs to handle more than logit link.
+    new_data <- as.matrix(new_data)
     pred_all <- expit(new_data %*% coef(fitted_model))
     se_pred_all <- sqrt(
       diag((new_data) %*% vcov(fitted_model) %*% t(new_data))
@@ -253,7 +255,7 @@ get_confidence_set <- function(
                          model,
                          outcome_data,
                          cluster_ids = NULL,
-                         link  # <-- ADDED
+                         link # <-- ADDED
     ) {
       # First prepare the full design matrix
       # (including fixed effects dummies if any)
@@ -489,7 +491,7 @@ get_confidence_set <- function(
       fitted_model,
       outcome_data,
       cluster_id,
-      link = link  # <-- PASS LINK HERE
+      link = link # <-- PASS LINK HERE
     )
 
     # get predicted values
