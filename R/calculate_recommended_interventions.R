@@ -208,41 +208,22 @@ calculate_recommended_interventions <- function(
   list2env(inputs, envir = environment())
 
   # fit the outcome model
-  if (input_data_structure == "center_level") {
-    outcome_name <- "proportion"
-    weights <- data$center_sample_size
-  }
-  covariates <- c(
-    if (include_center_effects) "center",
-    if (include_time_effects) "period",
-    intervention_components,
-    if (!is.null(additional_covariates)) additional_covariates,
-    if (!is.null(center_characteristics)) center_characteristics
-  )
-  formula <- as.formula(
-    paste(outcome_name, "~", paste(covariates, collapse = " + "))
-  )
-  tryCatch(
-    {
-      model <- glm(
-        formula,
-        data = data,
-        family = family_object,
-        weights = weights
-      )
-    },
-    error = function(e) {
-      stop(paste("Error occurred during model fitting step:\n", e))
-    }
+  outcome_model <- outcome_model_fitting(
+    data = data,
+    input_data_structure = input_data_structure,
+    outcome_name = outcome_name,
+    family_object = family_object,
+    intervention_components = intervention_components,
+    weights = weights,
+    center_characteristics = center_characteristics,
+    additional_covariates = additional_covariates,
+    include_center_effects = include_center_effects,
+    include_time_effects = include_time_effects,
+    include_interaction_terms = include_interaction_terms
   )
 
-  # if model did not converge, stop the function
-  if (!model$converged) {
-    stop(paste(
-      "Model did not converge. Please check",
-      "your input data and model specifications."
-    ))
-  }
+  # unpack the outcome model to the environment
+  list2env(outcome_model, envir = environment())
 
   # get coefficients for the intervention components
   intervention_components_coeff <-
