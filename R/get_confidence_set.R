@@ -570,8 +570,8 @@ get_confidence_set <- function(
   }
 
   cs_output_names <- names(cs)
-  if (outcome_type == "continuous" && link == "identity" ||
-    outcome_type == "binary") {
+  if ((outcome_type == "continuous" && link == "identity") ||
+    (outcome_type == "binary")) {
     CI_lower_bound <- round(lb_prob_all[cs_row_indices], 3)
     CI_upper_bound <- round(ub_prob_all[cs_row_indices], 3)
   } else {
