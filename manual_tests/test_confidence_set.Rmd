@@ -19,7 +19,7 @@ head(bb_data)
 ```
 
 ```{r}
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_data,
   outcome_name = "pp3_oxytocin_mother",
   outcome_type = "binary",
@@ -53,7 +53,7 @@ head(BB_proportions)
 ```
 
 ```{r}
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = BB_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",

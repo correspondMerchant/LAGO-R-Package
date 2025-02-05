@@ -17,7 +17,7 @@ devtools::load_all()
 # for input_data_structure = "center_level"
 bb_data <- LAGO::BB_data
 
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = bb_data,
     input_data_structure = "center_level",
     outcome_name = "pp3_oxytocin_mother",
@@ -35,7 +35,7 @@ optimization_results <- calculate_recommended_interventions(
 ```{r}
 # throws error when input_data_sturcutre
 # is not "individual_level" or "center_level"
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = bb_data,
     input_data_structure = "level",
     outcome_name = "pp3_oxytocin_mother",
@@ -53,7 +53,7 @@ optimization_results <- calculate_recommended_interventions(
 ```{r}
 # throws error when outcome type is not binary
 # for input_data_structure = "center_level"
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = bb_data,
     input_data_structure = "center_level",
     outcome_name = "pp3_oxytocin_mother",
@@ -89,7 +89,7 @@ main_pulesa_data$center <- main_pulesa_data$Clinic
 # "main" PULESA model, no confidence set calculation
 # print out the coefficient estimates and compare with results
 # obtained from Jingyu's code
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = main_pulesa_data,
     input_data_structure = "center_level",
     outcome_name = "proportion",
@@ -147,7 +147,7 @@ devtools::load_all()
 
 ```{r}
 # "main" PULESA model, now with confidence set calculations
-optimization_results_cs <- calculate_recommended_interventions(
+optimization_results_cs <- lago_optimization(
     data = main_pulesa_data,
     input_data_structure = "center_level",
     outcome_name = "proportion",
@@ -218,7 +218,7 @@ new_pulesa_data$X6 <- new_pulesa_data$RemoteMonitoring
 # "new" PULESA model, no confidence set calculation
 # print out the coefficient estimates and compare with results
 # obtained from Jingyu's code
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = new_pulesa_data,
     input_data_structure = "center_level",
     outcome_name = "proportion",
@@ -280,7 +280,7 @@ devtools::load_all()
 # "new" model, no confidence set yet.
 # test both grid search and numerical solutions for rec int
 # numerical method:
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = new_pulesa_data,
     input_data_structure = "center_level",
     outcome_name = "proportion",
@@ -321,7 +321,7 @@ optimization_results <- calculate_recommended_interventions(
 ```{r}
 # "new" model, no confidence set yet.
 # grid_search method:
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = new_pulesa_data,
     input_data_structure = "center_level",
     outcome_name = "proportion",
@@ -367,7 +367,7 @@ devtools::load_all()
 ```
 ```{r}
 # "new" model, with confidence set yet.
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
     data = new_pulesa_data,
     input_data_structure = "center_level",
     outcome_name = "proportion",

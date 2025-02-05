@@ -22,7 +22,7 @@ head(bb_data)
 
 ## Calculate the recommended interventions using the LAGO package 
 ```{r}
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_data,
   outcome_name = "pp3_oxytocin_mother",
   outcome_type = "binary",
@@ -37,7 +37,7 @@ optimization_results <- calculate_recommended_interventions(
 ```
 
 ```{r}
-optimization_results_wo_cs <- calculate_recommended_interventions(
+optimization_results_wo_cs <- lago_optimization(
   data = bb_data,
   outcome_name = "pp3_oxytocin_mother",
   outcome_type = "binary",

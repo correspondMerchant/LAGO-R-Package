@@ -1,7 +1,8 @@
-#' calculate_recommended_interventions
+#' lago_optimization
 #'
-#' @description Calculates the LAGO recommended interventions based on an
-#' outcome goal and/or a power goal.
+#' @description Fitting the outcome model, calculates the recommended
+#' interventions based on an outcome goal and/or a power goal, calculates
+#' the confidence set for the recommended interventions, and prints the output.
 #'
 #' ### required arguments:
 #' @param data A data.frame. The input dataset containing the variables of
@@ -124,7 +125,7 @@
 #' @examples
 #' # Basic case showing how to carry out the optimization with
 #' # a built-in data set.
-#' calculate_recommended_interventions(
+#' lago_optimization(
 #'   data = infert,
 #'   outcome_name = "case",
 #'   outcome_type = "binary",
@@ -137,7 +138,7 @@
 #'   confidence_set_grid_step_size = c(1, 1)
 #' )
 #'
-#' calculate_recommended_interventions(
+#' lago_optimization(
 #'   data = BB_data,
 #'   outcome_name = "pp3_oxytocin_mother",
 #'   outcome_type = "binary",
@@ -152,7 +153,7 @@
 #'   confidence_set_grid_step_size = c(1, 1)
 #' )
 #'
-#' calculate_recommended_interventions(
+#' lago_optimization(
 #'   data = BB_proportions,
 #'   outcome_name = "EBP_proportions",
 #'   outcome_type = "continuous",
@@ -171,7 +172,7 @@
 #' @export
 #' @importFrom utils head
 #'
-calculate_recommended_interventions <- function(
+lago_optimization <- function(
     data,
     input_data_structure = "individual_level",
     outcome_name,

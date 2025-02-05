@@ -13,7 +13,7 @@ devtools::load_all()
 
 
 ```{r}
-calculate_recommended_interventions(
+lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -31,7 +31,7 @@ calculate_recommended_interventions(
 
 ```{r}
 # grid search
-calculate_recommended_interventions(
+lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -54,7 +54,7 @@ calculate_recommended_interventions(
 # higher order cost function
 # check if it is possible to get recommended interventions to be not
 # on the boundary
-calculate_recommended_interventions(
+lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -73,7 +73,7 @@ calculate_recommended_interventions(
 ```{r}
 # higher order cost function
 # grid search
-calculate_recommended_interventions(
+lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",

@@ -4,7 +4,7 @@
 \name{LAGO-package}
 \alias{LAGO}
 \alias{LAGO-package}
-\title{LAGO: LAGO Optimizations}
+\title{LAGO: LAGO}
 \description{
 Calculates LAGO recommended interventions for the next stage. The recommended interventions will be calculated based on the outcome goal and/or the power goal.
 }
