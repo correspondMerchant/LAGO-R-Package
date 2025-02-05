@@ -1,4 +1,4 @@
-## LAGO Optimization R Package
+## The LAGO R Package
 
 Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you have questions.
 
