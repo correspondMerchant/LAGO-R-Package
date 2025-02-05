@@ -1,6 +1,6 @@
 ## LAGO Optimization R Package
 
-Reach out to [Ante Bing](abing@bu.edu) or [Minh Bui](minhb@bu.edu) if you have questions.
+Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you have questions.
 
 
 ### How to test this R package 
