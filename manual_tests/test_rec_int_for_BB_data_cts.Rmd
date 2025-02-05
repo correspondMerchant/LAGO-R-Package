@@ -24,7 +24,7 @@ head(bb_proportions)
 ## Calculate the recommended interventions using the LAGO package 
 ```{r}
 # using a linear cost function
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
@@ -88,7 +88,7 @@ devtools::load_all()
 
 ```{r}
 # only add center effects
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
@@ -106,7 +106,7 @@ optimization_results <- calculate_recommended_interventions(
 
 ```{r}
 # add center effects, and time effects
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
@@ -126,7 +126,7 @@ optimization_results <- calculate_recommended_interventions(
 
 ```{r}
 # add center effects, time effects, and additional covariates
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
@@ -152,7 +152,7 @@ devtools::load_all()
 ```{r}
 # add center effects, time effects, additional covariates,
 # and interaction terms
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",

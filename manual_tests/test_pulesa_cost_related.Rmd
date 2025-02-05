@@ -17,30 +17,30 @@ editor_options:
 # install the LAGO package using the tar.gz file
 # library(LAGO)
 
-# use the following to load the LAGO library while developing the r package:  
+# use the following to load the LAGO library while developing the r package:
 devtools::load_all()
 ```
 
 ## load PULESA data and preprocessing for fitting the "main" model 
 ```{r}
-# PULESA data is intentionally NOT pre loaded as part of the LAGO package as the 
+# PULESA data is intentionally NOT pre loaded as part of the LAGO package as the
 # PULESA trial is still ongoing.
 #
 # code below are shared by Jingyu:
-# 
-#setwd("/Users/antebing/Library/CloudStorage/Dropbox/LAGO r package paper/Optimization R code-Jingyu")
+#
+# setwd("/Users/antebing/Library/CloudStorage/Dropbox/LAGO r package paper/Optimization R code-Jingyu")
 
-original_data<-read.csv("/Users/minhthubui/Desktop/data_all_patients_complete_cumulative (selected).csv", header = TRUE, sep = ',', encoding = "UTF-8")
+original_data <- read.csv("/Users/minhthubui/Desktop/data_all_patients_complete_cumulative (selected).csv", header = TRUE, sep = ",", encoding = "UTF-8")
 
-original_data<-original_data[,c(-6, -14: -16)]
+original_data <- original_data[, c(-6, -14:-16)]
 
 names(original_data) <- c("Clinic", "BasicPlus", "Month", "Year", "Treatment", "AccessMedicines", "AccessBPMachines", "HypertensionTraining", "DeliveryA", "DeliveryB", "RemoteMonitoring", "PerformanceImprovement", "N_Total_visits", "N_BP_control")
 
-#make Jan, 2024 as month 13
-original_data$Month[original_data$Year==2024]<- original_data$Month[original_data$Year==2024] + 12
+# make Jan, 2024 as month 13
+original_data$Month[original_data$Year == 2024] <- original_data$Month[original_data$Year == 2024] + 12
 
 # discard records with missing outcomes
-original_data <- original_data[!is.na(original_data$N_Total_visits) & original_data$N_Total_visits!=0,]
+original_data <- original_data[!is.na(original_data$N_Total_visits) & original_data$N_Total_visits != 0, ]
 
 #### Start Data Preprocessing ######
 # for missingness
@@ -54,175 +54,187 @@ PerformanceImprovement <- original_data$PerformanceImprovement
 
 
 # impute intervention with 0 for records from control periods
-AccessMedicines[is.na(AccessMedicines) & original_data$Treatment == "Control"] = 0
-AccessBPMachines[is.na(AccessBPMachines) & original_data$Treatment == "Control"] = 0
-HypertensionTraining[is.na(HypertensionTraining) & original_data$Treatment == "Control"] = 0
-DeliveryA[is.na(DeliveryA) & original_data$Treatment == "Control"] = 0
-DeliveryB[is.na(DeliveryB) & original_data$Treatment == "Control"] = 0
-RemoteMonitoring[is.na(RemoteMonitoring) & original_data$Treatment == "Control"] = 0
-PerformanceImprovement[is.na(PerformanceImprovement) & original_data$Treatment == "Control"] = 0
+AccessMedicines[is.na(AccessMedicines) & original_data$Treatment == "Control"] <- 0
+AccessBPMachines[is.na(AccessBPMachines) & original_data$Treatment == "Control"] <- 0
+HypertensionTraining[is.na(HypertensionTraining) & original_data$Treatment == "Control"] <- 0
+DeliveryA[is.na(DeliveryA) & original_data$Treatment == "Control"] <- 0
+DeliveryB[is.na(DeliveryB) & original_data$Treatment == "Control"] <- 0
+RemoteMonitoring[is.na(RemoteMonitoring) & original_data$Treatment == "Control"] <- 0
+PerformanceImprovement[is.na(PerformanceImprovement) & original_data$Treatment == "Control"] <- 0
 
 # impute intervention with 0 for records from RUN-in and Treatment periods for HTN-BASIC
-#sum(is.na(HypertensionTraining))
-HypertensionTraining[is.na(HypertensionTraining) & original_data$BasicPlus=="HTN-BASIC"] = 0
-#sum(is.na(DeliveryA))
-DeliveryA[is.na(DeliveryA) &  original_data$BasicPlus=="HTN-BASIC"] = 0
-#sum(is.na(DeliveryB))
-DeliveryB[is.na(DeliveryB) &  original_data$BasicPlus=="HTN-BASIC"] = 0
-#sum(is.na(RemoteMonitoring))
-RemoteMonitoring[is.na(RemoteMonitoring) & original_data$BasicPlus=="HTN-BASIC"] = 0
-#sum(is.na(PerformanceImprovement))
-PerformanceImprovement[is.na(PerformanceImprovement) & original_data$BasicPlus=="HTN-BASIC"] = 0
+# sum(is.na(HypertensionTraining))
+HypertensionTraining[is.na(HypertensionTraining) & original_data$BasicPlus == "HTN-BASIC"] <- 0
+# sum(is.na(DeliveryA))
+DeliveryA[is.na(DeliveryA) & original_data$BasicPlus == "HTN-BASIC"] <- 0
+# sum(is.na(DeliveryB))
+DeliveryB[is.na(DeliveryB) & original_data$BasicPlus == "HTN-BASIC"] <- 0
+# sum(is.na(RemoteMonitoring))
+RemoteMonitoring[is.na(RemoteMonitoring) & original_data$BasicPlus == "HTN-BASIC"] <- 0
+# sum(is.na(PerformanceImprovement))
+PerformanceImprovement[is.na(PerformanceImprovement) & original_data$BasicPlus == "HTN-BASIC"] <- 0
 
-#sum(is.na(DeliveryB))   ## 20 missing values
+# sum(is.na(DeliveryB))   ## 20 missing values
 MI_DeliveryB <- as.numeric(is.na(DeliveryB))
-DeliveryB[is.na(DeliveryB)] = weighted.mean(DeliveryB[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
+DeliveryB[is.na(DeliveryB)] <- weighted.mean(DeliveryB[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
 
-#sum(is.na(RemoteMonitoring))   ## 5 missing values
+# sum(is.na(RemoteMonitoring))   ## 5 missing values
 MI_RemoteMonitoring <- as.numeric(is.na(RemoteMonitoring))
-RemoteMonitoring[is.na(RemoteMonitoring)] = weighted.mean(RemoteMonitoring[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
+RemoteMonitoring[is.na(RemoteMonitoring)] <- weighted.mean(RemoteMonitoring[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
 
-#sum(is.na(PerformanceImprovement))   ## 11 missing values
+# sum(is.na(PerformanceImprovement))   ## 11 missing values
 MI_PerformanceImprovement <- as.numeric(is.na(PerformanceImprovement))
-PerformanceImprovement[is.na(PerformanceImprovement)] =  weighted.mean(PerformanceImprovement[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
+PerformanceImprovement[is.na(PerformanceImprovement)] <- weighted.mean(PerformanceImprovement[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
 
 original_data$Clinic <- as.factor(original_data$Clinic)
 original_data$Month <- as.factor(original_data$Month)
 
 # data frame after processing
-data_tofit<-data.frame(Clinic=original_data$Clinic, Period=original_data$Month, 
-                       AccessMedicines, AccessBPMachines, HypertensionTraining, 
-                       DeliveryA, 
-                       DeliveryB, MI_DeliveryB, 
-                       RemoteMonitoring, MI_RemoteMonitoring, PerformanceImprovement, 
-                       MI_PerformanceImprovement, 
-                       Success = original_data$N_BP_control, 
-                       Total_visit=original_data$N_Total_visits,
-                       Proportions = (original_data$N_BP_control)/(original_data$N_Total_visits))
+data_tofit <- data.frame(
+  Clinic = original_data$Clinic, Period = original_data$Month,
+  AccessMedicines, AccessBPMachines, HypertensionTraining,
+  DeliveryA,
+  DeliveryB, MI_DeliveryB,
+  RemoteMonitoring, MI_RemoteMonitoring, PerformanceImprovement,
+  MI_PerformanceImprovement,
+  Success = original_data$N_BP_control,
+  Total_visit = original_data$N_Total_visits,
+  Proportions = (original_data$N_BP_control) / (original_data$N_Total_visits)
+)
 
 ## maybe we need an additional argument called additional_covariates_in_model,
-## in this case, it would include: all the MI indicators, clinic and period. 
-## 
-## also need 1 argument for fixed_center_effect, boolean, and column name for centers/clinics have to 
-## be centers, so additional check needed  
+## in this case, it would include: all the MI indicators, clinic and period.
 ##
-## maybe 1 more for the periods? 
+## also need 1 argument for fixed_center_effect, boolean, and column name for centers/clinics have to
+## be centers, so additional check needed
+##
+## maybe 1 more for the periods?
 ```
 
 
 ## fit the "main" model 
 ```{r}
 # 7 intervention package components
-fit.res<-glm(I(Success/Total_visit) ~ Clinic + Period + AccessMedicines + AccessBPMachines + 
-                               HypertensionTraining + DeliveryA + DeliveryB + RemoteMonitoring + 
-                               PerformanceImprovement 
-                               + MI_DeliveryB + 
-                               MI_RemoteMonitoring + MI_PerformanceImprovement, data = data_tofit, 
-                             family = "binomial", weight = Total_visit)
+fit.res <- glm(
+  I(Success / Total_visit) ~ Clinic + Period + AccessMedicines + AccessBPMachines +
+    HypertensionTraining + DeliveryA + DeliveryB + RemoteMonitoring +
+    PerformanceImprovement
+    + MI_DeliveryB +
+    MI_RemoteMonitoring + MI_PerformanceImprovement,
+  data = data_tofit,
+  family = "binomial", weight = Total_visit
+)
 fit.res
 # from Jingyu's code
-# coef for intervention components 
-coef_intervention_all<-c(0.02574541,  3.05477149,  0.02858655, -0.01414000, 
-                         -0.24840744, -0.01412070, 0.22094251)
+# coef for intervention components
+coef_intervention_all <- c(
+  0.02574541, 3.05477149, 0.02858655, -0.01414000,
+  -0.24840744, -0.01412070, 0.22094251
+)
 # clinic effects in the last period (period 13)
-coef_clinic_all<-c(-2.758192, -1.973129, -1.999936, -2.077562, 
-                   -2.379168, -2.284975, -2.106937, -2.093274, 
-                   -1.953535, -1.999254, -2.376087, -2.521707, 
-                   -1.899561, -2.433208, -1.641754, -2.537827)
+coef_clinic_all <- c(
+  -2.758192, -1.973129, -1.999936, -2.077562,
+  -2.379168, -2.284975, -2.106937, -2.093274,
+  -1.953535, -1.999254, -2.376087, -2.521707,
+  -1.899561, -2.433208, -1.641754, -2.537827
+)
 ```
 
 ## "old" cost function for the "main" model
 ```{r}
-# 
+#
 library(readr)
 data_all_patients_complete <- read_csv("/Users/minhthubui/Desktop/data_all_patients_complete_cumulative (selected).csv")
 
-weights_all<-sapply(unique(data_all_patients_complete$Clinics), 
-                    FUN = function(x) sum(data_all_patients_complete$`Total visits (no restrictions)`[data_all_patients_complete$Clinics==x]))/sum(data_all_patients_complete$`Total visits (no restrictions)`)
+weights_all <- sapply(unique(data_all_patients_complete$Clinics),
+  FUN = function(x) sum(data_all_patients_complete$`Total visits (no restrictions)`[data_all_patients_complete$Clinics == x])
+) / sum(data_all_patients_complete$`Total visits (no restrictions)`)
 data_hypertensive_complete_data <- read_csv("/Users/minhthubui/Desktop/data_hypertensive_complete_cumulative (selected).csv")
-weights_hypertension<-sapply(unique(data_hypertensive_complete_data$Clinics), FUN = function(x) sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`[data_hypertensive_complete_data$Clinics==x]))/sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`)
+weights_hypertension <- sapply(unique(data_hypertensive_complete_data$Clinics), FUN = function(x) sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`[data_hypertensive_complete_data$Clinics == x])) / sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`)
 
-avg_n_all_patients<-sum(data_all_patients_complete$`Total visits (no restrictions)`, na.rm = T)/12
-avg_n_hypertension_patients<-sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`, na.rm = T)/12
-n_providers_permonth<-233.33
+avg_n_all_patients <- sum(data_all_patients_complete$`Total visits (no restrictions)`, na.rm = T) / 12
+avg_n_hypertension_patients <- sum(data_hypertensive_complete_data$`Total visits (all hypertensive without restrictions)`, na.rm = T) / 12
+n_providers_permonth <- 233.33
 data_n_drugs_dispensed <- read_csv("/Users/minhthubui/Desktop/PULESA data with interventions_4292024.csv")
-n_patients_drugs_dispensed_permonth<-sum(data_n_drugs_dispensed$`Number with medication Dispensed`)/12
+n_patients_drugs_dispensed_permonth <- sum(data_n_drugs_dispensed$`Number with medication Dispensed`) / 12
 
 
-w_vector_old<-c(avg_n_hypertension_patients, # access to medicines
-            avg_n_all_patients, # access to BP machine
-            n_providers_permonth, # hyper training hours
-            n_patients_drugs_dispensed_permonth,  #delivery A
-            n_patients_drugs_dispensed_permonth, # delivery B
-            avg_n_hypertension_patients, #remote monitoring
-            n_providers_permonth #performance improvement program
+w_vector_old <- c(
+  avg_n_hypertension_patients, # access to medicines
+  avg_n_all_patients, # access to BP machine
+  n_providers_permonth, # hyper training hours
+  n_patients_drugs_dispensed_permonth, # delivery A
+  n_patients_drugs_dispensed_permonth, # delivery B
+  avg_n_hypertension_patients, # remote monitoring
+  n_providers_permonth # performance improvement program
 )
 
-# cost for the 7 components 
-cost_coeff_matri<-matrix(c(0.083, -0.225, 0, 1.3125,
-                           0.37, -0.33, 0, 0.1586,
-                           0.0089/6.6*1.87, -0.0767/6.6*1.87,  0.1/6.6*1.87,  6.43334/6.6*1.87,
-                           3.89, -3.42, 0.5, 0.7167,
-                           3.89, -3.42, 0.5, 0.7667,
-                           3.89, -3.42, 0.5, 0.6667,
-                           7.5, -6.13, 0.5, 4.917), byrow = FALSE, nrow = 4)
+# cost for the 7 components
+cost_coeff_matri <- matrix(c(
+  0.083, -0.225, 0, 1.3125,
+  0.37, -0.33, 0, 0.1586,
+  0.0089 / 6.6 * 1.87, -0.0767 / 6.6 * 1.87, 0.1 / 6.6 * 1.87, 6.43334 / 6.6 * 1.87,
+  3.89, -3.42, 0.5, 0.7167,
+  3.89, -3.42, 0.5, 0.7667,
+  3.89, -3.42, 0.5, 0.6667,
+  7.5, -6.13, 0.5, 4.917
+), byrow = FALSE, nrow = 4)
 
-# old cost function which is used as objective function in the optimization step 
-Cost_fun<-function(X,COEFF=cost_coeff_matri, cost_weight=w_vector_old){
+# old cost function which is used as objective function in the optimization step
+Cost_fun <- function(X, COEFF = cost_coeff_matri, cost_weight = w_vector_old) {
   # X: the vector of 7 interventions
-  # COEFF: the coefficients. It is a matrix with dimensions 4 by 7, 
+  # COEFF: the coefficients. It is a matrix with dimensions 4 by 7,
   #       with the ith column corresponding to the coeff for x[i]^4, x[i]^3, x[i]^2, x[i]
-  
-  X<-c(X)
-  X_matrix<-rbind(X^4, X^3, X^2, X)
-  vec_unit_cost<-diag(t(COEFF)%*%X_matrix)
-  cost<-sum(cost_weight*vec_unit_cost)
+
+  X <- c(X)
+  X_matrix <- rbind(X^4, X^3, X^2, X)
+  vec_unit_cost <- diag(t(COEFF) %*% X_matrix)
+  cost <- sum(cost_weight * vec_unit_cost)
   return(cost)
 }
 ```
 
 ## optimization step using Jingyu's code 
 ```{r}
-# basically I'm breaking down Jingyu's code, and here are the parts only relevant to 
+# basically I'm breaking down Jingyu's code, and here are the parts only relevant to
 # the scenario: cost_type==old, outcome_model==main, full_model, datapatient=all
-# and Hyper_train=="cumulative", only 1 outcome goal, the overall p_goal=0.8. 
+# and Hyper_train=="cumulative", only 1 outcome goal, the overall p_goal=0.8.
 library(NlcOptim)
-p_goal<-0.8
-HT_n_months<-c(29, 0,17, 0, 25, 21, 0, 0, 0, 15, 19, 27, 0, 0, 0,23)
+p_goal <- 0.8
+HT_n_months <- c(29, 0, 17, 0, 25, 21, 0, 0, 0, 15, 19, 27, 0, 0, 0, 23)
 
-Constr<-function(X){
-    X<-c(X)
-    f=NULL
-    ##  notice that this is a weighted average 
-    f=rbind(f, p_goal-sum(weights_all*expit(coef_clinic_all+sum(coef_intervention_all*X))) )
-    return(list(ceq=NULL,c=f))
+Constr <- function(X) {
+  X <- c(X)
+  f <- NULL
+  ##  notice that this is a weighted average
+  f <- rbind(f, p_goal - sum(weights_all * expit(coef_clinic_all + sum(coef_intervention_all * X))))
+  return(list(ceq = NULL, c = f))
 }
 
-low_b<-c(0,0,0,0,0,0,0)
-up_b<-c(3,1,10,1,1,1,1)
-x0<-c(3,1,10,0,0,1,1)
+low_b <- c(0, 0, 0, 0, 0, 0, 0)
+up_b <- c(3, 1, 10, 1, 1, 1, 1)
+x0 <- c(3, 1, 10, 0, 0, 1, 1)
 
-res_nonlinear<-solnl(x0, 
-                     objfun=Cost_fun, 
-                     confun=Constr, 
-                     lb = low_b, 
-                     ub = up_b, 
-                     tolFun = 1e-10, 
-                     tolX = 1e-10)
+res_nonlinear <- solnl(x0,
+  objfun = Cost_fun,
+  confun = Constr,
+  lb = low_b,
+  ub = up_b,
+  tolFun = 1e-10,
+  tolX = 1e-10
+)
 
 print("optimal dosages:")
-print(round(res_nonlinear$par,3))
+print(round(res_nonlinear$par, 3))
 print("estimated total monthly cost:")
 print(res_nonlinear$fn)
 print("predicted outcome goal for all patients:")
 #
-W<-round(res_nonlinear$par,3)
-HT_train_cost<-coef_intervention_all[3]*HT_n_months*W[3]
-exp_coef <- exp(coef_clinic_all+HT_train_cost + sum(coef_intervention_all[-3]*W[-3]))
-probs <- exp_coef/(exp_coef + 1)
-print(sum(weights_all*probs))
-
-
+W <- round(res_nonlinear$par, 3)
+HT_train_cost <- coef_intervention_all[3] * HT_n_months * W[3]
+exp_coef <- exp(coef_clinic_all + HT_train_cost + sum(coef_intervention_all[-3] * W[-3]))
+probs <- exp_coef / (exp_coef + 1)
+print(sum(weights_all * probs))
 ```
 
 
@@ -230,11 +242,6 @@ print(sum(weights_all*probs))
 
 ## replicate the optimization results using the LAGO package 
 ```{r}
-
-
-
-
-
 
 ```
 
@@ -251,99 +258,97 @@ print(sum(weights_all*probs))
 
 ## preprocessing for fitting the "new" model 
 ```{r}
-# code shared by Jingyu: 
+# code shared by Jingyu:
 #
-W1<-x1<-AccessMedicines
-W2<-x2<-AccessBPMachines
-W3<-x3<-HypertensionTraining
-W4<-x1x4<-AccessMedicines*DeliveryA
-W5<-x1x5<-AccessMedicines*DeliveryB
-W6<-x1x4x5<-AccessMedicines*DeliveryA*DeliveryB
-W7<-x2x6<-AccessBPMachines*RemoteMonitoring
-W8<-x7<-PerformanceImprovement
+W1 <- x1 <- AccessMedicines
+W2 <- x2 <- AccessBPMachines
+W3 <- x3 <- HypertensionTraining
+W4 <- x1x4 <- AccessMedicines * DeliveryA
+W5 <- x1x5 <- AccessMedicines * DeliveryB
+W6 <- x1x4x5 <- AccessMedicines * DeliveryA * DeliveryB
+W7 <- x2x6 <- AccessBPMachines * RemoteMonitoring
+W8 <- x7 <- PerformanceImprovement
 
-if (sum(is.na(W1))>0){
+if (sum(is.na(W1)) > 0) {
   MI_W1 <- as.numeric(is.na(W1))
-  W1[is.na(X=W1)] = weighted.mean(W1[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X1[is.na(X1)]<-0
-}  
+  W1[is.na(X = W1)] <- weighted.mean(W1[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X1[is.na(X1)]<-0
+}
 
-if (sum(is.na(W2))>0){
+if (sum(is.na(W2)) > 0) {
   MI_W2 <- as.numeric(is.na(W2))
-  W2[is.na(W2)] = weighted.mean(W2[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X2[is.na(X2)]<-0
-}   
+  W2[is.na(W2)] <- weighted.mean(W2[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X2[is.na(X2)]<-0
+}
 
-if (sum(is.na(W3))>0){
+if (sum(is.na(W3)) > 0) {
   MI_W3 <- as.numeric(is.na(W3))
-  W3[is.na(W3)] = weighted.mean(W3[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X3[is.na(X3)]<-0
-}   
+  W3[is.na(W3)] <- weighted.mean(W3[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X3[is.na(X3)]<-0
+}
 
-if (sum(is.na(W4))>0){
+if (sum(is.na(W4)) > 0) {
   MI_W4 <- as.numeric(is.na(W4))
-  W4[is.na(W4)] = weighted.mean(W4[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X4[is.na(X4)]<-0
-}  
+  W4[is.na(W4)] <- weighted.mean(W4[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X4[is.na(X4)]<-0
+}
 
-if (sum(is.na(W5))>0){
+if (sum(is.na(W5)) > 0) {
   MI_W5 <- as.numeric(is.na(W5))
-  W5[is.na(W5)] = weighted.mean(W5[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X5[is.na(X5)]<-0
-}   
+  W5[is.na(W5)] <- weighted.mean(W5[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X5[is.na(X5)]<-0
+}
 
-if (sum(is.na(W6))>0){
+if (sum(is.na(W6)) > 0) {
   MI_W6 <- as.numeric(is.na(W6))
-  W6[is.na(W6)] = weighted.mean(W6[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X6[is.na(X6)]<-0
-}   
+  W6[is.na(W6)] <- weighted.mean(W6[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X6[is.na(X6)]<-0
+}
 
-if (sum(is.na(W7))>0){
+if (sum(is.na(W7)) > 0) {
   MI_W7 <- as.numeric(is.na(W7))
-  W7[is.na(W7)] = weighted.mean(W7[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X7[is.na(X7)]<-0
-}   
+  W7[is.na(W7)] <- weighted.mean(W7[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X7[is.na(X7)]<-0
+}
 
-if (sum(is.na(W8))>0){
+if (sum(is.na(W8)) > 0) {
   MI_W8 <- as.numeric(is.na(W8))
-  W8[is.na(W8)] = weighted.mean(W8[original_data$Treatment!="Control" & original_data$BasicPlus=="HTN-PLUS"],original_data$N_Total_visits[original_data$Treatment!="Control"& original_data$BasicPlus=="HTN-PLUS"],na.rm=T)
-  #X8[is.na(X8)]<-0
-}  
+  W8[is.na(W8)] <- weighted.mean(W8[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], original_data$N_Total_visits[original_data$Treatment != "Control" & original_data$BasicPlus == "HTN-PLUS"], na.rm = T)
+  # X8[is.na(X8)]<-0
+}
 
 
 original_data$Clinic <- as.factor(original_data$Clinic)
 original_data$Month <- as.factor(original_data$Month)
 
-data_tofit<-data.frame(Clinic=original_data$Clinic, Period=original_data$Month, 
-                       W1, W2, W3, W4, W5, W6, W7, W8,
-                       MI_W5, MI_W7, MI_W8,
-                       Success = original_data$N_BP_control, 
-                       Total_visit=original_data$N_Total_visits)
+data_tofit <- data.frame(
+  Clinic = original_data$Clinic, Period = original_data$Month,
+  W1, W2, W3, W4, W5, W6, W7, W8,
+  MI_W5, MI_W7, MI_W8,
+  Success = original_data$N_BP_control,
+  Total_visit = original_data$N_Total_visits
+)
 ```
 
 
 ## fit the "new" model 
 ```{r}
-# appears to have 8 components, however, 
-# 4 intervention package components with 4 interaction terms  
-fit.res<-glm(I(Success/Total_visit) ~ Clinic + Period + W1+ W2+ W3+
-                     W4+W5+W6+W7+W8+
-                     MI_W5+MI_W7+MI_W8, 
-                   data = data_tofit,
-                   family = "binomial", weight = Total_visit)
-
+# appears to have 8 components, however,
+# 4 intervention package components with 4 interaction terms
+fit.res <- glm(
+  I(Success / Total_visit) ~ Clinic + Period + W1 + W2 + W3 +
+    W4 + W5 + W6 + W7 + W8 +
+    MI_W5 + MI_W7 + MI_W8,
+  data = data_tofit,
+  family = "binomial", weight = Total_visit
+)
 ```
 
 
 
 ## replicate the results using the LAGO package 
 ```{r}
-# work on the previous model first 
-
-
-
-
-
+# work on the previous model first
 ```
 
 
@@ -361,32 +366,37 @@ fit.res<-glm(I(Success/Total_visit) ~ Clinic + Period + W1+ W2+ W3+
 # [5,]  0.000
 # [6,]  0.000
 # [7,]  1.000
-optimization_cubic_results <- calculate_recommended_interventions(
-                                    df = pulesa_test_data,
-                                    outcome_name = "Proportions",
-                                    outcome_type = "binary", 
-                                    glm_family = "binomial",
-                                    weights = pulesa_test_data$Total_visit,
-                                    linear_cost_functions = FALSE,
-                                    link = "logit",
-                                    outcome_goal_optimization = "numerical",
-                                    interventions_list = c("AccessMedicines", 
-                                                           "AccessBPMachines",
-                                                           "HypertensionTraining",
-                                                           "DeliveryA",
-                                                           "DeliveryB",
-                                                           "RemoteMonitoring",
-                                                           "PerformanceImprovement"),
-                                    center_characteristic_list = c("Clinic",
-                                                                   "Period",
-                                                                   "MI_DeliveryB",
-                                                                   "MI_RemoteMonitoring",
-                                                                   "MI_PerformanceImprovement"),
-                                    center_characteristic_list_for_optimization = c(0,0,0,0,0),
-                                    intervention_lower_bounds = c(0,0,0,0,0,0,0),
-                                    intervention_upper_bounds = c(3,1,10,1,1,1,1),
-                                    cost_list_of_lists = list(c(1),c(2),c(3),c(4),c(5),c(6),c(7)),
-                                    outcome_goal = 0.8)
+optimization_cubic_results <- lago_optimization(
+  df = pulesa_test_data,
+  outcome_name = "Proportions",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  weights = pulesa_test_data$Total_visit,
+  linear_cost_functions = FALSE,
+  link = "logit",
+  outcome_goal_optimization = "numerical",
+  interventions_list = c(
+    "AccessMedicines",
+    "AccessBPMachines",
+    "HypertensionTraining",
+    "DeliveryA",
+    "DeliveryB",
+    "RemoteMonitoring",
+    "PerformanceImprovement"
+  ),
+  center_characteristic_list = c(
+    "Clinic",
+    "Period",
+    "MI_DeliveryB",
+    "MI_RemoteMonitoring",
+    "MI_PerformanceImprovement"
+  ),
+  center_characteristic_list_for_optimization = c(0, 0, 0, 0, 0),
+  intervention_lower_bounds = c(0, 0, 0, 0, 0, 0, 0),
+  intervention_upper_bounds = c(3, 1, 10, 1, 1, 1, 1),
+  cost_list_of_lists = list(c(1), c(2), c(3), c(4), c(5), c(6), c(7)),
+  outcome_goal = 0.8
+)
 optimization_cubic_results
 ```
 
@@ -402,6 +412,5 @@ optimization_cubic_results
 # [5,] 0.079
 # [6,] 0.970
 # [7,] 1.000
-
 ```
 

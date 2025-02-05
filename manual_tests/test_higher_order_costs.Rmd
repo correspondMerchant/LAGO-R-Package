@@ -19,7 +19,7 @@ head(bb_proportions)
 
 ```{r}
 # defaults to numerical solution
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
@@ -39,7 +39,7 @@ optimization_results
 ```
 
 ```{r}
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
@@ -58,7 +58,7 @@ optimization_results <- calculate_recommended_interventions(
 
 ```{r}
 # grid_search solution
-optimization_results <- calculate_recommended_interventions(
+optimization_results <- lago_optimization(
   data = bb_proportions,
   outcome_name = "EBP_proportions",
   outcome_type = "continuous",
