@@ -19,7 +19,8 @@ confidence_set_processor <- function(
     intervention_lower_bounds,
     intervention_upper_bounds,
     center_characteristics_optimization_values,
-    confidence_set_alpha) {
+    confidence_set_alpha,
+    cost_list_of_vectors) {
     # assign confidence set step size if not specified
     if (include_confidence_set && is.null(confidence_set_grid_step_size)) {
         confidence_set_grid_step_size <- step_size_results
@@ -78,7 +79,8 @@ confidence_set_processor <- function(
             center_characteristics_optimization_values =
                 center_characteristics_optimization_values,
             confidence_set_alpha = confidence_set_alpha,
-            cluster_id = cluster_id
+            cluster_id = cluster_id,
+            cost_list_of_vectors
         )
         message("Done")
 

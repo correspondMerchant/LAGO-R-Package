@@ -46,6 +46,8 @@
 #' the confidence set calculations.
 #' @param cluster_id A list or NULL. Specifies the columns of data that will be
 #' used as clustering effects when the "outcome_type" is continuous.
+#' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
+#' used in the LAGO optimization.
 #'
 #' @return List(
 #'   confidence_set_size_percentage = <number>,
@@ -77,7 +79,8 @@ get_confidence_set <- function(
     center_characteristics = NULL,
     center_characteristics_optimization_values = 0,
     confidence_set_alpha = 0.05,
-    cluster_id = NULL) {
+    cluster_id = NULL,
+    cost_list_of_vectors) {
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
@@ -232,6 +235,8 @@ get_confidence_set <- function(
     lb_prob_all <- pred_all - critical_value * se_pred_all
     ub_prob_all <- pred_all + critical_value * se_pred_all
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
+    print("ci prob all:")
+    print(ci_prob_all[1:25, ])
 
     # calculate percentage of interventions
     # that are included in the confidence set
@@ -541,11 +546,54 @@ get_confidence_set <- function(
     }
   )]
 
+  create_cost_function <- function(coeffs) {
+    function(x) {
+      sum(sapply(seq_along(coeffs), function(i) coeffs[i] * x^(i - 1)))
+    }
+  }
+  cost_functions <- lapply(cost_list_of_vectors, create_cost_function)
+  row_costs <- data.frame(
+    row.names = rownames(cs),
+    total_cost = apply(cs, 1, function(row) {
+      sum(mapply(
+        function(cost_fn, value) cost_fn(value),
+        cost_functions,
+        row
+      ))
+    })
+  )
+
   if (length(center_characteristics) > 0) {
     original_cs_name <- names(cs)
     cs <- cbind(cs, center_characteristics_optimization_values)
     names(cs) <- c(original_cs_name, center_characteristics)
   }
+
+  cs_output_names <- names(cs)
+  if ((outcome_type == "continuous" && link == "identity") ||
+    (outcome_type == "binary")) {
+    CI_lower_bound <- round(lb_prob_all[cs_row_indices], 3)
+    CI_upper_bound <- round(ub_prob_all[cs_row_indices], 3)
+  } else {
+    CI_lower_bound <- round(expit(lb_prob_all[cs_row_indices]), 3)
+    CI_upper_bound <- round(expit(ub_prob_all[cs_row_indices]), 3)
+  }
+
+  cs <- cbind(
+    cs,
+    round(CI_lower_bound, 3),
+    round(CI_upper_bound, 3)
+  )
+  cs <- cbind(
+    cs,
+    round(row_costs, 2)
+  )
+  names(cs) <- c(
+    cs_output_names,
+    "CI_lower_bound",
+    "CI_upper_bound",
+    "cost"
+  )
 
   return(list(
     confidence_set_size_percentage = confidence_set_size_percentage,

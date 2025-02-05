@@ -24,7 +24,8 @@ get_confidence_set(
   center_characteristics = NULL,
   center_characteristics_optimization_values = 0,
   confidence_set_alpha = 0.05,
-  cluster_id = NULL
+  cluster_id = NULL,
+  cost_list_of_vectors
 )
 }
 \arguments{
@@ -90,6 +91,9 @@ the confidence set calculations.}
 
 \item{cluster_id}{A list or NULL. Specifies the columns of data that will be
 used as clustering effects when the "outcome_type" is continuous.}
+
+\item{cost_list_of_vectors}{A list of numeric vectors. The cost vectors
+used in the LAGO optimization.}
 }
 \value{
 List(
