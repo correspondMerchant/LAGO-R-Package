@@ -5,8 +5,6 @@ Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu)
 
 ### How to install the package 
 - Method 1: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
-  Then follow the example [manual_tests/test_rec_int_for_BB_data.Rmd](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_BB_data.Rmd)
-  in RStudio.
 
 - Method 2: Install using the tar.gz file directly. You can download the most recent version of the R package [here]().
   Then follow the directions provided [in this video](https://youtu.be/b6gp95C7j2U?si=7aMpdXzX4D32-m2O).
