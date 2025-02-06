@@ -23,6 +23,14 @@
 #' of the intervention components.
 #' For example: for a two-component intervention package, upper bounds could be
 #' c(10,20).
+#'
+#' ### optional arguments:
+#' @param unit_costs A numeric vector. Specifies the unit costs for each
+#' intervention component.
+#' Default value without user specification: NULL.
+#' @param default_cost_fxn_type A character string. Specifies the shape of the
+#' default cost function. Must be either "linear" or "cubic".
+#' Default value without user specification: "cubic".
 #' @param cost_list_of_vectors A list of numeric vectors. Specifies the cost
 #' functions for each intervention component. Each numeric vector in the list
 #' contains coefficients of the cost function for one intervention component.
@@ -35,8 +43,9 @@
 #' - First component: cost = 2x_1
 #' - Second component: cost = 6x_2
 #' - Third component: cost = 4x_3
-#'
-#' ### optional arguments:
+#' Default value without user specification: NULL.
+#' Please note that either the unit_costs or cost_list_of_vectors must be
+#' specified. If both are specified, the cost_list_of_vectors will be used.
 #' @param input_data_structure A character string. The data structure of the
 #' input data. Must be either "individual_level" or "center_level".
 #' Default value without user specification: "individual_level".
@@ -180,8 +189,10 @@ lago_optimization <- function(
     intervention_components,
     intervention_lower_bounds,
     intervention_upper_bounds,
-    cost_list_of_vectors,
     outcome_goal,
+    unit_costs = NULL,
+    default_cost_fxn_type = "cubic",
+    cost_list_of_vectors = NULL,
     glm_family = "default",
     link = "default",
     optimization_method = "numerical",
@@ -225,6 +236,17 @@ lago_optimization <- function(
 
   # unpack the outcome model to the environment
   list2env(outcome_model, envir = environment())
+
+  # if the user did not specify cost_list_of_vectors, we
+  # calculate it based on the unit_costs and default_cost_fxn_type
+  if (is.null(cost_list_of_vectors)) {
+    cost_list_of_vectors <- cost_fxn_calculator(
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      unit_costs = unit_costs,
+      default_cost_fxn_type = default_cost_fxn_type
+    )
+  }
 
   # calculate the recommended interventions
   rec_int_results <- rec_int_processor(
