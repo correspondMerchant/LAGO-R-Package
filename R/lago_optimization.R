@@ -180,6 +180,7 @@
 #'
 #' @export
 #' @importFrom utils head
+#' @import cli
 #'
 lago_optimization <- function(
     data,
@@ -210,15 +211,35 @@ lago_optimization <- function(
     include_center_effects = FALSE,
     include_time_effects = FALSE,
     include_interaction_terms = FALSE) {
+  cli_alert_info("Starting LAGO Optimization")
+
+  cli_alert_info("Validating inputs...")
   # validate and preapre inputs
   inputs <- do.call(
     validate_inputs,
     as.list(environment())
   )
+  Sys.sleep(0.25)
+  cli_alert_success("Done")
 
   # unpack the inputs to the environment
   list2env(inputs, envir = environment())
 
+  cli_alert_info("Assessing the cost function...")
+  # if the user did not specify cost_list_of_vectors, we
+  # calculate it based on the unit_costs and default_cost_fxn_type
+  if (is.null(cost_list_of_vectors)) {
+    cost_list_of_vectors <- cost_fxn_calculator(
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      unit_costs = unit_costs,
+      default_cost_fxn_type = default_cost_fxn_type
+    )
+  }
+  Sys.sleep(0.25)
+  cli_alert_success("Done")
+
+  cli_alert_info("Fitting the outcome model...")
   # fit the outcome model
   outcome_model <- outcome_model_fitting(
     data = data,
@@ -233,21 +254,13 @@ lago_optimization <- function(
     include_time_effects = include_time_effects,
     include_interaction_terms = include_interaction_terms
   )
+  Sys.sleep(0.25)
+  cli_alert_success("Done")
 
   # unpack the outcome model to the environment
   list2env(outcome_model, envir = environment())
 
-  # if the user did not specify cost_list_of_vectors, we
-  # calculate it based on the unit_costs and default_cost_fxn_type
-  if (is.null(cost_list_of_vectors)) {
-    cost_list_of_vectors <- cost_fxn_calculator(
-      intervention_lower_bounds = intervention_lower_bounds,
-      intervention_upper_bounds = intervention_upper_bounds,
-      unit_costs = unit_costs,
-      default_cost_fxn_type = default_cost_fxn_type
-    )
-  }
-
+  cli_alert_info("Calculating the recommended intervention...")
   # calculate the recommended interventions
   rec_int_results <- rec_int_processor(
     data = data,
@@ -270,12 +283,15 @@ lago_optimization <- function(
       center_characteristics_optimization_values,
     time_effect_optimization_value = time_effect_optimization_value
   )
+  Sys.sleep(0.25)
+  cli_alert_success("Done")
 
   # unpack the recommended intervention results to the environment
   list2env(rec_int_results, envir = environment())
 
   # calculate the confidence set
   if (include_confidence_set) {
+    cli_alert_info("Calculating the confidence set...")
     cs_results <- confidence_set_processor(
       data = data,
       include_confidence_set = include_confidence_set,
@@ -304,8 +320,15 @@ lago_optimization <- function(
 
     # unpack the confidence set results to the environment
     list2env(cs_results, envir = environment())
+    Sys.sleep(0.25)
+    cli_alert_success("Done")
   }
 
+  cli_alert("{symbol$heart} LAGO optimization complete {symbol$heart}")
+  Sys.sleep(0.5)
+  cli_alert_info("Printing the output...")
+
+  Sys.sleep(0.25)
   # print the output, including some user inputs
   print_output(
     data = data,

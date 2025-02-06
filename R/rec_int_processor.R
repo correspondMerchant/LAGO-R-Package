@@ -90,7 +90,6 @@ rec_int_processor <- function(
         optimization_grid_search_step_size <- step_size_results
     }
 
-    message("Calculating LAGO recommended interventions...")
     # calculate recommended interventions
     rec_int_results <- get_recommended_interventions(
         link = link,
@@ -110,7 +109,6 @@ rec_int_processor <- function(
         center_characteristics_optimization_values =
             center_characteristics_optimization_values
     )
-    message("Done")
 
     list(
         rec_int = rec_int_results$est_rec_int,

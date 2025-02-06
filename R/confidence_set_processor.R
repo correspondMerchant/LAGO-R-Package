@@ -30,9 +30,8 @@ confidence_set_processor <- function(
     if (include_confidence_set) {
         cat(paste(
             "If the confidence set calculation takes a long time to run,",
-            "please consider increasing the confidence set step size. \n"
+            "please consider changing the confidence set step size. \n"
         ))
-        message("Calculating the confidence set...")
         predictors_list <- c(
             if (include_center_effects) "center",
             if (include_time_effects) "period",
@@ -82,7 +81,6 @@ confidence_set_processor <- function(
             cluster_id = cluster_id,
             cost_list_of_vectors
         )
-        message("Done")
 
         list(
             cs = cs
