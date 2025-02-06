@@ -6,8 +6,10 @@ validate_inputs <- function(
     intervention_components,
     intervention_lower_bounds,
     intervention_upper_bounds,
-    cost_list_of_vectors,
     outcome_goal,
+    unit_costs = NULL,
+    default_cost_fxn_type = "cubic",
+    cost_list_of_vectors = NULL,
     glm_family = "default",
     link = "default",
     optimization_method = "numerical",
@@ -495,37 +497,93 @@ validate_inputs <- function(
         ))
     }
 
-    # check if cost_list_of_vectors is a list,
-    # and each sublist is a numeric vector
-    if (!is.list(cost_list_of_vectors)) {
-        stop("cost_list_of_vectors must be a list.")
+    # check if unit_costs is valid
+    if (!is.null(unit_costs)) {
+        # check if unit_costs is a numeric vector
+        if (!is.numeric(unit_costs)) {
+            stop("unit_costs must be a numeric vector.")
+        }
+        # check if the dimension of unit_costs matches
+        # the dimension of intervention_components or the dimension
+        # of main_components
+        if (
+            (!include_interaction_terms &&
+                (length(unit_costs) != length(intervention_components))) ||
+                (include_interaction_terms &&
+                    (length(unit_costs) != length(main_components)))
+        ) {
+            stop(paste(
+                "Without interaction terms,",
+                "the lengths of 'unit_costs' and",
+                "'intervention_components' must be the same.",
+                "With interaction terms,",
+                "the lengths of 'unit_costs' and",
+                "'main_components' must be the same."
+            ))
+        }
+        # check if default_cost_fxn_type is valid
+        if (!is.character(default_cost_fxn_type)) {
+            stop("default_cost_fxn_type must be a character string.")
+        }
+        # check if default_cost_fxn_type is one of the supported types
+        supported_cost_fxn_types <- c("linear", "cubic")
+        if (!(default_cost_fxn_type %in% supported_cost_fxn_types)) {
+            stop(sprintf(
+                "default_cost_fxn_type must be one of the supported types. The supported types are: %s.",
+                paste(supported_cost_fxn_types, collapse = ", ")
+            ))
+        }
     }
-    # Check if all elements of sublists in cost_list_of_vectors are numeric
-    all_numeric <- all(sapply(cost_list_of_vectors, function(sublist) {
-        all(sapply(sublist, is.numeric))
-    }))
-    if (!all_numeric) {
-        stop(paste(
-            "All elements in the sublists of cost_list_of_vectors",
-            "must be numeric."
-        ))
+
+    # check if cost_list_of_vectors is valid
+    if (!is.null(cost_list_of_vectors)) {
+        # check if cost_list_of_vectors is a list,
+        # and each sublist is a numeric vector
+        if (!is.list(cost_list_of_vectors)) {
+            stop("cost_list_of_vectors must be a list.")
+        }
+        # Check if all elements of sublists in cost_list_of_vectors are numeric
+        all_numeric <- all(sapply(cost_list_of_vectors, function(sublist) {
+            all(sapply(sublist, is.numeric))
+        }))
+        if (!all_numeric) {
+            stop(paste(
+                "All elements in the sublists of cost_list_of_vectors",
+                "must be numeric."
+            ))
+        }
+        # check if the dimension of cost_list_of_vectors matches
+        # the dimension of intervention_components or the dimension
+        # of main_components
+        if (
+            (!include_interaction_terms &&
+                (length(cost_list_of_vectors) != length(intervention_components))) ||
+                (include_interaction_terms &&
+                    (length(cost_list_of_vectors) != length(main_components)))
+        ) {
+            stop(paste(
+                "Without interaction terms,",
+                "the lengths of 'cost_list_of_vectors' and",
+                "'intervention_components' must be the same.",
+                "With interaction terms,",
+                "the lengths of 'cost_list_of_vectors' and",
+                "'main_components' must be the same."
+            ))
+        }
+        # check if default_cost_fxn_type is also provided
+        if (!is.null(default_cost_fxn_type)) {
+            print(paste(
+                "When 'cost_list_of_vectors' is provided,",
+                "'default_cost_fxn_type' is ignored."
+            ))
+        }
     }
-    # check if the dimension of cost_list_of_vectors matches
-    # the dimension of intervention_components or the dimension
-    # of main_components
-    if (
-        (!include_interaction_terms &&
-            (length(cost_list_of_vectors) != length(intervention_components))) ||
-            (include_interaction_terms &&
-                (length(cost_list_of_vectors) != length(main_components)))
-    ) {
+
+    # check if unit_costs and cost_list_of_vectors are both null
+    if (is.null(unit_costs) && is.null(cost_list_of_vectors)) {
         stop(paste(
-            "Without interaction terms,",
-            "the lengths of 'cost_list_of_vectors' and",
-            "'intervention_components' must be the same.",
-            "With interaction terms,",
-            "the lengths of 'cost_list_of_vectors' and",
-            "'main_components' must be the same."
+            "Both 'unit_costs' and 'cost_list_of_vectors' are NULL.",
+            "Please provide at least one of them."
         ))
     }
 
@@ -662,8 +720,10 @@ validate_inputs <- function(
         intervention_components = intervention_components,
         intervention_lower_bounds = intervention_lower_bounds,
         intervention_upper_bounds = intervention_upper_bounds,
-        cost_list_of_vectors = cost_list_of_vectors,
         outcome_goal = outcome_goal,
+        unit_costs = unit_costs,
+        default_cost_fxn_type = default_cost_fxn_type,
+        cost_list_of_vectors = cost_list_of_vectors,
         glm_family = glm_family,
         link = link,
         optimization_method = optimization_method,

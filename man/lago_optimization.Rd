@@ -12,8 +12,10 @@ lago_optimization(
   intervention_components,
   intervention_lower_bounds,
   intervention_upper_bounds,
-  cost_list_of_vectors,
   outcome_goal,
+  unit_costs = NULL,
+  default_cost_fxn_type = "cubic",
+  cost_list_of_vectors = NULL,
   glm_family = "default",
   link = "default",
   optimization_method = "numerical",
@@ -60,7 +62,20 @@ c(0,0).}
 \item{intervention_upper_bounds}{A numeric vector. Specifies the upper bounds
 of the intervention components.
 For example: for a two-component intervention package, upper bounds could be
-c(10,20).}
+c(10,20).
+
+### optional arguments:}
+
+\item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
+probability or mean value.}
+
+\item{unit_costs}{A numeric vector. Specifies the unit costs for each
+intervention component.
+Default value without user specification: NULL.}
+
+\item{default_cost_fxn_type}{A character string. Specifies the shape of the
+default cost function. Must be either "linear" or "cubic".
+Default value without user specification: "cubic".}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. Specifies the cost
 functions for each intervention component. Each numeric vector in the list
@@ -74,11 +89,9 @@ list(c(0, 2), c(0, 6), c(0, 4)) represents:
 - First component: cost = 2x_1
 - Second component: cost = 6x_2
 - Third component: cost = 4x_3
-
-### optional arguments:}
-
-\item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
-probability or mean value.}
+Default value without user specification: NULL.
+Please note that either the unit_costs or cost_list_of_vectors must be
+specified. If both are specified, the cost_list_of_vectors will be used.}
 
 \item{glm_family}{A character string. The family of the glm() outcome model.
 Default value without user specification:

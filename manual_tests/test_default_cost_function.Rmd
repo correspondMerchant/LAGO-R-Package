@@ -1,0 +1,176 @@
+---
+title: "Manual test for generating default cost function."
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+## failed cases 
+```{r}
+# when cost_list_of_vectors is provided, and default_cost_fxn_type is provided
+# show warning that default_cost_fxn_type will be ignored
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    default_cost_fxn_type = "quadratic"
+)
+```
+
+```{r}
+# default_cost_fxn_type is not supported, return error
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    # cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    unit_costs = c(1, 1),
+    default_cost_fxn_type = "quadratic"
+)
+```
+
+```{r}
+# neither cost_list_of_vectors nor default_cost_fxn_type is provided
+# return error
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    # cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1)
+    # unit_costs = c(1, 1)
+)
+```
+
+```{r}
+# when unit_costs have the wrong length, return error
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    # cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    unit_costs = c(1, 1, 1)
+)
+```
+
+
+## successful cases
+```{r}
+# when cost_list_of_vectors is not provided, the default cost
+# function is computed based on default_cost_fxn_type="linear"
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    default_cost_fxn_type = "linear",
+    unit_costs = c(1, 2)
+)
+```
+
+```{r}
+# when cost_list_of_vectors is not provided, the default cost
+# function is computed based on default_cost_fxn_type="cubic"
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 30),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    default_cost_fxn_type = "cubic",
+    unit_costs = c(1.2, 2)
+)
+```
+
+```{r}
+# another example
+# when cost_list_of_vectors is not provided, the default cost
+# function is computed based on default_cost_fxn_type="cubic"
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(3, 30),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    default_cost_fxn_type = "cubic",
+    unit_costs = c(1.2, 2)
+)
+```
+
+```{r}
+# when both cost_list_of_vectors and default_cost_fxn_type are provided
+# the cost function is computed based on cost_list_of_vectors
+lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    confidence_set_grid_step_size = c(1, 1),
+    unit_costs = c(1, 1),
+    default_cost_fxn_type = "cubic"
+)
+```
