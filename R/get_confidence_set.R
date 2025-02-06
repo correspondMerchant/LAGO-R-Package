@@ -235,8 +235,6 @@ get_confidence_set <- function(
     lb_prob_all <- pred_all - critical_value * se_pred_all
     ub_prob_all <- pred_all + critical_value * se_pred_all
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
-    print("ci prob all:")
-    print(ci_prob_all[1:25, ])
 
     # calculate percentage of interventions
     # that are included in the confidence set
