@@ -13,7 +13,7 @@ devtools::load_all()
 
 
 ```{r}
-lago_optimization(
+results <- lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -31,7 +31,7 @@ lago_optimization(
 
 ```{r}
 # grid search
-lago_optimization(
+results <- lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -54,7 +54,7 @@ lago_optimization(
 # higher order cost function
 # check if it is possible to get recommended interventions to be not
 # on the boundary
-lago_optimization(
+results <- lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -73,7 +73,7 @@ lago_optimization(
 ```{r}
 # higher order cost function
 # grid search
-lago_optimization(
+results <- lago_optimization(
   data = mtcars,
   input_data_structure = "individual_level",
   outcome_name = "mpg",
@@ -88,5 +88,312 @@ lago_optimization(
   confidence_set_grid_step_size = c(1, 1),
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(1, 1)
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+## add fake center effects
+set.seed(123)
+mtcars$center <- sample(1:10, nrow(mtcars), replace = TRUE)
+
+## add fake time effects
+mtcars$period <- sample(1:10, nrow(mtcars), replace = TRUE)
+```
+
+```{r}
+# only add center effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5"
+)
+```
+
+```{r}
+# only add center effects
+# grid search
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 50),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+```
+
+
+```{r}
+# center effects and time effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+
+mean(mtcars$mpg)
+head(mtcars)
+summary(lm(mpg ~ disp + hp, data = mtcars))
+summary(mtcars)
+```
+
+```{r}
+# to lower outcome to a pre-specified value
+# grid search
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(500, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(10, 10),
+  include_confidence_set = TRUE
+)
+```
+
+```{r}
+# to lower outcome to a pre-specified value
+# numerical solution
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(500, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10),
+)
+```
+
+
+
+```{r}
+# to lower outcome to a pre-specified value
+# with center effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(500, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 10,
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  confidence_set_grid_step_size = c(10, 10)
+)
+```
+
+```{r}
+# to lower outcome to a pre-specified value
+# with center effects and time effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(500, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 10,
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  confidence_set_grid_step_size = c(10, 10)
+)
+```
+
+## 3 intervention components 
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+
+mean(mtcars$mpg)
+head(mtcars)
+summary(lm(mpg ~ disp + hp + cyl, data = mtcars))
+summary(mtcars)
+```
+
+```{r}
+# more than 2 intervention components
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp", "cyl"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(500, 350, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10, 1),
+  include_confidence_set = TRUE
+)
+```
+
+```{r}
+# more than 2 intervention components
+# with center effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp", "cyl"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(500, 350, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10, 1),
+  include_confidence_set = TRUE,
+  include_center_effects = TRUE
+)
+```
+
+```{r}
+# more than 2 intervention components
+# with center effects and center specific rec int
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp", "cyl"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(500, 350, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10, 1),
+  include_confidence_set = TRUE,
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5"
+)
+```
+
+
+```{r}
+# more than 2 intervention components
+# with center effects and center specific rec int
+# with time effect
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp", "cyl"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(500, 350, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10, 1),
+  include_confidence_set = TRUE,
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10
+)
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+```{r}
+# more than 2 intervention components
+# with center effects
+# with time effect
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp", "cyl"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(500, 350, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
+  outcome_goal = 10,
+  confidence_set_grid_step_size = c(10, 10, 1),
+  include_confidence_set = TRUE,
+  include_center_effects = TRUE,
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10
 )
 ```

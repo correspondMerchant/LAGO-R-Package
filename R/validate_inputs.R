@@ -25,6 +25,7 @@ validate_inputs <- function(
     confidence_set_grid_step_size = NULL,
     include_confidence_set = TRUE,
     include_center_effects = FALSE,
+    center_effects_optimization_values = NULL,
     include_time_effects = FALSE,
     include_interaction_terms = FALSE) {
     # check if the input data is null
@@ -221,10 +222,8 @@ validate_inputs <- function(
         stop("The include_center_effects indicator must be a boolean.")
     }
     # if include_center_effects is not specified, set the default value
-    if (input_data_structure == "center_level") {
+    if (input_data_structure == "center_level" && !include_center_effects) {
         include_center_effects <- TRUE
-    } else {
-        include_center_effects <- FALSE
     }
 
     # check whether center_characteristics and center effects are both included
@@ -285,18 +284,46 @@ validate_inputs <- function(
         # if center_weights_for_outcome_goal is not specified, but
         # include_center_effects is set to TRUE, we calculate its default values
         if (include_center_effects) {
-            if (input_data_structure == "center_level") {
-                center_sizes <- tapply(
-                    data$center_sample_size,
-                    data$center,
-                    function(x) x[1]
-                )
-                total_sample_size <- sum(center_sizes)
-            } else if (input_data_structure == "individual_level") {
-                total_sample_size <- sum(as.numeric(table(data$center)))
-                center_sizes <- as.numeric(table(data$center))
+            # if not specifing center_effects_optimization_values,
+            # then we calculate the default values for center weights
+            if (is.null(center_effects_optimization_values)) {
+                if (input_data_structure == "center_level") {
+                    center_sizes <- tapply(
+                        data$center_sample_size,
+                        data$center,
+                        function(x) x[1]
+                    )
+                    total_sample_size <- sum(center_sizes)
+                } else if (input_data_structure == "individual_level") {
+                    total_sample_size <- sum(as.numeric(table(data$center)))
+                    center_sizes <- as.numeric(table(data$center))
+                }
+                center_weights_for_outcome_goal <- center_sizes / total_sample_size
+            } else {
+                # if center_effects_optimization_values is specified,
+                # we set the weight for that specific center to 1, rest to 0
+                if (!is.character(center_effects_optimization_values)) {
+                    stop(paste(
+                        "center_effects_optimization_values
+                        must be a character."
+                    ))
+                }
+                if (length(center_effects_optimization_values) != 1) {
+                    stop(paste(
+                        "center_effects_optimization_values
+                        must be a single value."
+                    ))
+                }
+                if (!center_effects_optimization_values %in%
+                    unique(data$center)) {
+                    stop(paste(
+                        "center_effects_optimization_values
+                        must be one of the centers."
+                    ))
+                }
+                center_weights_for_outcome_goal <- ifelse(sort(unique(data$center)) ==
+                    center_effects_optimization_values, 1, 0)
             }
-            center_weights_for_outcome_goal <- center_sizes / total_sample_size
         } else {
             center_weights_for_outcome_goal <- 1
         }
@@ -648,10 +675,18 @@ validate_inputs <- function(
     }
     # check if the outcome goal >= outcome that we already observed
     if (outcome_goal <= mean(data[[outcome_name]])) {
-        stop(paste(
-            "The specified outcome goal is below the observed mean of the",
-            "intervention group. Please increase the goal."
+        lower_outcome_goal <- TRUE
+        # stop(paste(
+        #     "The specified outcome goal is below the observed mean of the",
+        #     "intervention group. Please increase the goal."
+        # ))
+        print(paste(
+            "The specified outcome goal is less than the observed mean of the",
+            "outcome. If the intended behavior is to reduce the outcome to a",
+            "prespecified threshold, please ignore this."
         ))
+    } else {
+        lower_outcome_goal <- FALSE
     }
 
     # check whether the include_confidence_set indicator is boolean
@@ -742,6 +777,7 @@ validate_inputs <- function(
         include_time_effects = include_time_effects,
         include_interaction_terms = include_interaction_terms,
         family_object = family_object,
-        link = link
+        link = link,
+        lower_outcome_goal = lower_outcome_goal
     )
 }

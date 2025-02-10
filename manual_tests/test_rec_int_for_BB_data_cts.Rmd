@@ -105,6 +105,67 @@ optimization_results <- lago_optimization(
 ```
 
 ```{r}
+# center effects, but LAGO optimization is for a specific center
+optimization_results <- lago_optimization(
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.6,
+  include_confidence_set = TRUE
+)
+```
+
+```{r}
+# center effects, but LAGO optimization is for a specific center
+# different center
+optimization_results <- lago_optimization(
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "8",
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.6,
+  include_confidence_set = TRUE
+)
+```
+
+```{r}
+# center effects, but LAGO optimization is for a specific center
+# grid search method
+optimization_results <- lago_optimization(
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.6,
+  include_confidence_set = TRUE,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+```
+
+```{r}
 # add center effects, and time effects
 optimization_results <- lago_optimization(
   data = bb_proportions,
@@ -125,6 +186,28 @@ optimization_results <- lago_optimization(
 ```
 
 ```{r}
+# add center effects, and time effects
+# center specific optimization
+optimization_results <- lago_optimization(
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "8",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.6,
+  include_confidence_set = FALSE
+)
+```
+
+```{r}
 # add center effects, time effects, and additional covariates
 optimization_results <- lago_optimization(
   data = bb_proportions,
@@ -135,6 +218,29 @@ optimization_results <- lago_optimization(
   intervention_components = c("coaching_updt", "launch_duration"),
   additional_covariates = c("MI_coaching"),
   include_center_effects = TRUE,
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.6,
+  include_confidence_set = TRUE
+)
+```
+
+```{r}
+# add center effects, time effects, and additional covariates
+# center specific optimization
+optimization_results <- lago_optimization(
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  additional_covariates = c("MI_coaching"),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "2",
   include_time_effects = TRUE,
   time_effect_optimization_value = 10,
   intervention_lower_bounds = c(1, 1),
@@ -178,4 +284,32 @@ optimization_results <- lago_optimization(
 ```
 
 
-
+```{r}
+# add center effects, time effects, additional covariates,
+# and interaction terms
+# center specific optimization
+optimization_results <- lago_optimization(
+  data = bb_proportions,
+  outcome_name = "EBP_proportions",
+  outcome_type = "continuous",
+  glm_family = "quasibinomial",
+  link = "logit",
+  intervention_components = c(
+    "coaching_updt",
+    "launch_duration",
+    "coaching_updt:launch_duration"
+  ),
+  include_interaction_terms = TRUE,
+  main_components = c("coaching_updt", "launch_duration"),
+  additional_covariates = c("MI_coaching"),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+  outcome_goal = 0.8,
+  include_confidence_set = TRUE
+)
+```

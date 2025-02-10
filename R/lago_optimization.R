@@ -72,6 +72,11 @@
 #' together at the same time.
 #' Default value without user specification: FALSE for individual level data,
 #' TRUE for center level data.
+#' @param center_effects_optimization_values A numeric vector. The center of
+#' interest that will be used for center-specific LAGO optimization. This is
+#' only used when include_center_effects is set to TRUE. If not specified,
+#' the LAGO optimization will be carried out for a weighted average of all
+#' centers.
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model. If set to TRUE, please
 #' make sure that the input data has a 'period' column to identify the time
@@ -209,6 +214,7 @@ lago_optimization <- function(
     confidence_set_grid_step_size = NULL,
     include_confidence_set = TRUE,
     include_center_effects = FALSE,
+    center_effects_optimization_values = NULL,
     include_time_effects = FALSE,
     include_interaction_terms = FALSE) {
   cli_alert_info("Starting LAGO Optimization")
@@ -261,10 +267,14 @@ lago_optimization <- function(
   list2env(outcome_model, envir = environment())
 
   cli_alert_info("Calculating the recommended intervention...")
+  if (lower_outcome_goal) {
+    new_model <- model
+    new_model$coefficients <- -1 * (model$coefficients)
+  }
   # calculate the recommended interventions
   rec_int_results <- rec_int_processor(
     data = data,
-    model = model,
+    model = if (lower_outcome_goal) new_model else model,
     center_characteristics = center_characteristics,
     include_center_effects = include_center_effects,
     include_time_effects = include_time_effects,
@@ -278,10 +288,11 @@ lago_optimization <- function(
     cost_list_of_vectors = cost_list_of_vectors,
     intervention_lower_bounds = intervention_lower_bounds,
     intervention_upper_bounds = intervention_upper_bounds,
-    outcome_goal = outcome_goal,
+    outcome_goal = if (lower_outcome_goal) -1 * outcome_goal else outcome_goal,
     center_characteristics_optimization_values =
       center_characteristics_optimization_values,
-    time_effect_optimization_value = time_effect_optimization_value
+    time_effect_optimization_value = time_effect_optimization_value,
+    lower_outcome_goal = lower_outcome_goal
   )
   Sys.sleep(0.25)
   cli_alert_success("Done")
@@ -294,7 +305,6 @@ lago_optimization <- function(
     cli_alert_info("Calculating the confidence set...")
     cs_results <- confidence_set_processor(
       data = data,
-      include_confidence_set = include_confidence_set,
       confidence_set_grid_step_size = confidence_set_grid_step_size,
       step_size_results = step_size_results,
       include_center_effects = include_center_effects,
@@ -339,6 +349,8 @@ lago_optimization <- function(
     main_components = main_components,
     center_characteristics = center_characteristics,
     family_object = family_object,
+    include_center_effects = include_center_effects,
+    include_time_effects = include_time_effects,
     outcome_goal = outcome_goal,
     cost_list_of_vectors = cost_list_of_vectors,
     model = model,
