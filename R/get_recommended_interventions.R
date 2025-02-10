@@ -58,6 +58,8 @@
 #' 1/20 of the range for each intervention component.
 #' @param link A character string. Specifies the link function used when fitting
 #' the outcome model.
+#' @param lower_outcome_goal A boolean value. Specifies whether the outcome goal
+#' is intended to be lower or higher than the average outcome.
 #'
 #' @return List(
 #' recommended interventions,
@@ -119,7 +121,8 @@ get_recommended_interventions <- function(
     optimization_grid_search_step_size,
     center_cha_coeff_vec = 0,
     center_characteristics_optimization_values = 0,
-    link = "identity") {
+    link = "identity",
+    lower_outcome_goal = FALSE) {
   # Function to create a cost function based on coefficients
   # in cost_list_of_vectors
   create_cost_function <- function(coeffs) {
@@ -205,15 +208,19 @@ get_recommended_interventions <- function(
               expit(
                 all_center_lvl_effects +
                   sum(beta * int_vector) +
-                  center_cha_coeff_vec * center_cha
+                  center_cha_coeff_vec * center_cha +
+                  ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
               )
           )
         } else {
           outcome <- sum(
             center_weights_for_outcome_goal *
-              all_center_lvl_effects +
-              sum(beta * int_vector) +
-              center_cha_coeff_vec * center_cha
+              (
+                all_center_lvl_effects +
+                  sum(beta * int_vector) +
+                  center_cha_coeff_vec * center_cha +
+                  ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
+              )
           )
         }
 
@@ -248,7 +255,11 @@ get_recommended_interventions <- function(
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
 
         est_rec_int <- as.numeric(full_grid[best_index, ])
-        est_reachable_outcome <- outcome_goal
+        est_reachable_outcome <- ifelse(
+          lower_outcome_goal,
+          -1 * outcome_goal,
+          outcome_goal
+        )
         rec_int_cost <- all_costs[best_index]
       } else {
         # if the outcome goal is not achievable,
@@ -256,7 +267,11 @@ get_recommended_interventions <- function(
         best_index <- which.max(all_outcomes)
 
         est_rec_int <- as.numeric(full_grid[best_index, ])
-        est_reachable_outcome <- max_outcome
+        est_reachable_outcome <- ifelse(
+          lower_outcome_goal,
+          -1 * max_outcome,
+          max_outcome
+        )
         rec_int_cost <- all_costs[best_index]
       }
 
@@ -301,8 +316,6 @@ get_recommended_interventions <- function(
                                        center_cha,
                                        link) {
       # Objective function to maximize outcome
-      # TODO: for now, the objective function is just expit, we will need to
-      # make it work with other link functions
       obj_fun_for_max_outcome <- function(int) {
         # In the presence of interaction terms
         if (include_interaction_terms) {
@@ -340,15 +353,19 @@ get_recommended_interventions <- function(
                 expit(
                   all_center_lvl_effects +
                     sum(beta * int_vector) +
-                    center_cha_coeff_vec * center_cha
+                    center_cha_coeff_vec * center_cha +
+                    ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
                 )
             )
           } else {
             -sum(
               center_weights_for_outcome_goal *
-                all_center_lvl_effects +
-                sum(beta * int_vector) +
-                center_cha_coeff_vec * center_cha
+                (
+                  all_center_lvl_effects +
+                    sum(beta * int_vector) +
+                    center_cha_coeff_vec * center_cha +
+                    ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
+                )
             )
           }
         )
@@ -415,7 +432,8 @@ get_recommended_interventions <- function(
                     expit(
                       all_center_lvl_effects +
                         sum(beta * int_vector) +
-                        center_cha_coeff_vec * center_cha
+                        center_cha_coeff_vec * center_cha +
+                        ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
                     )
                 )
             )
@@ -425,9 +443,12 @@ get_recommended_interventions <- function(
               outcome_goal -
                 sum(
                   center_weights_for_outcome_goal *
-                    all_center_lvl_effects +
-                    sum(beta * int_vector) +
-                    center_cha_coeff_vec * center_cha
+                    (
+                      all_center_lvl_effects +
+                        sum(beta * int_vector) +
+                        center_cha_coeff_vec * center_cha +
+                        ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
+                    )
                 )
             )
           }
@@ -457,7 +478,11 @@ get_recommended_interventions <- function(
       return(list(
         est_rec_int = est_rec_int,
         rec_int_cost = rec_int_cost,
-        est_reachable_outcome = est_reachable_outcome,
+        est_reachable_outcome = ifelse(
+          lower_outcome_goal,
+          -1 * est_reachable_outcome,
+          est_reachable_outcome
+        ),
         max_achievable_outcome = max_achievable_outcome
       ))
     }

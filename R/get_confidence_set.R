@@ -223,7 +223,7 @@ get_confidence_set <- function(
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
-  # ----------------------------------------------------------------------------
+
   if (outcome_type == "binary") {
     new_data <- as.matrix(new_data)
     pred_all <- expit(new_data %*% coef(fitted_model))
@@ -235,16 +235,17 @@ get_confidence_set <- function(
     lb_prob_all <- pred_all - critical_value * se_pred_all
     ub_prob_all <- pred_all + critical_value * se_pred_all
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
+    valid_rows <- complete.cases(ci_prob_all) # Identify rows without NA values
+    ci_prob_all_cleaned <- ci_prob_all[valid_rows, , drop = FALSE]
 
     # calculate percentage of interventions
     # that are included in the confidence set
     set_size_intervals <- sum(apply(
-      ci_prob_all,
+      ci_prob_all_cleaned,
       1,
       function(y) findInterval(x = outcome_goal, vec = y)
     ) == 1)
     confidence_set_size_percentage <- set_size_intervals / n_rows
-    # ----------------------------------------------------------------------------
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity" in your usage
     # If link == "logit", use the logistic-like approach
@@ -255,8 +256,7 @@ get_confidence_set <- function(
                          model,
                          outcome_data,
                          cluster_ids = NULL,
-                         link # <-- ADDED
-    ) {
+                         link) {
       # First prepare the full design matrix
       # (including fixed effects dummies if any)
       prepare_design_matrix <- function(data) {
@@ -284,7 +284,7 @@ get_confidence_set <- function(
         return(X)
       }
 
-      # Original single cluster vcov (logistic-like)
+      # logistic link single cluster vcov helper function
       get_single_cluster_vcov <- function(X,
                                           cluster_id,
                                           n_params,
@@ -322,7 +322,7 @@ get_confidence_set <- function(
         return(bread %*% matrix_v %*% t(bread) / n_clusters)
       }
 
-      # Identity link single cluster vcov
+      # Identity link single cluster vcov helper function
       get_single_cluster_vcov_identity <- function(X,
                                                    cluster_id,
                                                    outcome,
@@ -351,7 +351,6 @@ get_confidence_set <- function(
         return(bread %*% cluster_sum %*% bread)
       }
 
-      # Identity link or logistic link
       X <- prepare_design_matrix(predictors_data)
       n <- nrow(X)
       n_params <- ncol(X)
@@ -359,6 +358,7 @@ get_confidence_set <- function(
 
       if (is.null(cluster_ids)) {
         # Non-clustered case
+        # no fixed center effects or fixed time effects
         if (link == "identity") {
           # For identity link (linear model):
           # sigma^2 = sum of squared residuals / (n - n_params)
@@ -368,6 +368,7 @@ get_confidence_set <- function(
           vcov_matrix <- bread * sigma2
         } else {
           # logistic-like approach
+          # no fixed center effects or fixed time effects
           matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
           matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
 
@@ -458,26 +459,6 @@ get_confidence_set <- function(
 
         # Cameron-Gelbach-Miller (2011) two-way clustering
         vcov_matrix <- vcov1 + vcov2 - vcov12
-      } else if (length(cluster_ids) == 1) {
-        # Single clustering (duplicate else condition can be removed,
-        # but kept for minimal change)
-        cluster_id <- cluster_ids[[1]]
-        if (link == "identity") {
-          vcov_matrix <- get_single_cluster_vcov_identity(
-            X,
-            cluster_id,
-            outcome_data,
-            fitted_values
-          )
-        } else {
-          vcov_matrix <- get_single_cluster_vcov(
-            X,
-            cluster_id,
-            n_params,
-            fitted_values,
-            outcome_data
-          )
-        }
       }
 
       rownames(vcov_matrix) <- colnames(X)
@@ -491,7 +472,7 @@ get_confidence_set <- function(
       fitted_model,
       outcome_data,
       cluster_id,
-      link = link # <-- PASS LINK HERE
+      link = link
     )
 
     # get predicted values
@@ -499,7 +480,16 @@ get_confidence_set <- function(
     pred_all <- (new_data %*% as.matrix(coef(fitted_model)))
 
     # Calculate standard errors for all rows
-    std_er_all <- sqrt(rowSums((new_data %*% vcov_matrix) * new_data))
+    std_er_all <- suppressWarnings({
+      sqrt(rowSums((new_data %*% vcov_matrix) * new_data))
+    })
+    if (any(is.nan(std_er_all))) {
+      warning(paste0(
+        "Warning: High uncertainty for the confidence set,",
+        " please consider checking for multicollinearity or",
+        " dropping predictors."
+      ))
+    }
 
     # Calculate lower and upper bounds for predicted values
     lb_prob_all <- pred_all - critical_value * std_er_all
@@ -512,10 +502,13 @@ get_confidence_set <- function(
       # For "logit" (or other logistic-like) link, apply expit.
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
+    valid_rows <- complete.cases(ci_prob_all) # Identify rows without NA values
+    ci_prob_all_cleaned <- ci_prob_all[valid_rows, , drop = FALSE]
 
-    # calculate percentage of interventions that are included in the confidence set
+    # calculate percentage of interventions that are included
+    # in the confidence set
     set_size_intervals <- sum(apply(
-      ci_prob_all,
+      ci_prob_all_cleaned,
       1,
       function(y) findInterval(x = outcome_goal, vec = y)
     ) == 1)
@@ -524,7 +517,7 @@ get_confidence_set <- function(
 
   # obtain the confidence set
   cs_row_indices <- which((apply(
-    ci_prob_all,
+    ci_prob_all_cleaned,
     1,
     function(y) findInterval(x = outcome_goal, vec = y)
   ) == 1) == 1)
@@ -568,19 +561,13 @@ get_confidence_set <- function(
   }
 
   cs_output_names <- names(cs)
-  if ((outcome_type == "continuous" && link == "identity") ||
-    (outcome_type == "binary")) {
-    CI_lower_bound <- round(lb_prob_all[cs_row_indices], 3)
-    CI_upper_bound <- round(ub_prob_all[cs_row_indices], 3)
-  } else {
-    CI_lower_bound <- round(expit(lb_prob_all[cs_row_indices]), 3)
-    CI_upper_bound <- round(expit(ub_prob_all[cs_row_indices]), 3)
-  }
+  ci_lower_bound <- round(ci_prob_all_cleaned[cs_row_indices, 1], 3)
+  ci_upper_bound <- round(ci_prob_all_cleaned[cs_row_indices, 2], 3)
 
   cs <- cbind(
     cs,
-    round(CI_lower_bound, 3),
-    round(CI_upper_bound, 3)
+    ci_lower_bound,
+    ci_upper_bound
   )
   cs <- cbind(
     cs,

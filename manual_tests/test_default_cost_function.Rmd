@@ -11,11 +11,10 @@ devtools::clean_dll()
 devtools::load_all()
 ```
 
-## failed cases 
 ```{r}
 # when cost_list_of_vectors is provided, and default_cost_fxn_type is provided
 # show warning that default_cost_fxn_type will be ignored
-lago_optimization(
+results <- lago_optimization(
     data = mtcars,
     input_data_structure = "individual_level",
     outcome_name = "mpg",
@@ -34,7 +33,7 @@ lago_optimization(
 
 ```{r}
 # default_cost_fxn_type is not supported, return error
-lago_optimization(
+results <- lago_optimization(
     data = mtcars,
     input_data_structure = "individual_level",
     outcome_name = "mpg",
@@ -96,7 +95,7 @@ lago_optimization(
 ```{r}
 # when cost_list_of_vectors is not provided, the default cost
 # function is computed based on default_cost_fxn_type="linear"
-lago_optimization(
+results <- lago_optimization(
     data = mtcars,
     input_data_structure = "individual_level",
     outcome_name = "mpg",
@@ -116,7 +115,7 @@ lago_optimization(
 ```{r}
 # when cost_list_of_vectors is not provided, the default cost
 # function is computed based on default_cost_fxn_type="cubic"
-lago_optimization(
+results <- lago_optimization(
     data = mtcars,
     input_data_structure = "individual_level",
     outcome_name = "mpg",
@@ -137,7 +136,7 @@ lago_optimization(
 # another example
 # when cost_list_of_vectors is not provided, the default cost
 # function is computed based on default_cost_fxn_type="cubic"
-lago_optimization(
+results <- lago_optimization(
     data = mtcars,
     input_data_structure = "individual_level",
     outcome_name = "mpg",
@@ -157,7 +156,7 @@ lago_optimization(
 ```{r}
 # when both cost_list_of_vectors and default_cost_fxn_type are provided
 # the cost function is computed based on cost_list_of_vectors
-lago_optimization(
+results <- lago_optimization(
     data = mtcars,
     input_data_structure = "individual_level",
     outcome_name = "mpg",

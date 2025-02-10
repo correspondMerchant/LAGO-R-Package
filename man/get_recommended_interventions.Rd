@@ -19,7 +19,8 @@ get_recommended_interventions(
   optimization_grid_search_step_size,
   center_cha_coeff_vec = 0,
   center_characteristics_optimization_values = 0,
-  link = "identity"
+  link = "identity",
+  lower_outcome_goal = FALSE
 )
 }
 \arguments{
@@ -92,6 +93,9 @@ For example: c(1.74)}
 
 \item{link}{A character string. Specifies the link function used when fitting
 the outcome model.}
+
+\item{lower_outcome_goal}{A boolean value. Specifies whether the outcome goal
+is intended to be lower or higher than the average outcome.}
 }
 \value{
 List(

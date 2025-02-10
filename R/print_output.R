@@ -7,6 +7,8 @@ print_output <- function(
     main_components,
     center_characteristics,
     family_object,
+    include_center_effects,
+    include_time_effects,
     outcome_goal,
     cost_list_of_vectors,
     model,
@@ -49,6 +51,8 @@ print_output <- function(
     cat("The outcome model: \n")
     cat("\t family:", family_object$family, "\n")
     cat("\t link:", family_object$link, "\n")
+    cat("\t fixed center effects:", include_center_effects, "\n")
+    cat("\t fixed time effects:", include_time_effects, "\n")
     cat("Outcome goal:", outcome_goal, "\n")
     cat(
         "List of intervention component costs:",

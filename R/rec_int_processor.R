@@ -16,7 +16,8 @@ rec_int_processor <- function(
     intervention_upper_bounds,
     outcome_goal,
     center_characteristics_optimization_values,
-    time_effect_optimization_value) {
+    time_effect_optimization_value,
+    lower_outcome_goal) {
     # get coefficients for the intervention components
     intervention_components_coeff <-
         model$coefficients[c("(Intercept)", intervention_components)]
@@ -47,19 +48,20 @@ rec_int_processor <- function(
         # add intercept to each center coefficient to get "true" effects
         true_center_effects <- fixed_center_coefs + intercept_only
         all_center_lvl_effects <- c(intercept_only, true_center_effects)
-        # add fixed time effect (if specified)
-        if (include_time_effects) {
-            all_center_lvl_effects <- all_center_lvl_effects +
-                all_coefs[
-                    grep(
-                        paste0("period", time_effect_optimization_value, "$"),
-                        names(all_coefs),
-                        ignore.case = TRUE
-                    )
-                ]
-        }
     } else {
         all_center_lvl_effects <- 0
+    }
+
+    # add fixed time effect (if specified)
+    if (include_time_effects) {
+        all_center_lvl_effects <- all_center_lvl_effects +
+            all_coefs[
+                grep(
+                    paste0("period", time_effect_optimization_value, "$"),
+                    names(all_coefs),
+                    ignore.case = TRUE
+                )
+            ]
     }
 
     # should be deleted later, after cost for PULESA part is done
@@ -107,7 +109,8 @@ rec_int_processor <- function(
         optimization_grid_search_step_size = optimization_grid_search_step_size,
         center_cha_coeff_vec = center_cha_coeff_vec,
         center_characteristics_optimization_values =
-            center_characteristics_optimization_values
+            center_characteristics_optimization_values,
+        lower_outcome_goal = lower_outcome_goal
     )
 
     list(
