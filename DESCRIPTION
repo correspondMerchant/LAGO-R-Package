@@ -1,7 +1,7 @@
 Package: LAGO
 Type: Package
 Title: LAGO
-Version: 1.0.8
+Version: 1.0.9
 Author: Ante Bing, Minh Bui, Jingyu Cui
 Maintainer: Ante Bing <abing@bu.edu>
 Description: Calculates LAGO recommended interventions for the next stage.
@@ -10,7 +10,7 @@ Description: Calculates LAGO recommended interventions for the next stage.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-Imports: rje, NlcOptim, cli
+Imports: rje, NlcOptim, cli, bslib, shiny, ggplot2
 RoxygenNote: 7.3.2
 Depends: 
     R (>= 2.10)
