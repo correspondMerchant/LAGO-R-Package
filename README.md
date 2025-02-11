@@ -1,3 +1,8 @@
+
+<p align="center">
+  <img src="./images/banner.png" width="800" alt="Banner">
+</p>
+
 ## The LAGO R Package
 The LAGO R package bridges the gap between theoretical advances of LAGO and practical applications by providing a standardized solution for:
 1) fitting the outcome models for both binary and continuous outcomes, including support for fixed center effects/center characteristics and fixed time effects,
