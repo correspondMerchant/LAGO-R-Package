@@ -4,9 +4,15 @@ Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu)
 
 
 ### How to install the package 
-- Method 1: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
+- Method 1:
+  ```
+  install.packages("devtools")
+  devtools::install_github("https://github.com/correspondMerchant/LAGO-R-Package")
+  ```
 
-- Method 2: Install using the tar.gz file directly. You can download the most recent version of the R package [here]().
+- Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
+
+- Method 3: Install using the tar.gz file directly. You can download the most recent version of the R package [here]().
   Then follow the directions provided [in this video](https://youtu.be/b6gp95C7j2U?si=7aMpdXzX4D32-m2O).
 
 ### How to run examples
