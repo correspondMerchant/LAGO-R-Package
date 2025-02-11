@@ -126,7 +126,7 @@ visualize_cost(
   intervention_upper_bounds = c(10, 10)
 )
 ```
-
+![screenshot of the cost function r shiny app basic example](./images/rshiny_screenshot.png)
 
 ### How to run additional examples
   All of the examples are located in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder as Rmd files.
