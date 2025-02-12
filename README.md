@@ -35,6 +35,7 @@ lago_optimization(
   intervention_upper_bounds = c(50, 10),
   cost_list_of_vectors = list(c(0, 4), c(0, 1)),
   outcome_goal = 0.5,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
 ```
@@ -121,6 +122,10 @@ Please use $cs to get the full confidence set.
 ```
 
 For visualizing cost functions:
+
+Visualize the cost functions for the intervention components. 
+This function creates a Shiny app that allows the user to adjust the coefficients of the cost functions for each intervention component and visualize the resulting total cost function and unit cost function. The initial coefficients are calculated based on the unit costs, the default cost function type (linear or cubic), and the lower and upper bounds. The user can adjust the coefficients using sliders and reset them to their initial values. The app also displays the current coefficient vector for each component. The user can copy the final coefficient list for use in the optimization function lago_optimization().
+
 ```
 visualize_cost(
   component_names = c("Component 1", "Component 2"),
