@@ -31,16 +31,17 @@ help(visualize_cost)
 ### Basic use cases
 For running LAGO optimizations:
 ```
-lago_optimization(
-  data = infert,
-  outcome_name = "case",
-  outcome_type = "binary",
-  glm_family = "binomial",
-  intervention_components = c("age", "parity"),
+results <- lago_optimization(
+  data = mtcars,
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
   intervention_lower_bounds = c(0, 0),
-  intervention_upper_bounds = c(50, 10),
-  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
-  outcome_goal = 0.5,
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
   outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
@@ -66,19 +67,21 @@ If the confidence set calculation takes a long time to run, please consider chan
 ==================================
 ============  Inputs  ============
 ==================================
-Input data dimensions: 248 rows, and 8 columns 
-Outcome name: case 
-Outcome type: binary 
+Input data dimensions: 32 rows, and 13 columns 
+Outcome name: mpg 
+Outcome type: continuous 
 2 intervention package component(s): 
-         age
-         parity 
+         gear
+         qsec 
 The outcome model: 
-         family: binomial 
-         link: logit 
+         family: gaussian 
+         link: identity 
          fixed center effects: FALSE 
          fixed time effects: FALSE 
-Outcome goal: 0.5 
-List of intervention component costs: c(0, 4), c(0, 1) 
+Outcome goal: 40 
+List of intervention component costs: c(0, 4), c(4, 6) 
+Intervention lower bounds: 0 0 
+Intervention upper bounds: 10 350 
 
 =====================================
 ============  Model Fit  ============
@@ -88,43 +91,45 @@ Call:
 glm(formula = formula, family = family_object, data = data, weights = weights)
 
 Coefficients:
-             Estimate Std. Error z value Pr(>|z|)
-(Intercept) -0.753683   0.835836  -0.902    0.367
-age          0.001137   0.025775   0.044    0.965
-parity       0.014662   0.107680   0.136    0.892
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -30.7108     9.6702  -3.176 0.003530 ** 
+gear          4.8711     1.0814   4.505 0.000100 ***
+qsec          1.8399     0.4465   4.121 0.000288 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
-(Dispersion parameter for binomial family taken to be 1)
+(Dispersion parameter for gaussian family taken to be 18.84028)
 
-    Null deviance: 316.17  on 247  degrees of freedom
-Residual deviance: 316.15  on 245  degrees of freedom
-AIC: 322.15
+    Null deviance: 1126.05  on 31  degrees of freedom
+Residual deviance:  546.37  on 29  degrees of freedom
+AIC: 189.61
 
-Number of Fisher Scoring iterations: 4
+Number of Fisher Scoring iterations: 2
 
 
 ===================================================
 ===========  Recommended Interventions  ===========
 ===================================================
  component    value
-       age 25.38815
-    parity 10.00000
+      gear 10.00000
+      qsec 11.95743
 
-Cost for using the recommended interventions: 111.5526 
-Estimated outcome goal using the recommended interventions: 0.3593491 
+Cost for using the recommended interventions: 115.7446 
+Estimated outcome goal using the recommended interventions: 40 
 
 ========================================
 ============ Confidence Set ============
 ========================================
-Confidence set size percentage: 0.7647059 
+Confidence set size percentage: 0.04247604 
 Confidence set (only first few rows are shown): 
 Please use $cs to get the full confidence set. 
-  age parity CI_lower_bound CI_upper_bound cost
-1   0      0         -0.036          0.677    0
-2   1      0         -0.026          0.666    4
-3   2      0         -0.015          0.656    8
-4   3      0         -0.005          0.647   12
-5   4      0          0.005          0.637   16
-6   5      0          0.016          0.627   20
+   gear qsec CI_lower_bound CI_upper_bound cost
+44   10    3          6.902         40.137   62
+55   10    4          9.261         41.458   68
+66   10    5         11.589         42.810   74
+77   10    6         13.881         44.197   80
+88   10    7         16.136         45.622   86
+98    9    8         15.118         40.577   88
 ```
 
 For visualizing cost functions:
