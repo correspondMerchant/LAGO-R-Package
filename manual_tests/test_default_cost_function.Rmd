@@ -26,6 +26,7 @@ results <- lago_optimization(
     intervention_upper_bounds = c(10, 350),
     cost_list_of_vectors = list(c(0, 4), c(4, 6)),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     default_cost_fxn_type = "quadratic"
 )
@@ -43,8 +44,8 @@ results <- lago_optimization(
     intervention_components = c("gear", "qsec"),
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(10, 350),
-    # cost_list_of_vectors = list(c(0, 4), c(4, 6)),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     unit_costs = c(1, 1),
     default_cost_fxn_type = "quadratic"
@@ -66,6 +67,7 @@ lago_optimization(
     intervention_upper_bounds = c(10, 350),
     # cost_list_of_vectors = list(c(0, 4), c(4, 6)),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1)
     # unit_costs = c(1, 1)
 )
@@ -85,6 +87,7 @@ lago_optimization(
     intervention_upper_bounds = c(10, 350),
     # cost_list_of_vectors = list(c(0, 4), c(4, 6)),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     unit_costs = c(1, 1, 1)
 )
@@ -106,6 +109,7 @@ results <- lago_optimization(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(10, 350),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     default_cost_fxn_type = "linear",
     unit_costs = c(1, 2)
@@ -126,6 +130,7 @@ results <- lago_optimization(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(10, 30),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     default_cost_fxn_type = "cubic",
     unit_costs = c(1.2, 2)
@@ -147,6 +152,7 @@ results <- lago_optimization(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(3, 30),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     default_cost_fxn_type = "cubic",
     unit_costs = c(1.2, 2)
@@ -168,6 +174,7 @@ results <- lago_optimization(
     intervention_upper_bounds = c(10, 350),
     cost_list_of_vectors = list(c(0, 4), c(4, 6)),
     outcome_goal = 40,
+    outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     unit_costs = c(1, 1),
     default_cost_fxn_type = "cubic"

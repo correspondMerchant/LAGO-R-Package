@@ -25,6 +25,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(10, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
 ```
@@ -43,6 +44,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(10, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1),
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(1, 1)
@@ -66,6 +68,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(20, 20),
   cost_list_of_vectors = list(c(0, 4, 8), c(4, 6, 5)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
 ```
@@ -85,6 +88,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(20, 20),
   cost_list_of_vectors = list(c(0, 4, 8), c(4, 6, 5)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1),
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(1, 1)
@@ -120,6 +124,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(10, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1),
   include_center_effects = TRUE,
   center_effects_optimization_values = "5"
@@ -141,6 +146,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(10, 50),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1),
   include_center_effects = TRUE,
   center_effects_optimization_values = "5",
@@ -164,6 +170,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(10, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 40,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1),
   include_center_effects = TRUE,
   center_effects_optimization_values = "5",
@@ -198,6 +205,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10),
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(10, 10),
@@ -220,6 +228,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10),
 )
 ```
@@ -241,6 +250,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   include_center_effects = TRUE,
   center_effects_optimization_values = "5",
   confidence_set_grid_step_size = c(10, 10)
@@ -262,6 +272,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350),
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   include_center_effects = TRUE,
   center_effects_optimization_values = "5",
   include_time_effects = TRUE,
@@ -295,6 +306,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350, 10),
   cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10, 1),
   include_confidence_set = TRUE
 )
@@ -315,6 +327,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350, 10),
   cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10, 1),
   include_confidence_set = TRUE,
   include_center_effects = TRUE
@@ -336,6 +349,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350, 10),
   cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10, 1),
   include_confidence_set = TRUE,
   include_center_effects = TRUE,
@@ -360,6 +374,7 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350, 10),
   cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10, 1),
   include_confidence_set = TRUE,
   include_center_effects = TRUE,
@@ -390,10 +405,56 @@ results <- lago_optimization(
   intervention_upper_bounds = c(500, 350, 10),
   cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 5)),
   outcome_goal = 10,
+  outcome_goal_intention = "minimize",
   confidence_set_grid_step_size = c(10, 10, 1),
   include_confidence_set = TRUE,
   include_center_effects = TRUE,
   include_time_effects = TRUE,
   time_effect_optimization_value = 10
+)
+```
+
+## outcome goal is either set too high or too low 
+```{r}
+# too high
+# the recommended intervention should be c(0,0)
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(500, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 50,
+  outcome_goal_intention = "minimize",
+  confidence_set_grid_step_size = c(10, 10),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(10, 10),
+  include_confidence_set = TRUE
+)
+```
+
+
+```{r}
+# too low
+# the recommended intervention should be c(0,0)
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 5,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1)
 )
 ```

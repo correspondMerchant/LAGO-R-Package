@@ -7,6 +7,7 @@ validate_inputs <- function(
     intervention_lower_bounds,
     intervention_upper_bounds,
     outcome_goal,
+    outcome_goal_intention,
     unit_costs = NULL,
     default_cost_fxn_type = "cubic",
     cost_list_of_vectors = NULL,
@@ -673,20 +674,46 @@ validate_inputs <- function(
     if (!is.numeric(outcome_goal)) {
         stop("The outcome goal must be a numeric value.")
     }
-    # check if the outcome goal >= outcome that we already observed
-    if (outcome_goal <= mean(data[[outcome_name]])) {
-        lower_outcome_goal <- TRUE
-        # stop(paste(
-        #     "The specified outcome goal is below the observed mean of the",
-        #     "intervention group. Please increase the goal."
-        # ))
-        print(paste(
-            "The specified outcome goal is less than the observed mean of the",
-            "outcome. If the intended behavior is to reduce the outcome to a",
-            "prespecified threshold, please ignore this."
+
+    # check if the outcome_goal_intention is a character type
+    if (!is.character(outcome_goal_intention)) {
+        stop("The outcome_goal_intention must be a character string.")
+    }
+    # check if the outcome_goal_intention is one of the defined intentions
+    allowed_outcome_goal_intentions <- c("minimize", "maximize")
+    if (!(outcome_goal_intention %in% allowed_outcome_goal_intentions)) {
+        stop(paste(
+            "The outcome_goal_intention must be one",
+            "of the supported intentions.",
+            "The supported intentions are:",
+            allowed_outcome_goal_intentions, "."
         ))
+    }
+
+    # set the lower_outcome_goal flag accordingly
+    # check the average outcome and print warning messages
+    if (outcome_goal_intention == "minimize") {
+        lower_outcome_goal <- TRUE
+        if (outcome_goal > mean(data[[outcome_name]])) {
+            warning(paste(
+                "The specified outcome goal intention is",
+                "to minimize the outcome.",
+                "The observed mean of the outcome is",
+                mean(data[[outcome_name]]),
+                "and the specified outcome goal is", outcome_goal, "."
+            ))
+        }
     } else {
         lower_outcome_goal <- FALSE
+        if (outcome_goal <= mean(data[[outcome_name]])) {
+            warning(paste(
+                "The specified outcome goal intention",
+                "is to maximize the outcome.",
+                "The observed mean of the outcome is",
+                mean(data[[outcome_name]]),
+                "and the specified outcome goal is", outcome_goal, "."
+            ))
+        }
     }
 
     # check whether the include_confidence_set indicator is boolean

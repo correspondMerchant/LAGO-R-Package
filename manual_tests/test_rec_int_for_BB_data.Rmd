@@ -32,7 +32,8 @@ optimization_results <- lago_optimization(
   center_characteristics = c("birth_volume_100"),
   center_characteristics_optimization_values = 1.75,
   cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
-  outcome_goal = 0.85
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize"
 )
 ```
 
@@ -49,6 +50,7 @@ optimization_results_wo_cs <- lago_optimization(
   intervention_upper_bounds = c(40, 5),
   cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
   outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
   include_confidence_set = FALSE
 )
 ```
