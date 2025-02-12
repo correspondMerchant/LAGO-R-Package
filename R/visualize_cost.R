@@ -12,7 +12,6 @@
 #' The user can copy the final coefficient list for use in the optimization
 #' function lago_optimization().
 #'
-#' ### required arguments:
 #' @param component_names A character vector of the names of the
 #' intervention components.
 #' @param unit_costs A numeric vector of the unit costs for each

@@ -72,9 +72,7 @@ probability or mean value.}
 \item{outcome_goal_intention}{A character string. Specifies the intention of
 the outcome goal. Must be either "maximize" or "minimize". If the goal is to
 increase the outcome, set it to "maximize". If the goal is to decrease the
-outcome, set it to "minimize".
-
-### optional arguments:}
+outcome, set it to "minimize".}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each
 intervention component.
@@ -207,8 +205,6 @@ estimated outcome mean/probability for the intervention group,
 Fitting the outcome model, calculates the recommended
 interventions based on an outcome goal and/or a power goal, calculates
 the confidence set for the recommended interventions, and prints the output.
-
-### required arguments:
 }
 \examples{
 # Basic case showing how to carry out the optimization with
