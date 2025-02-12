@@ -4,7 +4,6 @@
 #' interventions based on an outcome goal and/or a power goal, calculates
 #' the confidence set for the recommended interventions, and prints the output.
 #'
-#' ### required arguments:
 #' @param data A data.frame. The input dataset containing the variables of
 #' interest.
 #' @param outcome_name A character string. The name of the column in the dataset
@@ -30,7 +29,6 @@
 #' increase the outcome, set it to "maximize". If the goal is to decrease the
 #' outcome, set it to "minimize".
 #'
-#' ### optional arguments:
 #' @param unit_costs A numeric vector. Specifies the unit costs for each
 #' intervention component.
 #' Default value without user specification: NULL.

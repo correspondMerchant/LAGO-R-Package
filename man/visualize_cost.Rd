@@ -40,8 +40,6 @@ initial values. The app also displays the current coefficient vector for
 each component.
 The user can copy the final coefficient list for use in the optimization
 function lago_optimization().
-
-### required arguments:
 }
 \examples{
 \dontrun{
