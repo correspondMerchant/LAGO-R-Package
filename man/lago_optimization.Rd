@@ -13,6 +13,7 @@ lago_optimization(
   intervention_lower_bounds,
   intervention_upper_bounds,
   outcome_goal,
+  outcome_goal_intention,
   unit_costs = NULL,
   default_cost_fxn_type = "cubic",
   cost_list_of_vectors = NULL,
@@ -63,12 +64,17 @@ c(0,0).}
 \item{intervention_upper_bounds}{A numeric vector. Specifies the upper bounds
 of the intervention components.
 For example: for a two-component intervention package, upper bounds could be
-c(10,20).
-
-### optional arguments:}
+c(10,20).}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
 probability or mean value.}
+
+\item{outcome_goal_intention}{A character string. Specifies the intention of
+the outcome goal. Must be either "maximize" or "minimize". If the goal is to
+increase the outcome, set it to "maximize". If the goal is to decrease the
+outcome, set it to "minimize".
+
+### optional arguments:}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each
 intervention component.
@@ -217,6 +223,7 @@ lago_optimization(
   intervention_upper_bounds = c(50, 10),
   cost_list_of_vectors = list(c(0, 4), c(0, 1)),
   outcome_goal = 0.5,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
 
@@ -232,6 +239,7 @@ lago_optimization(
   intervention_upper_bounds = c(40, 5),
   cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
   outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
 
@@ -248,6 +256,7 @@ lago_optimization(
   intervention_upper_bounds = c(40, 5),
   cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
   outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
 
