@@ -18,9 +18,15 @@ The LAGO R package bridges the gap between theoretical advances of LAGO and prac
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
 ### The main functions 
-THe LAGO R package has two user-facing functions `lago_otpimization()` and `visualize_cost()`. 
+The LAGO R package has two user-facing functions `lago_otpimization()` and `visualize_cost()`. 
 
 `lago_optimization()` carries out the LAGO optimizations, and `visualize_cost()` helps users to determine the cost function of intervention components.
+
+To get a better understanding of the input arguments, please take a look at the help files:
+```
+help(lago_optimization)
+help(visualize_cost)
+```
 
 ### Basic use cases
 For running LAGO optimizations:
