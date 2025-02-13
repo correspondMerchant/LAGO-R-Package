@@ -48,6 +48,8 @@
 #' used as clustering effects when the "outcome_type" is continuous.
 #' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
 #' used in the LAGO optimization.
+#' @param rec_int A numeric vector, the recommended interventions calculated
+#' from the optimization step.
 #'
 #' @return List(
 #'   confidence_set_size_percentage = <number>,
@@ -80,7 +82,8 @@ get_confidence_set <- function(
     center_characteristics_optimization_values = 0,
     confidence_set_alpha = 0.05,
     cluster_id = NULL,
-    cost_list_of_vectors) {
+    cost_list_of_vectors,
+    rec_int) {
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
@@ -93,6 +96,9 @@ get_confidence_set <- function(
   }
   # expand grid
   grid_x <- expand.grid(sequences)
+  # add the rec_int values to the grid so that
+  # the CI can be calculated for the recommended interventions
+  grid_x <- rbind(rec_int, grid_x)
   n_rows <- nrow(grid_x)
 
   # create a new grid based on the full grid if there are
@@ -245,7 +251,7 @@ get_confidence_set <- function(
       1,
       function(y) findInterval(x = outcome_goal, vec = y)
     ) == 1)
-    confidence_set_size_percentage <- set_size_intervals / n_rows
+    confidence_set_size_percentage <- (set_size_intervals - 1) / (n_rows - 1)
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity" in your usage
     # If link == "logit", use the logistic-like approach
@@ -512,7 +518,7 @@ get_confidence_set <- function(
       1,
       function(y) findInterval(x = outcome_goal, vec = y)
     ) == 1)
-    confidence_set_size_percentage <- set_size_intervals / n_rows
+    confidence_set_size_percentage <- (set_size_intervals - 1) / (n_rows - 1)
   }
 
   # obtain the confidence set
@@ -522,7 +528,10 @@ get_confidence_set <- function(
     function(y) findInterval(x = outcome_goal, vec = y)
   ) == 1) == 1)
 
-  if (length(cs_row_indices) == 0) {
+  # if there is only one row in the confidence set, it means
+  # that the recommended intervention (the first row) is
+  # the only intervention in the confidence set
+  if (length(cs_row_indices) == 1) {
     return(list(
       confidence_set_size_percentage = 0,
       cs = NULL

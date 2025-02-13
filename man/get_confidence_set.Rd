@@ -25,7 +25,8 @@ get_confidence_set(
   center_characteristics_optimization_values = 0,
   confidence_set_alpha = 0.05,
   cluster_id = NULL,
-  cost_list_of_vectors
+  cost_list_of_vectors,
+  rec_int
 )
 }
 \arguments{
@@ -94,6 +95,9 @@ used as clustering effects when the "outcome_type" is continuous.}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. The cost vectors
 used in the LAGO optimization.}
+
+\item{rec_int}{A numeric vector, the recommended interventions calculated
+from the optimization step.}
 }
 \value{
 List(

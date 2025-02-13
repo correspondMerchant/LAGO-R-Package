@@ -151,7 +151,7 @@ results <- lago_optimization(
     intervention_components = c("gear", "qsec"),
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(3, 30),
-    outcome_goal = 40,
+    outcome_goal = 38,
     outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1),
     default_cost_fxn_type = "cubic",
