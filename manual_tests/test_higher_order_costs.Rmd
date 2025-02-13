@@ -32,9 +32,10 @@ optimization_results <- lago_optimization(
   intervention_upper_bounds = c(40, 5),
   cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
   outcome_goal = 0.8,
+  outcome_goal_intention = "maximize",
   include_confidence_set = FALSE
 )
-optimization_results
+# optimization_results
 # should be (3.97, 35.50), same as in Bing et al.
 ```
 
@@ -51,7 +52,8 @@ optimization_results <- lago_optimization(
   intervention_lower_bounds = c(1, 1),
   intervention_upper_bounds = c(40, 5),
   cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
-  outcome_goal = 0.8
+  outcome_goal = 0.8,
+  outcome_goal_intention = "maximize",
 )
 ```
 
@@ -73,6 +75,7 @@ optimization_results <- lago_optimization(
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(0.1, 0.5),
   outcome_goal = 0.8,
+  outcome_goal_intention = "maximize",
   include_confidence_set = FALSE
 )
 optimization_results
