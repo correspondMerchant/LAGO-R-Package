@@ -262,6 +262,7 @@ get_recommended_interventions <- function(
         )
         rec_int_cost <- all_costs[best_index]
       } else {
+        warning("The outcome goal is not achievable.")
         # if the outcome goal is not achievable,
         # find the solution with the maximum outcome
         best_index <- which.max(all_outcomes)
@@ -372,13 +373,27 @@ get_recommended_interventions <- function(
       }
 
       # get the max achievable outcome
-      result_max <- solnl(
-        X = (lo + up) / 2,
-        objfun = obj_fun_for_max_outcome,
-        lb = lo,
-        ub = up
+      quantile_points <- 1:10 / 10
+      results <- numeric(length(quantile_points))
+      results_int_components <- matrix(
+        0,
+        nrow = length(lo),
+        ncol = length(quantile_points)
       )
-      max_achievable_outcome <- -result_max$fn
+      for (i in seq_along(quantile_points)) {
+        start_points <- lo + quantile_points[i] * (up - lo)
+        result <- solnl(
+          X = start_points,
+          objfun = obj_fun_for_max_outcome,
+          lb = lo,
+          ub = up
+        )
+        results[i] <- -result$fn
+        results_int_components[, i] <- result$par
+      }
+      max_position <- which.max(results)
+      max_achievable_outcome <- results[max_position]
+      max_int_components <- results_int_components[, max_position]
 
       # Create cost functions
       cost_functions <- lapply(cost_params, create_cost_function)
@@ -456,21 +471,48 @@ get_recommended_interventions <- function(
           return(list(ceq = NULL, c = f))
         }
 
-        # run optimization
-        result <- solnl(
-          X = (lo + up) / 2,
-          objfun = cost_obj_fun,
-          confun = constraint_fun,
-          lb = lo,
-          ub = up
-        )
+        cost_results <- numeric(length(quantile_points))
 
-        est_rec_int <- result$par
+        for (i in seq_along(quantile_points)) {
+          start_points <- lo + quantile_points[i] * (up - lo)
+          result <- tryCatch(
+            {
+              solnl(
+                X = start_points, # Use start_points instead of a fixed midpoint
+                objfun = cost_obj_fun,
+                confun = constraint_fun,
+                lb = lo,
+                ub = up
+              )
+            },
+            error = function(e) {
+              return(NULL) # Return NULL if an error occurs
+            }
+          )
+
+          if (!is.null(result)) {
+            cost_results[i] <- result$fn
+            results_int_components[, i] <- result$par
+          } else {
+            cost_results[i] <- NA # Assign NA if the optimization failed
+          }
+        }
+
+        valid_indices <- which(!is.na(cost_results))
+        min_position <- valid_indices[which.max(cost_results[valid_indices])]
+        min_cost <- cost_results[min_position]
+        int_components <- results_int_components[, min_position]
+
+
+
+        est_rec_int <- int_components
         est_reachable_outcome <- outcome_goal
-        rec_int_cost <- result$fn
+        rec_int_cost <- min_cost
       } else {
-        # If the goal is not achievable, return the max achievable outcome
-        est_rec_int <- result_max$par
+        warning("The outcome goal is not achievable.")
+        # If the goal is not achievable,
+        # return the max achievable outcome for now
+        est_rec_int <- max_int_components
         est_reachable_outcome <- max_achievable_outcome
         rec_int_cost <- cost_obj_fun(est_rec_int)
       }

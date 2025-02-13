@@ -1,0 +1,359 @@
+---
+title: "Examples for paper"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+
+## this is still work in progress
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+results <- lago_optimization(
+    data = infert,
+    outcome_name = "case",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    intervention_components = c("age", "parity"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(50, 10),
+    cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+    outcome_goal = 0.5,
+    outcome_goal_intention = "maximize",
+    confidence_set_grid_step_size = c(1, 1)
+)
+```
+
+## section 4.1 - binary outcome, logistic regression, 
+```{r}
+# no confidence set calculations first
+# using R built-in dataset infert
+results <- lago_optimization(
+    data = infert,
+    outcome_name = "case",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    intervention_components = c("age", "parity"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(50, 10),
+    cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+    outcome_goal = 0.5,
+    outcome_goal_intention = "maximize",
+    include_confidence_set = FALSE
+)
+```
+
+```{r}
+# with confidence set calculations
+results <- lago_optimization(
+    data = infert,
+    outcome_name = "case",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    intervention_components = c("age", "parity"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(50, 10),
+    cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+    outcome_goal = 0.5,
+    outcome_goal_intention = "maximize"
+)
+```
+
+```{r}
+# with grid search optimization
+results <- lago_optimization(
+    data = infert,
+    outcome_name = "case",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    intervention_components = c("age", "parity"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(50, 10),
+    cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+    outcome_goal = 0.5,
+    outcome_goal_intention = "maximize",
+    optimization_method = "grid_search",
+    optimization_grid_search_step_size = c(1, 1)
+)
+```
+
+
+## section 4.2 - continuous outcome, linear regression
+```{r}
+results <- lago_optimization(
+    data = mtcars,
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    outcome_goal_intention = "maximize"
+)
+```
+
+
+
+## section 4.3 - replicate results from Nevo et al.
+```{r}
+bb_data <- LAGO::BB_data
+head(bb_data)
+
+results <- lago_optimization(
+    data = bb_data,
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85,
+    outcome_goal_intention = "maximize"
+)
+```
+
+
+
+## section 4.4 - replicate results from the continuous outcome paper 
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+```{r}
+bb_proportions <- LAGO::BB_proportions
+head(bb_proportions)
+
+optimization_results <- lago_optimization(
+    data = bb_proportions,
+    outcome_name = "EBP_proportions",
+    outcome_type = "continuous",
+    glm_family = "quasibinomial",
+    link = "logit",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.8,
+    outcome_goal_intention = "maximize"
+)
+```
+
+
+## section 4.5 - power goal  
+```{r}
+
+```
+
+
+## section 4.6 - fixed center effects, fixed time effects 
+```{r}
+## add fake center effects
+set.seed(123)
+mtcars$center <- sample(1:10, nrow(mtcars), replace = TRUE)
+
+## add fake time effects
+mtcars$period <- sample(1:10, nrow(mtcars), replace = TRUE)
+
+results <- lago_optimization(
+    data = mtcars,
+    input_data_structure = "individual_level",
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    outcome_goal_intention = "maximize",
+    confidence_set_grid_step_size = c(1, 1),
+    include_center_effects = TRUE,
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 10
+)
+```
+
+### section 4.7 - facility level data (simulated based on PULESA)
+```{r}
+head(new_pulesa_data)
+
+# create a synthetic dataset based on PULESA data
+# Assuming your original data is in 'original_df'
+original_df <- new_pulesa_data
+
+# Initial synthetic data creation
+n_rows <- nrow(original_df)
+synthetic_df <- data.frame(matrix(nrow = n_rows, ncol = 0))
+preserve_categories <- c("Period", "period")
+
+create_anonymous_labels <- function(column_name, unique_values) {
+    n_unique <- length(unique_values)
+    anonymous_names <- paste0(column_name, " ", 1:n_unique)
+    setNames(anonymous_names, unique_values)
+}
+
+# Process each column
+for (col in names(original_df)) {
+    if (is.numeric(original_df[[col]])) {
+        mean_val <- mean(original_df[[col]], na.rm = TRUE)
+        sd_val <- sd(original_df[[col]], na.rm = TRUE)
+
+        if (col == "Total_visit") {
+            synthetic_df[[col]] <- abs(rnorm(n_rows, mean_val, sd_val))
+        } else if (col == "proportion") {
+            # Use beta distribution for proportion to ensure values between 0 and 1
+            # Convert mean and sd to alpha and beta parameters for beta distribution
+            variance <- sd_val^2
+            alpha <- mean_val * (mean_val * (1 - mean_val) / variance - 1)
+            beta <- (1 - mean_val) * (mean_val * (1 - mean_val) / variance - 1)
+            synthetic_df[[col]] <- rbeta(n_rows, alpha, beta)
+        } else {
+            synthetic_df[[col]] <- rnorm(n_rows, mean_val, sd_val)
+        }
+    } else if (is.factor(original_df[[col]]) || is.character(original_df[[col]])) {
+        probs <- table(original_df[[col]]) / length(original_df[[col]])
+        if (col %in% preserve_categories) {
+            synthetic_df[[col]] <- sample(names(probs), n_rows, replace = TRUE, prob = probs)
+        } else {
+            value_mapping <- create_anonymous_labels(col, names(probs))
+            original_samples <- sample(names(probs), n_rows, replace = TRUE, prob = probs)
+            synthetic_df[[col]] <- value_mapping[original_samples]
+        }
+    }
+}
+
+# Add noise function
+add_noise <- function(df, numeric_noise_level = 0.1, categorical_swap_prob = 0.05) {
+    noisy_df <- df
+
+    for (col in names(df)) {
+        if (is.numeric(df[[col]])) {
+            if (col == "Total_visit") {
+                noise <- abs(rnorm(nrow(df), 1, numeric_noise_level))
+                noisy_df[[col]] <- round(df[[col]] * noise)
+            } else if (col == "proportion") {
+                # Add noise while keeping values between 0 and 1
+                noise <- rnorm(nrow(df), 0, numeric_noise_level)
+                noisy_df[[col]] <- pmax(0, pmin(1, df[[col]] + noise))
+            } else {
+                noise <- rnorm(nrow(df), 1, numeric_noise_level)
+                noisy_df[[col]] <- df[[col]] * noise
+            }
+        } else if (is.factor(df[[col]]) || is.character(df[[col]])) {
+            if (!(col %in% c("Period", "period"))) {
+                swap_indices <- which(runif(nrow(df)) < categorical_swap_prob)
+                if (length(swap_indices) > 0) {
+                    unique_values <- unique(df[[col]])
+                    noisy_df[[col]][swap_indices] <- sample(unique_values, length(swap_indices), replace = TRUE)
+                }
+            }
+        }
+    }
+    return(noisy_df)
+}
+
+# Create final dataset
+final_df <- add_noise(synthetic_df)
+final_df$center_sample_size <- final_df$Total_visit
+
+
+head(final_df)
+```
+
+```{r}
+# fit facility level data with fixed effects
+results <- lago_optimization(
+    data = final_df,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "X1", "X2", "X3", "X4", "X5", "X6", "X7"
+    ),
+    additional_covariates = c(
+        "MI_W5", "MI_W7", "MI_W8"
+    ),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1),
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10),
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13,
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13)
+    ),
+    outcome_goal = 0.8,
+    include_confidence_set = TRUE,
+    confidence_set_grid_step_size = c(10, 1, 1, 1, 1, 1, 2)
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### section 4.8 - facility level data (simulated based on PULESA)
+```{r}
+# fit facility level data with fixed effects
+# and interaction terms
+optimization_results <- lago_optimization(
+    data = new_pulesa_data,
+    input_data_structure = "center_level",
+    outcome_name = "proportion",
+    outcome_type = "binary",
+    intervention_components = c(
+        "X1",
+        "X2",
+        "X3",
+        "X1:X4",
+        "X1:X5",
+        "X1:X4:X5",
+        "X2:X6",
+        "X7"
+    ),
+    additional_covariates = c(
+        "MI_W5",
+        "MI_W7",
+        "MI_W8"
+    ),
+    include_interaction_terms = TRUE,
+    main_components = c("X1", "X2", "X3", "X4", "X5", "X6", "X7"),
+    weights = main_pulesa_data$Total_visit,
+    intervention_lower_bounds = c(1, 1, 1, 1, 1, 1, 1), # fake costs
+    intervention_upper_bounds = c(40, 5, 6, 7, 8, 9, 10), # fake
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 13, # last period
+    cost_list_of_vectors = list(
+        c(0, 1.7), c(0, 8), c(0, 9),
+        c(0, 10), c(0, 11), c(0, 12),
+        c(0, 13) # fake
+    ),
+    outcome_goal = 0.8,
+    include_confidence_set = FALSE
+)
+```

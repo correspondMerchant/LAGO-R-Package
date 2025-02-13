@@ -359,6 +359,8 @@ lago_optimization <- function(
     include_time_effects = include_time_effects,
     outcome_goal = outcome_goal,
     cost_list_of_vectors = cost_list_of_vectors,
+    intervention_lower_bounds = intervention_lower_bounds,
+    intervention_upper_bounds = intervention_upper_bounds,
     model = model,
     rec_int = rec_int,
     rec_int_cost = rec_int_cost,

@@ -11,6 +11,8 @@ print_output <- function(
     include_time_effects,
     outcome_goal,
     cost_list_of_vectors,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
     model,
     rec_int,
     rec_int_cost,
@@ -57,6 +59,14 @@ print_output <- function(
     cat(
         "List of intervention component costs:",
         toString(cost_list_of_vectors), "\n"
+    )
+    cat(
+        "Intervention lower bounds:",
+        intervention_lower_bounds, "\n"
+    )
+    cat(
+        "Intervention upper bounds:",
+        intervention_upper_bounds, "\n"
     )
 
     cat("\n=====================================")
