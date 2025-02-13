@@ -331,7 +331,8 @@ lago_optimization <- function(
       center_characteristics_optimization_values =
         center_characteristics_optimization_values,
       confidence_set_alpha = confidence_set_alpha,
-      cost_list_of_vectors = cost_list_of_vectors
+      cost_list_of_vectors = cost_list_of_vectors,
+      rec_int = rec_int
     )
 
     # unpack the confidence set results to the environment
@@ -366,7 +367,7 @@ lago_optimization <- function(
     rec_int_cost = rec_int_cost,
     est_outcome_goal = est_outcome_goal,
     include_confidence_set = include_confidence_set,
-    cs = cs
+    cs = if (include_confidence_set) cs else NULL
   )
 
   return(
@@ -382,7 +383,7 @@ lago_optimization <- function(
         rec_int_cost = rec_int_cost,
         est_outcome_goal = est_outcome_goal,
         confidence_set_size_percentage = cs$confidence_set_size_percentage,
-        cs = cs$cs
+        cs = cs$cs[-1, ]
       )
     }
   )

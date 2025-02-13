@@ -86,11 +86,19 @@ print_output <- function(
         value = rec_int
     )
     print(rec_int_df, row.names = FALSE)
-    cat("\nCost for using the recommended interventions:", rec_int_cost, "\n")
     cat(
         "Estimated outcome goal using the recommended interventions:",
         est_outcome_goal, "\n"
     )
+    cat(
+        "95% confidence interval for the estimated outcome goal:",
+        if (include_confidence_set) {
+            paste(cs$cs[1, ]$CI_lower_bound, "-", cs$cs[1, ]$CI_upper_bound)
+        } else {
+            "Not available, please set include_confidence_set = TRUE"
+        }, "\n"
+    )
+    cat("\nCost for using the recommended interventions:", rec_int_cost, "\n")
 
     if (include_confidence_set) {
         cat("\n========================================")
@@ -100,11 +108,17 @@ print_output <- function(
             "Confidence set size percentage:",
             cs$confidence_set_size_percentage, "\n"
         )
+        lo_percentile <- quantile(cs$cs[-1, ]$cost, 0.25)
+        hi_percentile <- quantile(cs$cs[-1, ]$cost, 0.75)
+        cat(
+            "IQR of the cost within the 95% confidence set:",
+            lo_percentile, "-", hi_percentile, "\n\n"
+        )
 
         if (cs$confidence_set_size_percentage > 0) {
             cat("Confidence set (only first few rows are shown): \n")
             cat("Please use $cs to get the full confidence set. \n")
-            print(head(cs$cs))
+            print(head(cs$cs[-1, ]))
         } else {
             cat("No confidense set was found. \n")
         }
