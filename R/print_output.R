@@ -18,7 +18,8 @@ print_output <- function(
     rec_int_cost,
     est_outcome_goal,
     include_confidence_set,
-    cs) {
+    cs,
+    test_results) {
     # input errors are very common, we show some of the key user inputs so
     # users can double check their inputs
     cat("\n==================================")
@@ -73,6 +74,25 @@ print_output <- function(
     cat("\n============  Model Fit  ============\n")
     cat("=====================================\n")
     print(summary(model))
+    if (!is.null(test_results)) {
+        cat("\n")
+        cat("Overall intervention test results: \n")
+        if (outcome_type == "binary") {
+            cat(
+                "Two-sample T-test for the difference in two proportions: \n",
+                "Test statistic:", test_results$test_stat, "\n",
+                "P-value:", test_results$p_val, "\n"
+            )
+        }
+    } else {
+        cat(
+            "\nTo see the overall test results,",
+            "please include a 'group' column in the data,\n",
+            "and make sure the values of the 'group' column are either",
+            "'treatment' or 'control'.\n",
+            "(Only binary outcomes are supported for now)\n"
+        )
+    }
 
     cat("\n===================================================")
     cat("\n===========  Recommended Interventions  ===========\n")

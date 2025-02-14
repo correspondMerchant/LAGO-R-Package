@@ -341,6 +341,17 @@ lago_optimization <- function(
     cli_alert_success("Done")
   }
 
+  # carry out the overall intervention test
+  if ("group" %in% names(data)) {
+    test_results <- test_processor(
+      data = data,
+      outcome_type = outcome_type,
+      outcome_name = outcome_name
+    )
+  } else {
+    test_results <- NULL
+  }
+
   cli_alert("{symbol$heart} LAGO optimization complete {symbol$heart}")
   Sys.sleep(0.5)
   cli_alert_info("Printing the output...")
@@ -367,7 +378,8 @@ lago_optimization <- function(
     rec_int_cost = rec_int_cost,
     est_outcome_goal = est_outcome_goal,
     include_confidence_set = include_confidence_set,
-    cs = if (include_confidence_set) cs else NULL
+    cs = if (include_confidence_set) cs else NULL,
+    test_results = test_results
   )
 
   return(
