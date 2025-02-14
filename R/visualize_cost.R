@@ -25,6 +25,7 @@
 #'
 #' @export
 #' @import bslib shiny ggplot2
+#' @importFrom shinyjs useShinyjs show hide runjs
 #'
 #' @examples
 #' \dontrun{
@@ -81,16 +82,43 @@ visualize_cost <- function(
         title = "Cost Functions Visualization",
         theme = bs_theme(version = 5, bootswatch = "flatly"),
 
+        # Include shinyjs
+        useShinyjs(),
+
         # Add footer panel for cost function list
+        # footer = div(
+        #     style = "padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
+        #     h4("Using these cost functions in optimization"),
+        #     p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
+        #     verbatimTextOutput("complete_coef_list"),
+        #     p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
+        # ),
         footer = div(
             style = "padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
-            h4("Using these cost functions in optimization"),
-            p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
-            verbatimTextOutput("complete_coef_list"),
-            p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
+            fluidRow(
+                column(
+                    8, # Takes up 8/12 of the width for the coefficient list
+                    h4("Using these cost functions in optimization"),
+                    p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
+                    verbatimTextOutput("complete_coef_list"),
+                    p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
+                ),
+                column(
+                    4, # Takes up 4/12 of the width for the quit button
+                    div(
+                        style = "text-align: right; padding-top: 20px;",
+                        actionButton(
+                            inputId = "quit_button",
+                            label = "Quit App",
+                            class = "btn-danger",
+                            icon = icon("times-circle")
+                        )
+                    )
+                )
+            )
         ),
 
-        # Create a nav_panel for each component
+        # Add nav panels for each component
         !!!lapply(seq_along(initial_coefficients_list), function(component_idx) {
             nav_panel(
                 paste("Component", component_idx, ":", component_names[component_idx]),
@@ -98,10 +126,9 @@ visualize_cost <- function(
                     column(
                         5,
                         card(
-                            card_header("Adjust Coefficients"),
+                            card_header("Adjust coefficients using sliders"),
                             card_body(
                                 # Create sliders for the current component's coefficients
-                                h4("Adjust coefficients using sliders:"),
                                 lapply(
                                     seq_along(initial_coefficients_list[[component_idx]]),
                                     function(i) {
@@ -124,7 +151,13 @@ visualize_cost <- function(
                                     class = "btn-warning"
                                 ),
                                 hr(),
-                                h4("Coefficient vector for x:"),
+                                h4(paste("Coefficient vector for", component_names[component_idx], ":")),
+                                # Add warning message below coefficient vector
+                                div(
+                                    id = paste0("coef_warning_", component_idx),
+                                    style = "color: red; margin-top: 10px; display: none;",
+                                    "Warning: Current coefficients may lead to negative marginal costs!"
+                                ),
                                 verbatimTextOutput(paste0("coefficient_text_", component_idx))
                             )
                         )
@@ -134,6 +167,17 @@ visualize_cost <- function(
                         card(
                             card_header("Visualization"),
                             card_body(
+                                # Add warning messages above plot
+                                div(
+                                    id = paste0("plot_warning_", component_idx),
+                                    style = "color: red; margin-bottom: 5px; display: none;",
+                                    "Warning: Total cost function should be non-decreasing!"
+                                ),
+                                div(
+                                    id = paste0("negative_cost_warning_", component_idx),
+                                    style = "color: red; margin-bottom: 10px; display: none;",
+                                    "Warning: Total cost function should always be positive!"
+                                ),
                                 plotOutput(paste0("costPlot_", component_idx)),
                                 plotOutput(paste0("derivativePlot_", component_idx))
                             )
@@ -165,6 +209,11 @@ visualize_cost <- function(
     }
 
     server <- function(input, output, session) {
+        # Add function to check if cost function is non-decreasing
+        is_non_decreasing <- function(x_vals, y_vals) {
+            all(diff(y_vals) >= -1e-10) # Using small tolerance for numerical stability
+        }
+
         # Create a reactiveValues object to store the initial coefficients
         rv <- reactiveValues(
             initial_coefs = initial_coefficients_list
@@ -223,6 +272,59 @@ visualize_cost <- function(
                 paste0("c(", paste(current_coefs, collapse = ", "), ")")
             })
 
+            # Add reactive expression for cost function validation
+            observe({
+                current_coefs <- sapply(
+                    seq_along(initial_coefficients_list[[component_idx]]),
+                    function(i) {
+                        input[[paste0("coef_", component_idx, "_", i - 1)]]
+                    }
+                )
+
+                x_vals <- seq(
+                    intervention_lower_bounds[component_idx],
+                    intervention_upper_bounds[component_idx],
+                    length.out = 2000
+                )
+                y_vals <- calculate_cost(current_coefs, x_vals)
+
+                # Check if cost function is non-decreasing
+                is_non_decreasing_valid <- is_non_decreasing(x_vals, y_vals)
+
+                # Check if cost function is always positive
+                is_positive_valid <- all(y_vals >= -1e-10) # Using small tolerance for numerical stability
+
+                # Update warnings based on validation results
+                if (!is_non_decreasing_valid) {
+                    shinyjs::show(paste0("plot_warning_", component_idx))
+                    shinyjs::show(paste0("coef_warning_", component_idx))
+                } else {
+                    shinyjs::hide(paste0("plot_warning_", component_idx))
+                    shinyjs::hide(paste0("coef_warning_", component_idx))
+                }
+
+                if (!is_positive_valid) {
+                    shinyjs::show(paste0("negative_cost_warning_", component_idx))
+                } else {
+                    shinyjs::hide(paste0("negative_cost_warning_", component_idx))
+                }
+
+                # Flash screen red if either condition is invalid
+                if (!is_non_decreasing_valid || !is_positive_valid) {
+                    runjs(sprintf('
+                        document.body.style.transition = "background-color 0.5s";
+                        document.body.style.backgroundColor = "rgba(255,0,0,0.1)";
+                        setTimeout(function() {
+                            document.body.style.backgroundColor = "white";
+                        }, 500);
+                    '))
+                }
+            })
+
+            observeEvent(input$quit_button, {
+                stopApp()
+            })
+
             output[[paste0("costPlot_", component_idx)]] <- renderPlot({
                 current_coefs <- sapply(
                     seq_along(initial_coefficients_list[[component_idx]]),
@@ -273,9 +375,9 @@ visualize_cost <- function(
                     ) +
                     theme_minimal() +
                     labs(
-                        title = paste("Derivative of Cost Function (Unit Cost Function) -", component_names[component_idx]),
+                        title = paste("Derivative of the Total Cost Function (Marginal Cost) -", component_names[component_idx]),
                         x = component_names[component_idx],
-                        y = "Unit Cost"
+                        y = "Marginal Cost"
                     ) +
                     # Add annotation for the reference line
                     annotate("text",

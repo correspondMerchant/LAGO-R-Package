@@ -46,7 +46,7 @@ visualize_cost(
 ```{r}
 # cubic default cost, more components
 visualize_cost(
-    component_names = c("gear", "qsec"),
+    component_names = c("gear", "qsec", "disp", "hp"),
     unit_costs = c(2, 5, 3, 1.2),
     default_cost_fxn_type = "cubic",
     intervention_lower_bounds = c(1, 0, 10, 0),
