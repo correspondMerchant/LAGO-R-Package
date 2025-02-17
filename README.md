@@ -9,7 +9,17 @@ The LAGO R package bridges the gap between theoretical advances of LAGO and prac
 3) estimating the optimal intervention based on data from all stages,
 4) calculating the 95\% confidence sets for the recommended interventions and the optimal interventions.
 
-### How to install the package 
+### Table of Contents
+1. [How to install the R package](#how-to-install-the-r-package)
+2. [The main functions](#the-main-functions)
+3. [Basic use case](#basic-use-case)
+4. [More advanced use case](#more-advanced-use-case)
+5. [Additional examples in the R package](#how-to-run-additional-examples)
+6. [Relevant LAGO papers](#relevant-lago-papers)
+7. [How to get help](#how-to-get-help)
+
+
+### How to install the R package 
 - Method 1 (directly using RStudio):
   ```
   install.packages("devtools")
@@ -28,7 +38,16 @@ help(lago_optimization)
 help(visualize_cost)
 ```
 
-### Basic use cases
+### Basic use case
+We consider a hypothetical example based on a very well-known R built-in dataset: 'mtcars' to showcase how the LAGO package works. This example may not make practical sense, it is intended to be an example that describes how to run LAGO optimization for a real-world dataset.  
+
+The 'mtcars' data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models).
+Here, we only focus on the following variables: 'mpg' - miles per gallon, 'gear' - number of forward gears, and 'qsec' - quarter mile time in seconds.
+
+Suppose that 'mpg' is our outcome of interest, and 'gear' and 'qsec' are the two intervention components. We are interested in estimating the optimal intervention package (values of 'gear' and 'qsec') that is expected to achieve an outcome goal of 40 miles per gallon. We expect that the estimated outcome without any intervention is going to be less than 40, and implementing the two intervention components can increase the value of the outcome (which corresponds to setting `outcome_goal_intention = "maximize"`). We are also interested in obtaining the 95% confidence set, which is a list of intervention package composiitons that can be expected to include the optimal intervention in 95% of such trials. For the confidence set, we are only interested in the integer values of the intervention components, which corresponds to setting `confidence_set_grid_step_size = c(1, 1)`. 
+
+Since 'mpg' is a continuous variable, we can fit a linear regression between the outcome 'mpg' and the predictors 'gear' and 'qsec'. Then, suppose that we know the lower and upper bounds of 'gear' and 'qsec' are: 0 <= 'gear' <= 10 and 0 <= 'qsec' <= 350, and the total monetary cost of implementing the 'gear' ($x_1$) and 'qsec' ($x_2$) are $C(x_1) = 4x_1$, and $C(x_2) = 4 + 6x_2$, respectively. 
+
 For running LAGO optimizations:
 ```
 results <- lago_optimization(
@@ -131,11 +150,15 @@ Please use $cs to get the full confidence set.
 88   10    7         16.136         45.622   86
 98    9    8         15.118         40.577   88
 ```
+From the output above, we see that both 'gear' and 'qsec' have positive effects on 'mpg', and the optimal intervention turns out to be 'gear' = 10, and 'qsec' = 11.96. 
 
-For visualizing cost functions:
 
-Visualize the cost functions for the intervention components. 
-This function creates a Shiny app that allows the user to adjust the coefficients of the cost functions for each intervention component and visualize the resulting total cost function and unit cost function. The initial coefficients are calculated based on the unit costs, the default cost function type (linear or cubic), and the lower and upper bounds. The user can adjust the coefficients using sliders and reset them to their initial values. The app also displays the current coefficient vector for each component. The user can copy the final coefficient list for use in the optimization function lago_optimization().
+You may not be satisfied with the current cost function $C(x_1) = 4x_1$, and $C(x_2) = 4 + 6x_2$. 
+The LAGO R package offers an intuitive way to help you visualize and select cost functions:
+
+The `visualize_cost` function creates a Shiny app that allows the user to adjust the coefficients of the cost functions for each intervention component and visualize the resulting total cost function and unit cost function. The initial coefficients are calculated based on the unit costs, the default cost function type (linear or cubic), and the lower and upper bounds. 
+
+The user can adjust the coefficients using sliders and reset them to their initial values. The app also displays the current coefficient vector for each component. The user can copy the final coefficient list (at the bottom of the app) for use in the optimization function lago_optimization().
 
 ```
 visualize_cost(
@@ -146,18 +169,28 @@ visualize_cost(
   intervention_upper_bounds = c(10, 10)
 )
 ```
+The following gif shows the expected behavior of the R shiny app 
+
+**(please wait a few seconds for the gif to load)**
 ![screenshot of the cost function r shiny app basic example](./images/shiny_2_14_2025.gif)
+
+
+### More advanced use case
+
 
 ### How to run additional examples
   All of the examples are located in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder as Rmd files.
   You can start with the simpler ones first, like the [identity link with built-in dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_cts_identity.Rmd), or the [logistic link with the BetterBirth dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_BB_data.Rmd) before moving on to other files.
 
 
-### Citations 
-
+### Relevant LAGO papers
+1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)
+2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. arXiv preprint arXiv:2307.06552. 2023 Jul 13.](https://arxiv.org/pdf/2307.06552)
 
 ### How to get help 
-Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you have questions.
+Before reaching out for help, please go through this readme file carefully, look at the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder, and read relevant LAGO papers. 
+
+Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you still have questions.
 
 
 
