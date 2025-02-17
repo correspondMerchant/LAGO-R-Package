@@ -3,7 +3,7 @@
   <img src="./images/banner.png" width="800" alt="Banner">
 </p>
 
-The LAGO R package bridges the gap between theoretical advances of LAGO and practical applications by providing a standardized solution for:
+The LAGO R package bridges the gap between theoretical advances in Learn-As-you-GO (LAGO) and practical applications by providing a standardized solution for:
 1) fitting the outcome models for both binary and continuous outcomes, including support for fixed center effects/center characteristics and fixed time effects,
 2) calculating the recommended interventions based on various optimization criteria, including support for custom cost functions,
 3) estimating the optimal intervention based on data from all stages,
@@ -28,7 +28,7 @@ The LAGO R package bridges the gap between theoretical advances of LAGO and prac
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
 ### The main functions 
-The LAGO R package has two user-facing functions `lago_otpimization()` and `visualize_cost()`. 
+The LAGO R package has two user-facing functions `lago_optimization()` and `visualize_cost()`. 
 
 `lago_optimization()` carries out the LAGO optimizations, and `visualize_cost()` helps users to determine the cost function of intervention components.
 
@@ -44,7 +44,7 @@ We consider a hypothetical example based on a very well-known R built-in dataset
 The 'mtcars' data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models).
 Here, we only focus on the following variables: 'mpg' - miles per gallon, 'gear' - number of forward gears, and 'qsec' - quarter mile time in seconds.
 
-Suppose that 'mpg' is our outcome of interest, and 'gear' and 'qsec' are the two intervention components. We are interested in estimating the optimal intervention package (values of 'gear' and 'qsec') that is expected to achieve an outcome goal of 40 miles per gallon. We expect that the estimated outcome without any intervention is going to be less than 40, and implementing the two intervention components can increase the value of the outcome (which corresponds to setting `outcome_goal_intention = "maximize"`). We are also interested in obtaining the 95% confidence set, which is a list of intervention package composiitons that can be expected to include the optimal intervention in 95% of such trials. For the confidence set, we are only interested in the integer values of the intervention components, which corresponds to setting `confidence_set_grid_step_size = c(1, 1)`. 
+Suppose that 'mpg' is our outcome of interest, and 'gear' and 'qsec' are the two intervention components. We are interested in estimating the optimal intervention package (values of 'gear' and 'qsec') that is expected to achieve an outcome goal of 40 miles per gallon. We expect that the estimated outcome without any intervention is going to be less than 40, and implementing the two intervention components can increase the value of the outcome (which corresponds to setting `outcome_goal_intention = "maximize"`). We are also interested in obtaining the 95% confidence set, which is a list of intervention package compositions that can be expected to include the optimal intervention in 95% of such trials. For the confidence set, we are only interested in the integer values of the intervention components, which corresponds to setting `confidence_set_grid_step_size = c(1, 1)`. 
 
 Since 'mpg' is a continuous variable, we can fit a linear regression between the outcome 'mpg' and the predictors 'gear' and 'qsec'. Then, suppose that we know the lower and upper bounds of 'gear' and 'qsec' are: 0 <= 'gear' <= 10 and 0 <= 'qsec' <= 350, and the total monetary cost of implementing the 'gear' ($x_1$) and 'qsec' ($x_2$) are $C(x_1) = 4x_1$, and $C(x_2) = 4 + 6x_2$, respectively. 
 
@@ -188,7 +188,7 @@ The following gif shows the expected behavior of the R shiny app
 2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. arXiv preprint arXiv:2307.06552. 2023 Jul 13.](https://arxiv.org/pdf/2307.06552)
 
 ### How to get help 
-Before reaching out for help, please go through this readme file carefully, look at the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder, and read relevant LAGO papers. 
+Before reaching out for help, please carefully review this readme file, examine the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder, and read relevant LAGO papers. 
 
 Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you still have questions.
 
