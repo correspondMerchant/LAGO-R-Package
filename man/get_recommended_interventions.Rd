@@ -5,6 +5,7 @@
 \title{get_recommended_interventions}
 \usage{
 get_recommended_interventions(
+  data,
   intervention_components_coeff,
   include_interaction_terms,
   main_components,
@@ -20,10 +21,15 @@ get_recommended_interventions(
   center_cha_coeff_vec = 0,
   center_characteristics_optimization_values = 0,
   link = "identity",
-  lower_outcome_goal = FALSE
+  lower_outcome_goal = FALSE,
+  prev_recommended_interventions,
+  shrinkage_threshold
 )
 }
 \arguments{
+\item{data}{A data frame. The dataset that contains the intervention
+components and the outcome variable.}
+
 \item{intervention_components_coeff}{A numeric vector.
 The coefficient estimates for the intervention components
 including the intercept term. For example: c(0.1, 0.3, 0.15).}
@@ -96,6 +102,13 @@ the outcome model.}
 
 \item{lower_outcome_goal}{A boolean value. Specifies whether the outcome goal
 is intended to be lower or higher than the average outcome.}
+
+\item{prev_recommended_interventions}{A numeric vector. Specifies the
+recommended interventions from the previous stage.}
+
+\item{shrinkage_threshold}{A numeric value. Specifies the threshold for
+shrinking the recommended intervention towards the recommended intervention
+from the previous stage.}
 }
 \value{
 List(
@@ -107,38 +120,4 @@ group in the next stage )
 \description{
 Internal function that calculates the LAGO recommended
 interventions based on an outcome goal and/or a power goal.
-}
-\examples{
-# Example for using the grid search
-get_recommended_interventions(
-  intervention_components_coeff = c(0.1, 0.3, 0.15),
-  include_interaction_terms = FALSE,
-  main_components = NULL,
-  intervention_components = c("name1", "name2"),
-  all_center_lvl_effects = 0,
-  center_weights_for_outcome_goal = 1,
-  cost_list_of_vectors = list(c(0, 1, 2), c(0, 4)),
-  intervention_lower_bounds = c(0, 0),
-  intervention_upper_bounds = c(10, 20),
-  optimization_grid_search_step_size = c(2, 5),
-  outcome_goal = 0.8,
-  optimization_method = "grid_search",
-)
-
-# Example for using the numerical method
-get_recommended_interventions(
-  intervention_components_coeff = c(0.1, 0.3, 0.15),
-  include_interaction_terms = FALSE,
-  main_components = NULL,
-  intervention_components = c("name1", "name2"),
-  all_center_lvl_effects = 0,
-  center_weights_for_outcome_goal = 1,
-  cost_list_of_vectors = list(c(0, 1, 2), c(0, 4)),
-  intervention_lower_bounds = c(0, 0),
-  intervention_upper_bounds = c(10, 20),
-  optimization_grid_search_step_size = c(2, 5),
-  outcome_goal = 0.8,
-  optimization_method = "numerical"
-)
-
 }

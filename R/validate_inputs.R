@@ -28,7 +28,9 @@ validate_inputs <- function(
     include_center_effects = FALSE,
     center_effects_optimization_values = NULL,
     include_time_effects = FALSE,
-    include_interaction_terms = FALSE) {
+    include_interaction_terms = FALSE,
+    prev_recommended_interventions = NULL,
+    shrinkage_threshold = 0.25) {
     # check if the input data is null
     if (is.null(data)) {
         stop("The argument 'data' is NULL.")
@@ -457,6 +459,15 @@ validate_inputs <- function(
         intervention_components[needs_backticks] <- paste0(
             "`", intervention_components[needs_backticks], "`"
         )
+    } else {
+        # if interaction terms are not included, then the intervention
+        # components shouldn't have ":" in their names
+        if (any(grepl(":", intervention_components, fixed = TRUE))) {
+            stop(paste(
+                "':' is found in the intervention_components,",
+                "did you mean to set include_interaction_terms to TRUE?"
+            ))
+        }
     }
 
     # check if additional_covariates is a character vector
@@ -523,6 +534,32 @@ validate_inputs <- function(
                 "than or equal to the lower bounds."
             )
         ))
+    }
+
+    # check if lower bounds and upper bounds make sense
+    # by checking the actual min and max values of components in the data
+    if (include_interaction_terms) {
+        all_components <- main_components
+    } else {
+        all_components <- intervention_components
+    }
+    for (i in 1:length(all_components)) {
+        min_val <- min(data[[all_components[i]]], na.rm = TRUE)
+        max_val <- max(data[[all_components[i]]], na.rm = TRUE)
+        if (intervention_lower_bounds[i] > min_val) {
+            warning(paste(
+                "The lower bound for the intervention component",
+                all_components[i],
+                "is greater than the minimum value in the data."
+            ))
+        }
+        if (intervention_upper_bounds[i] < max_val) {
+            warning(paste(
+                "The upper bound for the intervention component",
+                all_components[i],
+                "is less than the maximum value in the data."
+            ))
+        }
     }
 
     # check if unit_costs is valid
@@ -774,6 +811,49 @@ validate_inputs <- function(
         ))
     }
 
+    # check if the prev_recommended_interventions is numeric and
+    # has the same length as the number of intervention components
+    if (!is.null(prev_recommended_interventions)) {
+        if (!is.numeric(prev_recommended_interventions)) {
+            stop("prev_recommended_interventions must be a numeric vector.")
+        }
+        if (include_interaction_terms) {
+            all_components <- main_components
+        } else {
+            all_components <- intervention_components
+        }
+        if (length(prev_recommended_interventions) != length(all_components)) {
+            stop(paste(
+                "The length of prev_recommended_interventions",
+                "must be the same as",
+                "the number of intervention components."
+            ))
+        }
+
+        # pre_recommended_interventions must be within the bounds
+        for (i in 1:length(all_components)) {
+            if (prev_recommended_interventions[i] <
+                intervention_lower_bounds[i] ||
+                prev_recommended_interventions[i] >
+                    intervention_upper_bounds[i]) {
+                stop(paste(
+                    "The pre_recommended_interventions[", i, "]",
+                    "is outside the bounds of the intervention component",
+                    all_components[i], "."
+                ))
+            }
+        }
+    }
+
+    # check if shrinkage_threshold is a numeric value
+    # and is between 0 and 1
+    if (!is.numeric(shrinkage_threshold)) {
+        stop("shrinkage_threshold must be a numeric value.")
+    }
+    if (shrinkage_threshold < 0 || shrinkage_threshold > 1) {
+        stop("shrinkage_threshold must be between 0 and 1.")
+    }
+
     list(
         data = data,
         input_data_structure = input_data_structure,
@@ -805,6 +885,7 @@ validate_inputs <- function(
         include_interaction_terms = include_interaction_terms,
         family_object = family_object,
         link = link,
-        lower_outcome_goal = lower_outcome_goal
+        lower_outcome_goal = lower_outcome_goal,
+        prev_recommended_interventions = prev_recommended_interventions
     )
 }

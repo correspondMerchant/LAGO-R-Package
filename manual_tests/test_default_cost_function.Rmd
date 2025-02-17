@@ -32,6 +32,7 @@ results <- lago_optimization(
 )
 ```
 
+## failed cases 
 ```{r}
 # default_cost_fxn_type is not supported, return error
 results <- lago_optimization(

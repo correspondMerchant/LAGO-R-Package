@@ -1,0 +1,428 @@
+---
+title: "Manual test the shrinking method."
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+# identity link, no center characteristics,
+# no fixed effects, no additional covariates
+# only two intervention components
+# the simplest case possible...
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 400,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1),
+)
+# gear  3.68750
+# qsec 17.84875
+```
+
+
+```{r}
+# more than two components
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec", "drat"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(10, 25, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(8, 10)),
+  outcome_goal = 500,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1, 1),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1, 1)
+)
+# gear  3.687500
+# qsec 17.848750
+# drat  3.596563
+```
+
+```{r}
+# fix stage 1 intervention initial values
+# if known, use the prev stage rec int values
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 70,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1),
+  prev_recommended_interventions = c(5, 15)
+)
+# 10, 25
+```
+
+```{r}
+# add center characteristics
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 100,
+  center_characteristics = c("disp"),
+  center_characteristics_optimization_values = c(5),
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1),
+  prev_recommended_interventions = c(5, 15)
+)
+# gear     5
+# qsec    15
+```
+
+```{r}
+## add fake center effects
+set.seed(123)
+mtcars$center <- sample(1:10, nrow(mtcars), replace = TRUE)
+
+## add fake time effects
+mtcars$period <- sample(1:10, nrow(mtcars), replace = TRUE)
+```
+
+```{r}
+# add fixed center effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 400,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+# gear  3.68750
+# qsec 17.84875
+```
+
+```{r}
+# add fixed center and fixed time effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 300,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+# gear  3.68750
+# qsec 17.84875
+```
+
+```{r}
+# add additional covariates
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 50,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1),
+  additional_covariates = c("disp", "hp"),
+)
+# 10 25
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+
+# add interaction terms
+mtcars$`gear:qsec` <- mtcars$gear * mtcars$qsec
+
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec", "gear:qsec"),
+  include_interaction_terms = TRUE,
+  main_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 400,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+# gear  3.68750
+# qsec 17.84875
+```
+
+## numerical solution also needs to be tested
+## repeat the same tests with the numerical solution
+```{r}
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 400,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1)
+)
+#  gear  3.68750
+#   qsec 17.84875
+```
+
+```{r}
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec", "drat"),
+  intervention_lower_bounds = c(0, 0, 0),
+  intervention_upper_bounds = c(10, 25, 10),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6), c(8, 10)),
+  outcome_goal = 500,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1, 1)
+)
+# gear  3.687500
+# qsec 17.848750
+# drat  3.596563
+```
+
+```{r}
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 70,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  prev_recommended_interventions = c(5, 15)
+)
+# 10, 25
+```
+
+```{r}
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 100,
+  center_characteristics = c("disp"),
+  center_characteristics_optimization_values = c(5),
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  prev_recommended_interventions = c(5, 15)
+)
+#  gear     5
+#  qsec    15
+```
+
+```{r}
+# add fixed center effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 400,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5"
+)
+# gear  3.68750
+# qsec 17.84875
+```
+
+```{r}
+# add fixed center and fixed time effects
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 300,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10
+)
+# gear  3.68750
+# qsec 17.84875
+```
+
+```{r}
+# add additional covariates
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 50,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10,
+  additional_covariates = c("disp", "hp"),
+)
+# 10 25
+```
+
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+
+# add interaction terms
+mtcars$`gear:qsec` <- mtcars$gear * mtcars$qsec
+
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec", "gear:qsec"),
+  include_interaction_terms = TRUE,
+  main_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 25),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 400,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  include_center_effects = TRUE,
+  center_effects_optimization_values = "5",
+  include_time_effects = TRUE,
+  time_effect_optimization_value = 10
+)
+# gear  3.68750
+# qsec 17.84875
+```
