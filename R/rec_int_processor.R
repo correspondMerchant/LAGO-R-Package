@@ -17,7 +17,9 @@ rec_int_processor <- function(
     outcome_goal,
     center_characteristics_optimization_values,
     time_effect_optimization_value,
-    lower_outcome_goal) {
+    lower_outcome_goal,
+    prev_recommended_interventions,
+    shrinkage_threshold) {
     # get coefficients for the intervention components
     intervention_components_coeff <-
         model$coefficients[c("(Intercept)", intervention_components)]
@@ -94,6 +96,7 @@ rec_int_processor <- function(
 
     # calculate recommended interventions
     rec_int_results <- get_recommended_interventions(
+        data = data,
         link = link,
         intervention_components_coeff = intervention_components_coeff,
         include_interaction_terms = include_interaction_terms,
@@ -110,13 +113,16 @@ rec_int_processor <- function(
         center_cha_coeff_vec = center_cha_coeff_vec,
         center_characteristics_optimization_values =
             center_characteristics_optimization_values,
-        lower_outcome_goal = lower_outcome_goal
+        lower_outcome_goal = lower_outcome_goal,
+        prev_recommended_interventions = prev_recommended_interventions,
+        shrinkage_threshold = shrinkage_threshold
     )
 
     list(
         rec_int = rec_int_results$est_rec_int,
         rec_int_cost = rec_int_results$rec_int_cost,
         est_outcome_goal = rec_int_results$est_reachable_outcome,
-        step_size_results = step_size_results
+        step_size_results = step_size_results,
+        shrinking_method_used = rec_int_results$shrinking_method_used
     )
 }

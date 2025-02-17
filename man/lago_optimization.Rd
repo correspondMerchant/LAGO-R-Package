@@ -34,7 +34,9 @@ lago_optimization(
   include_center_effects = FALSE,
   center_effects_optimization_values = NULL,
   include_time_effects = FALSE,
-  include_interaction_terms = FALSE
+  include_interaction_terms = FALSE,
+  prev_recommended_interventions = NULL,
+  shrinkage_threshold = 0.25
 )
 }
 \arguments{
@@ -192,6 +194,21 @@ interaction terms in the intervention components. Please make sure the
 interaciton terms are included in "intervention_components", and they
 follow the correct naming scheme: "component1:component3".
 Default value without user specification: FALSE.}
+
+\item{prev_recommended_interventions}{A numeric vector. The recommended
+interventions from a previous stage of the LAGO optimization. If provided,
+this will be used in the shrinking method (see Section 5.1 of the
+Supplementary material of Nevo et al. (2021) for details).}
+
+\item{shrinkage_threshold}{A numeric value. The threshold for the shrinkage
+method to kick in. This threshold represents the proportion of the distance
+between the estimated outcome without intervention, and the outcome goal. If
+the maximum reachable outcome is less than this value, the shrinkage method
+from Section 5.1 of the Supplementary Materials of Nevo et al. (2021)
+will be applied. If the maximum reachable outcome is greater than this value,
+then the maximum reachable outcome will be used as the outcome goal, and the
+shrinkage method will not be used.
+Default value without user specification: 0.25.}
 }
 \value{
 List(

@@ -130,6 +130,19 @@
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
 #' Default value without user specification: 0.05.
+#' @param prev_recommended_interventions A numeric vector. The recommended
+#' interventions from a previous stage of the LAGO optimization. If provided,
+#' this will be used in the shrinking method (see Section 5.1 of the
+#' Supplementary material of Nevo et al. (2021) for details).
+#' @param shrinkage_threshold A numeric value. The threshold for the shrinkage
+#' method to kick in. This threshold represents the proportion of the distance
+#' between the estimated outcome without intervention, and the outcome goal. If
+#' the maximum reachable outcome is less than this value, the shrinkage method
+#' from Section 5.1 of the Supplementary Materials of Nevo et al. (2021)
+#' will be applied. If the maximum reachable outcome is greater than this value,
+#' then the maximum reachable outcome will be used as the outcome goal, and the
+#' shrinkage method will not be used.
+#' Default value without user specification: 0.25.
 #'
 #' @return List(
 #' recommended interventions,
@@ -222,7 +235,9 @@ lago_optimization <- function(
     include_center_effects = FALSE,
     center_effects_optimization_values = NULL,
     include_time_effects = FALSE,
-    include_interaction_terms = FALSE) {
+    include_interaction_terms = FALSE,
+    prev_recommended_interventions = NULL,
+    shrinkage_threshold = 0.25) {
   cli_alert_info("Starting LAGO Optimization")
 
   cli_alert_info("Validating inputs...")
@@ -298,7 +313,9 @@ lago_optimization <- function(
     center_characteristics_optimization_values =
       center_characteristics_optimization_values,
     time_effect_optimization_value = time_effect_optimization_value,
-    lower_outcome_goal = lower_outcome_goal
+    lower_outcome_goal = lower_outcome_goal,
+    prev_recommended_interventions = prev_recommended_interventions,
+    shrinkage_threshold = shrinkage_threshold
   )
   Sys.sleep(0.25)
   cli_alert_success("Done")
@@ -306,6 +323,9 @@ lago_optimization <- function(
   # unpack the recommended intervention results to the environment
   list2env(rec_int_results, envir = environment())
 
+  if (rec_int_results$shrinking_method_used) {
+    include_confidence_set <- FALSE
+  }
   # calculate the confidence set
   if (include_confidence_set) {
     cli_alert_info("Calculating the confidence set...")

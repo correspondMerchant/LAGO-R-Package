@@ -124,23 +124,29 @@ print_output <- function(
         cat("\n========================================")
         cat("\n============ Confidence Set ============\n")
         cat("========================================\n")
-        cat(
-            "Confidence set size percentage:",
-            cs$confidence_set_size_percentage, "\n"
-        )
-        lo_percentile <- quantile(cs$cs[-1, ]$cost, 0.25)
-        hi_percentile <- quantile(cs$cs[-1, ]$cost, 0.75)
-        cat(
-            "IQR of the cost within the 95% confidence set:",
-            lo_percentile, "-", hi_percentile, "\n\n"
-        )
-
-        if (cs$confidence_set_size_percentage > 0) {
-            cat("Confidence set (only first few rows are shown): \n")
-            cat("Please use $cs to get the full confidence set. \n")
-            print(head(cs$cs[-1, ]))
+        if (round(cs$confidence_set_size_percentage, 2) == 0) {
+            cat(
+                "\nNo confidence set was found for the current outcome goal.\n"
+            )
         } else {
-            cat("No confidense set was found. \n")
+            cat(
+                "Confidence set size percentage:",
+                cs$confidence_set_size_percentage, "\n"
+            )
+            lo_percentile <- quantile(cs$cs[-1, ]$cost, 0.25)
+            hi_percentile <- quantile(cs$cs[-1, ]$cost, 0.75)
+            cat(
+                "IQR of the cost within the 95% confidence set:",
+                lo_percentile, "-", hi_percentile, "\n\n"
+            )
+
+            if (cs$confidence_set_size_percentage > 0) {
+                cat("Confidence set (only first few rows are shown): \n")
+                cat("Please use $cs to get the full confidence set. \n")
+                print(head(cs$cs[-1, ]))
+            } else {
+                cat("No confidense set was found. \n")
+            }
         }
     }
 }

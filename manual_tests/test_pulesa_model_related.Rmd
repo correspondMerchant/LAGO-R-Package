@@ -12,6 +12,7 @@ devtools::clean_dll()
 devtools::load_all()
 ```
 
+# failed cases 
 ```{r}
 # throws error when columns are missing from input data
 # for input_data_structure = "center_level"
@@ -374,7 +375,7 @@ devtools::clean_dll()
 devtools::load_all()
 ```
 ```{r}
-# "new" model, with confidence set yet.
+# "new" model, with confidence set.
 optimization_results <- lago_optimization(
     data = new_pulesa_data,
     input_data_structure = "center_level",
