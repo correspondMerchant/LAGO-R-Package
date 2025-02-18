@@ -188,8 +188,8 @@ In addition, we assign fake centers and fake time periods to all observations as
 For the optimal intervention, instead of an overall optimal intervention package, we are interested in an optimal intervention package that is specifically for center "5" in time period "10". 
 
 ```
-# The BetterBirth data has been open sourced so it is included
-# in the LAGO R package
+# The BetterBirth data has been open sourced so a version of
+# the BetterBirth data is included in the LAGO R package
 bb_data <- LAGO::BB_data
 head(bb_data)
 
@@ -333,8 +333,8 @@ From the output, notice that the model fitting results are a lot more complicate
 ### How to run additional examples
 Please note that this readme file does not cover all the details of the input arguments, various aspects of the outcome model, and additional details of the optimization algorithm for calculating the recommended interventions. 
 
-You can also fit 'center-level' data, change the optimization method, include interaction terms and additional covariates, carry out a test for overall intervention effect, etc. 
-Please refer to R help files and example from the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder for details. 
+**You can also fit 'center-level' data, change the optimization method, include interaction terms and additional covariates, carry out a test for overall intervention effect, etc. 
+Please refer to R help files and example from the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder for details.** 
 
 You can start with the simpler ones, like the [identity link with built-in dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_cts_identity.Rmd), or the [logistic link with the BetterBirth dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_BB_data.Rmd) before moving on to other files.
 
