@@ -1,0 +1,329 @@
+---
+title: "Manual test the shrinking method."
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+## failed cases 
+```{r}
+# power goal not numeric
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  power_goal = "0.8"
+)
+```
+
+```{r}
+# power goal not between 0 and 1
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  power_goal = 1.2
+)
+```
+
+```{r}
+# using power goal when outcome type is not binary
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  power_goal = 0.8
+)
+```
+
+```{r}
+# group column is missing
+optimization_results <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8
+)
+```
+
+```{r}
+bb_data <- LAGO::BB_data
+bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
+
+
+optimization_results <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8
+)
+```
+
+
+## succcess cases 
+## scenario 1, hat_p_max >= max(power goal, power_desired_outcome goal)
+
+### grid search 
+```{r}
+optimization_results <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 10,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+```
+
+### numerical optimization
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+
+optimization_results <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 10
+)
+```
+
+### conditional 
+```{r}
+optimization_results <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 10,
+  power_goal_approach = "conditional"
+)
+```
+
+## scenario 2, hat_p_max < max(power goal, power_desired_outcome goal)
+## but >= quarter_point 
+```{r}
+set.seed(123)
+
+n <- 200
+data <- data.frame(
+  int1 = runif(n, min = 0, max = 50),
+  int2 = runif(n, min = 0, max = 1),
+  group = rep(c("control", "treatment"), each = n / 2)
+)
+
+logit <- -2 + 0.02 * data$int1 +
+  2 * data$int2 + 0.5 * (data$group == "treatment")
+prob <- 1 / (1 + exp(-logit))
+
+data$outcome <- rbinom(n, size = 1, prob = prob)
+summary(data)
+```
+
+### grid search 
+```{r}
+results <- lago_optimization(
+  data = data,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("int1", "int2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(40, 1.5),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.75,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 2,
+  patients_per_center_in_next_stage = 5,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1)
+)
+```
+
+### numerical optimization
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+
+results <- lago_optimization(
+  data = data,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("int1", "int2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(40, 1.5),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.75,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 2,
+  patients_per_center_in_next_stage = 5
+)
+```
+
+### conditional 
+```{r}
+results <- lago_optimization(
+  data = data,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("int1", "int2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(40, 1.5),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.75,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 4,
+  patients_per_center_in_next_stage = 5,
+  power_goal_approach = "conditional"
+)
+```
+
+## scenario 3, hat_p_max < quarter_point
+## shrink towards stage 1 recommend interventions
+
+### grid search 
+```{r}
+results <- lago_optimization(
+  data = data,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("int1", "int2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(2, 0.1),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.75,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 2,
+  patients_per_center_in_next_stage = 5,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(0.1, 0.1)
+)
+```
+
+### numerical optimization
+```{r}
+results <- lago_optimization(
+  data = data,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("int1", "int2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(2, 0.1),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.75,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 2,
+  patients_per_center_in_next_stage = 5
+)
+```
+
+### conditional 
+```{r}
+results <- lago_optimization(
+  data = data,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("int1", "int2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(2, 0.1),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.75,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 2,
+  patients_per_center_in_next_stage = 5,
+  power_goal_approach = "conditional"
+)
+```

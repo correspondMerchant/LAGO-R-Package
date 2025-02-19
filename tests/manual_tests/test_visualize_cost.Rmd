@@ -1,0 +1,57 @@
+title: "Manual test for the R shiny app."
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+## failed cases 
+```{r}
+# input validation, invalid component names
+visualize_cost(
+  component_names = c(4, 5),
+  unit_costs = c(1.2, 2.4),
+  default_cost_fxn_type = "linear",
+  intervention_lower_bounds = c(1, 0),
+  intervention_upper_bounds = c(4, 40)
+)
+```
+
+## success cases 
+```{r}
+# linear default cost
+visualize_cost(
+  component_names = c("gear", "qsec"),
+  unit_costs = c(1.2, 2.4),
+  default_cost_fxn_type = "linear",
+  intervention_lower_bounds = c(1, 0),
+  intervention_upper_bounds = c(4, 40)
+)
+```
+
+```{r}
+# cubic default cost
+visualize_cost(
+  component_names = c("gear", "qsec"),
+  unit_costs = c(2, 5),
+  default_cost_fxn_type = "cubic",
+  intervention_lower_bounds = c(1, 0),
+  intervention_upper_bounds = c(4, 40)
+)
+```
+
+```{r}
+# cubic default cost, more components
+visualize_cost(
+  component_names = c("gear", "qsec", "disp", "hp"),
+  unit_costs = c(2, 5, 3, 1.2),
+  default_cost_fxn_type = "cubic",
+  intervention_lower_bounds = c(1, 0, 10, 0),
+  intervention_upper_bounds = c(4, 40, 20, 10)
+)
+```

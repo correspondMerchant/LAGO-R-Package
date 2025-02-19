@@ -143,6 +143,18 @@
 #' then the maximum reachable outcome will be used as the outcome goal, and the
 #' shrinkage method will not be used.
 #' Default value without user specification: 0.25.
+#' @param power_goal A numeric value. Specifies the power goal, a desired power
+#' value.
+#' Default value without user specification: NULL.
+#' @param power_goal_approach A character string. Specifies the approach to
+#' achieve the power goal. Must be either "unconditional" or "conditional".
+#' Default value without user specification: "unconditional".
+#' @param num_centers_in_next_stage A numeric value. Specifies the number of
+#' total centers (treatment + control) in the next stage of the trial.
+#' Default value without user specification: NULL.
+#' @param patients_per_center_in_next_stage A numeric value. Specifies
+#' the number of patients per center in the next stage of the trial.
+#' Default value without user specification: NULL.
 #'
 #' @return List(
 #' recommended interventions,
@@ -215,6 +227,10 @@ lago_optimization <- function(
     intervention_upper_bounds,
     outcome_goal,
     outcome_goal_intention,
+    power_goal = NULL,
+    power_goal_approach = "unconditional",
+    num_centers_in_next_stage = NULL,
+    patients_per_center_in_next_stage = NULL,
     unit_costs = NULL,
     default_cost_fxn_type = "cubic",
     cost_list_of_vectors = NULL,
@@ -238,21 +254,21 @@ lago_optimization <- function(
     include_interaction_terms = FALSE,
     prev_recommended_interventions = NULL,
     shrinkage_threshold = 0.25) {
-  cli_alert_info("Starting LAGO Optimization")
+  cli::cli_alert_info("Starting LAGO Optimization")
 
-  cli_alert_info("Validating inputs...")
+  cli::cli_alert_info("Validating inputs...")
   # validate and preapre inputs
   inputs <- do.call(
     validate_inputs,
     as.list(environment())
   )
   Sys.sleep(0.25)
-  cli_alert_success("Done")
+  cli::cli_alert_success("Done")
 
   # unpack the inputs to the environment
   list2env(inputs, envir = environment())
 
-  cli_alert_info("Assessing the cost function...")
+  cli::cli_alert_info("Assessing the cost function...")
   # if the user did not specify cost_list_of_vectors, we
   # calculate it based on the unit_costs and default_cost_fxn_type
   if (is.null(cost_list_of_vectors)) {
@@ -264,9 +280,9 @@ lago_optimization <- function(
     )
   }
   Sys.sleep(0.25)
-  cli_alert_success("Done")
+  cli::cli_alert_success("Done")
 
-  cli_alert_info("Fitting the outcome model...")
+  cli::cli_alert_info("Fitting the outcome model...")
   # fit the outcome model
   outcome_model <- outcome_model_fitting(
     data = data,
@@ -282,12 +298,12 @@ lago_optimization <- function(
     include_interaction_terms = include_interaction_terms
   )
   Sys.sleep(0.25)
-  cli_alert_success("Done")
+  cli::cli_alert_success("Done")
 
   # unpack the outcome model to the environment
   list2env(outcome_model, envir = environment())
 
-  cli_alert_info("Calculating the recommended intervention...")
+  cli::cli_alert_info("Calculating the recommended intervention...")
   if (lower_outcome_goal) {
     new_model <- model
     new_model$coefficients <- -1 * (model$coefficients)
@@ -315,10 +331,15 @@ lago_optimization <- function(
     time_effect_optimization_value = time_effect_optimization_value,
     lower_outcome_goal = lower_outcome_goal,
     prev_recommended_interventions = prev_recommended_interventions,
-    shrinkage_threshold = shrinkage_threshold
+    shrinkage_threshold = shrinkage_threshold,
+    power_goal = power_goal,
+    power_goal_approach = power_goal_approach,
+    num_centers_in_next_stage = num_centers_in_next_stage,
+    patients_per_center_in_next_stage = patients_per_center_in_next_stage,
+    outcome_name = outcome_name
   )
   Sys.sleep(0.25)
-  cli_alert_success("Done")
+  cli::cli_alert_success("Done")
 
   # unpack the recommended intervention results to the environment
   list2env(rec_int_results, envir = environment())
@@ -328,7 +349,7 @@ lago_optimization <- function(
   }
   # calculate the confidence set
   if (include_confidence_set) {
-    cli_alert_info("Calculating the confidence set...")
+    cli::cli_alert_info("Calculating the confidence set...")
     cs_results <- confidence_set_processor(
       data = data,
       confidence_set_grid_step_size = confidence_set_grid_step_size,
@@ -358,7 +379,7 @@ lago_optimization <- function(
     # unpack the confidence set results to the environment
     list2env(cs_results, envir = environment())
     Sys.sleep(0.25)
-    cli_alert_success("Done")
+    cli::cli_alert_success("Done")
   }
 
   # carry out the overall intervention test
@@ -372,9 +393,9 @@ lago_optimization <- function(
     test_results <- NULL
   }
 
-  cli_alert("{symbol$heart} LAGO optimization complete {symbol$heart}")
+  cli::cli_alert("{symbol$heart} LAGO optimization complete {symbol$heart}")
   Sys.sleep(0.5)
-  cli_alert_info("Printing the output...")
+  cli::cli_alert_info("Printing the output...")
 
   Sys.sleep(0.25)
   # print the output, including some user inputs

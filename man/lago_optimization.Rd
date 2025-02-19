@@ -14,6 +14,10 @@ lago_optimization(
   intervention_upper_bounds,
   outcome_goal,
   outcome_goal_intention,
+  power_goal = NULL,
+  power_goal_approach = "unconditional",
+  num_centers_in_next_stage = NULL,
+  patients_per_center_in_next_stage = NULL,
   unit_costs = NULL,
   default_cost_fxn_type = "cubic",
   cost_list_of_vectors = NULL,
@@ -75,6 +79,22 @@ probability or mean value.}
 the outcome goal. Must be either "maximize" or "minimize". If the goal is to
 increase the outcome, set it to "maximize". If the goal is to decrease the
 outcome, set it to "minimize".}
+
+\item{power_goal}{A numeric value. Specifies the power goal, a desired power
+value.
+Default value without user specification: NULL.}
+
+\item{power_goal_approach}{A character string. Specifies the approach to
+achieve the power goal. Must be either "unconditional" or "conditional".
+Default value without user specification: "unconditional".}
+
+\item{num_centers_in_next_stage}{A numeric value. Specifies the number of
+total centers (treatment + control) in the next stage of the trial.
+Default value without user specification: NULL.}
+
+\item{patients_per_center_in_next_stage}{A numeric value. Specifies
+the number of patients per center in the next stage of the trial.
+Default value without user specification: NULL.}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each
 intervention component.

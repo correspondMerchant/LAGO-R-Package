@@ -1,0 +1,58 @@
+---
+title: "manually test the power goal for binary outcomes"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+# success cases 
+```{r}
+bb_data <- LAGO::BB_data
+bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
+
+# uncondtional power approach
+optimization_results <- lago_optimization(
+    data = bb_data,
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85,
+    outcome_goal_intention = "maximize",
+    power_goal = 0.8,
+    num_centers_in_next_stage = 10,
+    patients_per_center_in_next_stage = 30
+)
+```
+
+
+```{r}
+# conditional power approach
+optimization_results <- lago_optimization(
+    data = bb_data,
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    center_characteristics = c("birth_volume_100"),
+    center_characteristics_optimization_values = 1.75,
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85,
+    outcome_goal_intention = "maximize",
+    power_goal = 0.8,
+    num_centers_in_next_stage = 10,
+    patients_per_center_in_next_stage = 30,
+    power_goal_approach = "conditional"
+)
+```

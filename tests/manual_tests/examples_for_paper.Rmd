@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-## this is still work in progress
+## work in progress
 
 
 ```{r}
@@ -15,23 +15,69 @@ devtools::clean_dll()
 devtools::load_all()
 ```
 
+
+## section 4.1 - continuous outcome, linear regression
 ```{r}
+# no confidence set calculations
+# using R built-in dataset mtcars
 results <- lago_optimization(
-    data = infert,
-    outcome_name = "case",
-    outcome_type = "binary",
-    glm_family = "binomial",
-    intervention_components = c("age", "parity"),
+    data = mtcars,
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
     intervention_lower_bounds = c(0, 0),
-    intervention_upper_bounds = c(50, 10),
-    cost_list_of_vectors = list(c(0, 4), c(0, 1)),
-    outcome_goal = 0.5,
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    outcome_goal_intention = "maximize",
+    include_confidence_set = FALSE
+)
+```
+
+```{r}
+# with confidence set calculations
+# using R built-in dataset mtcars
+results <- lago_optimization(
+    data = mtcars,
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
     outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 1)
 )
 ```
 
-## section 4.1 - binary outcome, logistic regression, 
+```{r}
+# with grid search optimization
+results <- lago_optimization(
+    data = mtcars,
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 40,
+    outcome_goal_intention = "maximize",
+    optimization_method = "grid_search",
+    optimization_grid_search_step_size = c(1, 1),
+    confidence_set_grid_step_size = c(1, 1)
+)
+```
+
+
+
+## section 4.2 - binary outcome, logistic regression, 
 ```{r}
 # no confidence set calculations first
 # using R built-in dataset infert
@@ -85,22 +131,6 @@ results <- lago_optimization(
 ```
 
 
-## section 4.2 - continuous outcome, linear regression
-```{r}
-results <- lago_optimization(
-    data = mtcars,
-    outcome_name = "mpg",
-    outcome_type = "continuous",
-    glm_family = "gaussian",
-    link = "identity",
-    intervention_components = c("gear", "qsec"),
-    intervention_lower_bounds = c(0, 0),
-    intervention_upper_bounds = c(10, 350),
-    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
-    outcome_goal = 40,
-    outcome_goal_intention = "maximize"
-)
-```
 
 
 
