@@ -334,9 +334,9 @@ From the output, notice that the model fitting results are a lot more complicate
 Please note that this readme file does not cover all the details of the input arguments, various aspects of the outcome model, and additional details of the optimization algorithm for calculating the recommended interventions. 
 
 **You can also fit 'center-level' data, change the optimization method, include interaction terms and additional covariates, carry out a test for overall intervention effect, etc. 
-Please refer to R help files and example from the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder for details.** 
+Please refer to R help files and example from the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/tests/manual_tests) folder for details.** 
 
-You can start with the simpler ones, like the [identity link with built-in dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_cts_identity.Rmd), or the [logistic link with the BetterBirth dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/manual_tests/test_rec_int_for_BB_data.Rmd) before moving on to other files.
+You can start with the simpler ones, like the [identity link with built-in dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_rec_int_for_cts_identity.Rmd), or the [logistic link with the BetterBirth dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_rec_int_for_BB_data.Rmd) before moving on to other files.
 
 
 ### Relevant LAGO papers
@@ -344,7 +344,7 @@ You can start with the simpler ones, like the [identity link with built-in datas
 2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. arXiv preprint arXiv:2307.06552. 2023 Jul 13.](https://arxiv.org/pdf/2307.06552)
 
 ### How to get help 
-Before reaching out for help, please carefully review this readme file, examine the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/manual_tests) folder, and read relevant LAGO papers. 
+Before reaching out for help, please carefully review this readme file, examine the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/tests/manual_tests) folder, and read relevant LAGO papers. 
 
 Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you still have questions.
 
