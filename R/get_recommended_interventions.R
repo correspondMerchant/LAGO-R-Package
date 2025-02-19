@@ -67,6 +67,16 @@
 #' @param shrinkage_threshold A numeric value. Specifies the threshold for
 #' shrinking the recommended intervention towards the recommended intervention
 #' from the previous stage.
+#' @param power_goal A numeric value. Specifies the power goal, a desired
+#' power value between 0 and 1.
+#' @param power_goal_approach A character string. Specifies the approach used
+#' to achieve the power goal. Must be either "unconditional" or "conditional".
+#' @param num_centers_in_next_stage A numeric value. Specifies the number of
+#' centers in the next stage.
+#' @param patients_per_center_in_next_stage A numeric value.
+#' Specifies the number of patients per center in the next stage.
+#' @param outcome_name A character string. Specifies the name of the outcome
+#' variable in the dataset.
 #'
 #' @return List(
 #' recommended interventions,
@@ -78,8 +88,6 @@
 #' @importFrom rje expit logit
 #' @import stats
 #' @importFrom NlcOptim solnl
-#'
-#' @export
 #'
 get_recommended_interventions <- function(
     data,
@@ -100,9 +108,29 @@ get_recommended_interventions <- function(
     link = "identity",
     lower_outcome_goal = FALSE,
     prev_recommended_interventions,
-    shrinkage_threshold) {
-  # shrinking flag
-  shrinking_method_used <- FALSE
+    shrinkage_threshold,
+    power_goal,
+    power_goal_approach,
+    num_centers_in_next_stage,
+    patients_per_center_in_next_stage,
+    outcome_name) {
+  # check if power goal is null, if not, calculate the desired outcome
+  # value needed to achieve the power goal
+  if (!is.null(power_goal)) {
+    power_desired_outcome <- get_power_desired_outcome(
+      data,
+      intervention_components_coeff,
+      power_goal,
+      power_goal_approach,
+      num_centers_in_next_stage,
+      patients_per_center_in_next_stage,
+      outcome_name
+    )
+
+    new_outcome_goal <- max(power_desired_outcome, outcome_goal)
+  } else {
+    new_outcome_goal <- outcome_goal
+  }
 
   # Function to create a cost function based on coefficients
   # in cost_list_of_vectors
@@ -146,6 +174,7 @@ get_recommended_interventions <- function(
                                           step_size,
                                           link,
                                           shrinkage_threshold) {
+      shrinking_method_used <- FALSE
       # create sequence grids for each intervention component
       grids <- lapply(seq_along(cost_params), function(i) {
         seq(lo[i], up[i], by = step_size[i])
@@ -199,28 +228,15 @@ get_recommended_interventions <- function(
       # optimization function
       f_combined <- function(int, main_effects_int, link) {
         int_vector <- as.numeric(c(1, int))
-        # calculate the outcome for this intervention
-        if (link == "logit") {
-          outcome <- sum(
-            center_weights_for_outcome_goal *
-              expit(
-                all_center_lvl_effects +
-                  sum(beta * int_vector) +
-                  center_cha_coeff_vec * center_cha +
-                  ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
-              )
-          )
-        } else {
-          outcome <- sum(
-            center_weights_for_outcome_goal *
-              (
-                all_center_lvl_effects +
-                  sum(beta * int_vector) +
-                  center_cha_coeff_vec * center_cha +
-                  ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
-              )
-          )
-        }
+        outcome <- get_outcome(
+          center_weights_for_outcome_goal,
+          all_center_lvl_effects,
+          beta,
+          int_vector,
+          center_cha_coeff_vec,
+          center_cha,
+          link
+        )
 
         # calculate the cost for this intervention
         cost <- sum(mapply(
@@ -235,7 +251,7 @@ get_recommended_interventions <- function(
       # apply f_combined to all grid points
       all_results <- mapply(
         function(i) f_combined(new_grid[i, ], full_grid[i, ], link),
-        1:nrow(new_grid),
+        seq_len(nrow(new_grid)),
         SIMPLIFY = FALSE # so it rerturns a list
       )
 
@@ -246,10 +262,9 @@ get_recommended_interventions <- function(
       # find the maximum outcome
       max_outcome <- max(all_outcomes)
 
-      if (max_outcome >= outcome_goal) {
-        # if the outcome goal is achievable,
-        # find the minimum cost solution that meets the goal
-        valid_indices <- which(all_outcomes >= outcome_goal)
+      if (max_outcome >= new_outcome_goal) {
+        # 1) if the outcome goal is achievable
+        valid_indices <- which(all_outcomes >= new_outcome_goal)
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
 
         est_rec_int <- as.numeric(full_grid[best_index, ])
@@ -269,7 +284,6 @@ get_recommended_interventions <- function(
           intervention_components = intervention_components,
           main_components = main_components,
           link = link,
-          outcome_goal = outcome_goal,
           center_weights_for_outcome_goal = center_weights_for_outcome_goal,
           all_center_lvl_effects = all_center_lvl_effects,
           beta = beta,
@@ -279,6 +293,10 @@ get_recommended_interventions <- function(
 
         quarter_point <- est_outcome_wo_int +
           (outcome_goal - est_outcome_wo_int) * shrinkage_threshold
+
+        # 2) if the largest achievable outcome is larger than 1/4 of the
+        # difference between the outcome goal and the estimated outcome
+        # without intervention
         if (max_outcome >= quarter_point) {
           warning(paste(
             "The outcome goal is not achievable.",
@@ -297,8 +315,9 @@ get_recommended_interventions <- function(
           est_rec_int <- as.numeric(full_grid[best_index, ])
           rec_int_cost <- all_costs[best_index]
         } else {
-          # shrinking method is used
-          # see Section 5.1 of Supplementary Materials of Nevo et al. (2021)
+          # 3) if the largest achievable outcome is less than 1/4 of the
+          # difference between the outcome goal and the estimated outcome
+          # without intervention, the shrinking method is used
           warning(paste(
             "The outcome goal is not achievable.",
             "Since the maximum estimated achievable outcome\n",
@@ -315,7 +334,7 @@ get_recommended_interventions <- function(
             lo = lo,
             up = up,
             beta = beta,
-            outcome_goal = outcome_goal,
+            outcome_goal = quarter_point,
             include_interaction_terms = include_interaction_terms,
             intervention_components = intervention_components,
             main_components = main_components,
@@ -326,6 +345,7 @@ get_recommended_interventions <- function(
             link = link,
             stage_1_intervention = shrink_to_int_values
           )
+
           shrinking_method_used <- TRUE
           est_rec_int <- as.numeric(shrinking_results)
 
@@ -345,7 +365,6 @@ get_recommended_interventions <- function(
         intervention_components = intervention_components,
         main_components = main_components,
         link = link,
-        outcome_goal = outcome_goal,
         center_weights_for_outcome_goal = center_weights_for_outcome_goal,
         all_center_lvl_effects = all_center_lvl_effects,
         beta = beta,
@@ -399,59 +418,27 @@ get_recommended_interventions <- function(
                                        center_cha_coeff_vec,
                                        center_cha,
                                        link) {
+      shrinking_method_used <- FALSE
       # Objective function to maximize outcome
       obj_fun_for_max_outcome <- function(int) {
-        # In the presence of interaction terms
-        if (include_interaction_terms) {
-          int_vector <- numeric(length(intervention_components))
-          for (i in seq_along(intervention_components)) {
-            components <- strsplit(
-              gsub("`", "", intervention_components[i]), ":"
-            )[[1]]
-            if (length(components) == 1) {
-              # For single components, use the value directly
-              idx <- which(main_components == components[1])
-              int_vector[i] <- int[idx]
-            } else {
-              # For interaction terms, multiply the corresponding values
-              prod_result <- 1
-              for (comp in components) {
-                # identify which component in the main_components corresponds
-                # to "comp".
-                idx <- which(main_components == comp)
-                prod_result <- prod_result * int[idx]
-              }
-              int_vector[i] <- prod_result
-            }
-          }
-          int_vector <- c(1, int_vector)
-        } else {
-          # no interaction term
-          int_vector <- c(1, int)
-        }
+        int_vector <- get_int_vector(
+          include_interaction_terms,
+          intervention_components,
+          main_components,
+          int
+        )
+
         # negative because NlcOptim minimizes this objective function by default
         return(
-          if (link == "logit") {
-            -sum(
-              center_weights_for_outcome_goal *
-                expit(
-                  all_center_lvl_effects +
-                    sum(beta * int_vector) +
-                    center_cha_coeff_vec * center_cha +
-                    ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
-                )
-            )
-          } else {
-            -sum(
-              center_weights_for_outcome_goal *
-                (
-                  all_center_lvl_effects +
-                    sum(beta * int_vector) +
-                    center_cha_coeff_vec * center_cha +
-                    ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
-                )
-            )
-          }
+          -get_outcome(
+            center_weights_for_outcome_goal,
+            all_center_lvl_effects,
+            beta,
+            int_vector,
+            center_cha_coeff_vec,
+            center_cha,
+            link
+          )
         )
       }
 
@@ -467,7 +454,7 @@ get_recommended_interventions <- function(
         start_points <- lo + quantile_points[i] * (up - lo)
         result <- tryCatch(
           {
-            solnl(
+            NlcOptim::solnl(
               X = start_points,
               objfun = obj_fun_for_max_outcome,
               lb = lo,
@@ -497,8 +484,8 @@ get_recommended_interventions <- function(
         return(sum(mapply(function(f, x) f(x), cost_functions, x)))
       }
 
-      # check if the max achievable outcome is larger than the outcome goal
-      if (max_achievable_outcome >= outcome_goal) {
+      # 1) if the max achievable outcome is larger than the new outcome goal
+      if (max_achievable_outcome >= new_outcome_goal) {
         # If the goal is achievable, get the recommended intervention that
         # minimizes the total cost function
 
@@ -506,62 +493,27 @@ get_recommended_interventions <- function(
         # (see helper doc of NlcOptim package for details)
         constraint_fun <- function(x) {
           f <- NULL
-          if (include_interaction_terms) {
-            int_vector <- numeric(length(intervention_components))
-            for (i in seq_along(intervention_components)) {
-              components <- strsplit(
-                gsub("`", "", intervention_components[i]), ":"
-              )[[1]]
 
-              if (length(components) == 1) {
-                # For single components, use the value directly
-                idx <- which(main_components == components[1])
-                int_vector[i] <- x[idx]
-              } else {
-                # For interaction terms, multiply the corresponding values
-                prod_result <- 1
-                for (comp in components) {
-                  # identify which component in the main_components corresponds
-                  # to "comp".
-                  idx <- which(main_components == comp)
-                  prod_result <- prod_result * x[idx]
-                }
-                int_vector[i] <- prod_result
-              }
-            }
-            int_vector <- c(1, int_vector)
-          } else {
-            int_vector <- c(1, x)
-          }
-          if (link == "logit") {
-            f <- rbind(
-              f,
-              outcome_goal -
-                sum(
-                  center_weights_for_outcome_goal *
-                    expit(
-                      all_center_lvl_effects +
-                        sum(beta * int_vector) +
-                        center_cha_coeff_vec * center_cha +
-                        ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
-                    )
-                )
-            )
-          } else {
-            f <- rbind(
-              f,
-              outcome_goal -
-                sum(
-                  center_weights_for_outcome_goal *
-                    (
-                      all_center_lvl_effects +
-                        sum(beta * int_vector) +
-                        center_cha_coeff_vec * center_cha +
-                        ifelse(length(all_center_lvl_effects) > 1, -beta[1], 0)
-                    )
-                )
-            )
-          }
+          int_vector <- get_int_vector(
+            include_interaction_terms,
+            intervention_components,
+            main_components,
+            x
+          )
+
+          f <- rbind(
+            f,
+            new_outcome_goal -
+              get_outcome(
+                center_weights_for_outcome_goal,
+                all_center_lvl_effects,
+                beta,
+                int_vector,
+                center_cha_coeff_vec,
+                center_cha,
+                link
+              )
+          )
 
           return(list(ceq = NULL, c = f))
         }
@@ -572,7 +524,7 @@ get_recommended_interventions <- function(
           start_points <- lo + quantile_points[i] * (up - lo)
           result <- tryCatch(
             {
-              solnl(
+              NlcOptim::solnl(
                 X = start_points, # Use start_points instead of a fixed midpoint
                 objfun = cost_obj_fun,
                 confun = constraint_fun,
@@ -606,7 +558,6 @@ get_recommended_interventions <- function(
           intervention_components = intervention_components,
           main_components = main_components,
           link = link,
-          outcome_goal = outcome_goal,
           center_weights_for_outcome_goal = center_weights_for_outcome_goal,
           all_center_lvl_effects = all_center_lvl_effects,
           beta = beta,
@@ -626,7 +577,6 @@ get_recommended_interventions <- function(
           intervention_components = intervention_components,
           main_components = main_components,
           link = link,
-          outcome_goal = outcome_goal,
           center_weights_for_outcome_goal = center_weights_for_outcome_goal,
           all_center_lvl_effects = all_center_lvl_effects,
           beta = beta,
@@ -636,6 +586,10 @@ get_recommended_interventions <- function(
 
         quarter_point <- est_outcome_wo_int +
           (outcome_goal - est_outcome_wo_int) * shrinkage_threshold
+
+        # 2) if the largest achievable outcome is larger than
+        # 1/4 of the difference between the outcome goal and the
+        # estimated outcome without intervention
         if (max_achievable_outcome >= quarter_point) {
           # use the largest achievable outcome as the outcome goal
           warning(paste(
@@ -658,7 +612,6 @@ get_recommended_interventions <- function(
             intervention_components = intervention_components,
             main_components = main_components,
             link = link,
-            outcome_goal = outcome_goal,
             center_weights_for_outcome_goal = center_weights_for_outcome_goal,
             all_center_lvl_effects = all_center_lvl_effects,
             beta = beta,
@@ -666,8 +619,9 @@ get_recommended_interventions <- function(
             center_cha = center_cha
           )
         } else {
-          # shrinking method is used
-          # see Section 5.1 of Supplementary Materials of Nevo et al. (2021)
+          # 3) if the largest achievable outcome is less than
+          # 1/4 of the difference between the outcome goal and the
+          # estimated outcome without intervention, the shrinking method is used
           warning(paste(
             "The outcome goal is not achievable.",
             "Since the maximum estimated achievable outcome\n",
@@ -685,7 +639,7 @@ get_recommended_interventions <- function(
             lo = lo,
             up = up,
             beta = beta,
-            outcome_goal = outcome_goal,
+            outcome_goal = quarter_point,
             include_interaction_terms = include_interaction_terms,
             intervention_components = intervention_components,
             main_components = main_components,
@@ -705,7 +659,6 @@ get_recommended_interventions <- function(
             intervention_components = intervention_components,
             main_components = main_components,
             link = link,
-            outcome_goal = outcome_goal,
             center_weights_for_outcome_goal = center_weights_for_outcome_goal,
             all_center_lvl_effects = all_center_lvl_effects,
             beta = beta,

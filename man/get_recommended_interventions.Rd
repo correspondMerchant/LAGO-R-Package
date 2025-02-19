@@ -23,7 +23,12 @@ get_recommended_interventions(
   link = "identity",
   lower_outcome_goal = FALSE,
   prev_recommended_interventions,
-  shrinkage_threshold
+  shrinkage_threshold,
+  power_goal,
+  power_goal_approach,
+  num_centers_in_next_stage,
+  patients_per_center_in_next_stage,
+  outcome_name
 )
 }
 \arguments{
@@ -109,6 +114,21 @@ recommended interventions from the previous stage.}
 \item{shrinkage_threshold}{A numeric value. Specifies the threshold for
 shrinking the recommended intervention towards the recommended intervention
 from the previous stage.}
+
+\item{power_goal}{A numeric value. Specifies the power goal, a desired
+power value between 0 and 1.}
+
+\item{power_goal_approach}{A character string. Specifies the approach used
+to achieve the power goal. Must be either "unconditional" or "conditional".}
+
+\item{num_centers_in_next_stage}{A numeric value. Specifies the number of
+centers in the next stage.}
+
+\item{patients_per_center_in_next_stage}{A numeric value.
+Specifies the number of patients per center in the next stage.}
+
+\item{outcome_name}{A character string. Specifies the name of the outcome
+variable in the dataset.}
 }
 \value{
 List(

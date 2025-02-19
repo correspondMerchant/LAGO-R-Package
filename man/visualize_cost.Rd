@@ -44,11 +44,11 @@ function lago_optimization().
 \examples{
 \dontrun{
 visualize_cost(
-    component_names = c("Component 1", "Component 2"),
-    unit_costs = c(0.5, 1),
-    default_cost_fxn_type = "linear",
-    intervention_lower_bounds = c(0, 0),
-    intervention_upper_bounds = c(10, 10)
+  component_names = c("Component 1", "Component 2"),
+  unit_costs = c(0.5, 1),
+  default_cost_fxn_type = "linear",
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 10)
 )
 }
 }

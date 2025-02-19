@@ -2,3 +2,6 @@
 ^renv\.lock$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^images$
+^tests/manual_tests/test_pulesa_model_related\.Rmd$
+^tests/manual_tests/test_pulesa_cost_related\.Rmd$

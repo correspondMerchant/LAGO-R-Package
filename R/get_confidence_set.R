@@ -87,7 +87,7 @@ get_confidence_set <- function(
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
-  for (i in 1:length(intervention_lower_bounds)) {
+  for (i in seq_along(intervention_lower_bounds)) {
     sequences[[i]] <- seq(
       from = intervention_lower_bounds[i],
       to = intervention_upper_bounds[i],

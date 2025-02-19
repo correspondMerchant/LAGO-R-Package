@@ -72,3 +72,29 @@ optimization_results$est_outcome_goal
 ```
 
 
+```{r}
+## add fake center effects
+set.seed(123)
+bb_data$center <- sample(1:10, nrow(bb_data), replace = TRUE)
+
+## add fake time effects
+bb_data$period <- sample(1:10, nrow(bb_data), replace = TRUE)
+```
+
+```{r}
+optimization_results <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  include_center_effects = TRUE,
+  include_time_effects = TRUE,
+  center_effects_optimization_values = "5",
+  time_effect_optimization_value = 10,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize"
+)
+```

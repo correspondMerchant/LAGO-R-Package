@@ -33,8 +33,8 @@ results <- lago_optimization(
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(1, 1),
 )
-# gear  3.68750
-# qsec 17.84875
+# gear  7.345224
+#   qsec 21.854062
 ```
 
 
@@ -58,8 +58,8 @@ results <- lago_optimization(
   optimization_grid_search_step_size = c(1, 1, 1)
 )
 # gear  3.687500
-# qsec 17.848750
-# drat  3.596563
+# qsec 19.268433
+# drat  6.039457
 ```
 
 ```{r}
@@ -108,8 +108,9 @@ results <- lago_optimization(
   optimization_grid_search_step_size = c(1, 1),
   prev_recommended_interventions = c(5, 15)
 )
-# gear     5
-# qsec    15
+#  component     value
+#       gear  6.524962
+#       qsec 19.269328
 ```
 
 ```{r}
@@ -142,8 +143,8 @@ results <- lago_optimization(
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(1, 1)
 )
-# gear  3.68750
-# qsec 17.84875
+# gear  5.740939
+# qsec 20.554762
 ```
 
 ```{r}
@@ -169,8 +170,8 @@ results <- lago_optimization(
   optimization_method = "grid_search",
   optimization_grid_search_step_size = c(1, 1)
 )
-# gear  3.68750
-# qsec 17.84875
+# gear  6.184974
+# qsec 20.748113
 ```
 
 ```{r}
@@ -253,8 +254,8 @@ results <- lago_optimization(
   outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
-#  gear  3.68750
-#   qsec 17.84875
+# gear  7.345224
+# qsec 21.854062
 ```
 
 ```{r}
@@ -274,8 +275,8 @@ results <- lago_optimization(
   confidence_set_grid_step_size = c(1, 1, 1)
 )
 # gear  3.687500
-# qsec 17.848750
-# drat  3.596563
+# qsec 19.268433
+# drat  6.039457
 ```
 
 ```{r}
@@ -317,8 +318,8 @@ results <- lago_optimization(
   confidence_set_grid_step_size = c(1, 1),
   prev_recommended_interventions = c(5, 15)
 )
-#  gear     5
-#  qsec    15
+# gear  6.524962
+# qsec 19.269328
 ```
 
 ```{r}
@@ -340,8 +341,8 @@ results <- lago_optimization(
   include_center_effects = TRUE,
   center_effects_optimization_values = "5"
 )
-# gear  3.68750
-# qsec 17.84875
+# gear  5.740939
+# qsec 20.554762
 ```
 
 ```{r}
@@ -365,8 +366,8 @@ results <- lago_optimization(
   include_time_effects = TRUE,
   time_effect_optimization_value = 10
 )
-# gear  3.68750
-# qsec 17.84875
+# gear  6.184974
+# qsec 20.748113
 ```
 
 ```{r}
