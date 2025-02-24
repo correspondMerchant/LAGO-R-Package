@@ -71,16 +71,6 @@ rec_int_processor <- function(
       ]
   }
 
-  # should be deleted later, after cost for PULESA part is done
-  # print("intervention coefficients: ")
-  # print(intervention_components_coeff)
-  # print("center level effects:")
-  # print(all_center_lvl_effects)
-  # print("optimization method:")
-  # print(optimization_method)
-  # print("intervention components:")
-  # print(intervention_components)
-
   # calculate default step size
   # 1/20th of the range for each intervention component
   components_for_step_size <- if (include_interaction_terms) {
