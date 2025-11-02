@@ -32,7 +32,8 @@ The LAGO R package has two user-facing functions `lago_optimization()` and `visu
 
 `lago_optimization()` carries out the LAGO optimizations, and `visualize_cost()` helps users to determine the cost function of intervention components.
 
-To get a better understanding of the input arguments, please take a look at the help files:
+Both functions have multiple arguments, and it is impractical to list them all here.
+To get a better understanding of the input arguments, please take a look at the help files by running the following code in R **(this step is HIGHLY recommended, please do this before moving on to the examples)**:
 ```
 help(lago_optimization)
 help(visualize_cost)
