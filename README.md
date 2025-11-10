@@ -339,10 +339,12 @@ Please refer to R help files and example from the [manual tests](https://github.
 
 You can start with the simpler ones, like the [identity link with built-in dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_rec_int_for_cts_identity.Rmd), or the [logistic link with the BetterBirth dataset](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_rec_int_for_BB_data.Rmd) before moving on to other files.
 
+If you want to learn how to include a power goal, please start with the file [test_binary_power_goal](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_binary_power_goal.Rmd), where the BetterBirth data is used. Note that you need to add a `group` column in the data before calling `lago_optimization`. Also, the `unconditional` power approach is used by default, you can do `power_goal_approach = "conditional"` to use the conditional power approach instead. 
 
 ### Relevant LAGO papers
 1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)
-2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. arXiv preprint arXiv:2307.06552. 2023 Jul 13.](https://arxiv.org/pdf/2307.06552)
+2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. Biometrics, 81(2), ujaf061. DOI: 10.1093/biomtc/ujaf061](https://pmc.ncbi.nlm.nih.gov/articles/PMC12099308/pdf/nihms-2084823.pdf)
+3. [Bing A, Spiegelman D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Trials for Effectiveness and Power to Prevent Failed Trials. arXiv:2509.11479](https://arxiv.org/pdf/2509.11479)
 
 ### How to get help 
 Before reaching out for help, please carefully review this readme file, examine the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/tests/manual_tests) folder, and read relevant LAGO papers. 
