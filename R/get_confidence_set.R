@@ -528,10 +528,12 @@ get_confidence_set <- function(
     function(y) findInterval(x = outcome_goal, vec = y)
   ) == 1) == 1)
 
-  # if there is only one row in the confidence set, it means
-  # that the recommended intervention (the first row) is
-  # the only intervention in the confidence set
-  if (length(cs_row_indices) == 1) {
+  # if there is at most one row in the confidence set, it means the
+  # recommended intervention (the first row) is the only intervention in the
+  # confidence set (== 1), or not even the recommended intervention's
+  # confidence interval covers the outcome goal (== 0). In either case there
+  # is no confidence set to report.
+  if (length(cs_row_indices) <= 1) {
     return(list(
       confidence_set_size_percentage = 0,
       cs = NULL

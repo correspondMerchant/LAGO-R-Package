@@ -1,0 +1,186 @@
+---
+title: "Manually test the three goal modes: outcome goal alone, power goal alone, and both together."
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options:
+  chunk_output_type: console
+---
+## We manually test that LAGO optimization supports three goal modes:
+## 1. an outcome goal alone,
+## 2. a power goal alone, and
+## 3. an outcome goal and a power goal together.
+## When both are provided, the effective outcome goal is the higher of the
+## outcome goal and the power-implied outcome (the "whichever is higher" rule).
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+```{r}
+# BetterBirth data, with a 'group' column so that a power goal can be used.
+bb_data <- LAGO::BB_data
+bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
+head(bb_data)
+```
+
+## Mode 1: outcome goal alone (no power goal)
+```{r}
+# This is the classic LAGO usage and should reproduce the Nevo et al. result
+# (launch duration ~2.78 days and 1 coaching visit).
+res_outcome_only <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  include_confidence_set = FALSE
+)
+res_outcome_only$rec_int
+# expected: coaching_updt = 1, launch_duration ~ 2.78
+```
+
+## Mode 2: power goal alone (no outcome goal)
+```{r}
+# No outcome_goal is supplied. The optimization target is entirely determined
+# by the power goal (the outcome level needed to achieve the desired power).
+# num_centers_in_next_stage and patients_per_center_in_next_stage are required
+# for the power calculation.
+res_power_only <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30,
+  include_confidence_set = FALSE
+)
+res_power_only$rec_int
+res_power_only$est_outcome_goal
+# the target here is the power-implied outcome, not a user outcome goal.
+```
+
+```{r}
+# power goal alone, conditional power approach.
+# The conditional approach produces a power-implied outcome that varies more
+# visibly with the power goal.
+res_power_only_cond <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  power_goal = 0.8,
+  power_goal_approach = "conditional",
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30,
+  include_confidence_set = FALSE
+)
+res_power_only_cond$rec_int
+```
+
+## Mode 3: outcome goal and power goal together
+```{r}
+# When both are provided, the effective outcome goal is
+# max(power-implied outcome, outcome_goal). Here outcome_goal = 0.85 exceeds
+# the power-implied outcome, so the result matches Mode 1 (the outcome goal
+# binds).
+res_both <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30,
+  include_confidence_set = FALSE
+)
+res_both$rec_int
+# expected: same as Mode 1, because the outcome goal (0.85) is higher than
+# the power-implied outcome.
+```
+
+## Failed cases
+```{r}
+# neither an outcome goal nor a power goal is provided -> error
+res_neither <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8))
+)
+```
+
+```{r}
+# a power goal combined with outcome_goal_intention = "minimize" -> error,
+# because achieving a power goal requires increasing the outcome.
+res_power_minimize <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "minimize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30
+)
+```
+
+## Confidence set with a power goal alone
+```{r}
+# the confidence set calculation also works when only a power goal is given;
+# it uses the power-implied outcome as the goal. When no intervention
+# package's confidence interval covers the goal, an empty confidence set is
+# reported gracefully (confidence_set_size_percentage = 0) instead of erroring.
+res_power_cs <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30,
+  confidence_set_grid_step_size = c(1, 0.5)
+)
+res_power_cs$confidence_set_size_percentage
+```

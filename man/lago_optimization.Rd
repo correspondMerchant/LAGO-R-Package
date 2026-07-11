@@ -12,8 +12,8 @@ lago_optimization(
   intervention_components,
   intervention_lower_bounds,
   intervention_upper_bounds,
-  outcome_goal,
-  outcome_goal_intention,
+  outcome_goal = NULL,
+  outcome_goal_intention = "maximize",
   power_goal = NULL,
   power_goal_approach = "unconditional",
   num_centers_in_next_stage = NULL,
@@ -73,15 +73,30 @@ For example: for a two-component intervention package, upper bounds could be
 c(10,20).}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
-probability or mean value.}
+probability or mean value.
+Default value without user specification: NULL.
+At least one of outcome_goal or power_goal must be provided. If only a
+power goal is provided, the optimization target is the outcome level needed
+to achieve the power goal. If both are provided, the effective outcome goal
+is the higher of the two (see power_goal).}
 
 \item{outcome_goal_intention}{A character string. Specifies the intention of
 the outcome goal. Must be either "maximize" or "minimize". If the goal is to
 increase the outcome, set it to "maximize". If the goal is to decrease the
-outcome, set it to "minimize".}
+outcome, set it to "minimize".
+Default value without user specification: "maximize".
+Note: "minimize" cannot be combined with a power goal, because achieving a
+power goal requires increasing the outcome.}
 
 \item{power_goal}{A numeric value. Specifies the power goal, a desired power
-value.
+value (between 0 and 1). Only supported for binary outcomes, and requires a
+'group' column (values "treatment"/"control") along with
+num_centers_in_next_stage and patients_per_center_in_next_stage.
+At least one of outcome_goal or power_goal must be provided. The power goal
+is converted into the outcome level needed to achieve that power; the
+effective outcome goal used for optimization is
+max(power-implied outcome, outcome_goal). When only a power goal is
+provided, the power-implied outcome is used directly.
 Default value without user specification: NULL.}
 
 \item{power_goal_approach}{A character string. Specifies the approach to

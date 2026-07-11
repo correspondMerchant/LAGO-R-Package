@@ -10,6 +10,8 @@ print_output <- function(
     include_center_effects,
     include_time_effects,
     outcome_goal,
+    power_goal = NULL,
+    effective_outcome_goal = NULL,
     cost_list_of_vectors,
     intervention_lower_bounds,
     intervention_upper_bounds,
@@ -56,7 +58,20 @@ print_output <- function(
   cat("\t link:", family_object$link, "\n")
   cat("\t fixed center effects:", include_center_effects, "\n")
   cat("\t fixed time effects:", include_time_effects, "\n")
-  cat("Outcome goal:", outcome_goal, "\n")
+  cat(
+    "Outcome goal:",
+    if (is.null(outcome_goal)) "not specified" else outcome_goal, "\n"
+  )
+  cat(
+    "Power goal:",
+    if (is.null(power_goal)) "not specified" else power_goal, "\n"
+  )
+  if (!is.null(power_goal)) {
+    cat(
+      "Effective outcome goal used (max of outcome goal and",
+      "power-implied outcome):", effective_outcome_goal, "\n"
+    )
+  }
   cat(
     "List of intervention component costs:",
     toString(cost_list_of_vectors), "\n"
@@ -112,8 +127,10 @@ print_output <- function(
   )
   cat(
     "95% confidence interval for the estimated outcome goal:",
-    if (include_confidence_set) {
+    if (include_confidence_set && !is.null(cs$cs)) {
       paste(cs$cs[1, ]$CI_lower_bound, "-", cs$cs[1, ]$CI_upper_bound)
+    } else if (include_confidence_set) {
+      "Not available (no confidence set found for the current goal)"
     } else {
       "Not available, please set include_confidence_set = TRUE"
     }, "\n"

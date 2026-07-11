@@ -282,7 +282,7 @@ get_recommended_interventions <- function(
           lo = lo,
           up = up,
           beta = beta,
-          outcome_goal = outcome_goal,
+          outcome_goal = new_outcome_goal,
           include_interaction_terms = include_interaction_terms,
           intervention_components = intervention_components,
           main_components = main_components,
@@ -537,7 +537,7 @@ get_recommended_interventions <- function(
           lo = lo,
           up = up,
           beta = beta,
-          outcome_goal = outcome_goal,
+          outcome_goal = new_outcome_goal,
           include_interaction_terms = include_interaction_terms,
           intervention_components = intervention_components,
           main_components = main_components,
@@ -598,6 +598,11 @@ get_recommended_interventions <- function(
     est_rec_int = opt_results$est_rec_int,
     rec_int_cost = opt_results$rec_int_cost,
     est_reachable_outcome = opt_results$est_reachable_outcome,
-    shrinking_method_used = opt_results$shrinking_method_used
+    shrinking_method_used = opt_results$shrinking_method_used,
+    # the effective outcome goal actually used for optimization:
+    # max(power-implied outcome, outcome_goal). Equals outcome_goal when
+    # no power goal is set, and the power-implied outcome when only a
+    # power goal is set. Surfaced so the confidence set can use it.
+    effective_outcome_goal = new_outcome_goal
   ))
 }
