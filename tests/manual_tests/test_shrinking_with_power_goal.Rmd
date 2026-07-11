@@ -75,6 +75,7 @@ results <- lago_optimization(
 
 ```{r}
 # group column is missing
+bb_data <- LAGO::BB_data
 optimization_results <- lago_optimization(
   data = bb_data,
   outcome_name = "pp3_oxytocin_mother",
