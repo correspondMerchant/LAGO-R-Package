@@ -79,10 +79,13 @@
 #' variable in the dataset.
 #'
 #' @return List(
-#' recommended interventions,
-#' outcome goal,
-#' estimated outcome mean/probability for the intervention
-#' group in the next stage )
+#' est_rec_int = recommended interventions,
+#' rec_int_cost = associated cost of the recommended interventions,
+#' est_reachable_outcome = estimated outcome mean/probability for the
+#' intervention group in the next stage,
+#' shrinking_method_used = whether the shrinking method was applied,
+#' effective_outcome_goal = the outcome goal actually used for optimization,
+#' i.e. max(power-implied outcome, outcome_goal) )
 #'
 #'
 #' @importFrom rje expit logit

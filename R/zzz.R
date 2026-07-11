@@ -10,6 +10,7 @@
     "rec_int",
     "rec_int_cost",
     "est_outcome_goal",
+    "effective_outcome_goal",
     "cs",
     "x",
     "y"

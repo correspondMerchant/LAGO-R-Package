@@ -888,8 +888,9 @@ validate_inputs <- function(
       stop("For now, the power goal only works with binary outcomes.")
     }
     # a power goal requires increasing the outcome to reach the desired
-    # power, so it is incompatible with minimizing the outcome.
-    if (!is.null(outcome_goal) && outcome_goal_intention == "minimize") {
+    # power, so it is incompatible with minimizing the outcome. This holds
+    # whether or not an outcome goal is also provided.
+    if (outcome_goal_intention == "minimize") {
       stop(paste(
         "A power goal cannot be combined with",
         "outcome_goal_intention = 'minimize', because achieving a power",

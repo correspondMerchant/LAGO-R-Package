@@ -124,6 +124,38 @@ res_both$rec_int
 # the power-implied outcome.
 ```
 
+## Regression check: outcome goal with "minimize" and a confidence set
+```{r}
+# This exercises the minimize + confidence set path. The optimization
+# internally negates the model coefficients and the goal, but the confidence
+# set is computed on the original (un-negated) model, so it must receive the
+# outcome goal on the original scale. A non-empty confidence set here confirms
+# the effective goal is not accidentally passed to the confidence set on the
+# negated scale.
+res_minimize_cs <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("disp", "hp"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(500, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 10,
+  outcome_goal_intention = "minimize",
+  confidence_set_grid_step_size = c(10, 10),
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(10, 10),
+  include_confidence_set = TRUE
+)
+res_minimize_cs$rec_int
+res_minimize_cs$confidence_set_size_percentage
+# expected: a non-empty confidence set (percentage > 0), matching the behavior
+# before the goal-modes change (about 0.184).
+```
+
 ## Failed cases
 ```{r}
 # neither an outcome goal nor a power goal is provided -> error
