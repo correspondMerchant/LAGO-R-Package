@@ -605,7 +605,13 @@ get_recommended_interventions <- function(
     # the effective outcome goal actually used for optimization:
     # max(power-implied outcome, outcome_goal). Equals outcome_goal when
     # no power goal is set, and the power-implied outcome when only a
-    # power goal is set. Surfaced so the confidence set can use it.
-    effective_outcome_goal = new_outcome_goal
+    # power goal is set. Reported on the original outcome scale (re-negated
+    # for the "minimize" case, mirroring est_reachable_outcome) so downstream
+    # consumers such as the confidence set and printout can use it directly.
+    effective_outcome_goal = if (lower_outcome_goal) {
+      -1 * new_outcome_goal
+    } else {
+      new_outcome_goal
+    }
   ))
 }

@@ -96,7 +96,7 @@ res_power_only_cond <- lago_optimization(
 res_power_only_cond$rec_int
 ```
 
-## Mode 3: outcome goal and power goal together
+## Mode 3a: both goals, the outcome goal is higher (outcome goal binds)
 ```{r}
 # When both are provided, the effective outcome goal is
 # max(power-implied outcome, outcome_goal). Here outcome_goal = 0.85 exceeds
@@ -122,6 +122,46 @@ res_both <- lago_optimization(
 res_both$rec_int
 # expected: same as Mode 1, because the outcome goal (0.85) is higher than
 # the power-implied outcome.
+```
+
+## Mode 3b: both goals, the power goal is higher (power goal binds), with a confidence set
+```{r}
+# Here the power-implied outcome exceeds the user's outcome goal, so the
+# effective goal is the power-implied outcome. The confidence set is built
+# around that same effective goal, so the recommended intervention (whose
+# estimated outcome equals the effective goal) stays consistent with the
+# confidence set and the reported estimated outcome goal.
+set.seed(7)
+n <- 400
+synth <- data.frame(
+  x1 = runif(n, 0, 20),
+  x2 = runif(n, 0, 10),
+  group = rep(c("control", "treatment"), each = n / 2)
+)
+lp <- -1 + 0.15 * synth$x1 + 0.25 * synth$x2 + 0.4 * (synth$group == "treatment")
+synth$outcome <- rbinom(n, 1, 1 / (1 + exp(-lp)))
+
+res_both_power_binds <- lago_optimization(
+  data = synth,
+  outcome_name = "outcome",
+  outcome_type = "binary",
+  intervention_components = c("x1", "x2"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(20, 10),
+  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
+  outcome_goal = 0.68,
+  outcome_goal_intention = "maximize",
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30,
+  confidence_set_grid_step_size = c(1, 0.5)
+)
+res_both_power_binds$rec_int
+res_both_power_binds$est_outcome_goal
+res_both_power_binds$confidence_set_size_percentage
+# expected: est_outcome_goal is the power-implied outcome (~0.825, above the
+# outcome goal of 0.68), and a non-empty confidence set built around that
+# effective goal (percentage ~0.27).
 ```
 
 ## Regression check: outcome goal with "minimize" and a confidence set

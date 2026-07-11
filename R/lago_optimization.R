@@ -365,17 +365,14 @@ lago_optimization <- function(
   # calculate the confidence set
   if (include_confidence_set) {
     cli::cli_alert_info("Calculating the confidence set...")
-    # the confidence set is computed on the original (un-negated) model, so it
-    # needs the outcome goal on the original scale. When an outcome goal is
-    # provided, use it directly (this is also correct for the "minimize" case,
-    # where effective_outcome_goal is on the negated scale). Only when there is
-    # no outcome goal (power goal alone, always "maximize") do we fall back to
-    # the power-implied effective goal.
-    confidence_set_outcome_goal <- if (!is.null(outcome_goal)) {
-      outcome_goal
-    } else {
-      effective_outcome_goal
-    }
+    # the confidence set is built around the outcome goal the recommendation
+    # actually targets, i.e. the effective goal max(power-implied, outcome_goal).
+    # effective_outcome_goal is reported on the original outcome scale (already
+    # re-negated for the "minimize" case), and the confidence set uses the
+    # original, un-negated model, so it can be used directly here. This keeps
+    # the confidence set, the recommended intervention, and the reported
+    # estimated outcome goal all consistent with the same target.
+    confidence_set_outcome_goal <- effective_outcome_goal
     cs_results <- confidence_set_processor(
       data = data,
       confidence_set_grid_step_size = confidence_set_grid_step_size,
