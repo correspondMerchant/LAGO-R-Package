@@ -32,6 +32,8 @@ The LAGO R package has two user-facing functions `lago_optimization()` and `visu
 
 `lago_optimization()` carries out the LAGO optimizations, and `visualize_cost()` helps users to determine the cost function of intervention components.
 
+`lago_optimization()` supports three goal modes: an **outcome goal alone**, a **power goal alone**, or **both together**. At least one of `outcome_goal` or `power_goal` must be provided. When both are provided, the effective outcome goal used for the optimization is the higher of the outcome goal and the outcome level implied by the power goal (the "whichever is higher" rule). A power goal is only supported for binary outcomes and requires a `group` column plus `num_centers_in_next_stage` and `patients_per_center_in_next_stage`; it cannot be combined with `outcome_goal_intention = "minimize"`.
+
 Both functions have multiple arguments, and it is impractical to list them all here.
 To get a better understanding of the input arguments, please take a look at the help files by running the following code in R **(this step is HIGHLY recommended, please do this before moving on to the examples)**:
 ```

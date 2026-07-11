@@ -79,10 +79,13 @@
 #' variable in the dataset.
 #'
 #' @return List(
-#' recommended interventions,
-#' outcome goal,
-#' estimated outcome mean/probability for the intervention
-#' group in the next stage )
+#' est_rec_int = recommended interventions,
+#' rec_int_cost = associated cost of the recommended interventions,
+#' est_reachable_outcome = estimated outcome mean/probability for the
+#' intervention group in the next stage,
+#' shrinking_method_used = whether the shrinking method was applied,
+#' effective_outcome_goal = the outcome goal actually used for optimization,
+#' i.e. max(power-implied outcome, outcome_goal) )
 #'
 #'
 #' @importFrom rje expit logit
@@ -282,7 +285,7 @@ get_recommended_interventions <- function(
           lo = lo,
           up = up,
           beta = beta,
-          outcome_goal = outcome_goal,
+          outcome_goal = new_outcome_goal,
           include_interaction_terms = include_interaction_terms,
           intervention_components = intervention_components,
           main_components = main_components,
@@ -537,7 +540,7 @@ get_recommended_interventions <- function(
           lo = lo,
           up = up,
           beta = beta,
-          outcome_goal = outcome_goal,
+          outcome_goal = new_outcome_goal,
           include_interaction_terms = include_interaction_terms,
           intervention_components = intervention_components,
           main_components = main_components,
@@ -598,6 +601,17 @@ get_recommended_interventions <- function(
     est_rec_int = opt_results$est_rec_int,
     rec_int_cost = opt_results$rec_int_cost,
     est_reachable_outcome = opt_results$est_reachable_outcome,
-    shrinking_method_used = opt_results$shrinking_method_used
+    shrinking_method_used = opt_results$shrinking_method_used,
+    # the effective outcome goal actually used for optimization:
+    # max(power-implied outcome, outcome_goal). Equals outcome_goal when
+    # no power goal is set, and the power-implied outcome when only a
+    # power goal is set. Reported on the original outcome scale (re-negated
+    # for the "minimize" case, mirroring est_reachable_outcome) so downstream
+    # consumers such as the confidence set and printout can use it directly.
+    effective_outcome_goal = if (lower_outcome_goal) {
+      -1 * new_outcome_goal
+    } else {
+      new_outcome_goal
+    }
   ))
 }

@@ -123,6 +123,7 @@ rec_int_processor <- function(
     rec_int_cost = rec_int_results$rec_int_cost,
     est_outcome_goal = rec_int_results$est_reachable_outcome,
     step_size_results = step_size_results,
-    shrinking_method_used = rec_int_results$shrinking_method_used
+    shrinking_method_used = rec_int_results$shrinking_method_used,
+    effective_outcome_goal = rec_int_results$effective_outcome_goal
   )
 }

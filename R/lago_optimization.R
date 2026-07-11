@@ -24,10 +24,18 @@
 #' c(10,20).
 #' @param outcome_goal A numeric value. Specifies the outcome goal, a desired
 #' probability or mean value.
+#' Default value without user specification: NULL.
+#' At least one of outcome_goal or power_goal must be provided. If only a
+#' power goal is provided, the optimization target is the outcome level needed
+#' to achieve the power goal. If both are provided, the effective outcome goal
+#' is the higher of the two (see power_goal).
 #' @param outcome_goal_intention A character string. Specifies the intention of
 #' the outcome goal. Must be either "maximize" or "minimize". If the goal is to
 #' increase the outcome, set it to "maximize". If the goal is to decrease the
 #' outcome, set it to "minimize".
+#' Default value without user specification: "maximize".
+#' Note: "minimize" cannot be combined with a power goal, because achieving a
+#' power goal requires increasing the outcome.
 #'
 #' @param unit_costs A numeric vector. Specifies the unit costs for each
 #' intervention component.
@@ -144,7 +152,14 @@
 #' shrinkage method will not be used.
 #' Default value without user specification: 0.25.
 #' @param power_goal A numeric value. Specifies the power goal, a desired power
-#' value.
+#' value (between 0 and 1). Only supported for binary outcomes, and requires a
+#' 'group' column (values "treatment"/"control") along with
+#' num_centers_in_next_stage and patients_per_center_in_next_stage.
+#' At least one of outcome_goal or power_goal must be provided. The power goal
+#' is converted into the outcome level needed to achieve that power; the
+#' effective outcome goal used for optimization is
+#' max(power-implied outcome, outcome_goal). When only a power goal is
+#' provided, the power-implied outcome is used directly.
 #' Default value without user specification: NULL.
 #' @param power_goal_approach A character string. Specifies the approach to
 #' achieve the power goal. Must be either "unconditional" or "conditional".
@@ -225,8 +240,8 @@ lago_optimization <- function(
     intervention_components,
     intervention_lower_bounds,
     intervention_upper_bounds,
-    outcome_goal,
-    outcome_goal_intention,
+    outcome_goal = NULL,
+    outcome_goal_intention = "maximize",
     power_goal = NULL,
     power_goal_approach = "unconditional",
     num_centers_in_next_stage = NULL,
@@ -350,6 +365,14 @@ lago_optimization <- function(
   # calculate the confidence set
   if (include_confidence_set) {
     cli::cli_alert_info("Calculating the confidence set...")
+    # the confidence set is built around the outcome goal the recommendation
+    # actually targets, i.e. the effective goal max(power-implied, outcome_goal).
+    # effective_outcome_goal is reported on the original outcome scale (already
+    # re-negated for the "minimize" case), and the confidence set uses the
+    # original, un-negated model, so it can be used directly here. This keeps
+    # the confidence set, the recommended intervention, and the reported
+    # estimated outcome goal all consistent with the same target.
+    confidence_set_outcome_goal <- effective_outcome_goal
     cs_results <- confidence_set_processor(
       data = data,
       confidence_set_grid_step_size = confidence_set_grid_step_size,
@@ -365,7 +388,7 @@ lago_optimization <- function(
       outcome_name = outcome_name,
       model = model,
       family_object = family_object,
-      outcome_goal = outcome_goal,
+      outcome_goal = confidence_set_outcome_goal,
       outcome_type = outcome_type,
       intervention_lower_bounds = intervention_lower_bounds,
       intervention_upper_bounds = intervention_upper_bounds,
@@ -411,6 +434,8 @@ lago_optimization <- function(
     include_center_effects = include_center_effects,
     include_time_effects = include_time_effects,
     outcome_goal = outcome_goal,
+    power_goal = power_goal,
+    effective_outcome_goal = effective_outcome_goal,
     cost_list_of_vectors = cost_list_of_vectors,
     intervention_lower_bounds = intervention_lower_bounds,
     intervention_upper_bounds = intervention_upper_bounds,
@@ -436,7 +461,8 @@ lago_optimization <- function(
         rec_int_cost = rec_int_cost,
         est_outcome_goal = est_outcome_goal,
         confidence_set_size_percentage = cs$confidence_set_size_percentage,
-        cs = cs$cs[-1, ]
+        # cs$cs is NULL when no confidence set was found for the goal
+        cs = if (is.null(cs$cs)) NULL else cs$cs[-1, ]
       )
     }
   )

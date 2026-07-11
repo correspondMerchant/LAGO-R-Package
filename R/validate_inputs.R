@@ -711,8 +711,19 @@ validate_inputs <- function(
     }
   }
 
-  # check if the outcome goal is a numeric number
-  if (!is.numeric(outcome_goal)) {
+  # at least one of outcome_goal or power_goal must be provided. LAGO
+  # optimization supports three modes: outcome goal alone, power goal alone,
+  # or both together (in which case the effective goal is the higher of the
+  # two, see get_recommended_interventions()).
+  if (is.null(outcome_goal) && is.null(power_goal)) {
+    stop(paste(
+      "Both 'outcome_goal' and 'power_goal' are NULL.",
+      "Please provide at least one of them."
+    ))
+  }
+
+  # check if the outcome goal is a numeric number (only when provided)
+  if (!is.null(outcome_goal) && !is.numeric(outcome_goal)) {
     stop("The outcome goal must be a numeric value.")
   }
 
@@ -732,8 +743,13 @@ validate_inputs <- function(
   }
 
   # set the lower_outcome_goal flag accordingly
-  # check the average outcome and print warning messages
-  if (outcome_goal_intention == "minimize") {
+  # check the average outcome and print warning messages.
+  # when only a power goal is provided (outcome_goal is NULL), the goal is
+  # always to increase the outcome to reach the desired power, so
+  # lower_outcome_goal is FALSE and the intention checks are skipped.
+  if (is.null(outcome_goal)) {
+    lower_outcome_goal <- FALSE
+  } else if (outcome_goal_intention == "minimize") {
     lower_outcome_goal <- TRUE
     if (outcome_goal > mean(data[[outcome_name]])) {
       warning(paste(
@@ -870,6 +886,17 @@ validate_inputs <- function(
     # check if the outcome_type is binary
     if (outcome_type != "binary") {
       stop("For now, the power goal only works with binary outcomes.")
+    }
+    # a power goal requires increasing the outcome to reach the desired
+    # power, so it is incompatible with minimizing the outcome. This holds
+    # whether or not an outcome goal is also provided.
+    if (outcome_goal_intention == "minimize") {
+      stop(paste(
+        "A power goal cannot be combined with",
+        "outcome_goal_intention = 'minimize', because achieving a power",
+        "goal requires increasing the outcome. Please set",
+        "outcome_goal_intention = 'maximize', or remove the power goal."
+      ))
     }
     # check if there is a 'group' column in the data
     # and it is either "treatment" or "control"
