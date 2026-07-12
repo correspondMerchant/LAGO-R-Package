@@ -80,10 +80,17 @@ power goal is provided, the optimization target is the outcome level needed
 to achieve the power goal. If both are provided, the effective outcome goal
 is the higher of the two (see power_goal).}
 
-\item{outcome_goal_intention}{A character string. Specifies the intention of
-the outcome goal. Must be either "maximize" or "minimize". If the goal is to
-increase the outcome, set it to "maximize". If the goal is to decrease the
-outcome, set it to "minimize".
+\item{outcome_goal_intention}{A character string. Specifies the direction in
+which the interventions are expected to move the outcome, relative to the
+outcome without any intervention. Must be either "maximize" or "minimize".
+Set it to "maximize" when a larger outcome is desired and the interventions
+are meant to increase the outcome up to the outcome goal (for example,
+increasing the probability that a treatment is administered). Set it to
+"minimize" when a smaller outcome is desired and the interventions are meant
+to decrease the outcome down to the outcome goal (for example, reducing a
+mortality rate). This argument only controls the optimization direction; the
+outcome goal itself is always given as the target outcome value, regardless
+of the intention.
 Default value without user specification: "maximize".
 Note: "minimize" cannot be combined with a power goal, because achieving a
 power goal requires increasing the outcome.}
@@ -165,8 +172,16 @@ together at the same time.
 For example: c("characteristic1")}
 
 \item{center_characteristics_optimization_values}{A numeric vector. The
-values of the center characteristics that will be used for LAGO optimization.
-For example: c(1.74)}
+fixed values of the center characteristics at which the recommended
+intervention is computed. Because the outcome model can depend on center
+characteristics, the recommendation is specific to a center with these
+characteristic values, i.e. the optimization answers "what is the optimal
+intervention for a center whose characteristics equal these values?". Must
+be provided when center_characteristics is used, must be numeric, and must
+have the same length and order as center_characteristics.
+For example, with center_characteristics = c("birth_volume_100"), setting
+center_characteristics_optimization_values = c(1.75) computes the
+recommended intervention for a center with birth_volume_100 = 1.75.}
 
 \item{main_components}{A character vector. Specifies the main intervention
 components in the presence of interaction terms.

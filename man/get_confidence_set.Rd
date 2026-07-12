@@ -85,7 +85,10 @@ size of the grid search algorithm used in the confidence set calculation.}
 the dataset that represent the center characteristics.}
 
 \item{center_characteristics_optimization_values}{A numeric vector. The
-values of the center characteristics that will be used for LAGO optimization.}
+fixed values of the center characteristics at which the confidence set is
+computed, so the confidence set is specific to a center with these
+characteristic values. Must have the same length and order as
+center_characteristics.}
 
 \item{confidence_set_alpha}{A numeric value. The type I error considered in
 the confidence set calculations.}
