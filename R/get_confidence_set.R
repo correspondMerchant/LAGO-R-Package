@@ -41,7 +41,10 @@
 #' @param center_characteristics A character vector. The names of the columns in
 #' the dataset that represent the center characteristics.
 #' @param center_characteristics_optimization_values A numeric vector. The
-#' values of the center characteristics that will be used for LAGO optimization.
+#' fixed values of the center characteristics at which the confidence set is
+#' computed, so the confidence set is specific to a center with these
+#' characteristic values. Must have the same length and order as
+#' center_characteristics.
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
 #' @param cluster_id A list or NULL. Specifies the columns of data that will be

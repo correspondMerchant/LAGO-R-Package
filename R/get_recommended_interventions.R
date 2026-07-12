@@ -23,8 +23,11 @@
 #' the center characteristics.
 #' For example: c(-0.4).
 #' @param center_characteristics_optimization_values A numeric vector. The
-#' values of the center characteristics that will be used for LAGO optimization.
-#' For example: c(1.74)
+#' fixed values of the center characteristics at which the recommended
+#' intervention is computed, so the recommendation is specific to a center with
+#' these characteristic values. Must have the same length and order as
+#' center_characteristics.
+#' For example: c(1.75)
 #' @param cost_list_of_vectors A list of numeric vectors. Specifies the cost
 #' functions for each intervention component. Each numeric vector in the list
 #' contains coefficients of the cost function for one intervention component.
