@@ -55,3 +55,20 @@ visualize_cost(
   intervention_upper_bounds = c(4, 40, 20, 10)
 )
 ```
+## custom slider ranges (issue #34)
+```{r}
+# Each coefficient slider now gets its own default range scaled to the
+# coefficient's magnitude (via compute_slider_range), instead of a fixed
+# -15..15 range. Launch and confirm: the high-order cubic coefficients (small
+# values) have narrow usable ranges while the leading coefficient has a wider
+# range, and each slider has "Range min" / "Range max" inputs above it for
+# setting a custom range. Editing a Range input rescales only that slider;
+# "Reset Coefficients" restores both the values and the default ranges.
+visualize_cost(
+  component_names = c("Counseling", "HomeBP"),
+  unit_costs = c(2, 5),
+  default_cost_fxn_type = "cubic",
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 10)
+)
+```
