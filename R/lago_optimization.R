@@ -139,8 +139,13 @@
 #' intervention package compositions in LAGO optimization.
 #' - Use "numerical" if you want to use gradient-based technique in LAGO
 #' optimization.
+#' Note: if optimization_grid_search_step_size is provided while this is
+#' "numerical", it is automatically switched to "grid_search" (with a message).
 #' @param optimization_grid_search_step_size A numeric vector. Specifies the
-#' step size of the grid search algorithm used in LAGO optimization.
+#' step size of the grid search algorithm used in LAGO optimization. This
+#' argument is only used by the "grid_search" method; if it is provided while
+#' optimization_method is "numerical", optimization_method is automatically
+#' switched to "grid_search" (with a message).
 #' Default value without user specification:
 #' 1/20 of the range for each intervention component.
 #' @param include_confidence_set A boolean. Specifies whether the confidence set

@@ -669,27 +669,15 @@ validate_inputs <- function(
     ))
   }
 
-  # when the optimization_method is grid_search,
-  # check the number of intervention components
-  if (optimization_method == "grid_search") {
-    if (length(intervention_components) > 3) {
-      message(paste0(
-        "There are more than 3 intervention components, and the grid search ",
-        "algorithm may take significant amount of time to run. ",
-        "Please consider adjusting the step size, or switch to the ",
-        "numerical optimization method."
-      ))
-    }
-  }
-
-  # if optimization_grid_search_step_size is provided,
-  # it needs to be a numeric vector
+  # if optimization_grid_search_step_size is provided, validate it before it
+  # can influence optimization_method below, so that an invalid step size is
+  # rejected up front rather than after a "switched to grid_search" message.
   if (!is.null(optimization_grid_search_step_size)) {
+    # it needs to be a numeric vector
     if (!(is.vector(optimization_grid_search_step_size) &&
       is.numeric(optimization_grid_search_step_size))) {
       stop("optimization_grid_search_step_size must be a numeric vector.")
     }
-    # if optimization_grid_search_step_size is provided,
     # it needs to have the same length as the number of intervention components
     if ((!include_interaction_terms &&
       (length(optimization_grid_search_step_size) !=
@@ -707,6 +695,43 @@ validate_inputs <- function(
         "With interaciton terms,",
         "The number of step sizes provided for the grid search",
         "algorithm must be the same as the length of 'main_components'."
+      ))
+    }
+    # each step size must be finite and strictly positive, otherwise the grid
+    # search seq() call would error or produce a degenerate grid.
+    if (!all(is.finite(optimization_grid_search_step_size)) ||
+      any(optimization_grid_search_step_size <= 0)) {
+      stop(paste(
+        "All elements of 'optimization_grid_search_step_size' must be",
+        "finite and greater than 0."
+      ))
+    }
+  }
+
+  # optimization_grid_search_step_size is only used by the grid search
+  # method. If it is provided while the method is "numerical", the user
+  # clearly intends to use grid search, so switch the method (with a
+  # message) instead of silently ignoring the step size.
+  if (!is.null(optimization_grid_search_step_size) &&
+    optimization_method == "numerical") {
+    optimization_method <- "grid_search"
+    message(paste(
+      "'optimization_grid_search_step_size' was provided, so",
+      "'optimization_method' has been switched to 'grid_search'.",
+      "To use the numerical method instead, remove",
+      "'optimization_grid_search_step_size'."
+    ))
+  }
+
+  # when the optimization_method is grid_search,
+  # check the number of intervention components
+  if (optimization_method == "grid_search") {
+    if (length(intervention_components) > 3) {
+      message(paste0(
+        "There are more than 3 intervention components, and the grid search ",
+        "algorithm may take significant amount of time to run. ",
+        "Please consider adjusting the step size, or switch to the ",
+        "numerical optimization method."
       ))
     }
   }
