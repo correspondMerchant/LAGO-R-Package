@@ -347,6 +347,7 @@ If you want to learn how to include a power goal, please start with the file [te
 1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)
 2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. Biometrics, 81(2), ujaf061. DOI: 10.1093/biomtc/ujaf061](https://pmc.ncbi.nlm.nih.gov/articles/PMC12099308/pdf/nihms-2084823.pdf)
 3. [Bing A, Spiegelman D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Trials for Effectiveness and Power to Prevent Failed Trials. arXiv:2509.11479](https://arxiv.org/pdf/2509.11479)
+4. [Bui, M. T., Longenecker, C. T., Bing, A., Spiegelman, D., Webel, A. R., Bosworth, H. B., & Lok, J. J. (2026). Addressing Confounding by Indication Through (Un) Measured Centre Characteristics in Learn-As-you-GO (LAGO) Trials. arXiv preprint arXiv:2604.13276.](https://arxiv.org/abs/2604.13276)
 
 ### How to get help 
 Before reaching out for help, please carefully review this readme file, examine the descriptions of the arguments in R help files, run the Rmd files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/tests/manual_tests) folder, and read relevant LAGO papers. 
