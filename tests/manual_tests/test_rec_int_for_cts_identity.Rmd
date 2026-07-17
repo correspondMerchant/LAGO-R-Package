@@ -458,3 +458,31 @@ results <- lago_optimization(
   confidence_set_grid_step_size = c(1, 1)
 )
 ```
+
+## step size provided without grid_search method (issue #32)
+```{r}
+# optimization_grid_search_step_size is provided but optimization_method is
+# left at its default "numerical". The method should be automatically
+# switched to "grid_search" (with a message), instead of silently ignoring
+# the step size. The recommended interventions should land on the step-size
+# grid (integers here), not at a fractional numerical solution.
+results <- lago_optimization(
+  data = mtcars,
+  input_data_structure = "individual_level",
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  outcome_goal_intention = "maximize",
+  optimization_grid_search_step_size = c(1, 1),
+  include_confidence_set = FALSE
+)
+results$rec_int
+# expected: message about switching to grid_search, and integer rec_int
+# values (e.g. c(10, 12)), matching an explicit grid_search run.
+```
