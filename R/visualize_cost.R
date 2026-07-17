@@ -7,8 +7,10 @@
 #' The initial coefficients are calculated based on the unit costs, the
 #' default cost function type (linear or cubic), and the lower and upper bounds.
 #' The user can adjust the coefficients using sliders and reset them to their
-#' initial values. The app also displays the current coefficient vector for
-#' each component.
+#' initial values. Each slider has a default range scaled to its coefficient's
+#' magnitude (derived from the unit costs and bounds), and the user can set a
+#' custom range for any slider using its "Range min" / "Range max" inputs.
+#' The app also displays the current coefficient vector for each component.
 #' The user can copy the final coefficient list for use in the optimization
 #' function lago_optimization().
 #'
@@ -39,7 +41,6 @@
 #' }
 #' @return NULL
 #'
-
 visualize_cost <- function(
     component_names,
     unit_costs,
@@ -52,6 +53,8 @@ visualize_cost <- function(
       is.character(component_names),
     "unit costs must be a numeric vector." =
       is.numeric(unit_costs),
+    "unit costs must all be finite." =
+      all(is.finite(unit_costs)),
     "unit costs must have the same length as component names." =
       length(unit_costs) == length(component_names),
     "default cost function type must be a character." =
@@ -76,6 +79,25 @@ visualize_cost <- function(
     intervention_upper_bounds = intervention_upper_bounds,
     unit_costs = unit_costs,
     default_cost_fxn_type = default_cost_fxn_type
+  )
+
+  # Calculate the default slider range for every coefficient. Each coefficient
+  # gets its own range scaled to its magnitude (see compute_slider_range), so
+  # sliders are usable regardless of the coefficient's scale, instead of the
+  # previous fixed -15..15 range. The range is derived from the initial
+  # coefficients (which come from unit_costs, the bounds, and the cost function
+  # type) and the component's unit cost. Users can override any slider's range
+  # with the per-slider min/max inputs in the app.
+  slider_ranges_list <- lapply(
+    seq_along(initial_coefficients_list),
+    function(component_idx) {
+      lapply(
+        initial_coefficients_list[[component_idx]],
+        function(init) {
+          compute_slider_range(init, unit_costs[component_idx])
+        }
+      )
+    }
   )
 
   ui <- navbarPage(
@@ -128,18 +150,48 @@ visualize_cost <- function(
             card(
               card_header("Adjust coefficients using sliders"),
               card_body(
-                # Create sliders for the current component's coefficients
+                # Create sliders for the current component's coefficients.
+                # Each slider has its own default range (compute_slider_range)
+                # plus two numeric inputs so the user can set a custom range.
                 lapply(
                   seq_along(initial_coefficients_list[[component_idx]]),
                   function(i) {
-                    sliderInput(
-                      inputId = paste0("coef_", component_idx, "_", i - 1),
-                      label = paste0(component_names[component_idx], "^", i - 1, " coefficient"),
-                      min = -15,
-                      max = 15,
-                      value = initial_coefficients_list[[component_idx]][i],
-                      step = 0.00001,
-                      width = "100%"
+                    rng <- slider_ranges_list[[component_idx]][[i]]
+                    tagList(
+                      div(
+                        style = paste(
+                          "display: flex; gap: 10px; align-items: flex-end;",
+                          "margin-bottom: 5px;"
+                        ),
+                        numericInput(
+                          inputId = paste0(
+                            "range_min_", component_idx, "_", i - 1
+                          ),
+                          label = "Range min",
+                          value = rng$min,
+                          width = "120px"
+                        ),
+                        numericInput(
+                          inputId = paste0(
+                            "range_max_", component_idx, "_", i - 1
+                          ),
+                          label = "Range max",
+                          value = rng$max,
+                          width = "120px"
+                        )
+                      ),
+                      sliderInput(
+                        inputId = paste0("coef_", component_idx, "_", i - 1),
+                        label = paste0(
+                          component_names[component_idx], "^", i - 1,
+                          " coefficient"
+                        ),
+                        min = rng$min,
+                        max = rng$max,
+                        value = initial_coefficients_list[[component_idx]][i],
+                        step = rng$step,
+                        width = "100%"
+                      )
                     )
                   }
                 ),
@@ -234,7 +286,7 @@ visualize_cost <- function(
 
       # Format as R list
       coef_strings <- sapply(current_coefs_all, function(coefs) {
-        paste0("c(", paste(format(coefs, digits = 8), collapse = ", "), ")")
+        paste0("c(", paste(format_coef(coefs), collapse = ", "), ")")
       })
 
       paste0(
@@ -248,18 +300,64 @@ visualize_cost <- function(
     lapply(seq_along(initial_coefficients_list), function(component_idx) {
       # Add observer for reset button
       observeEvent(input[[paste0("reset_", component_idx)]], {
-        # Reset each slider to its initial value from rv
+        # Reset each slider to its initial value AND its default range from rv
         lapply(
           seq_along(rv$initial_coefs[[component_idx]]),
           function(i) {
+            rng <- slider_ranges_list[[component_idx]][[i]]
+            updateNumericInput(
+              session,
+              inputId = paste0("range_min_", component_idx, "_", i - 1),
+              value = rng$min
+            )
+            updateNumericInput(
+              session,
+              inputId = paste0("range_max_", component_idx, "_", i - 1),
+              value = rng$max
+            )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = rv$initial_coefs[[component_idx]][i]
+              value = rv$initial_coefs[[component_idx]][i],
+              min = rng$min,
+              max = rng$max,
+              step = rng$step
             )
           }
         )
       })
+
+      # Observers for the custom range inputs: when the user edits a slider's
+      # min or max, update that slider's range. Only apply valid ranges
+      # (both finite, min < max) so a partially-typed value does not break
+      # the slider.
+      lapply(
+        seq_along(initial_coefficients_list[[component_idx]]),
+        function(i) {
+          observeEvent(
+            {
+              input[[paste0("range_min_", component_idx, "_", i - 1)]]
+              input[[paste0("range_max_", component_idx, "_", i - 1)]]
+            },
+            {
+              rmin <- input[[paste0("range_min_", component_idx, "_", i - 1)]]
+              rmax <- input[[paste0("range_max_", component_idx, "_", i - 1)]]
+              if (is.null(rmin) || is.null(rmax) ||
+                !is.finite(rmin) || !is.finite(rmax) || rmin >= rmax) {
+                return()
+              }
+              updateSliderInput(
+                session,
+                inputId = paste0("coef_", component_idx, "_", i - 1),
+                min = rmin,
+                max = rmax,
+                step = min((rmax - rmin) / 1000, 0.00001)
+              )
+            },
+            ignoreInit = TRUE
+          )
+        }
+      )
 
       # Coefficient text output
       output[[paste0("coefficient_text_", component_idx)]] <- renderText({
@@ -269,7 +367,7 @@ visualize_cost <- function(
             input[[paste0("coef_", component_idx, "_", i - 1)]]
           }
         )
-        paste0("c(", paste(current_coefs, collapse = ", "), ")")
+        paste0("c(", paste(format_coef(current_coefs), collapse = ", "), ")")
       })
 
       # Add reactive expression for cost function validation
@@ -393,4 +491,52 @@ visualize_cost <- function(
   }
 
   shinyApp(ui, server)
+}
+
+# Compute a default slider range for a single cost-function coefficient.
+# The cost-function coefficients span very different scales (for a cubic cost
+# the leading coefficient may be ~1 while the highest-order term is ~0.005),
+# so a single fixed slider range is not usable for all of them. This helper
+# returns a range centered on the coefficient's initial value and scaled to
+# its magnitude, with a floor derived from the component's unit cost so that a
+# zero-valued coefficient is still adjustable. Returns a list(min, max, step).
+compute_slider_range <- function(init, unit_cost, k = 5) {
+  # half-width is k times the coefficient magnitude, but never smaller than a
+  # floor based on the unit cost (falling back to 1 when the unit cost is 0),
+  # so a coefficient whose initial value is 0 still has room to move.
+  floor_hw <- max(abs(unit_cost), 1)
+  half_width <- max(k * abs(init), floor_hw)
+  # round the bounds for display: this keeps the auto-generated slider tick
+  # labels and the pre-filled range inputs readable (e.g. -10.863 instead of
+  # -10.8629818181818). Round outward so the initial value stays within range.
+  lower <- floor((init - half_width) * 1000) / 1000
+  upper <- ceiling((init + half_width) * 1000) / 1000
+  # step: keep the historical fine 0.00001 step for the usual (wide) ranges,
+  # and only go finer than that for a very narrow range (width < 0.01), so the
+  # slider can still resolve values within it.
+  step <- min((upper - lower) / 1000, 0.00001)
+  list(min = lower, max = upper, step = step)
+}
+
+# Format a number for display in the app: 3 decimal places by default, but
+# more places (up to 5) for small-magnitude values so that roughly 3
+# significant figures are preserved. Trailing zeros are dropped. This keeps
+# slider labels, range inputs, and the coefficient list readable instead of
+# showing values like -10.8629818181818 or 0.000000000.
+format_coef <- function(x) {
+  vapply(x, function(v) {
+    if (!is.finite(v)) {
+      return(as.character(v))
+    }
+    if (v == 0) {
+      return("0")
+    }
+    # for |v| >= 1, use 3 decimals; for smaller values, add places so ~3
+    # significant figures survive, capped at 5 decimals.
+    mag <- floor(log10(abs(v)))
+    digits <- min(max(3, 2 - mag), 5)
+    formatC(round(v, digits),
+      format = "f", digits = digits, drop0trailing = TRUE
+    )
+  }, character(1))
 }

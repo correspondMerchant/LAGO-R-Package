@@ -36,8 +36,10 @@ visualize the resulting total cost function and its derivative.
 The initial coefficients are calculated based on the unit costs, the
 default cost function type (linear or cubic), and the lower and upper bounds.
 The user can adjust the coefficients using sliders and reset them to their
-initial values. The app also displays the current coefficient vector for
-each component.
+initial values. Each slider has a default range scaled to its coefficient's
+magnitude (derived from the unit costs and bounds), and the user can set a
+custom range for any slider using its "Range min" / "Range max" inputs.
+The app also displays the current coefficient vector for each component.
 The user can copy the final coefficient list for use in the optimization
 function lago_optimization().
 }
