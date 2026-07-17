@@ -1,0 +1,138 @@
+---
+title: "Manually test the outcome-model fit diagnostics (issue #36)"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options:
+  chunk_output_type: console
+---
+## We manually test the non-fatal outcome-model fit diagnostics.
+## The diagnostics only warn; LAGO optimization always continues and still
+## returns a recommended intervention. Three checks are covered:
+##   1. warnings glm() emits during fitting (e.g. separation),
+##   2. coefficients with extremely large standard errors (separation /
+##      near-singular fit) even when glm reports convergence,
+##   3. intervention components whose effect is not statistically significant.
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+## Clean fit: no diagnostic warnings
+```{r}
+# The BetterBirth example (with the birth_volume_100 center characteristic)
+# is a clean fit: both coaching_updt and launch_duration are significant, so
+# no fit-diagnostic warning should be produced.
+bb_data <- LAGO::BB_data
+res_clean <- lago_optimization(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  include_confidence_set = FALSE
+)
+res_clean$rec_int
+# expected: no fit-diagnostic warnings; completes normally.
+```
+
+## Non-significant intervention component: warns, still completes
+```{r}
+# A synthetic dataset where the second component ("noise") has no true effect
+# on the outcome. The optimization still runs and returns a recommendation,
+# but a warning flags that the recommendation for "noise" is not well
+# supported by the data.
+set.seed(2)
+n <- 200
+d_nonsig <- data.frame(
+  dose = runif(n, 0, 10),
+  noise = rnorm(n, 5, 3)
+)
+d_nonsig$y <- rbinom(n, 1, 1 / (1 + exp(-(-1 + 0.4 * d_nonsig$dose))))
+res_nonsig <- lago_optimization(
+  data = d_nonsig,
+  outcome_name = "y",
+  outcome_type = "binary",
+  intervention_components = c("dose", "noise"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 10),
+  cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+  outcome_goal = 0.7,
+  outcome_goal_intention = "maximize",
+  include_confidence_set = FALSE
+)
+res_nonsig$rec_int
+# expected: a warning that "noise" is not statistically significant (p > 0.05);
+# optimization still completes.
+```
+
+## Non-significant interaction component: warns (issue #36 fix for backticked names)
+```{r}
+# Interaction components appear in the glm coefficient table with backticks
+# retained (e.g. `dose:noise`). This confirms the significance check matches
+# such rows and warns for a non-significant interaction, instead of silently
+# skipping it.
+set.seed(3)
+n <- 300
+d_int <- data.frame(
+  dose = runif(n, 0, 10),
+  noise = rnorm(n, 5, 3)
+)
+d_int$`dose:noise` <- d_int$dose * d_int$noise
+# outcome depends only on dose; the interaction is null.
+d_int$y <- rbinom(n, 1, 1 / (1 + exp(-(-1 + 0.4 * d_int$dose))))
+res_int <- lago_optimization(
+  data = d_int,
+  outcome_name = "y",
+  outcome_type = "binary",
+  intervention_components = c("dose", "noise", "dose:noise"),
+  include_interaction_terms = TRUE,
+  main_components = c("dose", "noise"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 10),
+  cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+  outcome_goal = 0.7,
+  outcome_goal_intention = "maximize",
+  include_confidence_set = FALSE
+)
+res_int$rec_int
+# expected: a warning naming "dose:noise" (and/or "noise") as not statistically
+# significant; optimization still completes.
+```
+
+## Separation: warns, still completes
+```{r}
+# A quasi-separated logistic fit converges but produces coefficients with
+# enormous standard errors. The diagnostics warn (via glm's own separation
+# warning and/or the large-standard-error check), but LAGO still runs.
+d_sep <- data.frame(
+  x1 = c(1, 2, 3, 4, 5, 6, 3, 4),
+  x2 = c(2, 1, 4, 3, 6, 5, 5, 2)
+)
+d_sep$y <- as.integer(d_sep$x1 > 3.5)
+res_sep <- tryCatch(
+  lago_optimization(
+    data = d_sep,
+    outcome_name = "y",
+    outcome_type = "binary",
+    intervention_components = c("x1", "x2"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(6, 6),
+    cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+    outcome_goal = 0.8,
+    outcome_goal_intention = "maximize",
+    include_confidence_set = FALSE
+  ),
+  error = function(e) e
+)
+# expected: separation / large-standard-error warning if the fit converges;
+# a non-convergence error is also acceptable for a fully separated fit (that
+# is a pre-existing hard stop, not part of the diagnostics).
+```
