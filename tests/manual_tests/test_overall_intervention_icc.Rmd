@@ -1,0 +1,243 @@
+---
+title: "Overall intervention test: with vs. without a clustering (ICC) adjustment"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+library(geepack)
+```
+
+# Purpose
+
+The overall intervention test in `test_processor()` compares the treatment and
+control outcome means with an ordinary two-sample statistic that treats every
+participant as independent. BetterBirth (like every study we work with) is
+**clustered**: participants are nested in facilities (`site_name`), and outcomes
+within a facility are correlated. Ignoring that correlation makes the naive test
+overstate precision (p-value biased downward).
+
+This file demonstrates, for the BB binary example already shipped with the
+package, how the overall test changes once facility clustering is accounted for.
+It reports the intra-cluster correlation (ICC) three ways, and compares the naive
+test with two textbook-faithful clustered tests.
+
+The ICC estimator follows the ANOVA method in Donner & Klar, *Design and Analysis
+of Cluster Randomization Trials in Health Research*, pp. 84-85, applied to the
+(0,1) binary outcome. Nothing here changes the package; the adjustments are
+computed inline so the versions sit side by side.
+
+A design caveat that governs everything below: BetterBirth is **not** a clean
+cluster-randomized trial. Treatment status varies pre/post *within* a facility,
+and 25 of 36 facilities appear in only one arm, so arm and facility are partly
+confounded. That is why (a) a single ICC number is ambiguous, and (b) the choice
+of clustered test matters. Both points are made explicit below.
+
+# 1. The package's current (no-ICC) overall test
+
+`lago_optimization()` runs the overall test through `test_processor()` and prints
+it, but does not return it in the result object, so we call `test_processor()`
+directly here to capture the exact statistic the package computes. This is the
+current no-clustering two-sample test.
+
+```{r}
+bb_data <- LAGO::BB_data
+bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
+
+# the overall test exactly as the package computes it (no clustering term)
+naive <- test_processor(
+  data = bb_data,
+  outcome_type = "binary",
+  outcome_name = "pp3_oxytocin_mother"
+)
+cat(sprintf("NAIVE (no ICC):  t = %.2f   p = %.3g\n",
+            naive$test_stat, naive$p_val))
+```
+
+# 2. Estimate the ICC (Donner & Klar, pp. 84-85)
+
+The ICC estimator is a one-way random-effects ANOVA on the (0,1) outcome:
+
+$$\hat\rho = \frac{\text{MSC} - \text{MSW}}{\text{MSC} + (m_0 - 1)\,\text{MSW}}$$
+
+where MSC / MSW are the between- and within-cluster mean squares and
+$m_0 = \left(M - \sum_i m_i^2 / M\right) / (K - 1)$ is the adjusted mean cluster
+size. Negative estimates are set to 0. This is the one-way (single-group)
+specialization of the Donner & Klar p.85 formula, which in its general two-group
+form uses deviations about the *group* rate and a $(K - 2)$ denominator; with
+$K = 36$ facilities the difference is immaterial ($\Delta\hat\rho \approx
+0.0001$). We report a *response-scale* (probability-scale) ICC, matching the
+textbook's definition on the (0,1) observations -- it is not a logistic
+latent-scale ICC and the two are not directly comparable.
+
+```{r}
+# Donner-Klar one-way ANOVA ICC on a response vector.
+dk_icc <- function(response, cluster) {
+  ok <- !is.na(response) & !is.na(cluster)
+  y <- response[ok]
+  cl <- factor(cluster[ok])
+  N <- length(y)
+  K <- nlevels(cl)
+  ni <- as.numeric(table(cl))
+  grand_mean <- mean(y)
+  cluster_means <- tapply(y, cl, mean)
+  MSC <- sum(ni * (cluster_means - grand_mean)^2) / (K - 1)
+  MSW <- sum(tapply(y, cl, function(v) sum((v - mean(v))^2))) / (N - K)
+  m0 <- (N - sum(ni^2) / N) / (K - 1)
+  rho <- (MSC - MSW) / (MSC + (m0 - 1) * MSW)
+  rho <- max(rho, 0)
+  list(rho = rho, m0 = m0, K = K, N = N,
+       design_effect = 1 + (m0 - 1) * rho)
+}
+```
+
+Because arm and facility are confounded here, no single ICC is "the" ICC. We
+report all of the sensible quantities and label them explicitly.
+
+```{r}
+# (a) RAW pooled, both arms, arm ignored. This folds the treatment jump
+#     (control ~0.30 -> treatment ~0.87) into the between-cluster mean square,
+#     so it is INFLATED by the intervention effect and is NOT a true facility
+#     ICC. Reported only to be transparent about what "no adjustment at all"
+#     gives.
+icc_raw <- dk_icc(bb_data$pp3_oxytocin_mother, bb_data$site_name)
+
+# (b) WITHIN-ARM ICCs, computed in each arm separately (design-honest "raw"
+#     clustering -- never mixes the arm shift into any variance term).
+ctrl <- bb_data[bb_data$group == "control", ]
+trt  <- bb_data[bb_data$group == "treatment", ]
+icc_ctrl <- dk_icc(ctrl$pp3_oxytocin_mother, ctrl$site_name)
+icc_trt  <- dk_icc(trt$pp3_oxytocin_mother,  trt$site_name)
+
+# (c) ARM-ADJUSTED residual ICC: pool both arms but first remove the arm mean
+#     via a GLM, then compute the ICC on the residuals. This is the
+#     "within-facility correlation after accounting for arm". na.exclude keeps
+#     the residual vector full length so it stays aligned to site_name even if
+#     a covariate has NAs.
+resid_arm <- residuals(
+  glm(pp3_oxytocin_mother ~ group, data = bb_data,
+      family = binomial, na.action = na.exclude),
+  type = "response"
+)
+icc_before <- dk_icc(resid_arm, bb_data$site_name)
+
+# ... and ALSO removing facility volume (a cluster-level covariate).
+resid_vol <- residuals(
+  glm(pp3_oxytocin_mother ~ group + birth_volume_100, data = bb_data,
+      family = binomial, na.action = na.exclude),
+  type = "response"
+)
+icc_after <- dk_icc(resid_vol, bb_data$site_name)
+
+cat(sprintf("Facilities (clusters) K = %d,  adjusted mean size m0 = %.1f\n\n",
+            icc_before$K, icc_before$m0))
+cat("ICC of BB oxytocin within facility (response scale):\n")
+cat(sprintf("  (a) raw pooled, arm ignored .............. %.3f  [ARTIFACT: inflated by the treatment effect]\n",
+            icc_raw$rho))
+cat(sprintf("  (b) within control arm .................. %.3f\n", icc_ctrl$rho))
+cat(sprintf("      within treatment arm ................ %.3f\n", icc_trt$rho))
+cat(sprintf("  (c) arm-adjusted residual (before volume) %.3f  (DE = %.1f)\n",
+            icc_before$rho, icc_before$design_effect))
+cat(sprintf("      arm-adjusted residual (after volume)  %.3f  (DE = %.1f)\n",
+            icc_after$rho, icc_after$design_effect))
+```
+
+Reading these: the raw 0.55 is an artifact of the pre/post design and should not
+be quoted as the ICC. The design-honest facility clustering is substantial and
+**not constant across arms** (~0.48 control vs ~0.31 treatment), so the single
+exchangeable-ICC assumption is itself an approximation. The arm-adjusted residual
+ICC is ~0.34, dropping to ~0.27 once facility volume is also removed -- i.e.
+facility volume explains part, but not most, of the between-facility variation.
+
+# 3. The overall test, done cluster-honestly
+
+The naive test in Section 1 assumes 6124 independent observations. Two
+textbook-faithful ways to respect the facility clustering:
+
+**(i) Cluster-level t-test (Donner & Klar p.87).** Reduce each facility-arm to
+its event rate and run a two-sample t on those rates, with $K - 2$ degrees of
+freedom. This is the "collapse to cluster summaries" test. Caveat for BB: the 11
+dual-arm facilities contribute two (non-independent) cells, which this test
+treats as independent, and every facility is weighted equally regardless of size.
+
+```{r}
+cell_rates <- aggregate(pp3_oxytocin_mother ~ site_name + group,
+                        data = bb_data, FUN = mean)
+cl_t <- t.test(pp3_oxytocin_mother ~ group, data = cell_rates, var.equal = TRUE)
+cat(sprintf("(i)  cluster-level t-test:  t = %.2f  df = %.0f  p = %.3g\n",
+            cl_t$statistic, cl_t$parameter, cl_t$p.value))
+```
+
+**(ii) GEE with exchangeable working correlation, cluster = facility, robust
+(sandwich) SE.** This is the design-based inference: it models the
+within-facility correlation and produces a cluster-robust test for the treatment
+effect. We show it both unadjusted and adjusted for facility volume.
+
+```{r}
+d_gee <- bb_data[order(bb_data$site_name), ]
+d_gee$site <- factor(d_gee$site_name)
+
+gee_unadj <- geeglm(pp3_oxytocin_mother ~ group, id = site,
+                    data = d_gee, family = binomial, corstr = "exchangeable")
+gee_adj   <- geeglm(pp3_oxytocin_mother ~ group + birth_volume_100, id = site,
+                    data = d_gee, family = binomial, corstr = "exchangeable")
+
+gee_row <- function(fit, label) {
+  s <- summary(fit)$coefficients["grouptreatment", ]
+  z <- s[["Estimate"]] / s[["Std.err"]]
+  cat(sprintf("(ii) GEE %-22s beta = %.3f  robust SE = %.3f  z = %.2f  p = %.4f\n",
+              label, s[["Estimate"]], s[["Std.err"]], z, s[["Pr(>|W|)"]]))
+}
+gee_row(gee_unadj, "(volume unadjusted):")
+gee_row(gee_adj,   "(volume adjusted):  ")
+```
+
+# Takeaway
+
+```{r}
+cat(sprintf("NAIVE (no clustering):            p = %.3g   (t = %.1f, treats 6124 obs as independent)\n",
+            naive$p_val, naive$test_stat))
+cat(sprintf("Cluster-level t (D&K p.87):       p = %.3g\n", cl_t$p.value))
+sg_un <- summary(gee_unadj)$coefficients["grouptreatment", ]
+sg_ad <- summary(gee_adj)$coefficients["grouptreatment", ]
+cat(sprintf("GEE exchangeable, volume-unadj:   p = %.4f\n", sg_un[["Pr(>|W|)"]]))
+cat(sprintf("GEE exchangeable, volume-adj:     p = %.4f\n", sg_ad[["Pr(>|W|)"]]))
+```
+
+The clustering is severe: facility ICC ~0.3-0.5, design effect ~50, so the naive
+test overstates the effective sample size by roughly a factor of 50.
+
+The result this drives home -- and the reason clustering is not a formality here
+-- is that the different clustered tests **disagree**, and one of them makes the
+effect only marginal:
+
+1. **The naive test (p ~ 0) is not trustworthy.** It ignores that oxytocin
+   administration is largely a facility-level practice (site rates 0% to ~99%).
+
+2. **GEE unadjusted for facility volume is only marginal (p ~ 0.07).** With 25 of
+   36 facilities in a single arm, treatment is nearly confounded with facility;
+   once the within-facility correlation is honored, the raw treatment contrast is
+   not clearly significant.
+
+3. **Adjusting for facility volume restores significance (GEE p < 0.001).**
+   Facility volume acts as a suppressor here: conditioning on it sharpens the
+   treatment contrast (beta ~1.2 -> ~2.8). This is a concrete example of Donna's
+   point -- the clustered analysis and the facility-volume adjustment together
+   change the conclusion, whereas the naive test hides it.
+
+4. **The cluster-level t (p ~ 2e-11) looks decisive but is optimistic for BB:**
+   it treats the 47 facility-arm cells as independent (double-counting the 11
+   dual-arm facilities) and ignores facility volume. It is the right test for a
+   clean cluster-randomized design, not for this partly-confounded pre/post one.
+
+Bottom line for the package: the overall test should offer a cluster-aware option
+(GEE / sandwich SE is already used on the confidence-set path), and analyses on
+clustered data should report the ICC and adjust for cluster-level covariates.
+Even Donner & Klar's own example (rho = 0.01, cluster size 100) inflates the
+naive chi-square ~2x; at BB's ICC the naive test is off by far more, and here it
+is the difference between "obviously significant" and "depends on the adjustment."
