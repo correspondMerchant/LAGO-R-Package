@@ -1,0 +1,188 @@
+---
+title: "ICC (design effect) in the power calculation"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Ante Bing"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+devtools::clean_dll()
+devtools::load_all()
+```
+
+# Purpose
+
+The power calculation converts a power goal into the outcome level needed to
+achieve it. Before issue #29 it assumed independent observations. All LAGO
+trials are clustered (patients nested in centers), so ignoring clustering
+overstates power and returns a target that is too easy to reach.
+
+The new `icc` argument inflates the variance of the power-calculation test
+statistic by a design effect, following the LAGO power paper (arXiv 2509.11479):
+
+- unconditional approach (Theorem 1, stage-1 random): both stages are clustered.
+- conditional approach (Theorem 2, stage-1 fixed): the stage-2 prediction
+  variance clusters stage-2 only.
+
+`icc = NULL` (default) reproduces the original behavior exactly. This file shows
+the effect of `icc` and the backward-compatibility guarantee.
+
+# 1. Backward compatibility on the BB example
+
+On BB_data the control-rate floor binds before the non-centrality constraint, so
+`icc` does not change the recommended intervention here. What we verify is that
+turning `icc` on with value 0 leaves the result identical to `icc = NULL`.
+
+```{r}
+bb <- LAGO::BB_data
+bb$group <- ifelse(bb$pre_post == 0, "control", "treatment")
+
+common <- list(
+  data = bb,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = "birth_volume_100",
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  power_goal = 0.8,
+  num_centers_in_next_stage = 10,
+  patients_per_center_in_next_stage = 30,
+  include_confidence_set = FALSE
+)
+
+res_null <- do.call(lago_optimization, common)
+res_icc0 <- do.call(
+  lago_optimization,
+  c(common, list(icc = 0, power_goal_cluster_id = "site_name"))
+)
+
+cat(sprintf("icc = NULL: est_outcome_goal = %.6f\n", res_null$est_outcome_goal))
+cat(sprintf("icc = 0   : est_outcome_goal = %.6f\n", res_icc0$est_outcome_goal))
+cat(sprintf("identical: %s\n",
+            isTRUE(all.equal(res_null$est_outcome_goal, res_icc0$est_outcome_goal))))
+```
+
+# 2. The effect of ICC where the power constraint binds
+
+To see `icc` actually move the target, we use a small clustered dataset where the
+non-centrality constraint binds (rather than the control-rate floor). We call the
+internal `get_power_desired_outcome()` directly and report the power-implied
+outcome as `icc` increases.
+
+```{r}
+set.seed(1)
+J <- 8
+m <- 10
+small <- do.call(rbind, lapply(seq_len(J), function(j) {
+  grp <- if (j <= J / 2) "control" else "treatment"
+  rate <- if (grp == "treatment") 0.45 else 0.30
+  data.frame(center = paste0("c", j), group = grp,
+             y = rbinom(m, 1, rate))
+}))
+coeff <- c(
+  "(Intercept)" = stats::qlogis(mean(small$y[small$group == "control"])),
+  "dose" = 0.6
+)
+
+power_implied <- function(icc, approach) {
+  suppressWarnings(get_power_desired_outcome(
+    data = small, intervention_components_coeff = coeff,
+    power_goal = 0.8, power_goal_approach = approach,
+    num_centers_in_next_stage = 20, patients_per_center_in_next_stage = 20,
+    outcome_name = "y",
+    icc = icc,
+    power_goal_cluster_id = if (is.null(icc) || all(icc == 0)) NULL else "center"
+  ))
+}
+
+cat("Unconditional approach:\n")
+for (icc in list(NULL, 0, 0.005, 0.01, 0.02, 0.05)) {
+  lbl <- if (is.null(icc)) "NULL" else format(icc)
+  cat(sprintf("  icc = %-6s  required outcome = %.5f\n", lbl,
+              power_implied(icc, "unconditional")))
+}
+
+cat("Conditional approach:\n")
+for (icc in list(NULL, 0, 0.005, 0.01, 0.02)) {
+  lbl <- if (is.null(icc)) "NULL" else format(icc)
+  cat(sprintf("  icc = %-6s  required outcome = %.5f\n", lbl,
+              power_implied(icc, "conditional")))
+}
+```
+
+The required outcome rises with `icc`: honoring the within-center clustering
+means a stronger intervention is needed to still meet the same power goal. This
+is the correction the power calculation was missing.
+
+# 3. Per-arm ICC
+
+`icc` may be a length-2 vector `c(control, treatment)` when the two arms have
+different intra-cluster correlations.
+
+```{r}
+cat(sprintf("scalar icc = 0.01        : %.5f\n",
+            power_implied(0.01, "unconditional")))
+cat(sprintf("per-arm  icc = c(.01,.01): %.5f  (matches scalar)\n",
+            power_implied(c(0.01, 0.01), "unconditional")))
+cat(sprintf("per-arm  icc = c(.02,.005): %.5f\n",
+            power_implied(c(0.02, 0.005), "unconditional")))
+```
+
+# 4. Infeasible ICC warns, does not silently drop the power goal
+
+When the design effect is large enough that no attainable outcome meets the
+power goal, the function warns explicitly. Previously the conditional path
+returned 0 silently, which dropped the power goal via `max(0, outcome_goal)`.
+
+```{r}
+tryCatch(
+  withCallingHandlers(
+    get_power_desired_outcome(
+      data = small, intervention_components_coeff = coeff,
+      power_goal = 0.8, power_goal_approach = "unconditional",
+      num_centers_in_next_stage = 4, patients_per_center_in_next_stage = 8,
+      outcome_name = "y", icc = 0.3, power_goal_cluster_id = "center"
+    ),
+    warning = function(w) {
+      cat("WARNING RAISED:\n  ", conditionMessage(w), "\n")
+      invokeRestart("muffleWarning")
+    }
+  ),
+  error = function(e) cat("error:", conditionMessage(e), "\n")
+)
+```
+
+# 5. Validation
+
+```{r}
+show_error <- function(expr) {
+  tryCatch({
+    suppressWarnings(suppressMessages(expr))
+    cat("  (no error)\n")
+  }, error = function(e) cat("  error:", conditionMessage(e), "\n"))
+}
+
+small_dose <- transform(small, dose = ifelse(group == "treatment", 1, 0))
+base_small <- list(
+  data = small_dose, outcome_name = "y", outcome_type = "binary",
+  intervention_components = "dose",
+  intervention_lower_bounds = 0, intervention_upper_bounds = 1,
+  cost_list_of_vectors = list(c(0, 1)),
+  power_goal = 0.8, num_centers_in_next_stage = 4,
+  patients_per_center_in_next_stage = 8, include_confidence_set = FALSE
+)
+
+cat("icc out of range (1.2):\n")
+show_error(do.call(lago_optimization,
+                  c(base_small, list(icc = 1.2, power_goal_cluster_id = "center"))))
+cat("non-zero icc without power_goal_cluster_id:\n")
+show_error(do.call(lago_optimization, c(base_small, list(icc = 0.05))))
+cat("cluster id column not in data:\n")
+show_error(do.call(lago_optimization,
+                  c(base_small, list(icc = 0.05, power_goal_cluster_id = "nope"))))
+```

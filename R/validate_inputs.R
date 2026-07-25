@@ -12,6 +12,8 @@ validate_inputs <- function(
     power_goal_approach,
     num_centers_in_next_stage = NULL,
     patients_per_center_in_next_stage = NULL,
+    icc = NULL,
+    power_goal_cluster_id = NULL,
     unit_costs = NULL,
     default_cost_fxn_type = "cubic",
     cost_list_of_vectors = NULL,
@@ -965,6 +967,58 @@ validate_inputs <- function(
         stop("patients_per_center_in_next_stage must be greater than 0.")
       }
     }
+    # icc (issue #29): optional intra-cluster correlation used to inflate the
+    # power-calculation variance by a design effect. Scalar (shared across arms)
+    # or length-2 c(control, treatment). Each value must be in [0, 1).
+    if (!is.null(icc)) {
+      if (!is.numeric(icc)) {
+        stop("icc must be a numeric value (or a length-2 numeric vector).")
+      }
+      if (length(icc) != 1 && length(icc) != 2) {
+        stop("icc must have length 1 (shared) or 2 (control, treatment).")
+      }
+      if (any(icc < 0) || any(icc >= 1)) {
+        stop("icc must be in [0, 1).")
+      }
+      # a non-zero icc needs a stage-1 cluster id to compute the stage-1 design
+      # effect; validate the column exists and is non-degenerate per arm.
+      if (any(icc > 0)) {
+        if (is.null(power_goal_cluster_id)) {
+          stop(paste(
+            "A non-zero 'icc' requires 'power_goal_cluster_id', the name of a",
+            "column identifying stage-1 centers, so the stage-1 design effect",
+            "can be computed."
+          ))
+        }
+        if (!is.character(power_goal_cluster_id) ||
+          length(power_goal_cluster_id) != 1) {
+          stop("power_goal_cluster_id must be a single column name.")
+        }
+        if (!power_goal_cluster_id %in% names(data)) {
+          stop(paste0(
+            "power_goal_cluster_id column '", power_goal_cluster_id,
+            "' was not found in the data."
+          ))
+        }
+        # need at least two centers per arm to identify between-cluster variance
+        for (grp in c("control", "treatment")) {
+          n_centers <- length(unique(
+            data[data$group == grp, power_goal_cluster_id, drop = TRUE]
+          ))
+          if (n_centers < 2) {
+            stop(paste0(
+              "The '", grp, "' arm has fewer than two distinct ",
+              "power_goal_cluster_id centers, so the stage-1 design effect is ",
+              "not identifiable. Provide data with at least two centers per ",
+              "arm, or set icc = NULL."
+            ))
+          }
+        }
+      }
+    }
+  } else if (!is.null(icc)) {
+    # icc only affects the power calculation; without a power goal it is a no-op.
+    message("icc is ignored because no power_goal was provided.")
   }
 
   # check if power_goal_approach is a character type

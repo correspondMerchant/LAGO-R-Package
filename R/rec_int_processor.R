@@ -24,7 +24,9 @@ rec_int_processor <- function(
     power_goal_approach,
     num_centers_in_next_stage,
     patients_per_center_in_next_stage,
-    outcome_name) {
+    outcome_name,
+    icc = NULL,
+    power_goal_cluster_id = NULL) {
   # get coefficients for the intervention components
   intervention_components_coeff <-
     model$coefficients[c("(Intercept)", intervention_components)]
@@ -115,7 +117,9 @@ rec_int_processor <- function(
     power_goal_approach = power_goal_approach,
     num_centers_in_next_stage = num_centers_in_next_stage,
     patients_per_center_in_next_stage = patients_per_center_in_next_stage,
-    outcome_name = outcome_name
+    outcome_name = outcome_name,
+    icc = icc,
+    power_goal_cluster_id = power_goal_cluster_id
   )
 
   list(

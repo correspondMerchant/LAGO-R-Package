@@ -80,6 +80,14 @@
 #' Specifies the number of patients per center in the next stage.
 #' @param outcome_name A character string. Specifies the name of the outcome
 #' variable in the dataset.
+#' @param icc A numeric value in [0, 1), or a length-2 numeric vector
+#' c(control, treatment). Intra-cluster correlation used to inflate the
+#' power-calculation variance by a design effect. NULL (default) reproduces the
+#' original independent-observation behavior. Passed through to
+#' get_power_desired_outcome.
+#' @param power_goal_cluster_id A character string. The name of a column in the
+#' data identifying the stage-1 centers, used to compute the stage-1 design
+#' effect when icc is non-zero. Default NULL.
 #'
 #' @return List(
 #' est_rec_int = recommended interventions,
@@ -119,7 +127,9 @@ get_recommended_interventions <- function(
     power_goal_approach,
     num_centers_in_next_stage,
     patients_per_center_in_next_stage,
-    outcome_name) {
+    outcome_name,
+    icc = NULL,
+    power_goal_cluster_id = NULL) {
   # check if power goal is null, if not, calculate the desired outcome
   # value needed to achieve the power goal
   if (!is.null(power_goal)) {
@@ -130,7 +140,9 @@ get_recommended_interventions <- function(
       power_goal_approach,
       num_centers_in_next_stage,
       patients_per_center_in_next_stage,
-      outcome_name
+      outcome_name,
+      icc = icc,
+      power_goal_cluster_id = power_goal_cluster_id
     )
 
     new_outcome_goal <- max(power_desired_outcome, outcome_goal)
