@@ -28,7 +28,9 @@ get_recommended_interventions(
   power_goal_approach,
   num_centers_in_next_stage,
   patients_per_center_in_next_stage,
-  outcome_name
+  outcome_name,
+  icc = NULL,
+  power_goal_cluster_id = NULL
 )
 }
 \arguments{
@@ -132,6 +134,16 @@ Specifies the number of patients per center in the next stage.}
 
 \item{outcome_name}{A character string. Specifies the name of the outcome
 variable in the dataset.}
+
+\item{icc}{A numeric value in [0, 1), or a length-2 numeric vector
+c(control, treatment). Intra-cluster correlation used to inflate the
+power-calculation variance by a design effect. NULL (default) reproduces the
+original independent-observation behavior. Passed through to
+get_power_desired_outcome.}
+
+\item{power_goal_cluster_id}{A character string. The name of a column in the
+data identifying the stage-1 centers, used to compute the stage-1 design
+effect when icc is non-zero. Default NULL.}
 }
 \value{
 List(

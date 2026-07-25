@@ -18,6 +18,8 @@ lago_optimization(
   power_goal_approach = "unconditional",
   num_centers_in_next_stage = NULL,
   patients_per_center_in_next_stage = NULL,
+  icc = NULL,
+  power_goal_cluster_id = NULL,
   unit_costs = NULL,
   default_cost_fxn_type = "cubic",
   cost_list_of_vectors = NULL,
@@ -116,6 +118,25 @@ Default value without user specification: NULL.}
 
 \item{patients_per_center_in_next_stage}{A numeric value. Specifies
 the number of patients per center in the next stage of the trial.
+Default value without user specification: NULL.}
+
+\item{icc}{A numeric value in [0, 1), or a length-2 numeric vector
+c(control, treatment). Specifies the intra-cluster correlation used to
+inflate the variance of the power-calculation test statistic by a design
+effect, so that the power goal accounts for within-center clustering.
+Only used when a power_goal is provided (ignored otherwise). When NULL, the
+power calculation assumes independent observations (the original behavior);
+icc = 0 gives the identical result. A larger icc raises the outcome level
+needed to meet the power goal, so it recommends a stronger intervention. A
+non-zero icc requires power_goal_cluster_id.
+Default value without user specification: NULL.}
+
+\item{power_goal_cluster_id}{A character string. The name of a column in the
+data identifying the stage-1 centers (clusters), used to compute the stage-1
+design effect for the power calculation. Required when icc is non-zero. The
+stage-1 cluster size is the variance-appropriate (size-biased) mean
+sum(m_i^2) / sum(m_i) over that arm's centers, and each arm must have at
+least two centers.
 Default value without user specification: NULL.}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each
