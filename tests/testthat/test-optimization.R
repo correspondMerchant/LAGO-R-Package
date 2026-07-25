@@ -109,3 +109,41 @@ test_that("return value has the expected shape", {
   expect_true(all(c("rec_int", "rec_int_cost", "est_outcome_goal") %in% names(res)))
   expect_length(res$rec_int, 2)
 })
+
+test_that("the overall test result is returned (not just printed) when a group column is present", {
+  bb <- BB_data
+  bb$group <- ifelse(bb$pre_post == 0, "control", "treatment")
+  common <- list(
+    data = bb, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    center_characteristics = "birth_volume_100",
+    center_characteristics_optimization_values = 1.75,
+    intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5),
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85, outcome_goal_intention = "maximize"
+  )
+  # returned both when the confidence set is skipped ...
+  res_no_cs <- suppressWarnings(suppressMessages(do.call(
+    lago_optimization, c(common, list(include_confidence_set = FALSE))
+  )))
+  expect_false(is.null(res_no_cs$test_results))
+  expect_true(all(c("test_stat", "p_val") %in% names(res_no_cs$test_results)))
+
+  # ... and when it is computed.
+  res_cs <- suppressWarnings(suppressMessages(do.call(
+    lago_optimization,
+    c(common, list(
+      include_confidence_set = TRUE, confidence_set_grid_step_size = c(1, 0.5)
+    ))
+  )))
+  expect_false(is.null(res_cs$test_results))
+  expect_equal(res_cs$test_results$test_stat, res_no_cs$test_results$test_stat)
+
+  # NULL (not missing) when no valid group column is supplied.
+  common_no_group <- common
+  common_no_group$data <- BB_data # BB_data has no 'group' column
+  res_no_group <- suppressWarnings(suppressMessages(do.call(
+    lago_optimization, c(common_no_group, list(include_confidence_set = FALSE))
+  )))
+  expect_null(res_no_group$test_results)
+})
