@@ -196,7 +196,10 @@
 #' associated cost for the interventions,
 #' estimated outcome mean/probability for the intervention group,
 #' 95% confidence set percentage,
-#' 95% confidence set)
+#' 95% confidence set,
+#' overall intervention test results (test_results), a list with the test
+#' statistic and p-value; NULL unless a valid 'group' column is supplied.
+#' The confidence set fields are only present when include_confidence_set = TRUE.)
 #'
 #' @examples
 #' # Basic case showing how to carry out the optimization with
@@ -473,7 +476,9 @@ lago_optimization <- function(
       list(
         rec_int = rec_int,
         rec_int_cost = rec_int_cost,
-        est_outcome_goal = est_outcome_goal
+        est_outcome_goal = est_outcome_goal,
+        # test_results is NULL unless a valid 'group' column was supplied
+        test_results = test_results
       )
     } else {
       list(
@@ -482,7 +487,9 @@ lago_optimization <- function(
         est_outcome_goal = est_outcome_goal,
         confidence_set_size_percentage = cs$confidence_set_size_percentage,
         # cs$cs is NULL when no confidence set was found for the goal
-        cs = if (is.null(cs$cs)) NULL else cs$cs[-1, ]
+        cs = if (is.null(cs$cs)) NULL else cs$cs[-1, ],
+        # test_results is NULL unless a valid 'group' column was supplied
+        test_results = test_results
       )
     }
   )
