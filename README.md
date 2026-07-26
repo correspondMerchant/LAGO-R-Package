@@ -3,13 +3,21 @@
   <img src="./images/banner.png" width="800" alt="Banner">
 </p>
 
+<p align="center">
+  <a href="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml"><img src="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg" alt="License: GPL v3"></a>
+  <img src="https://img.shields.io/badge/R-%3E%3D%202.10-blue.svg" alt="R >= 2.10">
+</p>
+
+# LAGO
+
 The LAGO R package bridges the gap between theoretical advances in Learn-As-you-GO (LAGO) and practical applications by providing a standardized solution for:
 1) fitting the outcome models for both binary and continuous outcomes, including support for fixed center effects/center characteristics and fixed time effects,
 2) calculating the recommended interventions based on various optimization criteria, including support for custom cost functions,
 3) estimating the optimal intervention based on data from all stages,
 4) calculating the 95% confidence sets for the recommended interventions and the optimal interventions.
 
-### Table of Contents
+## Table of Contents
 1. [How to install the R package](#how-to-install-the-r-package)
 2. [The main functions](#the-main-functions)
 3. [Basic use case](#basic-use-case)
@@ -19,7 +27,7 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 7. [How to get help](#how-to-get-help)
 
 
-### How to install the R package
+## How to install the R package
 - Method 1 (directly using RStudio):
   ```
   install.packages("devtools")
@@ -27,7 +35,7 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
   ```
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
-### The main functions
+## The main functions
 The LAGO R package has two user-facing functions `lago_optimization()` and `visualize_cost()`.
 
 `lago_optimization()` carries out the LAGO optimizations, and `visualize_cost()` helps you choose cost functions for the intervention components.
@@ -41,7 +49,7 @@ help(lago_optimization)
 help(visualize_cost)
 ```
 
-### Basic use case
+## Basic use case
 We consider a hypothetical example based on the built-in R dataset 'mtcars'. The scenario is contrived; its purpose is to demonstrate the mechanics of running a LAGO optimization on a real dataset.
 
 The 'mtcars' data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models).
@@ -177,7 +185,7 @@ The GIF below shows the Shiny app in action
 ![the visualize_cost Shiny app](./images/shiny_2_14_2025.gif)
 
 
-### More advanced use case
+## More advanced use case
 We consider a more complicated example, which is adapted from Nevo et al., 2021.
 
 Suppose we want to run LAGO optimization for the BetterBirth Study, a costly failed trial of maternal and newborn care that took place in Uttar Pradesh, India (Hirschhorn et al. 2015; Semrau et al. 2017).
@@ -332,7 +340,7 @@ Please use $cs to get the full confidence set.
 The model fit here includes many more coefficients, one per center and per time period, than the previous example.
 
 
-### How to run additional examples
+## How to run additional examples
 This README does not document every input argument, every component of the outcome model, or the optimization algorithm behind the recommended interventions.
 
 **You can also fit 'center-level' data, change the optimization method, add interaction terms and covariates, and test for an overall intervention effect.
@@ -368,13 +376,13 @@ Outcome model and testing:
 - [test_fit_diagnostics](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_fit_diagnostics.Rmd) — fit diagnostics that warn about a questionable outcome model (glm warnings, near-singular estimates, non-significant components) while the optimization continues.
 - [test_overall_intervention](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_overall_intervention.Rmd) — overall intervention-effect test, reported when a `group` column is supplied.
 
-### Relevant LAGO papers
+## Relevant LAGO papers
 1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)
 2. [Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. Biometrics, 81(2), ujaf061. DOI: 10.1093/biomtc/ujaf061](https://pmc.ncbi.nlm.nih.gov/articles/PMC12099308/pdf/nihms-2084823.pdf)
 3. [Bing A, Spiegelman D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Trials for Effectiveness and Power to Prevent Failed Trials. arXiv:2509.11479](https://arxiv.org/pdf/2509.11479)
 4. [Bui, M. T., Longenecker, C. T., Bing, A., Spiegelman, D., Webel, A. R., Bosworth, H. B., & Lok, J. J. (2026). Addressing Confounding by Indication Through (Un) Measured Centre Characteristics in Learn-As-you-GO (LAGO) Trials. arXiv preprint arXiv:2604.13276.](https://arxiv.org/abs/2604.13276)
 
-### How to get help
+## How to get help
 Before reaching out for help, please carefully review this README, examine the descriptions of the arguments in the R help files, run the `.Rmd` files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/tests/manual_tests) folder, and read the relevant LAGO papers.
 
 Reach out to [Ante Bing](mailto:abing@bu.edu) or [Minh Bui](mailto:minhb@bu.edu) if you still have questions.
