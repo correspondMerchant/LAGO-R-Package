@@ -56,7 +56,10 @@ confidence_set_processor <- function(
   }
 
   cs <- get_confidence_set(
-    predictors_data = data[, predictors_list],
+    # drop = FALSE keeps a single predictor as a data.frame; get_confidence_set
+    # indexes predictors_data by column (names(), data[[col]]), which fails if a
+    # one-column selection collapses to a vector.
+    predictors_data = data[, predictors_list, drop = FALSE],
     include_center_effects,
     center_weights_for_outcome_goal,
     include_time_effects,
