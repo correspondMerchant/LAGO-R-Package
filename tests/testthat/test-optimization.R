@@ -204,6 +204,7 @@ test_that("a single intervention component does not crash the optimizer (#54)", 
 test_that("weights length is validated against the number of observations, not columns (#54)", {
   # length(data[, comp]) counted columns for a tibble / single-column drop, so
   # correctly-sized weights on a single-component tibble were wrongly rejected.
+  skip_if_not_installed("tibble")
   tb <- tibble::tibble(
     dose = rep(0:3, each = 4),
     y = c(0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1)
