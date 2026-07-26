@@ -549,7 +549,7 @@ get_confidence_set <- function(
     } else {
       intervention_components
     }
-  )]
+  ), drop = FALSE]
 
   create_cost_function <- function(coeffs) {
     function(x) {

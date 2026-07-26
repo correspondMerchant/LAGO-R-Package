@@ -147,3 +147,88 @@ test_that("the overall test result is returned (not just printed) when a group c
   )))
   expect_null(res_no_group$test_results)
 })
+
+test_that("a single intervention component does not crash the optimizer (#54)", {
+  # data[, one_col] used to collapse to a vector, breaking colMeans() (shrinking
+  # path) and the confidence-set construction (data[[col]] / apply over rows).
+  # Uses a base data.frame (not a tibble) so the [, ] drop actually triggers.
+  d <- data.frame(
+    dose = rep(0:3, each = 4),
+    y = c(0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1)
+  )
+  base <- list(
+    data = d, outcome_name = "y", outcome_type = "binary",
+    intervention_components = "dose",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 3,
+    cost_list_of_vectors = list(c(0, 1)),
+    outcome_goal_intention = "maximize"
+  )
+
+  # reachable goal -> confidence-set path
+  res_cs <- suppressWarnings(suppressMessages(do.call(
+    lago_optimization,
+    c(base, list(
+      outcome_goal = 0.6, include_confidence_set = TRUE,
+      confidence_set_grid_step_size = 1
+    ))
+  )))
+  expect_length(res_cs$rec_int, 1)
+  expect_true("dose" %in% names(res_cs$cs))
+
+  # unreachable goal -> shrinking path (the colMeans() site)
+  res_shrink <- suppressWarnings(suppressMessages(do.call(
+    lago_optimization,
+    c(base, list(outcome_goal = 0.999, include_confidence_set = FALSE))
+  )))
+  expect_length(res_shrink$rec_int, 1)
+
+  # continuous outcome + CS exercises get_vcov / prepare_design_matrix on
+  # predictors_data, the confidence_set_processor drop = FALSE site that the
+  # binary CS path above does not reach.
+  set.seed(1)
+  dc <- data.frame(x = seq(0, 10, length.out = 30))
+  dc$y <- 1.5 * dc$x + rnorm(30, 0, 1)
+  res_cts <- suppressWarnings(suppressMessages(lago_optimization(
+    data = dc, outcome_name = "y", outcome_type = "continuous",
+    glm_family = "gaussian", link = "identity",
+    intervention_components = "x",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 10,
+    cost_list_of_vectors = list(c(0, 1)),
+    outcome_goal = 12, outcome_goal_intention = "maximize",
+    include_confidence_set = TRUE, confidence_set_grid_step_size = 1
+  )))
+  expect_length(res_cts$rec_int, 1)
+  expect_true("x" %in% names(res_cts$cs))
+})
+
+test_that("weights length is validated against the number of observations, not columns (#54)", {
+  # length(data[, comp]) counted columns for a tibble / single-column drop, so
+  # correctly-sized weights on a single-component tibble were wrongly rejected.
+  skip_if_not_installed("tibble")
+  tb <- tibble::tibble(
+    dose = rep(0:3, each = 4),
+    y = c(0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1)
+  )
+  base <- list(
+    data = tb, outcome_name = "y", outcome_type = "binary",
+    intervention_components = "dose",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 3,
+    cost_list_of_vectors = list(c(0, 1)),
+    outcome_goal = 0.6, outcome_goal_intention = "maximize",
+    include_confidence_set = FALSE
+  )
+  # correctly-sized weights (one per observation) are accepted
+  expect_length(
+    suppressWarnings(suppressMessages(do.call(
+      lago_optimization, c(base, list(weights = rep(1, nrow(tb))))
+    )))$rec_int,
+    1
+  )
+  # wrong-length weights are still rejected
+  expect_error(
+    suppressWarnings(suppressMessages(do.call(
+      lago_optimization, c(base, list(weights = rep(1, 5)))
+    ))),
+    "number of observations"
+  )
+})

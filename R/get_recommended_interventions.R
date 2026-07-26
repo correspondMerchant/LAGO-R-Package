@@ -166,8 +166,10 @@ get_recommended_interventions <- function(
     } else {
       all_components <- intervention_components
     }
+    # drop = FALSE keeps a one-column selection as a data.frame; without it,
+    # data[, single_col] collapses to a vector and colMeans() errors.
     shrink_to_int_values <- colMeans(
-      data[, all_components],
+      data[, all_components, drop = FALSE],
       na.rm = TRUE
     )
   } else {

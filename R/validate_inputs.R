@@ -160,8 +160,10 @@ validate_inputs <- function(
       stop("The 'weights' option must be a numeric vector.")
     }
     # check if the provided weights option has the same length as the number of
-    # observations
-    if (length(weights) != length(data[, intervention_components[1]])) {
+    # observations. Use nrow(data) rather than length(data[, comp]): the latter
+    # returns the observation count for a base data.frame but the column count
+    # for a tibble or a single-column drop, so it mis-validates weights.
+    if (length(weights) != nrow(data)) {
       stop(paste0(
         "The length of the weights must be the same as the ",
         "number of observations in the provided input data."
