@@ -62,6 +62,7 @@
 #' @import stats
 #' @importFrom rje expit logit
 #'
+#' @keywords internal
 #' @export
 #'
 get_confidence_set <- function(

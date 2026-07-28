@@ -1,0 +1,18 @@
+url: https://correspondmerchant.github.io/LAGO-R-Package/
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Optimization
+  desc: Main user-facing functions.
+  contents:
+  - lago_optimization
+  - visualize_cost
+- title: Datasets
+  desc: Datasets included with the package.
+  contents:
+  - BB_data
+  - BB_proportions
+  - main_pulesa_data
+  - new_pulesa_data

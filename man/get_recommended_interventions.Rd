@@ -159,3 +159,4 @@ i.e. max(power-implied outcome, outcome_goal) )
 Internal function that calculates the LAGO recommended
 interventions based on an outcome goal and/or a power goal.
 }
+\keyword{internal}

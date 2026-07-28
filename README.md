@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="./images/banner.png" width="800" alt="Banner">
+  <img src="man/figures/banner.png" width="800" alt="Banner">
 </p>
 
 <p align="center">
@@ -182,7 +182,7 @@ visualize_cost(
 The GIF below shows the Shiny app in action
 
 **(please wait a few seconds for the GIF to load)**
-![the visualize_cost Shiny app](./images/shiny_2_14_2025.gif)
+![the visualize_cost Shiny app](man/figures/shiny_2_14_2025.gif)
 
 
 ## More advanced use case

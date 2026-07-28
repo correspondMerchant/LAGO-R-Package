@@ -8,4 +8,13 @@
 \description{
 Calculates LAGO recommended interventions for the next stage. The recommended interventions will be calculated based on the outcome goal and/or the power goal.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://correspondmerchant.github.io/LAGO-R-Package/}
+  \item \url{https://github.com/correspondMerchant/LAGO-R-Package}
+  \item Report bugs at \url{https://github.com/correspondMerchant/LAGO-R-Package/issues}
+}
+
+}
 \keyword{internal}

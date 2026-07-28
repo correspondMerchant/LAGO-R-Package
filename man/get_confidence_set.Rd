@@ -112,3 +112,4 @@ List(
 Internal function that calculates the confidence set
 for the recommended interventions
 }
+\keyword{internal}
