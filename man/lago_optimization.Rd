@@ -2,7 +2,7 @@
 % Please edit documentation in R/lago_optimization.R
 \name{lago_optimization}
 \alias{lago_optimization}
-\title{lago_optimization}
+\title{Run a LAGO optimization}
 \usage{
 lago_optimization(
   data,
@@ -298,9 +298,10 @@ statistic and p-value; NULL unless a valid 'group' column is supplied.
 The confidence set fields are only present when include_confidence_set = TRUE.)
 }
 \description{
-Fitting the outcome model, calculates the recommended
+Fits the outcome model, calculates the recommended
 interventions based on an outcome goal and/or a power goal, calculates
 the confidence set for the recommended interventions, and prints the output.
+This is the main entry point of the package.
 }
 \examples{
 # Basic case showing how to carry out the optimization with

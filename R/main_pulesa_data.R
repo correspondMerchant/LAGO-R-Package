@@ -1,23 +1,29 @@
-#' PULESA data for running the main model
+#' PULESA hypertension-care data (main model)
 #'
+#' Clinic-level data from the PULESA study, a cluster-randomized trial of a
+#' multi-component intervention to improve hypertension care. Each row is one
+#' clinic in one time period. This is the version used to fit the "main" LAGO
+#' outcome model, whose intervention components are access to blood-pressure
+#' machines, access to medicines, delivery mode, hypertension training,
+#' performance improvement, and remote monitoring.
 #'
 #' @format A data frame with 192 rows and 15 variables:
 #' \describe{
-#'   \item{Clinic}{}
-#'   \item{Period}{}
-#'   \item{AccessBPMachines}{}
-#'   \item{AccessMedicines}{}
-#'   \item{DeliveryA}{}
-#'   \item{DeliveryB}{}
-#'   \item{HypertensionTraining}{}
-#'   \item{MI_DeliveryB}{}
-#'   \item{MI_PerformanceImprovement}{}
-#'   \item{MI_RemoteMonitoring}{}
-#'   \item{PerformanceImprovement}{}
-#'   \item{Proportions}{}
-#'   \item{RemoteMonitoring}{}
-#'   \item{Success}{}
-#'   \item{Total_visit}{}
+#'   \item{Clinic}{Clinic (cluster) identifier}
+#'   \item{Period}{Study time period}
+#'   \item{AccessBPMachines}{Intervention component: access to blood-pressure machines}
+#'   \item{AccessMedicines}{Intervention component: access to medicines}
+#'   \item{DeliveryA}{Intervention component: care delivery mode A}
+#'   \item{DeliveryB}{Intervention component: care delivery mode B}
+#'   \item{HypertensionTraining}{Intervention component: hypertension training}
+#'   \item{MI_DeliveryB}{Interaction term involving delivery mode B}
+#'   \item{MI_PerformanceImprovement}{Interaction term involving performance improvement}
+#'   \item{MI_RemoteMonitoring}{Interaction term involving remote monitoring}
+#'   \item{PerformanceImprovement}{Intervention component: performance improvement}
+#'   \item{Proportions}{Outcome: proportion of successes at the clinic-period}
+#'   \item{RemoteMonitoring}{Intervention component: remote monitoring}
+#'   \item{Success}{Outcome: number of successes at the clinic-period}
+#'   \item{Total_visit}{Number of visits at the clinic-period}
 #' }
 #'
 #' @examples

@@ -1,8 +1,9 @@
-#' lago_optimization
+#' Run a LAGO optimization
 #'
-#' @description Fitting the outcome model, calculates the recommended
+#' @description Fits the outcome model, calculates the recommended
 #' interventions based on an outcome goal and/or a power goal, calculates
 #' the confidence set for the recommended interventions, and prints the output.
+#' This is the main entry point of the package.
 #'
 #' @param data A data.frame. The input dataset containing the variables of
 #' interest.
