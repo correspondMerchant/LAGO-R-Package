@@ -98,6 +98,7 @@
 #' effective_outcome_goal = the outcome goal actually used for optimization,
 #' i.e. max(power-implied outcome, outcome_goal) )
 #'
+#' @keywords internal
 #'
 #' @importFrom rje expit logit
 #' @import stats

@@ -8,6 +8,8 @@ Description: Calculates LAGO recommended interventions for the next stage.
     The recommended interventions will be calculated based on the outcome goal
     and/or the power goal.
 License: GPL-3
+URL: https://correspondmerchant.github.io/LAGO-R-Package/, https://github.com/correspondMerchant/LAGO-R-Package
+BugReports: https://github.com/correspondMerchant/LAGO-R-Package/issues
 Encoding: UTF-8
 LazyData: true
 Imports: rje, NlcOptim, cli, bslib, shiny, ggplot2, shinyjs
@@ -15,6 +17,6 @@ Suggests:
     testthat (>= 3.0.0),
     tibble
 Config/testthat/edition: 3
-RoxygenNote: 7.3.2
 Depends:
     R (>= 2.10)
+RoxygenNote: 7.3.2
