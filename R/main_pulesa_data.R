@@ -1,5 +1,4 @@
 #' PULESA data for running the main model
-#' (need to be deleted before publishing the R pacakge).
 #'
 #'
 #' @format A data frame with 192 rows and 15 variables:

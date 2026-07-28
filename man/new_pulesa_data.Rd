@@ -3,8 +3,7 @@
 \docType{data}
 \name{new_pulesa_data}
 \alias{new_pulesa_data}
-\title{PULESA data for running the "new" model
-(need to be deleted before publishing the R pacakge).}
+\title{PULESA data for running the "new" model}
 \format{
 A data frame with 192 rows and 15 variables:
 \describe{
@@ -37,7 +36,6 @@ new_pulesa_data
 }
 \description{
 PULESA data for running the "new" model
-(need to be deleted before publishing the R pacakge).
 }
 \examples{
 data(main_pulesa_data)
