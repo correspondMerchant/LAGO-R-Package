@@ -1,0 +1,199 @@
+# get_recommended_interventions
+
+Internal function that calculates the LAGO recommended interventions
+based on an outcome goal and/or a power goal.
+
+## Usage
+
+``` r
+get_recommended_interventions(
+  data,
+  intervention_components_coeff,
+  include_interaction_terms,
+  main_components,
+  intervention_components,
+  all_center_lvl_effects,
+  center_weights_for_outcome_goal,
+  cost_list_of_vectors,
+  intervention_lower_bounds,
+  intervention_upper_bounds,
+  outcome_goal,
+  optimization_method,
+  optimization_grid_search_step_size,
+  center_cha_coeff_vec = 0,
+  center_characteristics_optimization_values = 0,
+  link = "identity",
+  lower_outcome_goal = FALSE,
+  prev_recommended_interventions,
+  shrinkage_threshold,
+  power_goal,
+  power_goal_approach,
+  num_centers_in_next_stage,
+  patients_per_center_in_next_stage,
+  outcome_name,
+  icc = NULL,
+  power_goal_cluster_id = NULL
+)
+```
+
+## Arguments
+
+- data:
+
+  A data frame. The dataset that contains the intervention components
+  and the outcome variable.
+
+- intervention_components_coeff:
+
+  A numeric vector. The coefficient estimates for the intervention
+  components including the intercept term. For example: c(0.1, 0.3,
+  0.15).
+
+- include_interaction_terms:
+
+  A boolean. Specifies whether there are interaction terms in the
+  intervention components.
+
+- main_components:
+
+  A character vector. Specifies the main intervention components in the
+  presence of interaction terms.
+
+- intervention_components:
+
+  A character vector. The names of the columns in the dataset that
+  represent the intervention components.
+
+- all_center_lvl_effects:
+
+  A numeric vector. The coefficient estimates for the facilities, which
+  includes the fixed center effects and the fixed time effects.
+
+- center_weights_for_outcome_goal:
+
+  A numeric vector. Specifies the weights of all facilities. The weights
+  should sum up to 1.
+
+- cost_list_of_vectors:
+
+  A list of numeric vectors. Specifies the cost functions for each
+  intervention component. Each numeric vector in the list contains
+  coefficients of the cost function for one intervention component. For
+  example: list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents: - First
+  component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3 - Second component: cost
+  = 4 + 6x_2 - Third component: cost = 5 + 4x_3 + 3x_3^2 list(c(0, 2),
+  c(0, 6), c(0, 4)) represents: - First component: cost = 2x_1 - Second
+  component: cost = 6x_2 - Third component: cost = 4x_3
+
+- intervention_lower_bounds:
+
+  A numeric vector. Specifies the lower bounds of the intervention
+  components. For example: for a two-component intervention package,
+  lower bounds could be c(0,0).
+
+- intervention_upper_bounds:
+
+  A numeric vector. Specifies the upper bounds of the intervention
+  components. For example: for a two-component intervention package,
+  upper bounds could be c(10,20).
+
+- outcome_goal:
+
+  A numeric value. Specifies the outcome goal, a desired probability or
+  mean value.
+
+- optimization_method:
+
+  A character string. Specifies the method used for LAGO optimization.
+  Must be either "numerical" or "grid_search". Default value without
+  user specification: "numerical". - Use "grid_search" if you want to
+  exhaustively test every possible intervention package compositions in
+  LAGO optimization. - Use "numerical" if you want to use gradient-based
+  technique in LAGO optimization.
+
+- optimization_grid_search_step_size:
+
+  A numeric vector. Specifies the step size of the grid search algorithm
+  used in LAGO optimization. Default value without user specification:
+  1/20 of the range for each intervention component.
+
+- center_cha_coeff_vec:
+
+  A numeric vector. The coefficients estimates for the center
+  characteristics. For example: c(-0.4).
+
+- center_characteristics_optimization_values:
+
+  A numeric vector. The fixed values of the center characteristics at
+  which the recommended intervention is computed, so the recommendation
+  is specific to a center with these characteristic values. Must have
+  the same length and order as center_characteristics. For example:
+  c(1.75)
+
+- link:
+
+  A character string. Specifies the link function used when fitting the
+  outcome model.
+
+- lower_outcome_goal:
+
+  A boolean value. Specifies whether the outcome goal is intended to be
+  lower or higher than the average outcome.
+
+- prev_recommended_interventions:
+
+  A numeric vector. Specifies the recommended interventions from the
+  previous stage.
+
+- shrinkage_threshold:
+
+  A numeric value. Specifies the threshold for shrinking the recommended
+  intervention towards the recommended intervention from the previous
+  stage.
+
+- power_goal:
+
+  A numeric value. Specifies the power goal, a desired power value
+  between 0 and 1.
+
+- power_goal_approach:
+
+  A character string. Specifies the approach used to achieve the power
+  goal. Must be either "unconditional" or "conditional".
+
+- num_centers_in_next_stage:
+
+  A numeric value. Specifies the number of centers in the next stage.
+
+- patients_per_center_in_next_stage:
+
+  A numeric value. Specifies the number of patients per center in the
+  next stage.
+
+- outcome_name:
+
+  A character string. Specifies the name of the outcome variable in the
+  dataset.
+
+- icc:
+
+  A numeric value in \[0, 1), or a length-2 numeric vector c(control,
+  treatment). Intra-cluster correlation used to inflate the
+  power-calculation variance by a design effect. NULL (default)
+  reproduces the original independent-observation behavior. Passed
+  through to get_power_desired_outcome.
+
+- power_goal_cluster_id:
+
+  A character string. The name of a column in the data identifying the
+  stage-1 centers, used to compute the stage-1 design effect when icc is
+  non-zero. Default NULL.
+
+## Value
+
+List( est_rec_int = recommended interventions, rec_int_cost = associated
+cost of the recommended interventions, est_reachable_outcome = estimated
+outcome mean/probability for the intervention group in the next stage,
+shrinking_method_used = whether the shrinking method was applied,
+effective_outcome_goal = the outcome goal actually used for
+optimization, i.e. max(power-implied outcome, outcome_goal) )

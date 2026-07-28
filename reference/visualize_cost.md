@@ -1,0 +1,64 @@
+# visualize_cost
+
+Visualize the cost functions for the intervention components. This
+function creates a Shiny app that allows the user to adjust the
+coefficients of the cost functions for each intervention component and
+visualize the resulting total cost function and its derivative. The
+initial coefficients are calculated based on the unit costs, the default
+cost function type (linear or cubic), and the lower and upper bounds.
+The user can adjust the coefficients using sliders and reset them to
+their initial values. Each slider has a default range scaled to its
+coefficient's magnitude (derived from the unit costs and bounds), and
+the user can set a custom range for any slider using its "Range min" /
+"Range max" inputs. The app also displays the current coefficient vector
+for each component. The user can copy the final coefficient list for use
+in the optimization function lago_optimization().
+
+## Usage
+
+``` r
+visualize_cost(
+  component_names,
+  unit_costs,
+  default_cost_fxn_type,
+  intervention_lower_bounds,
+  intervention_upper_bounds
+)
+```
+
+## Arguments
+
+- component_names:
+
+  A character vector of the names of the intervention components.
+
+- unit_costs:
+
+  A numeric vector of the unit costs for each intervention component.
+
+- default_cost_fxn_type:
+
+  A character string specifying the default cost function type. Must be
+  either "linear" or "cubic".
+
+- intervention_lower_bounds:
+
+  A numeric vector of the lower bounds for each intervention component.
+
+- intervention_upper_bounds:
+
+  A numeric vector of the upper bounds for each intervention component.
+
+## Examples
+
+``` r
+if (FALSE) { # \dontrun{
+visualize_cost(
+  component_names = c("Component 1", "Component 2"),
+  unit_costs = c(0.5, 1),
+  default_cost_fxn_type = "linear",
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 10)
+)
+} # }
+```
