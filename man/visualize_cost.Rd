@@ -50,6 +50,15 @@ The app also displays the current coefficient vector for each component.
 The user can copy the final coefficient list for use in the optimization
 function lago_optimization().
 }
+\details{
+When the app is closed with the "Return list to R & close" button,
+the coefficient list is also assigned to \code{lago_cost_list} in the global
+environment (overwriting any existing object of that name) and a message
+reports this, so the list is available even when the app was launched with a
+bare \code{visualize_cost(...)} call rather than \code{cost_list <-
+visualize_cost(...)}. Closing the browser tab instead of using the button
+does not save the list.
+}
 \examples{
 \dontrun{
 visualize_cost(
