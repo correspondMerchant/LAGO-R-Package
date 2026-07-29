@@ -112,6 +112,24 @@ each intervention component.</p></dd>
 each intervention component.</p></dd>
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p>Invisibly, the cost-function coefficient list
+(a list of numeric vectors, one per intervention component) as it stood
+when the app was closed, suitable for passing to
+<code>lago_optimization(cost_list_of_vectors = ...)</code>. The same list can be
+copied from within the app.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>When the app is closed with the "Return list to R &amp; close" button,
+the coefficient list is also assigned to <code>lago_cost_list</code> in the global
+environment (overwriting any existing object of that name) and a message
+reports this, so the list is available even when the app was launched with a
+bare <code>visualize_cost(...)</code> call rather than <code>cost_list &lt;-
+visualize_cost(...)</code>. Closing the browser tab instead of using the button
+does not save the list.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

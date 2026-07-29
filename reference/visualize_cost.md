@@ -49,6 +49,24 @@ visualize_cost(
 
   A numeric vector of the upper bounds for each intervention component.
 
+## Value
+
+Invisibly, the cost-function coefficient list (a list of numeric
+vectors, one per intervention component) as it stood when the app was
+closed, suitable for passing to
+`lago_optimization(cost_list_of_vectors = ...)`. The same list can be
+copied from within the app.
+
+## Details
+
+When the app is closed with the "Return list to R & close" button, the
+coefficient list is also assigned to `lago_cost_list` in the global
+environment (overwriting any existing object of that name) and a message
+reports this, so the list is available even when the app was launched
+with a bare `visualize_cost(...)` call rather than
+`cost_list <- visualize_cost(...)`. Closing the browser tab instead of
+using the button does not save the list.
+
 ## Examples
 
 ``` r
