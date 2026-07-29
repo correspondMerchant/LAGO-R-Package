@@ -504,16 +504,39 @@ lago_optimization <- function(
       )
   }
 
-  return(
-    if (!include_confidence_set) {
+  # Metadata carried on the result so the print/summary/plot methods can render
+  # it (rec_int is an unnamed numeric, and these are not otherwise stored).
+  # display_components are the labels that line up with rec_int and the cs
+  # columns: with interaction terms those are the main components (rec_int / cs
+  # hold main effects only, not the interaction columns), otherwise the
+  # intervention components themselves. Using this instead of
+  # intervention_components keeps the methods correct for interaction models.
+  display_components <- if (include_interaction_terms) {
+    main_components
+  } else {
+    intervention_components
+  }
+  result_meta <- list(
+    intervention_components = intervention_components,
+    display_components = display_components,
+    outcome_type = outcome_type,
+    outcome_goal = outcome_goal,
+    power_goal = power_goal
+  )
+
+  result <- if (!include_confidence_set) {
+    c(
       list(
         rec_int = rec_int,
         rec_int_cost = rec_int_cost,
         est_outcome_goal = est_outcome_goal,
         # test_results is NULL unless a valid 'group' column was supplied
         test_results = test_results
-      )
-    } else {
+      ),
+      result_meta
+    )
+  } else {
+    c(
       list(
         rec_int = rec_int,
         rec_int_cost = rec_int_cost,
@@ -523,7 +546,13 @@ lago_optimization <- function(
         cs = if (is.null(cs$cs)) NULL else cs$cs[-1, ],
         # test_results is NULL unless a valid 'group' column was supplied
         test_results = test_results
-      )
-    }
-  )
+      ),
+      result_meta
+    )
+  }
+
+  # S3 class so print()/summary()/plot() dispatch. The object is still a plain
+  # list, so existing $/[[/names access is unchanged.
+  class(result) <- "lago"
+  return(result)
 }

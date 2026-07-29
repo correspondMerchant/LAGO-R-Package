@@ -15,7 +15,10 @@ LazyData: true
 Imports: rje, NlcOptim, cli, bslib, shiny, ggplot2, shinyjs
 Suggests:
     testthat (>= 3.0.0),
-    tibble
+    tibble,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Depends:
     R (>= 2.10)
