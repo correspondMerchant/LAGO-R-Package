@@ -85,7 +85,8 @@ This is the main entry point of the package.</p>
 <span>  include_time_effects <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  include_interaction_terms <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  prev_recommended_interventions <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  shrinkage_threshold <span class="op">=</span> <span class="fl">0.25</span></span>
+<span>  shrinkage_threshold <span class="op">=</span> <span class="fl">0.25</span>,</span>
+<span>  quiet <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -407,6 +408,16 @@ will be applied. If the maximum reachable outcome is greater than this value,
 then the maximum reachable outcome will be used as the outcome goal, and the
 shrinkage method will not be used.
 Default value without user specification: 0.25.</p></dd>
+
+
+<dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
+<dd><p>A boolean. If TRUE, suppresses the progress messages, the paced
+delays between them, and the final printed output, which speeds up the call
+substantially (the default paced output adds about two seconds of artificial
+delay). The returned value is identical either way. Genuine warnings about
+the data or model fit are still shown. Useful for programmatic or repeated
+calls (for example, simulations).
+Default value without user specification: FALSE.</p></dd>
 
 </dl></div>
     <div class="section level2">
