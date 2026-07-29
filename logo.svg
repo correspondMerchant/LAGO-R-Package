@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200"
+     height="1200"
+     viewBox="0 0 1200 1200"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">LAGO R package logo</title>
+  <desc id="desc">A blue hex sticker with an ascending stage path ending at an orange target above the LAGO wordmark.</desc>
+
+  <defs>
+    <clipPath id="hex-clip">
+      <path d="M 100,600 L 350,167 L 850,167 L 1100,600 L 850,1033 L 350,1033 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Transparent canvas outside the hexagon. -->
+  <path fill="#003B73"
+        d="M 60,600 L 330,132.35 L 870,132.35 L 1140,600 L 870,1067.65 L 330,1067.65 Z"/>
+  <path fill="#0868BF"
+        d="M 100,600 L 350,167 L 850,167 L 1100,600 L 850,1033 L 350,1033 Z"/>
+
+  <g clip-path="url(#hex-clip)">
+    <!-- A darker base gives the wordmark a stable visual anchor. -->
+    <rect x="0" y="645" width="1200" height="500" fill="#00529B"/>
+
+    <!-- Target threshold and adaptive stage path. -->
+    <path d="M 285,320 H 915"
+          fill="none"
+          stroke="#DCEEFF"
+          stroke-width="10"
+          stroke-linecap="round"
+          stroke-dasharray="16 20"
+          opacity="0.65"/>
+    <path d="M 285,535 H 430 V 470 H 565 V 410 H 700 V 350 H 840 V 320"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="34"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- Stage observations become more precise as the path approaches the target. -->
+    <circle cx="430" cy="470" r="18" fill="#FFFFFF"/>
+    <circle cx="565" cy="410" r="18" fill="#FFFFFF"/>
+    <circle cx="700" cy="350" r="18" fill="#FFFFFF"/>
+    <circle cx="840" cy="320" r="49" fill="#FFFFFF"/>
+    <circle cx="840" cy="320" r="31" fill="#CC3300"/>
+
+    <text x="600"
+          y="860"
+          fill="#FFFFFF"
+          font-family="DejaVu Sans, Arial, sans-serif"
+          font-size="222"
+          font-weight="700"
+          text-anchor="middle">LAGO</text>
+  </g>
+</svg>

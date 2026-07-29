@@ -461,18 +461,16 @@ lago_optimization(
 #> 95% confidence interval for the estimated outcome goal: Not available, please set include_confidence_set = TRUE 
 #> 
 #> Cost for using the recommended interventions: 128.1089 
-#> $rec_int
-#> [1] 31.504032  2.092742
 #> 
-#> $rec_int_cost
-#> [1] 128.1089
+#> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
-#> $est_outcome_goal
-#> [1] 0.3346632
-#> 
-#> $test_results
-#> NULL
-#> 
+#> ── Recommended intervention 
+#> • age: 31.504
+#> • parity: 2.0927
+#> Cost: 128.1089
+#> Estimated outcome: 0.3347
+#> Outcome goal: 0.5
+#> Use summary() for the confidence set and test detail, plot() to visualize.
 
 lago_optimization(
   data = BB_data,
@@ -590,61 +588,17 @@ lago_optimization(
 #> 71 67.0
 #> 72 68.7
 #> 73 70.4
-#> $rec_int
-#> [1] 1.000000 2.778472
 #> 
-#> $rec_int_cost
-#> [1] 23.92777
+#> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
-#> $est_outcome_goal
-#> [1] 0.85
-#> 
-#> $confidence_set_size_percentage
-#> [1] 0.09
-#> 
-#> $cs
-#>    coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound
-#> 68            27               2             1.75          0.811          0.851
-#> 69            28               2             1.75          0.814          0.855
-#> 70            29               2             1.75          0.816          0.859
-#> 71            30               2             1.75          0.819          0.863
-#> 72            31               2             1.75          0.822          0.867
-#> 73            32               2             1.75          0.824          0.871
-#> 74            33               2             1.75          0.827          0.875
-#> 75            34               2             1.75          0.829          0.879
-#> 76            35               2             1.75          0.832          0.883
-#> 77            36               2             1.75          0.834          0.886
-#> 78            37               2             1.75          0.836          0.890
-#> 79            38               2             1.75          0.839          0.894
-#> 80            39               2             1.75          0.841          0.897
-#> 81            40               2             1.75          0.843          0.901
-#> 82             1               3             1.75          0.832          0.921
-#> 83             2               3             1.75          0.837          0.922
-#> 84             3               3             1.75          0.841          0.923
-#> 85             4               3             1.75          0.846          0.923
-#>    cost
-#> 68 61.9
-#> 69 63.6
-#> 70 65.3
-#> 71 67.0
-#> 72 68.7
-#> 73 70.4
-#> 74 72.1
-#> 75 73.8
-#> 76 75.5
-#> 77 77.2
-#> 78 78.9
-#> 79 80.6
-#> 80 82.3
-#> 81 84.0
-#> 82 25.7
-#> 83 27.4
-#> 84 29.1
-#> 85 30.8
-#> 
-#> $test_results
-#> NULL
-#> 
+#> ── Recommended intervention 
+#> • coaching_updt: 1
+#> • launch_duration: 2.7785
+#> Cost: 23.9278
+#> Estimated outcome: 0.85
+#> Outcome goal: 0.85
+#> 95% confidence set size: 9% of the grid
+#> Use summary() for the confidence set and test detail, plot() to visualize.
 
 lago_optimization(
   data = BB_proportions,
@@ -740,16 +694,14 @@ lago_optimization(
 #> 95% confidence interval for the estimated outcome goal: Not available, please set include_confidence_set = TRUE 
 #> 
 #> Cost for using the recommended interventions: 104.5281 
-#> $rec_int
-#> [1] 38.98865  4.78093
 #> 
-#> $rec_int_cost
-#> [1] 104.5281
+#> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
-#> $est_outcome_goal
-#> [1] 0.8377371
-#> 
-#> $test_results
-#> NULL
-#> 
+#> ── Recommended intervention 
+#> • coaching_updt: 38.9887
+#> • launch_duration: 4.7809
+#> Cost: 104.5281
+#> Estimated outcome: 0.8377
+#> Outcome goal: 0.85
+#> Use summary() for the confidence set and test detail, plot() to visualize.
 ```
