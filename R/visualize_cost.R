@@ -39,7 +39,19 @@
 #'   intervention_upper_bounds = c(10, 10)
 #' )
 #' }
-#' @return NULL
+#' @return Invisibly, the cost-function coefficient list
+#' (a list of numeric vectors, one per intervention component) as it stood
+#' when the app was closed, suitable for passing to
+#' \code{lago_optimization(cost_list_of_vectors = ...)}. The same list can be
+#' copied from within the app.
+#'
+#' @details When the app is closed with the "Return list to R & close" button,
+#' the coefficient list is also assigned to \code{lago_cost_list} in the global
+#' environment (overwriting any existing object of that name) and a message
+#' reports this, so the list is available even when the app was launched with a
+#' bare \code{visualize_cost(...)} call rather than \code{cost_list <-
+#' visualize_cost(...)}. Closing the browser tab instead of using the button
+#' does not save the list.
 #'
 visualize_cost <- function(
     component_names,
@@ -71,6 +83,25 @@ visualize_cost <- function(
       length(intervention_upper_bounds) == length(component_names),
     "intervention lower bounds must be less than intervention upper bounds." =
       all(intervention_lower_bounds < intervention_upper_bounds)
+  )
+
+  # When the user closes the app with the "Return list to R & close" button, the
+  # quit observer saves the current cost list to `lago_cost_list` in the global
+  # environment and sets `saved` to TRUE. This on.exit then tells the user where
+  # it is. The flag (initialized locally here) is required so the message only
+  # prints on that button-close path: it must NOT fire on an early error or on a
+  # browser tab-close / Esc, where no cost list was produced.
+  saved <- FALSE
+  on.exit(
+    if (saved) {
+      message(
+        "Your cost list has been saved to `lago_cost_list` in your global ",
+        "environment.\n",
+        "Use it with: ",
+        "lago_optimization(..., cost_list_of_vectors = lago_cost_list)"
+      )
+    },
+    add = TRUE
   )
 
   # Calculate the initial coefficients for the cost function
@@ -123,17 +154,31 @@ visualize_cost <- function(
           h4("Using these cost functions in optimization"),
           p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
           verbatimTextOutput("complete_coef_list"),
+          div(
+            style = "margin-bottom: 10px;",
+            actionButton(
+              inputId = "copy_button",
+              label = "Copy to clipboard",
+              class = "btn-primary btn-sm",
+              icon = icon("clipboard")
+            ),
+            span(
+              id = "copy_confirmation",
+              style = "color: #198754; margin-left: 10px; display: none;",
+              "Copied!"
+            )
+          ),
           p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
         ),
         column(
-          4, # Takes up 4/12 of the width for the quit button
+          4, # Takes up 4/12 of the width for the finish button
           div(
             style = "text-align: right; padding-top: 20px;",
             actionButton(
               inputId = "quit_button",
-              label = "Quit App",
+              label = "Return list to R & close",
               class = "btn-danger",
-              icon = icon("times-circle")
+              icon = icon("circle-check")
             )
           )
         )
@@ -231,7 +276,11 @@ visualize_cost <- function(
                   "Warning: Marginal cost function should always be positive!"
                 ),
                 plotOutput(paste0("costPlot_", component_idx)),
-                plotOutput(paste0("derivativePlot_", component_idx))
+                plotOutput(paste0("derivativePlot_", component_idx)),
+                hr(),
+                # Key numeric values over the intervention range, so the user
+                # can target a known cost rather than only eyeballing the curve.
+                verbatimTextOutput(paste0("cost_summary_", component_idx))
               )
             )
           )
@@ -271,29 +320,70 @@ visualize_cost <- function(
       initial_coefs = initial_coefficients_list
     )
 
-    # Create output for complete coefficient list
-    output$complete_coef_list <- renderText({
-      # Get current coefficients for all components
-      current_coefs_all <- lapply(seq_along(initial_coefficients_list), function(component_idx) {
-        coefs <- sapply(
+    # Current coefficients for all components, as a list of numeric vectors.
+    # Shared by the coefficient-list text, the copy button, and the value
+    # returned to R when the app closes.
+    current_cost_list <- reactive({
+      lapply(seq_along(initial_coefficients_list), function(component_idx) {
+        sapply(
           seq_along(initial_coefficients_list[[component_idx]]),
           function(i) {
             input[[paste0("coef_", component_idx, "_", i - 1)]]
           }
         )
-        return(coefs)
       })
+    })
 
-      # Format as R list
-      coef_strings <- sapply(current_coefs_all, function(coefs) {
+    # The `cost_list <- list(...)` snippet, ready to paste into R.
+    cost_list_code <- reactive({
+      coef_strings <- sapply(current_cost_list(), function(coefs) {
         paste0("c(", paste(format_coef(coefs), collapse = ", "), ")")
       })
-
       paste0(
         "cost_list <- list(\n    ",
         paste(coef_strings, collapse = ",\n    "),
         "\n)"
       )
+    })
+
+    # Create output for complete coefficient list
+    output$complete_coef_list <- renderText({
+      cost_list_code()
+    })
+
+    # Copy the coefficient-list snippet to the clipboard, with a brief
+    # "Copied!" confirmation. Uses the async Clipboard API when available and
+    # falls back to a hidden textarea + execCommand for older/insecure
+    # (non-HTTPS) contexts.
+    observeEvent(input$copy_button, {
+      code <- cost_list_code()
+      # encode the snippet as a JS string literal without adding a jsonlite
+      # dependency: escape backslashes, quotes, and newlines, then wrap in
+      # double quotes.
+      esc <- gsub("\\\\", "\\\\\\\\", code)
+      esc <- gsub("\"", "\\\\\"", esc)
+      esc <- gsub("\n", "\\\\n", esc)
+      code_js <- paste0("\"", esc, "\"")
+      runjs(sprintf(
+        '(function() {
+          var text = %s;
+          var done = function() {
+            var el = document.getElementById("copy_confirmation");
+            if (el) { el.style.display = "inline";
+              setTimeout(function(){ el.style.display = "none"; }, 2000); }
+          };
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done, done);
+          } else {
+            var ta = document.createElement("textarea");
+            ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            try { document.execCommand("copy"); } catch (e) {}
+            document.body.removeChild(ta); done();
+          }
+        })();',
+        code_js
+      ))
     })
 
     # Create reactive expressions and outputs for each component
@@ -407,20 +497,23 @@ visualize_cost <- function(
           shinyjs::hide(paste0("negative_cost_warning_", component_idx))
         }
 
-        # Flash screen red if either condition is invalid
+        # Briefly outline this component's visualization card in red when a
+        # coefficient choice is invalid. This replaces a full-page background
+        # flash, which fired the whole body on every reactive tick while
+        # dragging through an invalid region and was jarring; the per-card
+        # outline plus the inline warnings convey the problem without it.
         if (!is_non_decreasing_valid || !is_positive_valid) {
-          runjs(sprintf('
-                        document.body.style.transition = "background-color 0.5s";
-                        document.body.style.backgroundColor = "rgba(255,0,0,0.1)";
-                        setTimeout(function() {
-                            document.body.style.backgroundColor = "white";
-                        }, 500);
-                    '))
+          runjs(sprintf(
+            'var w = document.getElementById("plot_warning_%1$s");
+             var card = w ? w.closest(".card") : null;
+             if (card) {
+               card.style.transition = "box-shadow 0.4s";
+               card.style.boxShadow = "0 0 0 3px rgba(220,53,69,0.6)";
+               setTimeout(function(){ card.style.boxShadow = "none"; }, 600);
+             }',
+            component_idx
+          ))
         }
-      })
-
-      observeEvent(input$quit_button, {
-        stopApp()
       })
 
       output[[paste0("costPlot_", component_idx)]] <- renderPlot({
@@ -438,7 +531,13 @@ visualize_cost <- function(
         y_vals <- calculate_cost(current_coefs, x_vals)
 
         ggplot(data.frame(x = x_vals, y = y_vals), aes(x = x, y = y)) +
-          geom_line(color = "#0066cc", size = 1) +
+          geom_line(color = "#0066cc", linewidth = 1) +
+          # Fix the x-axis to the full intervention range so this plot and the
+          # marginal-cost plot below share an identical, aligned x-axis.
+          scale_x_continuous(limits = c(
+            intervention_lower_bounds[component_idx],
+            intervention_upper_bounds[component_idx]
+          )) +
           theme_minimal() +
           labs(
             title = paste("Total Cost Function -", component_names[component_idx]),
@@ -463,14 +562,19 @@ visualize_cost <- function(
         y_vals <- calculate_derivative(current_coefs, x_vals)
 
         ggplot(data.frame(x = x_vals, y = y_vals), aes(x = x, y = y)) +
-          geom_line(color = "#cc3300", size = 1) +
+          geom_line(color = "#cc3300", linewidth = 1) +
           # Add horizontal reference line for unit cost
           geom_hline(
             yintercept = unit_costs[component_idx],
             linetype = "dashed",
             color = "black",
-            size = 0.8
+            linewidth = 0.8
           ) +
+          # Match the total-cost plot's x-axis so the two are aligned.
+          scale_x_continuous(limits = c(
+            intervention_lower_bounds[component_idx],
+            intervention_upper_bounds[component_idx]
+          )) +
           theme_minimal() +
           labs(
             title = paste("Derivative of the Total Cost Function (Marginal Cost) -", component_names[component_idx]),
@@ -487,10 +591,54 @@ visualize_cost <- function(
           ) +
           theme(text = element_text(size = 14))
       })
+
+      # Numeric summary of the current cost function over the intervention
+      # range: total cost at the lower and upper bounds, and the average
+      # marginal (per-unit) cost across the range.
+      output[[paste0("cost_summary_", component_idx)]] <- renderText({
+        current_coefs <- sapply(
+          seq_along(initial_coefficients_list[[component_idx]]),
+          function(i) {
+            input[[paste0("coef_", component_idx, "_", i - 1)]]
+          }
+        )
+        lb <- intervention_lower_bounds[component_idx]
+        ub <- intervention_upper_bounds[component_idx]
+        cost_lb <- calculate_cost(current_coefs, lb)
+        cost_ub <- calculate_cost(current_coefs, ub)
+        x_vals <- seq(lb, ub, length.out = 2000)
+        mean_marginal <- mean(calculate_derivative(current_coefs, x_vals))
+        paste0(
+          "Total cost at ", component_names[component_idx], " = ",
+          format_coef(lb), ": ", format_coef(cost_lb), "\n",
+          "Total cost at ", component_names[component_idx], " = ",
+          format_coef(ub), ": ", format_coef(cost_ub), "\n",
+          "Average marginal cost over the range: ",
+          format_coef(mean_marginal)
+        )
+      })
+    })
+
+    # Closing the app returns the current cost list to R, so the result can be
+    # captured (e.g. cost_list <- visualize_cost(...)) instead of only copied.
+    observeEvent(input$quit_button, {
+      cl <- current_cost_list()
+      # save into the global environment so the list is available even when the
+      # app was launched with a bare visualize_cost(...) call (no assignment).
+      # This overwrites any existing `lago_cost_list`; the on.exit message
+      # announces it. `saved` gates that message (see the on.exit near the top).
+      assign("lago_cost_list", cl, envir = globalenv())
+      saved <<- TRUE
+      stopApp(cl)
     })
   }
 
-  shinyApp(ui, server)
+  # Run the app rather than only returning the app object, so that calling
+  # visualize_cost(...) launches it AND the value passed to stopApp() (the
+  # current cost list) is returned to the caller, i.e.
+  # cost_list <- visualize_cost(...). invisible() keeps a bare call from
+  # auto-printing the whole list to the console on close.
+  invisible(shiny::runApp(shinyApp(ui, server)))
 }
 
 # Compute a default slider range for a single cost-function coefficient.
