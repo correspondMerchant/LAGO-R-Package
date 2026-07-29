@@ -602,8 +602,9 @@ visualize_cost <- function(
   # Run the app rather than only returning the app object, so that calling
   # visualize_cost(...) launches it AND the value passed to stopApp() (the
   # current cost list) is returned to the caller, i.e.
-  # cost_list <- visualize_cost(...).
-  shiny::runApp(shinyApp(ui, server))
+  # cost_list <- visualize_cost(...). invisible() keeps a bare call from
+  # auto-printing the whole list to the console on close.
+  invisible(shiny::runApp(shinyApp(ui, server)))
 }
 
 # Compute a default slider range for a single cost-function coefficient.
