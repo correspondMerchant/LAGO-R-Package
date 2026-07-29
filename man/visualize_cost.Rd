@@ -28,6 +28,13 @@ each intervention component.}
 \item{intervention_upper_bounds}{A numeric vector of the upper bounds for
 each intervention component.}
 }
+\value{
+Invisibly, the cost-function coefficient list
+(a list of numeric vectors, one per intervention component) as it stood
+when the app was closed, suitable for passing to
+\code{lago_optimization(cost_list_of_vectors = ...)}. The same list can be
+copied from within the app.
+}
 \description{
 Visualize the cost functions for the intervention components.
 This function creates a Shiny app that allows the user to adjust the
