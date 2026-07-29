@@ -172,6 +172,13 @@
 #' then the maximum reachable outcome will be used as the outcome goal, and the
 #' shrinkage method will not be used.
 #' Default value without user specification: 0.25.
+#' @param quiet A boolean. If TRUE, suppresses the progress messages, the paced
+#' delays between them, and the final printed output, which speeds up the call
+#' substantially (the default paced output adds about two seconds of artificial
+#' delay). The returned value is identical either way. Genuine warnings about
+#' the data or model fit are still shown. Useful for programmatic or repeated
+#' calls (for example, simulations).
+#' Default value without user specification: FALSE.
 #' @param power_goal A numeric value. Specifies the power goal, a desired power
 #' value (between 0 and 1). Only supported for binary outcomes, and requires a
 #' 'group' column (values "treatment"/"control") along with
@@ -311,22 +318,23 @@ lago_optimization <- function(
     include_time_effects = FALSE,
     include_interaction_terms = FALSE,
     prev_recommended_interventions = NULL,
-    shrinkage_threshold = 0.25) {
-  cli::cli_alert_info("Starting LAGO Optimization")
+    shrinkage_threshold = 0.25,
+    quiet = FALSE) {
+  if (!quiet) cli::cli_alert_info("Starting LAGO Optimization")
 
-  cli::cli_alert_info("Validating inputs...")
+  if (!quiet) cli::cli_alert_info("Validating inputs...")
   # validate and preapre inputs
   inputs <- do.call(
     validate_inputs,
     as.list(environment())
   )
-  Sys.sleep(0.25)
-  cli::cli_alert_success("Done")
+  if (!quiet) Sys.sleep(0.25)
+  if (!quiet) cli::cli_alert_success("Done")
 
   # unpack the inputs to the environment
   list2env(inputs, envir = environment())
 
-  cli::cli_alert_info("Assessing the cost function...")
+  if (!quiet) cli::cli_alert_info("Assessing the cost function...")
   # if the user did not specify cost_list_of_vectors, we
   # calculate it based on the unit_costs and default_cost_fxn_type
   if (is.null(cost_list_of_vectors)) {
@@ -337,10 +345,10 @@ lago_optimization <- function(
       default_cost_fxn_type = default_cost_fxn_type
     )
   }
-  Sys.sleep(0.25)
-  cli::cli_alert_success("Done")
+  if (!quiet) Sys.sleep(0.25)
+  if (!quiet) cli::cli_alert_success("Done")
 
-  cli::cli_alert_info("Fitting the outcome model...")
+  if (!quiet) cli::cli_alert_info("Fitting the outcome model...")
   # fit the outcome model
   outcome_model <- outcome_model_fitting(
     data = data,
@@ -355,13 +363,13 @@ lago_optimization <- function(
     include_time_effects = include_time_effects,
     include_interaction_terms = include_interaction_terms
   )
-  Sys.sleep(0.25)
-  cli::cli_alert_success("Done")
+  if (!quiet) Sys.sleep(0.25)
+  if (!quiet) cli::cli_alert_success("Done")
 
   # unpack the outcome model to the environment
   list2env(outcome_model, envir = environment())
 
-  cli::cli_alert_info("Calculating the recommended intervention...")
+  if (!quiet) cli::cli_alert_info("Calculating the recommended intervention...")
   if (lower_outcome_goal) {
     new_model <- model
     new_model$coefficients <- -1 * (model$coefficients)
@@ -398,8 +406,8 @@ lago_optimization <- function(
     icc = icc,
     power_goal_cluster_id = power_goal_cluster_id
   )
-  Sys.sleep(0.25)
-  cli::cli_alert_success("Done")
+  if (!quiet) Sys.sleep(0.25)
+  if (!quiet) cli::cli_alert_success("Done")
 
   # unpack the recommended intervention results to the environment
   list2env(rec_int_results, envir = environment())
@@ -409,7 +417,7 @@ lago_optimization <- function(
   }
   # calculate the confidence set
   if (include_confidence_set) {
-    cli::cli_alert_info("Calculating the confidence set...")
+    if (!quiet) cli::cli_alert_info("Calculating the confidence set...")
     # the confidence set is built around the outcome goal the recommendation
     # actually targets, i.e. the effective goal max(power-implied, outcome_goal).
     # effective_outcome_goal is reported on the original outcome scale (already
@@ -441,13 +449,14 @@ lago_optimization <- function(
         center_characteristics_optimization_values,
       confidence_set_alpha = confidence_set_alpha,
       cost_list_of_vectors = cost_list_of_vectors,
-      rec_int = rec_int
+      rec_int = rec_int,
+      quiet = quiet
     )
 
     # unpack the confidence set results to the environment
     list2env(cs_results, envir = environment())
-    Sys.sleep(0.25)
-    cli::cli_alert_success("Done")
+    if (!quiet) Sys.sleep(0.25)
+    if (!quiet) cli::cli_alert_success("Done")
   }
 
   # carry out the overall intervention test
@@ -461,37 +470,39 @@ lago_optimization <- function(
     test_results <- NULL
   }
 
-  cli::cli_alert("{symbol$heart} LAGO optimization complete {symbol$heart}")
-  Sys.sleep(0.5)
-  cli::cli_alert_info("Printing the output...")
+  if (!quiet) cli::cli_alert("{symbol$heart} LAGO optimization complete {symbol$heart}")
+  if (!quiet) Sys.sleep(0.5)
+  if (!quiet) cli::cli_alert_info("Printing the output...")
 
-  Sys.sleep(0.25)
+  if (!quiet) Sys.sleep(0.25)
   # print the output, including some user inputs
-  print_output(
-    data = data,
-    outcome_name = outcome_name,
-    outcome_type = outcome_type,
-    intervention_components = intervention_components,
-    include_interaction_terms = include_interaction_terms,
-    main_components = main_components,
-    center_characteristics = center_characteristics,
-    family_object = family_object,
-    include_center_effects = include_center_effects,
-    include_time_effects = include_time_effects,
-    outcome_goal = outcome_goal,
-    power_goal = power_goal,
-    effective_outcome_goal = effective_outcome_goal,
-    cost_list_of_vectors = cost_list_of_vectors,
-    intervention_lower_bounds = intervention_lower_bounds,
-    intervention_upper_bounds = intervention_upper_bounds,
-    model = model,
-    rec_int = rec_int,
-    rec_int_cost = rec_int_cost,
-    est_outcome_goal = est_outcome_goal,
-    include_confidence_set = include_confidence_set,
-    cs = if (include_confidence_set) cs else NULL,
-    test_results = test_results
-  )
+  if (!quiet) {
+    print_output(
+      data = data,
+      outcome_name = outcome_name,
+      outcome_type = outcome_type,
+      intervention_components = intervention_components,
+      include_interaction_terms = include_interaction_terms,
+      main_components = main_components,
+      center_characteristics = center_characteristics,
+      family_object = family_object,
+      include_center_effects = include_center_effects,
+      include_time_effects = include_time_effects,
+      outcome_goal = outcome_goal,
+      power_goal = power_goal,
+      effective_outcome_goal = effective_outcome_goal,
+      cost_list_of_vectors = cost_list_of_vectors,
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      model = model,
+      rec_int = rec_int,
+      rec_int_cost = rec_int_cost,
+      est_outcome_goal = est_outcome_goal,
+      include_confidence_set = include_confidence_set,
+      cs = if (include_confidence_set) cs else NULL,
+      test_results = test_results
+      )
+  }
 
   return(
     if (!include_confidence_set) {

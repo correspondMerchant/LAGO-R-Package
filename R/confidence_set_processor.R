@@ -20,17 +20,20 @@ confidence_set_processor <- function(
     center_characteristics_optimization_values,
     confidence_set_alpha,
     cost_list_of_vectors,
-    rec_int) {
+    rec_int,
+    quiet = FALSE) {
   # assign confidence set step size if not specified
   if (is.null(confidence_set_grid_step_size)) {
     confidence_set_grid_step_size <- step_size_results
   }
 
   # calculate the confidence set for the recommended interventions
-  cat(paste(
-    "If the confidence set calculation takes a long time to run,",
-    "please consider changing the confidence set step size. \n"
-  ))
+  if (!quiet) {
+    cat(paste(
+      "If the confidence set calculation takes a long time to run,",
+      "please consider changing the confidence set step size. \n"
+    ))
+  }
   predictors_list <- c(
     if (include_center_effects) "center",
     if (include_time_effects) "period",

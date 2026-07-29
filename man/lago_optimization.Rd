@@ -42,7 +42,8 @@ lago_optimization(
   include_time_effects = FALSE,
   include_interaction_terms = FALSE,
   prev_recommended_interventions = NULL,
-  shrinkage_threshold = 0.25
+  shrinkage_threshold = 0.25,
+  quiet = FALSE
 )
 }
 \arguments{
@@ -285,6 +286,14 @@ will be applied. If the maximum reachable outcome is greater than this value,
 then the maximum reachable outcome will be used as the outcome goal, and the
 shrinkage method will not be used.
 Default value without user specification: 0.25.}
+
+\item{quiet}{A boolean. If TRUE, suppresses the progress messages, the paced
+delays between them, and the final printed output, which speeds up the call
+substantially (the default paced output adds about two seconds of artificial
+delay). The returned value is identical either way. Genuine warnings about
+the data or model fit are still shown. Useful for programmatic or repeated
+calls (for example, simulations).
+Default value without user specification: FALSE.}
 }
 \value{
 List(

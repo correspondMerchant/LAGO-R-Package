@@ -36,7 +36,8 @@ validate_inputs <- function(
     include_time_effects = FALSE,
     include_interaction_terms = FALSE,
     prev_recommended_interventions = NULL,
-    shrinkage_threshold = 0.25) {
+    shrinkage_threshold = 0.25,
+    quiet = FALSE) {
   # check if the input data is null
   if (is.null(data)) {
     stop("The argument 'data' is NULL.")
@@ -644,7 +645,7 @@ validate_inputs <- function(
       ))
     }
     # check if default_cost_fxn_type is also provided
-    if (!is.null(default_cost_fxn_type)) {
+    if (!is.null(default_cost_fxn_type) && !quiet) {
       print(paste(
         "When 'cost_list_of_vectors' is provided,",
         "'default_cost_fxn_type' is ignored."
