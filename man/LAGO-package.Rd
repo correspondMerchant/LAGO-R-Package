@@ -6,6 +6,8 @@
 \alias{LAGO-package}
 \title{LAGO: LAGO}
 \description{
+\if{html}{\figure{logo.svg}{options: style='float: right' alt='logo' width='120'}}
+
 Calculates LAGO recommended interventions for the next stage. The recommended interventions will be calculated based on the outcome goal and/or the power goal.
 }
 \seealso{

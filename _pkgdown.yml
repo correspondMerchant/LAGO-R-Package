@@ -9,6 +9,12 @@ reference:
   contents:
   - lago_optimization
   - visualize_cost
+- title: Methods
+  desc: Methods for the object returned by lago_optimization().
+  contents:
+  - print.lago
+  - summary.lago
+  - plot.lago
 - title: Datasets
   desc: Datasets included with the package.
   contents:

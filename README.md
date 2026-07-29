@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/R-%3E%3D%202.10-blue.svg" alt="R >= 2.10">
 </p>
 
-# LAGO
+# LAGO <img src="man/figures/logo.png" align="right" height="139" alt="LAGO hex logo" />
 
 The LAGO R package bridges the gap between theoretical advances in Learn-As-you-GO (LAGO) and practical applications by providing a standardized solution for:
 1) fitting the outcome models for both binary and continuous outcomes, including support for fixed center effects/center characteristics and fixed time effects,
