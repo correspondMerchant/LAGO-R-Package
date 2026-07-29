@@ -1,12 +1,5 @@
 # LAGO
 
-![Banner](reference/figures/banner.png)
-
-[![R-CMD-check](https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml)
-[![License: GPL
-v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-![R \>= 2.10](https://img.shields.io/badge/R-%3E%3D%202.10-blue.svg)
-
 The LAGO R package bridges the gap between theoretical advances in
 Learn-As-you-GO (LAGO) and practical applications by providing a
 standardized solution for: 1) fitting the outcome models for both binary
