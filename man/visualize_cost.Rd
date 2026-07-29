@@ -2,7 +2,7 @@
 % Please edit documentation in R/visualize_cost.R
 \name{visualize_cost}
 \alias{visualize_cost}
-\title{visualize_cost}
+\title{Visualize and choose intervention cost functions}
 \usage{
 visualize_cost(
   component_names,
