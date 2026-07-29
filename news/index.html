@@ -37,34 +37,28 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.0.12" id="lago-1012">LAGO 1.0.12<a class="anchor" aria-label="anchor" href="#lago-1012"></a></h2>
-<div class="section level3">
-<h3 id="new-features-1-0-12">New features<a class="anchor" aria-label="anchor" href="#new-features-1-0-12"></a></h3>
 <ul><li>
-<code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> supports a standalone power goal, an outcome goal, or both together, taking the higher of the outcome goal and the power-implied outcome (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/40" class="external-link">#40</a>).</li>
-<li>Added a power-calculation design-effect adjustment via the <code>icc</code> argument, so the power goal can account for within-center clustering (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/29" class="external-link">#29</a>).</li>
-<li>Added a <code>quiet</code> argument to <code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> that skips the progress messages and their paced delays, making programmatic and repeated calls substantially faster while returning identical results.</li>
+<code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> now returns an object of class <code>"lago"</code> with <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> methods for a readable console summary and a confidence-set plot. The result is still a plain list, so existing <code>$</code>-based access is unchanged. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/61" class="external-link">#61</a>)</li>
+<li>Added an “Optimizing an intervention with LAGO” vignette that walks through a full optimization on the bundled BetterBirth data, rendered as an Articles page on the documentation site. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/61" class="external-link">#61</a>)</li>
+<li>Added a hex logo and refreshed the README header, badges plus a title logo, and removed the now-redundant banner. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/56" class="external-link">#56</a>, <a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/61" class="external-link">#61</a>)</li>
+<li>Added a <code>quiet</code> argument to <code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> that skips the progress messages and their paced delays. Programmatic and repeated calls run substantially faster while returning identical results. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/60" class="external-link">#60</a>)</li>
 <li>
-<code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> now returns an object of class <code>"lago"</code> with <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> methods. The result is still a list, so existing <code>$</code>-based access is unchanged.</li>
-<li>The overall intervention-effect test result is now returned in the result object rather than only printed (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/49" class="external-link">#49</a>).</li>
+<code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> gained a “Copy to clipboard” button, a numeric cost summary, and aligned cost and marginal-cost axes. On close it now returns the assembled cost list to the R session, assigned to <code>lago_cost_list</code>. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/59" class="external-link">#59</a>)</li>
+<li>Expanded the reference documentation for the bundled datasets with fuller variable descriptions. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/58" class="external-link">#58</a>)</li>
+<li>Added a pkgdown documentation site published to GitHub Pages. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/53" class="external-link">#53</a>)</li>
+<li>Added a GPL-3 <code>LICENSE</code> file and polished the README presentation. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/56" class="external-link">#56</a>)</li>
+<li>Fixed a crash when a single intervention component was used. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/54" class="external-link">#54</a>)</li>
+<li>Added an <code>icc</code> argument to the power calculation that applies a design-effect adjustment, so the power goal can account for within-center clustering. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/29" class="external-link">#29</a>)</li>
+<li>The overall intervention-effect test result (statistic and p-value) is now returned in the result object rather than only printed. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/49" class="external-link">#49</a>)</li>
+<li>Added an automated test suite (testthat) and continuous-integration checks. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/45" class="external-link">#45</a>)</li>
 <li>
-<code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> gained a “Copy to clipboard” button, a numeric cost summary, aligned cost and marginal-cost axes, and, on close, returns the cost list to the R session (assigned to <code>lago_cost_list</code>).</li>
+<code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> sliders now support per-component default and custom ranges. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/34" class="external-link">#34</a>)</li>
+<li>Added non-fatal outcome-model fit diagnostics that warn about a questionable fit while the optimization continues. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/36" class="external-link">#36</a>)</li>
+<li>Supplying <code>optimization_grid_search_step_size</code> now switches the optimization method to grid search automatically. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/32" class="external-link">#32</a>)</li>
 <li>
-<code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> sliders now support per-component custom ranges (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/34" class="external-link">#34</a>).</li>
-<li>Added non-fatal outcome-model fit diagnostics that warn about a questionable fit while the optimization continues (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/36" class="external-link">#36</a>).</li>
-<li>Supplying <code>optimization_grid_search_step_size</code> now switches the optimization method to grid search automatically (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/32" class="external-link">#32</a>).</li>
+<code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> now accepts a standalone power goal, an outcome goal, or both together, taking the higher of the outcome goal and the power-implied outcome. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/40" class="external-link">#40</a>)</li>
 </ul></div>
-<div class="section level3">
-<h3 id="bug-fixes-1-0-12">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-12"></a></h3>
-<ul><li>Fixed a crash when a single intervention component was used (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/54" class="external-link">#54</a>).</li>
-</ul></div>
-<div class="section level3">
-<h3 id="documentation-and-infrastructure-1-0-12">Documentation and infrastructure<a class="anchor" aria-label="anchor" href="#documentation-and-infrastructure-1-0-12"></a></h3>
-<ul><li>Added a pkgdown documentation site (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/53" class="external-link">#53</a>).</li>
-<li>Added an automated test suite (testthat) and continuous integration (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/45" class="external-link">#45</a>).</li>
-</ul></div>
-</div>
-  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
-    </nav></aside></div>
+  </main></div>
 
 
     <footer><div class="pkgdown-footer-left">
