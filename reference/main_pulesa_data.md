@@ -1,7 +1,11 @@
-# PULESA data for running the main model (need to be deleted before publishing the R pacakge).
+# PULESA hypertension-care data (main model)
 
-PULESA data for running the main model (need to be deleted before
-publishing the R pacakge).
+Clinic-level data from the PULESA study, a cluster-randomized trial of a
+multi-component intervention to improve hypertension care. Each row is
+one clinic in one time period. This is the version used to fit the
+"main" LAGO outcome model, whose intervention components are access to
+blood-pressure machines, access to medicines, delivery mode,
+hypertension training, performance improvement, and remote monitoring.
 
 ## Usage
 
@@ -14,20 +18,64 @@ main_pulesa_data
 A data frame with 192 rows and 15 variables:
 
 - Clinic:
+
+  Clinic (cluster) identifier
+
 - Period:
+
+  Study time period
+
 - AccessBPMachines:
+
+  Intervention component: access to blood-pressure machines
+
 - AccessMedicines:
+
+  Intervention component: access to medicines
+
 - DeliveryA:
+
+  Intervention component: care delivery mode A
+
 - DeliveryB:
+
+  Intervention component: care delivery mode B
+
 - HypertensionTraining:
+
+  Intervention component: hypertension training
+
 - MI_DeliveryB:
+
+  Interaction term involving delivery mode B
+
 - MI_PerformanceImprovement:
+
+  Interaction term involving performance improvement
+
 - MI_RemoteMonitoring:
+
+  Interaction term involving remote monitoring
+
 - PerformanceImprovement:
+
+  Intervention component: performance improvement
+
 - Proportions:
+
+  Outcome: proportion of successes at the clinic-period
+
 - RemoteMonitoring:
+
+  Intervention component: remote monitoring
+
 - Success:
+
+  Outcome: number of successes at the clinic-period
+
 - Total_visit:
+
+  Number of visits at the clinic-period
 
 ## Examples
 

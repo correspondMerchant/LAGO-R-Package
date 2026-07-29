@@ -5,9 +5,9 @@
 Main user-facing functions.
 
 - [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
-  : lago_optimization
+  : Run a LAGO optimization
 - [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
-  : visualize_cost
+  : Visualize and choose intervention cost functions
 
 ## Datasets
 
@@ -19,8 +19,6 @@ Datasets included with the package.
   : BetterBirth Data (for continuous outcome analysis, using EBP
   proportions as a continuous outcome).
 - [`main_pulesa_data`](https://correspondmerchant.github.io/LAGO-R-Package/reference/main_pulesa_data.md)
-  : PULESA data for running the main model (need to be deleted before
-  publishing the R pacakge).
+  : PULESA hypertension-care data (main model)
 - [`new_pulesa_data`](https://correspondmerchant.github.io/LAGO-R-Package/reference/new_pulesa_data.md)
-  : PULESA data for running the "new" model (need to be deleted before
-  publishing the R pacakge).
+  : PULESA hypertension-care data (new model)

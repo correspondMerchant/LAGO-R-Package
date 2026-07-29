@@ -1,4 +1,4 @@
-# visualize_cost
+# Visualize and choose intervention cost functions
 
 Visualize the cost functions for the intervention components. This
 function creates a Shiny app that allows the user to adjust the
