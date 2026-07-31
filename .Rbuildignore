@@ -9,3 +9,5 @@
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^DESIGN_.*\.md$
+^ISSUE_.*\.md$
