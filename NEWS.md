@@ -1,5 +1,9 @@
 # LAGO 1.0.12
 
+* Added `lago_report()`, which renders a self-contained HTML report for a
+  `"lago"` result. It knits a bundled R Markdown template that lays out the same
+  sections as the console methods plus the confidence-set plot and a session-info
+  footer. Requires the suggested `rmarkdown` and `knitr` packages.
 * `lago_optimization()` now returns an object of class `"lago"` with `print()`,
   `summary()`, and `plot()` methods for a readable console summary and a
   confidence-set plot. The result is still a plain list, so existing `$`-based
