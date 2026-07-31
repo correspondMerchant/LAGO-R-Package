@@ -108,6 +108,9 @@ The recommended intervention is 'gear' = 10 and 'qsec' = 11.96. `results` is an 
 ```
 lago_report(results)
 ```
+This writes a self-contained HTML report with the recommended intervention, the confidence set, and the confidence-set plot:
+
+![an example lago_report HTML report](man/figures/lago_report_example.png)
 
 
 To adjust the cost functions $C(x_1) = 4x_1$ and $C(x_2) = 4 + 6x_2$, `visualize_cost()` lets you visualize and select cost functions:
