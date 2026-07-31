@@ -19,6 +19,17 @@ x <- params$x
 # the same blocks as print.lago()/summary.lago() so the two can never drift.
 # It is an internal helper, hence the triple-colon access.
 blocks <- LAGO:::lago_blocks(x)
+# plot.lago() only draws a figure for 1- or 2-component interventions; for 3+
+# components it emits no plot. Gate the plot heading and figure on the same
+# capability so a 3+ component result does not get a dangling, empty
+# "Confidence set plot" section. Mirror plot.lago()'s own component count,
+# which comes from the stored labels (not ncol(cs)).
+plot_components <- if (!is.null(x$display_components)) {
+  x$display_components
+} else {
+  x$intervention_components
+}
+plottable_cs <- !is.null(x$cs) && length(plot_components) %in% 1:2
 ```
 
 ## `r blocks$recommendation$title`
@@ -74,11 +85,11 @@ cat("## ", blocks$test$title, "\n\n", sep = "")
 cat(paste0("- ", blocks$test$rows), sep = "\n")
 ```
 
-```{r plot-heading, results='asis', eval=!is.null(x$cs)}
+```{r plot-heading, results='asis', eval=plottable_cs}
 cat("## Confidence set plot\n")
 ```
 
-```{r plot, eval=!is.null(x$cs), fig.width=7, fig.height=5}
+```{r plot, eval=plottable_cs, fig.width=7, fig.height=5}
 plot(x)
 ```
 

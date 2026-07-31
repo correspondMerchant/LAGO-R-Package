@@ -529,9 +529,13 @@ lago_optimization <- function(
 
   # Non-quiet in-run summary renders through the SAME formatter as print.lago,
   # so the in-run output and an explicit print(result) are byte-identical. The
-  # quiet path produces no output. print() returns invisibly, so this does not
-  # affect the returned value.
+  # quiet path produces no output.
   if (!quiet) print(result)
 
-  return(result)
+  # Return INVISIBLY. An unassigned top-level call, e.g. lago_optimization(...),
+  # auto-prints a *visible* return value, which combined with the in-run print()
+  # above would render the summary box twice. Returning invisibly renders it
+  # exactly once (the in-run print) while assigned calls, r <- ..., are
+  # unaffected. Visibility, not the value, is what drives the duplicate render.
+  return(invisible(result))
 }

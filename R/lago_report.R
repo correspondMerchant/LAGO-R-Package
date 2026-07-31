@@ -71,9 +71,17 @@ lago_report <- function(x,
     )
   ]
   if (length(missing_pkgs) > 0) {
+    # Build a copy-pasteable, valid install command with quoted package names.
+    # Interpolating the bare vector inside {.code} would collapse to
+    # "rmarkdown and knitr" (unquoted), which does not parse.
+    install_hint <- paste0(
+      "install.packages(c(",
+      paste(encodeString(missing_pkgs, quote = "\""), collapse = ", "),
+      "))"
+    )
     cli::cli_abort(c(
       "{.fn lago_report} needs the {.pkg {missing_pkgs}} package{?s}.",
-      "i" = "Install {?it/them} with {.code install.packages(c({missing_pkgs}))}."
+      "i" = "Install {?it/them} with {.code {install_hint}}."
     ))
   }
 

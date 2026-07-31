@@ -14,6 +14,44 @@ bb_grouped <- function() {
   d
 }
 
+# --- no double-render on an unassigned top-level call -------------------------
+
+test_that("a non-quiet unassigned call renders the result box exactly once", {
+  # An unassigned top-level call auto-prints its return value only when that
+  # value is *visible*. lago_optimization() also prints the in-run summary when
+  # !quiet, so a visible return would render the box twice. The function must
+  # return invisibly. withVisible() on the call itself reports the visibility a
+  # top-level autoprint would see.
+  vis <- NULL
+  captured <- utils::capture.output(
+    vis <- suppressWarnings(suppressMessages(withVisible(lago_optimization(
+      data = BB_data,
+      outcome_name = "pp3_oxytocin_mother",
+      outcome_type = "binary",
+      glm_family = "binomial",
+      intervention_components = c("coaching_updt", "launch_duration"),
+      center_characteristics = "birth_volume_100",
+      center_characteristics_optimization_values = 1.75,
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      outcome_goal = 0.85,
+      outcome_goal_intention = "maximize",
+      confidence_set_grid_step_size = c(1, 0.5),
+      quiet = FALSE
+    ))))
+  )
+  captured <- paste(captured, collapse = "\n")
+  # Invisible return: a top-level autoprint would add no second render.
+  expect_false(vis$visible)
+  expect_s3_class(vis$value, "lago")
+  # The in-run print produced exactly one result box.
+  expect_equal(
+    length(gregexpr("LAGO optimization result", captured, fixed = TRUE)[[1]]),
+    1L
+  )
+})
+
 # --- binary + confidence set --------------------------------------------------
 
 test_that("print/summary snapshot: binary object with a confidence set", {
