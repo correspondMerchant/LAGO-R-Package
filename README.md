@@ -32,9 +32,11 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
 ## The main functions
-The LAGO R package has two user-facing functions `lago_optimization()` and `visualize_cost()`.
+The LAGO R package has three user-facing functions `lago_optimization()`, `visualize_cost()`, and `lago_report()`.
 
-`lago_optimization()` carries out the LAGO optimizations, and `visualize_cost()` helps you choose cost functions for the intervention components.
+`lago_optimization()` carries out the LAGO optimizations, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained HTML report of an optimization result.
+
+`lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` shows a concise summary of the recommended intervention, `summary()` adds the confidence-set cost range and first rows, and `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus the confidence-set plot and a session-info footer, to a shareable HTML file.
 
 `lago_optimization()` supports three goal modes: an **outcome goal alone**, a **power goal alone**, or **both together**. At least one of `outcome_goal` or `power_goal` must be provided. When both are provided, the effective outcome goal used for the optimization is the higher of the outcome goal and the outcome level implied by the power goal (the "whichever is higher" rule). A power goal is only supported for binary outcomes and requires a `group` column plus `num_centers_in_next_stage` and `patients_per_center_in_next_stage`; it cannot be combined with `outcome_goal_intention = "minimize"`. When participants are clustered within centers, pass the intra-cluster correlation to `icc` (a single value, or `c(control, treatment)`) and identify the clustering column with `power_goal_cluster_id`. The power calculation then inflates the variance of the test statistic by the design effect, so meeting the same power goal requires a stronger intervention. Without `icc`, the power calculation treats participants as independent.
 
