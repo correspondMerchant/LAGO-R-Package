@@ -16,5 +16,6 @@
 }
 \description{
 Fuller display than [print.lago()]: adds the confidence-set cost
-range and first rows, and the overall-test statistic and p-value when present.
+range and first rows, and the overall-test statistic and p-value when
+present. Renders through the same shared formatter as [print.lago()].
 }
