@@ -34,15 +34,32 @@ interventions.
 
 ## The main functions
 
-The LAGO R package has two user-facing functions
-[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+The LAGO R package has three user-facing functions
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+[`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md),
 and
-[`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md).
+[`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md).
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
-carries out the LAGO optimizations, and
+carries out the LAGO optimizations,
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
-helps you choose cost functions for the intervention components.
+helps you choose cost functions for the intervention components, and
+[`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+renders a self-contained HTML report of an optimization result.
+
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+returns an object of class `"lago"` with
+[`print()`](https://rdrr.io/r/base/print.html),
+[`summary()`](https://rdrr.io/r/base/summary.html), and
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html) methods:
+[`print()`](https://rdrr.io/r/base/print.html) shows a concise summary
+of the recommended intervention,
+[`summary()`](https://rdrr.io/r/base/summary.html) adds the
+confidence-set cost range and first rows, and
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html) visualizes the
+confidence set. `lago_report(result)` writes those same sections, plus
+the confidence-set plot and a session-info footer, to a shareable HTML
+file.
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 supports three goal modes: an **outcome goal alone**, a **power goal
@@ -61,12 +78,13 @@ variance of the test statistic by the design effect, so meeting the same
 power goal requires a stronger intervention. Without `icc`, the power
 calculation treats participants as independent.
 
-Both functions take many arguments. To understand the input arguments,
+These functions take many arguments. To understand the input arguments,
 read the help files by running the following code in R **(this step is
 HIGHLY recommended, please do this before moving on to the examples)**:
 
     help(lago_optimization)
     help(visualize_cost)
+    help(lago_report)
 
 ## Basic use case
 
@@ -136,76 +154,34 @@ Typical output:
     → ♥ LAGO optimization complete ♥
     ℹ Printing the output...
 
-    ==================================
-    ============  Inputs  ============
-    ==================================
-    Input data dimensions: 32 rows, and 13 columns
-    Outcome name: mpg
-    Outcome type: continuous
-    2 intervention package component(s):
-             gear
-             qsec
-    The outcome model:
-             family: gaussian
-             link: identity
-             fixed center effects: FALSE
-             fixed time effects: FALSE
+    ── LAGO optimization result ────────────────────────────────────────────────────
+
+    ── Recommended intervention
+    gear: 10
+    qsec: 11.9574
+    Cost: 115.7446
+    Estimated outcome: 40
     Outcome goal: 40
-    List of intervention component costs: c(0, 4), c(4, 6)
-    Intervention lower bounds: 0 0
-    Intervention upper bounds: 10 350
+    95% confidence set size: 4.25% of the grid
+    Use summary() for the confidence set and test detail, plot() to visualize.
 
-    =====================================
-    ============  Model Fit  ============
-    =====================================
+The recommended intervention is ‘gear’ = 10 and ‘qsec’ = 11.96.
+`results` is an object of class `"lago"`: call `summary(results)` for
+the confidence-set cost range and its first rows, `plot(results)` to
+visualize the confidence set, and access any field directly (for example
+`results$cs` for the full confidence set or `results$rec_int` for the
+recommended intervention). To save a shareable HTML report of the
+result, run:
 
-    Call:
-    glm(formula = formula, family = family_object, data = data, weights = weights)
+    lago_report(results)
 
-    Coefficients:
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept) -30.7108     9.6702  -3.176 0.003530 **
-    gear          4.8711     1.0814   4.505 0.000100 ***
-    qsec          1.8399     0.4465   4.121 0.000288 ***
-    ---
-    Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+This writes a self-contained HTML report with the recommended
+intervention, the confidence set, and the confidence-set plot:
 
-    (Dispersion parameter for gaussian family taken to be 18.84028)
+![an example lago_report HTML
+report](reference/figures/lago_report_example.png)
 
-        Null deviance: 1126.05  on 31  degrees of freedom
-    Residual deviance:  546.37  on 29  degrees of freedom
-    AIC: 189.61
-
-    Number of Fisher Scoring iterations: 2
-
-
-    ===================================================
-    ===========  Recommended Interventions  ===========
-    ===================================================
-     component    value
-          gear 10.00000
-          qsec 11.95743
-
-    Cost for using the recommended interventions: 115.7446
-    Estimated outcome goal using the recommended interventions: 40
-
-    ========================================
-    ============ Confidence Set ============
-    ========================================
-    Confidence set size percentage: 0.04247604
-    Confidence set (only first few rows are shown):
-    Please use $cs to get the full confidence set.
-       gear qsec CI_lower_bound CI_upper_bound cost
-    44   10    3          6.902         40.137   62
-    55   10    4          9.261         41.458   68
-    66   10    5         11.589         42.810   74
-    77   10    6         13.881         44.197   80
-    88   10    7         16.136         45.622   86
-    98    9    8         15.118         40.577   88
-
-From the output above, we see that both ‘gear’ and ‘qsec’ have positive
-effects on ‘mpg’, and the recommended intervention is ‘gear’ = 10 and
-‘qsec’ = 11.96.
+an example lago_report HTML report
 
 To adjust the cost functions $`C(x_1) = 4x_1`$ and
 $`C(x_2) = 4 + 6x_2`$,
@@ -317,100 +293,24 @@ Output:
     → ♥ LAGO optimization complete ♥
     ℹ Printing the output...
 
-    ==================================
-    ============  Inputs  ============
-    ==================================
-    Input data dimensions: 6124 rows, and 23 columns
-    Outcome name: pp3_oxytocin_mother
-    Outcome type: binary
-    2 intervention package component(s):
-             coaching_updt
-             launch_duration
-    The outcome model:
-             family: binomial
-             link: logit
-             fixed center effects: TRUE
-             fixed time effects: TRUE
+    ── LAGO optimization result ────────────────────────────────────────────────────
+
+    ── Recommended intervention
+    coaching_updt: 1.0014
+    launch_duration: 1.7508
+    Cost: 15.7083
+    Estimated outcome: 0.85
     Outcome goal: 0.85
-    List of intervention component costs: c(0, 1.7), c(0, 8)
-    Intervention lower bounds: 1 1
-    Intervention upper bounds: 40 5
+    95% confidence set size: 11.85% of the grid
+    Use summary() for the confidence set and test detail, plot() to visualize.
 
-    =====================================
-    ============  Model Fit  ============
-    =====================================
-
-    Call:
-    glm(formula = formula, family = family_object, data = data, weights = weights)
-
-    Coefficients:
-                      Estimate Std. Error z value Pr(>|z|)
-    (Intercept)     -7.947e-01  1.345e-01  -5.908 3.47e-09 ***
-    center2          1.419e-01  1.361e-01   1.043    0.297
-    center3          8.206e-02  1.370e-01   0.599    0.549
-    center4         -8.730e-02  1.384e-01  -0.631    0.528
-    center5          1.790e-02  1.374e-01   0.130    0.896
-    center6         -1.491e-01  1.413e-01  -1.056    0.291
-    center7         -1.222e-01  1.362e-01  -0.897    0.370
-    center8         -2.050e-01  1.381e-01  -1.485    0.138
-    center9         -2.467e-02  1.380e-01  -0.179    0.858
-    center10         1.240e-01  1.375e-01   0.902    0.367
-    period2         -1.455e-01  1.386e-01  -1.050    0.294
-    period3          5.545e-02  1.348e-01   0.411    0.681
-    period4         -1.545e-01  1.425e-01  -1.084    0.278
-    period5         -3.372e-02  1.392e-01  -0.242    0.809
-    period6          3.380e-02  1.377e-01   0.246    0.806
-    period7         -1.417e-01  1.415e-01  -1.002    0.316
-    period8          1.252e-02  1.363e-01   0.092    0.927
-    period9         -1.844e-01  1.364e-01  -1.353    0.176
-    period10         1.041e-01  1.362e-01   0.764    0.445
-    coaching_updt   -2.997e-05  7.668e-03  -0.004    0.997
-    launch_duration  1.375e+00  8.744e-02  15.726  < 2e-16 ***
-    ---
-    Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-    (Dispersion parameter for binomial family taken to be 1)
-
-        Null deviance: 8470.8  on 6123  degrees of freedom
-    Residual deviance: 6344.6  on 6103  degrees of freedom
-    AIC: 6386.6
-
-    Number of Fisher Scoring iterations: 4
-
-
-    To see the overall test results, please include a 'group' column in the data,
-     and make sure the values of the 'group' column are either 'treatment' or 'control'.
-     (Only binary outcomes are supported for now)
-
-    ===================================================
-    ===========  Recommended Interventions  ===========
-    ===================================================
-           component    value
-       coaching_updt 1.000000
-     launch_duration 1.750754
-    Estimated outcome goal using the recommended interventions: 0.85
-    95% confidence interval for the estimated outcome goal: 0.802 - 0.898
-
-    Cost for using the recommended interventions: 15.70603
-
-    ========================================
-    ============ Confidence Set ============
-    ========================================
-    Confidence set size percentage: 0.1185185
-    IQR of the cost within the 95% confidence set: 32.4 - 67.75
-
-    Confidence set (only first few rows are shown):
-    Please use $cs to get the full confidence set.
-       coaching_updt launch_duration CI_lower_bound CI_upper_bound cost
-    78            33            1.45          0.726          0.853 67.7
-    79            35            1.45          0.722          0.856 71.1
-    80            37            1.45          0.718          0.860 74.5
-    81            39            1.45          0.714          0.864 77.9
-    82             1            1.60          0.769          0.874 14.5
-    83             3            1.60          0.772          0.872 17.9
-
-The model fit here includes many more coefficients, one per center and
-per time period, than the previous example.
+The outcome model here includes many more coefficients, one per center
+and per time period, than the previous example, even though the console
+summary reports only the recommendation. Call
+`summary(optimization_results)` for the confidence-set cost range and
+its first rows, inspect `optimization_results$cs` for the full
+confidence set, or run `lago_report(optimization_results)` for a
+shareable HTML report of the result.
 
 ## How to run additional examples
 

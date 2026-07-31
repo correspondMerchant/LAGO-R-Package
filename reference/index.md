@@ -9,6 +9,13 @@ Main user-facing functions.
 - [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   : Visualize and choose intervention cost functions
 
+## Reporting
+
+Generate a shareable report from an optimization result.
+
+- [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  : Generate an HTML report for a LAGO optimization result
+
 ## Methods
 
 Methods for the object returned by lago_optimization().

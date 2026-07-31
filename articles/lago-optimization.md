@@ -87,8 +87,8 @@ result
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
 #> ── Recommended intervention
-#> • coaching_updt: 1
-#> • launch_duration: 2.7785
+#> coaching_updt: 1
+#> launch_duration: 2.7785
 #> Cost: 23.9278
 #> Estimated outcome: 0.85
 #> Outcome goal: 0.85
@@ -106,13 +106,12 @@ summary(result)
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
 #> ── Recommended intervention
-#> • coaching_updt: 1
-#> • launch_duration: 2.7785
+#> coaching_updt: 1
+#> launch_duration: 2.7785
 #> Cost: 23.9278
 #> Estimated outcome: 0.85
 #> Outcome goal: 0.85
 #> 95% confidence set size: 10.56% of the grid
-#> Use summary() for the confidence set and test detail, plot() to visualize.
 #> 
 #> ── Confidence set
 #> Cost range in the 95% confidence set: 21.7 - 84

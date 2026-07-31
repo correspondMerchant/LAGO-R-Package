@@ -405,68 +405,11 @@ lago_optimization(
 #> → ♥ LAGO optimization complete ♥
 #> ℹ Printing the output...
 #> 
-#> ==================================
-#> ============  Inputs  ============
-#> ==================================
-#> Input data dimensions: 248 rows, and 8 columns 
-#> Outcome name: case 
-#> Outcome type: binary 
-#> 2 intervention package component(s): 
-#>       age
-#>   parity 
-#> The outcome model: 
-#>   family: binomial 
-#>   link: logit 
-#>   fixed center effects: FALSE 
-#>   fixed time effects: FALSE 
-#> Outcome goal: 0.5 
-#> Power goal: not specified 
-#> List of intervention component costs: c(0, 4), c(0, 1) 
-#> Intervention lower bounds: 0 0 
-#> Intervention upper bounds: 50 10 
-#> 
-#> =====================================
-#> ============  Model Fit  ============
-#> =====================================
-#> 
-#> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>              Estimate Std. Error z value Pr(>|z|)
-#> (Intercept) -0.753683   0.835836  -0.902    0.367
-#> age          0.001137   0.025775   0.044    0.965
-#> parity       0.014662   0.107680   0.136    0.892
-#> 
-#> (Dispersion parameter for binomial family taken to be 1)
-#> 
-#>     Null deviance: 316.17  on 247  degrees of freedom
-#> Residual deviance: 316.15  on 245  degrees of freedom
-#> AIC: 322.15
-#> 
-#> Number of Fisher Scoring iterations: 4
-#> 
-#> 
-#> To see the overall test results, please include a 'group' column in the data,
-#>  and make sure the values of the 'group' column are either 'treatment' or 'control'.
-#>  (Only binary outcomes are supported for now)
-#> 
-#> ===================================================
-#> ===========  Recommended Interventions  ===========
-#> ===================================================
-#>  component     value
-#>        age 31.504032
-#>     parity  2.092742
-#> Estimated outcome goal using the recommended interventions: 0.3346632 
-#> 95% confidence interval for the estimated outcome goal: Not available, please set include_confidence_set = TRUE 
-#> 
-#> Cost for using the recommended interventions: 128.1089 
-#> 
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
 #> ── Recommended intervention 
-#> • age: 31.504
-#> • parity: 2.0927
+#> age: 31.504
+#> parity: 2.0927
 #> Cost: 128.1089
 #> Estimated outcome: 0.3347
 #> Outcome goal: 0.5
@@ -505,95 +448,11 @@ lago_optimization(
 #> → ♥ LAGO optimization complete ♥
 #> ℹ Printing the output...
 #> 
-#> ==================================
-#> ============  Inputs  ============
-#> ==================================
-#> Input data dimensions: 6124 rows, and 21 columns 
-#> Outcome name: pp3_oxytocin_mother 
-#> Outcome type: binary 
-#> 2 intervention package component(s): 
-#>       coaching_updt
-#>   launch_duration 
-#> 1 center characteristic(s): birth_volume_100 
-#> The outcome model: 
-#>   family: binomial 
-#>   link: logit 
-#>   fixed center effects: FALSE 
-#>   fixed time effects: FALSE 
-#> Outcome goal: 0.85 
-#> Power goal: not specified 
-#> List of intervention component costs: c(0, 1.7), c(0, 8) 
-#> Intervention lower bounds: 1 1 
-#> Intervention upper bounds: 40 5 
-#> 
-#> =====================================
-#> ============  Model Fit  ============
-#> =====================================
-#> 
-#> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>                   Estimate Std. Error z value Pr(>|z|)    
-#> (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-#> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-#> launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-#> birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-#> ---
-#> Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-#> 
-#> (Dispersion parameter for binomial family taken to be 1)
-#> 
-#>     Null deviance: 8470.8  on 6123  degrees of freedom
-#> Residual deviance: 5161.2  on 6120  degrees of freedom
-#> AIC: 5169.2
-#> 
-#> Number of Fisher Scoring iterations: 6
-#> 
-#> 
-#> To see the overall test results, please include a 'group' column in the data,
-#>  and make sure the values of the 'group' column are either 'treatment' or 'control'.
-#>  (Only binary outcomes are supported for now)
-#> 
-#> ===================================================
-#> ===========  Recommended Interventions  ===========
-#> ===================================================
-#>        component    value
-#>    coaching_updt 1.000000
-#>  launch_duration 2.778472
-#> Estimated outcome goal using the recommended interventions: 0.85 
-#> 95% confidence interval for the estimated outcome goal: 0.802 - 0.898 
-#> 
-#> Cost for using the recommended interventions: 23.92777 
-#> 
-#> ========================================
-#> ============ Confidence Set ============
-#> ========================================
-#> Confidence set size percentage: 0.09 
-#> IQR of the cost within the 95% confidence set: 62.325 - 76.775 
-#> 
-#> Confidence set (only first few rows are shown): 
-#> Please use $cs to get the full confidence set. 
-#>    coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound
-#> 68            27               2             1.75          0.811          0.851
-#> 69            28               2             1.75          0.814          0.855
-#> 70            29               2             1.75          0.816          0.859
-#> 71            30               2             1.75          0.819          0.863
-#> 72            31               2             1.75          0.822          0.867
-#> 73            32               2             1.75          0.824          0.871
-#>    cost
-#> 68 61.9
-#> 69 63.6
-#> 70 65.3
-#> 71 67.0
-#> 72 68.7
-#> 73 70.4
-#> 
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
 #> ── Recommended intervention 
-#> • coaching_updt: 1
-#> • launch_duration: 2.7785
+#> coaching_updt: 1
+#> launch_duration: 2.7785
 #> Cost: 23.9278
 #> Estimated outcome: 0.85
 #> Outcome goal: 0.85
@@ -634,72 +493,11 @@ lago_optimization(
 #> → ♥ LAGO optimization complete ♥
 #> ℹ Printing the output...
 #> 
-#> ==================================
-#> ============  Inputs  ============
-#> ==================================
-#> Input data dimensions: 7359 rows, and 4 columns 
-#> Outcome name: EBP_proportions 
-#> Outcome type: continuous 
-#> 2 intervention package component(s): 
-#>       coaching_updt
-#>   launch_duration 
-#> 1 center characteristic(s): birth_volume_100 
-#> The outcome model: 
-#>   family: quasibinomial 
-#>   link: logit 
-#>   fixed center effects: FALSE 
-#>   fixed time effects: FALSE 
-#> Outcome goal: 0.85 
-#> Power goal: not specified 
-#> List of intervention component costs: c(0, 1.7), c(0, 8) 
-#> Intervention lower bounds: 1 1 
-#> Intervention upper bounds: 40 5 
-#> 
-#> =====================================
-#> ============  Model Fit  ============
-#> =====================================
-#> 
-#> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>                   Estimate Std. Error t value Pr(>|t|)    
-#> (Intercept)      -0.138303   0.011848  -11.67   <2e-16 ***
-#> coaching_updt     0.034416   0.001382   24.90   <2e-16 ***
-#> launch_duration   0.165681   0.015574   10.64   <2e-16 ***
-#> birth_volume_100 -0.202380   0.003241  -62.45   <2e-16 ***
-#> ---
-#> Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-#> 
-#> (Dispersion parameter for quasibinomial family taken to be 0.08983316)
-#> 
-#>     Null deviance: 1486.60  on 7358  degrees of freedom
-#> Residual deviance:  735.96  on 7355  degrees of freedom
-#> AIC: NA
-#> 
-#> Number of Fisher Scoring iterations: 4
-#> 
-#> 
-#> To see the overall test results, please include a 'group' column in the data,
-#>  and make sure the values of the 'group' column are either 'treatment' or 'control'.
-#>  (Only binary outcomes are supported for now)
-#> 
-#> ===================================================
-#> ===========  Recommended Interventions  ===========
-#> ===================================================
-#>        component    value
-#>    coaching_updt 38.98865
-#>  launch_duration  4.78093
-#> Estimated outcome goal using the recommended interventions: 0.8377371 
-#> 95% confidence interval for the estimated outcome goal: Not available, please set include_confidence_set = TRUE 
-#> 
-#> Cost for using the recommended interventions: 104.5281 
-#> 
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
 #> ── Recommended intervention 
-#> • coaching_updt: 38.9887
-#> • launch_duration: 4.7809
+#> coaching_updt: 38.9887
+#> launch_duration: 4.7809
 #> Cost: 104.5281
 #> Estimated outcome: 0.8377
 #> Outcome goal: 0.85

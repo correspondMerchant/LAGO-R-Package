@@ -2,6 +2,19 @@
 
 ## LAGO 1.0.12
 
+- Added
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
+  which renders a self-contained HTML report for a `"lago"` result. It
+  knits a bundled R Markdown template that lays out the same sections as
+  the console methods plus the confidence-set plot and a session-info
+  footer. Requires the suggested `rmarkdown` and `knitr` packages.
+- Restyled the [`print()`](https://rdrr.io/r/base/print.html) and
+  [`summary()`](https://rdrr.io/r/base/summary.html) console output for
+  `"lago"` results with boxed, colour-accented `cli` sections through a
+  shared presentation formatter. The non-quiet in-run summary now routes
+  through the same formatter, so the output shown during a run is
+  identical to [`print()`](https://rdrr.io/r/base/print.html) and the
+  old double-render is gone.
 - [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
   now returns an object of class `"lago"` with
   [`print()`](https://rdrr.io/r/base/print.html),
