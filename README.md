@@ -36,7 +36,7 @@ The LAGO R package has three user-facing functions `lago_optimization()`, `visua
 
 `lago_optimization()` carries out the LAGO optimizations, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained HTML report of an optimization result.
 
-`lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` shows a concise summary of the recommended intervention, `summary()` adds the confidence-set cost range and first rows, and `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus the confidence-set plot and a session-info footer, to a shareable HTML file.
+`lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` (and the identical `summary()`) shows the full result on the console, including an inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set; `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus the confidence-set plot and a session-info footer, to a shareable HTML file.
 
 `lago_optimization()` supports three goal modes: an **outcome goal alone**, a **power goal alone**, or **both together**. At least one of `outcome_goal` or `power_goal` must be provided. When both are provided, the effective outcome goal used for the optimization is the higher of the outcome goal and the outcome level implied by the power goal (the "whichever is higher" rule). A power goal is only supported for binary outcomes and requires a `group` column plus `num_centers_in_next_stage` and `patients_per_center_in_next_stage`; it cannot be combined with `outcome_goal_intention = "minimize"`. When participants are clustered within centers, pass the intra-cluster correlation to `icc` (a single value, or `c(control, treatment)`) and identify the clustering column with `power_goal_cluster_id`. The power calculation then inflates the variance of the test statistic by the design effect, so meeting the same power goal requires a stronger intervention. Without `icc`, the power calculation treats participants as independent.
 
@@ -95,16 +95,67 @@ If the confidence set calculation takes a long time to run, please consider chan
 
 ── LAGO optimization result ────────────────────────────────────────────────────
 
+── Inputs
+Input data dimensions: 32 rows, 11 columns
+Outcome name: mpg
+Outcome type: continuous
+2 intervention component(s): gear, qsec
+Outcome model family: gaussian
+Outcome model link: identity
+Fixed center effects: FALSE
+Fixed time effects: FALSE
+Outcome goal: 40
+Power goal: not specified
+Intervention component costs: c(0, 4), c(4, 6)
+Intervention lower bounds: 0, 0
+Intervention upper bounds: 10, 350
+
+── Outcome model fit
+
+Call:
+glm(formula = formula, family = family_object, data = data, weights = weights)
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)
+(Intercept) -30.7108     9.6702  -3.176 0.003530 **
+gear          4.8711     1.0814   4.505 0.000100 ***
+qsec          1.8399     0.4465   4.121 0.000288 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+(Dispersion parameter for gaussian family taken to be 18.84028)
+
+    Null deviance: 1126.05  on 31  degrees of freedom
+Residual deviance:  546.37  on 29  degrees of freedom
+AIC: 189.61
+
+Number of Fisher Scoring iterations: 2
+
+── Overall intervention-effect test
+To see the overall test results, include a 'group' column in the data with
+values 'treatment' or 'control' (binary outcomes only).
+
 ── Recommended intervention
 gear: 10
 qsec: 11.9574
 Cost: 115.7446
 Estimated outcome: 40
+95% CI for the estimated outcome: 26.64 - 53.36
 Outcome goal: 40
+
+── Confidence set
 95% confidence set size: 4.25% of the grid
-Use summary() for the confidence set and test detail, plot() to visualize.
+IQR of the cost within the 95% confidence set: 155.5 - 242.5
+First rows of the confidence set (use $cs for all):
+   gear qsec CI_lower_bound CI_upper_bound cost
+45   10    3          6.902         40.137   62
+56   10    4          9.261         41.458   68
+67   10    5         11.589         42.810   74
+78   10    6         13.881         44.197   80
+89   10    7         16.136         45.622   86
+99    9    8         15.118         40.577   88
 ```
-The recommended intervention is 'gear' = 10 and 'qsec' = 11.96. `results` is an object of class `"lago"`: call `summary(results)` for the confidence-set cost range and its first rows, `plot(results)` to visualize the confidence set, and access any field directly (for example `results$cs` for the full confidence set or `results$rec_int` for the recommended intervention). To save a shareable HTML report of the result, run:
+The recommended intervention is 'gear' = 10 and 'qsec' = 11.96. The console output shows the full picture: the inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set. `results` is an object of class `"lago"`; `summary(results)` prints the same output, `plot(results)` visualizes the confidence set, and you can access any field directly (for example `results$cs` for the full confidence set, `results$model` for the fitted model, or `results$rec_int` for the recommended intervention). To save a shareable HTML report of the result, run:
 ```
 lago_report(results)
 ```
@@ -196,16 +247,85 @@ If the confidence set calculation takes a long time to run, please consider chan
 
 ── LAGO optimization result ────────────────────────────────────────────────────
 
+── Inputs
+Input data dimensions: 6124 rows, 23 columns
+Outcome name: pp3_oxytocin_mother
+Outcome type: binary
+2 intervention component(s): coaching_updt, launch_duration
+Outcome model family: binomial
+Outcome model link: logit
+Fixed center effects: TRUE
+Fixed time effects: TRUE
+Outcome goal: 0.85
+Power goal: not specified
+Intervention component costs: c(0, 1.7), c(0, 8)
+Intervention lower bounds: 1, 1
+Intervention upper bounds: 40, 5
+
+── Outcome model fit
+
+Call:
+glm(formula = formula, family = family_object, data = data, weights = weights)
+
+Coefficients:
+                  Estimate Std. Error z value Pr(>|z|)
+(Intercept)     -7.947e-01  1.345e-01  -5.908 3.47e-09 ***
+center2          1.419e-01  1.361e-01   1.043    0.297
+center3          8.206e-02  1.370e-01   0.599    0.549
+center4         -8.730e-02  1.384e-01  -0.631    0.528
+center5          1.790e-02  1.374e-01   0.130    0.896
+center6         -1.491e-01  1.413e-01  -1.056    0.291
+center7         -1.222e-01  1.362e-01  -0.897    0.370
+center8         -2.050e-01  1.381e-01  -1.485    0.138
+center9         -2.467e-02  1.380e-01  -0.179    0.858
+center10         1.240e-01  1.375e-01   0.902    0.367
+period2         -1.455e-01  1.386e-01  -1.050    0.294
+period3          5.545e-02  1.348e-01   0.411    0.681
+period4         -1.545e-01  1.425e-01  -1.084    0.278
+period5         -3.372e-02  1.392e-01  -0.242    0.809
+period6          3.380e-02  1.377e-01   0.246    0.806
+period7         -1.417e-01  1.415e-01  -1.002    0.316
+period8          1.252e-02  1.363e-01   0.092    0.927
+period9         -1.844e-01  1.364e-01  -1.353    0.176
+period10         1.041e-01  1.362e-01   0.764    0.445
+coaching_updt   -2.997e-05  7.668e-03  -0.004    0.997
+launch_duration  1.375e+00  8.744e-02  15.726  < 2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+(Dispersion parameter for binomial family taken to be 1)
+
+    Null deviance: 8470.8  on 6123  degrees of freedom
+Residual deviance: 6344.6  on 6103  degrees of freedom
+AIC: 6386.6
+
+Number of Fisher Scoring iterations: 4
+
+── Overall intervention-effect test
+To see the overall test results, include a 'group' column in the data with
+values 'treatment' or 'control' (binary outcomes only).
+
 ── Recommended intervention
 coaching_updt: 1.0014
 launch_duration: 1.7508
 Cost: 15.7083
 Estimated outcome: 0.85
+95% CI for the estimated outcome: 0.802 - 0.898
 Outcome goal: 0.85
+
+── Confidence set
 95% confidence set size: 11.85% of the grid
-Use summary() for the confidence set and test detail, plot() to visualize.
+IQR of the cost within the 95% confidence set: 32.4 - 67.75
+First rows of the confidence set (use $cs for all):
+   coaching_updt launch_duration CI_lower_bound CI_upper_bound cost
+78            33            1.45          0.726          0.853 67.7
+79            35            1.45          0.722          0.856 71.1
+80            37            1.45          0.718          0.860 74.5
+81            39            1.45          0.714          0.864 77.9
+82             1            1.60          0.769          0.874 14.5
+83             3            1.60          0.772          0.872 17.9
 ```
-The outcome model here includes many more coefficients, one per center and per time period, than the previous example, even though the console summary reports only the recommendation. Call `summary(optimization_results)` for the confidence-set cost range and its first rows, inspect `optimization_results$cs` for the full confidence set, or run `lago_report(optimization_results)` for a shareable HTML report of the result.
+The outcome model here includes many more coefficients, one per center and per time period, than the previous example, and the console output shows them all. `summary(optimization_results)` prints the same output; inspect `optimization_results$cs` for the full confidence set or `optimization_results$model` for the fitted model, or run `lago_report(optimization_results)` for a shareable HTML report of the result.
 
 
 ## How to run additional examples

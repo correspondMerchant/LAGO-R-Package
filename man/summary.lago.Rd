@@ -15,7 +15,9 @@
 `object`, invisibly.
 }
 \description{
-Fuller display than [print.lago()]: adds the confidence-set cost
-range and first rows, and the overall-test statistic and p-value when
-present. Renders through the same shared formatter as [print.lago()].
+Renders the same full console display as [print.lago()]: the
+inputs recap, outcome-model coefficient table, overall intervention-effect
+test, recommended intervention (with cost and the estimated-outcome CI), and
+the confidence set. Provided so `summary()` works as expected on a "lago"
+object.
 }

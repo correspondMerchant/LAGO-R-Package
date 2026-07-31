@@ -7,17 +7,50 @@
 # colour support, so this is safe everywhere.
 .lago_accent <- function() cli::make_ansi_style("#0066cc")
 
-# Shared console renderer for a `lago` object. Both print.lago (compact) and
-# summary.lago (full) render through this so their output can never drift, and
-# the non-quiet in-run summary in lago_optimization() calls print() on the
-# assembled result, giving byte-identical output. This layer performs NO
-# statistics: every quantity comes from lago_blocks(x) or verbatim from an
-# existing field, with the same wording/rounding the methods have always used.
+# Shared console renderer for a `lago` object. print.lago and summary.lago both
+# render through this so their output can never drift, and the non-quiet in-run
+# summary in lago_optimization() calls print() on the assembled result, giving
+# byte-identical output. It shows the FULL picture (inputs recap, model fit and
+# coefficient table, overall test, recommendation with the estimated-outcome CI,
+# and the confidence set) so R users can read everything straight from the
+# console. This layer performs NO statistics: every quantity comes from
+# lago_blocks(x) or verbatim from an existing field, with the same wording and
+# rounding the package has always used. `full` currently renders identically to
+# the default; it is kept so summary.lago() can extend the output later without
+# changing the print.lago() contract.
 .lago_render <- function(x, full = FALSE) {
   blocks <- lago_blocks(x)
   accent <- .lago_accent()
 
   cli::cli_h1("{accent('LAGO optimization result')}")
+
+  # --- inputs recap (echoes the key user inputs).
+  if (!is.null(blocks$inputs)) {
+    cli::cli_h3("{accent(blocks$inputs$title)}")
+    for (row in blocks$inputs$rows) cli::cli_text(row)
+  }
+
+  # --- outcome model fit: family/link/effects appear in the inputs recap; here
+  # we print the fitted-model coefficient table the way the old output did
+  # (print(summary(model))). Carried on the object as $model.
+  if (!is.null(x$model)) {
+    cli::cli_h3("{accent('Outcome model fit')}")
+    print(summary(x$model))
+  }
+
+  # --- overall intervention-effect test (or the guidance shown when no valid
+  # 'group' column was supplied, matching the old output).
+  cli::cli_h3("{accent('Overall intervention-effect test')}")
+  if (!is.null(blocks$test)) {
+    for (row in blocks$test$rows) cli::cli_text(row)
+  } else {
+    cli::cli_text(
+      paste(
+        "To see the overall test results, include a 'group' column in the",
+        "data with values 'treatment' or 'control' (binary outcomes only)."
+      )
+    )
+  }
 
   # --- recommended intervention: aligned component | value table.
   cli::cli_h3("{accent(blocks$recommendation$title)}")
@@ -30,54 +63,35 @@
   } else {
     for (v in rec_rows$value) cli::cli_li("{v}")
   }
-
-  # --- cost, outcome, power: pre-formatted character rows from lago_blocks.
   for (row in blocks$cost$rows) cli::cli_text(row)
   for (row in blocks$outcome$rows) cli::cli_text(row)
-  if (!is.null(blocks$power)) {
-    for (row in blocks$power$rows) cli::cli_text(row)
-  }
 
-  # --- confidence set size: shown in both modes, gated on the size field so it
-  # still appears when the field is present but no confidence set was found
-  # (cs NULL), preserving the historical print.lago behaviour.
-  if (!is.null(x$confidence_set_size_percentage)) {
+  # --- confidence set: size, cost IQR, and first rows. The size line is shown
+  # here (gated on the field) so it still appears when the field is present but
+  # no confidence set was found (cs NULL).
+  cli::cli_h3("{accent('Confidence set')}")
+  if (is.null(x$confidence_set_size_percentage)) {
+    # confidence set was not requested (include_confidence_set = FALSE).
+    cli::cli_text(
+      "Not computed (set include_confidence_set = TRUE to compute it)."
+    )
+  } else {
     cli::cli_text(
       "95% confidence set size: {round(100 * x$confidence_set_size_percentage, 2)}% of the grid"
     )
-  }
-
-  if (!full) {
-    # compact: overall-test p-value (signif 3) + a single hint line.
-    if (!is.null(x$test_results)) {
-      cli::cli_text(
-        "Overall intervention test: p = {signif(x$test_results$p_val, 3)}"
+    if (!is.null(blocks$confidence_set) && !is.null(x$cs)) {
+      # render the non-size rows (cost IQR) verbatim from the shared block.
+      iqr_rows <- grep(
+        "^95% confidence set size", blocks$confidence_set$rows,
+        value = TRUE, invert = TRUE
       )
+      for (row in iqr_rows) cli::cli_text(row)
+      cli::cli_text("First rows of the confidence set (use $cs for all):")
+      print(utils::head(x$cs))
+    } else {
+      # size field present but no set found for the current goal.
+      cli::cli_text("No confidence set was found for the current outcome goal.")
     }
-    cli::cli_text(
-      "Use summary() for the confidence set and test detail, plot() to visualize."
-    )
-    return(invisible(x))
-  }
-
-  # --- full: confidence-set cost range + first rows.
-  if (!is.null(blocks$confidence_set)) {
-    cli::cli_h3("{accent(blocks$confidence_set$title)}")
-    # the size line is already shown above; render the remaining rows (cost
-    # range) verbatim from the shared block.
-    cost_rows <- grep(
-      "^95% confidence set size", blocks$confidence_set$rows,
-      value = TRUE, invert = TRUE
-    )
-    for (row in cost_rows) cli::cli_text(row)
-    cli::cli_text("First rows of the confidence set:")
-    print(utils::head(x$cs))
-  }
-
-  # --- full: overall-test statistic + p-value (signif 4).
-  if (!is.null(blocks$test)) {
-    cli::cli_h3("{accent(blocks$test$title)}")
-    for (row in blocks$test$rows) cli::cli_text(row)
   }
 
   invisible(x)
@@ -85,12 +99,15 @@
 
 #' Print a LAGO optimization result
 #'
-#' @description Concise console display of the object returned by
-#' [lago_optimization()]: the recommended intervention (component and value),
-#' its cost, the estimated outcome, and, when available, the confidence-set size
-#' and whether a power goal or overall test was used. Rendered with boxed,
-#' colour-accented [cli][cli::cli] sections through the shared presentation
-#' formatter so it never drifts from [summary.lago()] or the in-run summary.
+#' @description Full console display of the object returned by
+#' [lago_optimization()], rendered with boxed, colour-accented [cli][cli::cli]
+#' sections: an inputs recap (data dimensions, outcome, intervention components,
+#' model family/link and fixed effects, goals, costs and bounds), the fitted
+#' outcome-model coefficient table, the overall intervention-effect test, the
+#' recommended intervention with its cost and the estimated outcome (and its 95%
+#' confidence interval), and the confidence set (size, cost IQR, and first
+#' rows). Everything is shown on the console so results can be read without
+#' further calls. [summary.lago()] renders the same output.
 #'
 #' @param x A "lago" object returned by [lago_optimization()].
 #' @param ... Ignored.
@@ -103,9 +120,11 @@ print.lago <- function(x, ...) {
 
 #' Summarize a LAGO optimization result
 #'
-#' @description Fuller display than [print.lago()]: adds the confidence-set cost
-#' range and first rows, and the overall-test statistic and p-value when
-#' present. Renders through the same shared formatter as [print.lago()].
+#' @description Renders the same full console display as [print.lago()]: the
+#' inputs recap, outcome-model coefficient table, overall intervention-effect
+#' test, recommended intervention (with cost and the estimated-outcome CI), and
+#' the confidence set. Provided so `summary()` works as expected on a "lago"
+#' object.
 #'
 #' @param object A "lago" object returned by [lago_optimization()].
 #' @param ... Ignored.

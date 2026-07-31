@@ -32,6 +32,11 @@ plot_components <- if (!is.null(x$display_components)) {
 plottable_cs <- !is.null(x$cs) && length(plot_components) %in% 1:2
 ```
 
+```{r inputs, results='asis', eval=!is.null(blocks$inputs)}
+cat("## ", blocks$inputs$title, "\n\n", sep = "")
+cat(paste0("- ", blocks$inputs$rows), sep = "\n")
+```
+
 ## `r blocks$recommendation$title`
 
 ```{r recommendation}
@@ -83,6 +88,19 @@ knitr::kable(
 ```{r test, results='asis', eval=!is.null(blocks$test)}
 cat("## ", blocks$test$title, "\n\n", sep = "")
 cat(paste0("- ", blocks$test$rows), sep = "\n")
+```
+
+```{r model-heading, results='asis', eval=!is.null(x$model)}
+cat("## Outcome model fit\n")
+```
+
+```{r model, eval=!is.null(x$model)}
+# the fitted outcome model carried on the object, shown as its coefficient
+# table (same as summary(x$model) in the console summary()).
+knitr::kable(
+  stats::coef(summary(x$model)),
+  caption = "Outcome model coefficients"
+)
 ```
 
 ```{r plot-heading, results='asis', eval=plottable_cs}

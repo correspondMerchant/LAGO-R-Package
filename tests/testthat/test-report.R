@@ -25,9 +25,11 @@ test_that("lago_report() renders a non-empty HTML file with the key sections", {
   expect_gt(file.info(f)$size, 0)
 
   html <- paste(readLines(f, warn = FALSE), collapse = "\n")
+  expect_true(grepl("Inputs", html))
   expect_true(grepl("Recommended", html))
   expect_true(grepl("0.85", html))
   expect_true(grepl("Confidence set plot", html))
+  expect_true(grepl("Outcome model fit", html))
 })
 
 test_that("lago_report() renders without a plot section when there is no CS", {
@@ -57,6 +59,8 @@ test_that("lago_report() renders without a plot section when there is no CS", {
   html <- paste(readLines(f, warn = FALSE), collapse = "\n")
   expect_true(grepl("Recommended", html))
   expect_false(grepl("Confidence set plot", html))
+  # the outcome-model fit section is independent of the confidence set
+  expect_true(grepl("Outcome model fit", html))
 })
 
 test_that("lago_report() rejects non-lago objects", {

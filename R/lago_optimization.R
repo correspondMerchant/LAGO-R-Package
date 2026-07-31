@@ -488,13 +488,53 @@ lago_optimization <- function(
   } else {
     intervention_components
   }
+  # The fitted outcome model is carried on the result so the print/summary
+  # methods can show its coefficient table (summary(x$model)) and users can
+  # access it via $model. It is the same model object the optimization and
+  # confidence set were computed from. The remaining fields echo the key user
+  # inputs so the console output can reproduce the full picture the old output
+  # showed (input recap + model fit), which R users often read straight from the
+  # command line.
   result_meta <- list(
     intervention_components = intervention_components,
     display_components = display_components,
     outcome_type = outcome_type,
     outcome_goal = outcome_goal,
-    power_goal = power_goal
+    power_goal = power_goal,
+    model = model,
+    # inputs recap
+    input_nrow = nrow(data),
+    input_ncol = ncol(data),
+    outcome_name = outcome_name,
+    family = family_object$family,
+    link = family_object$link,
+    include_center_effects = include_center_effects,
+    include_time_effects = include_time_effects,
+    include_interaction_terms = include_interaction_terms,
+    main_components = main_components,
+    center_characteristics = center_characteristics,
+    effective_outcome_goal = if (!is.null(power_goal)) {
+      effective_outcome_goal
+    } else {
+      NULL
+    },
+    cost_list_of_vectors = cost_list_of_vectors,
+    intervention_lower_bounds = intervention_lower_bounds,
+    intervention_upper_bounds = intervention_upper_bounds
   )
+
+  # The 95% confidence interval for the estimated outcome at the recommended
+  # intervention is row 1 of the raw confidence set (get_confidence_set()
+  # prepends rec_int as the first grid row). The object trims that row from $cs
+  # below, so capture the interval here before the trim.
+  est_outcome_ci <- if (include_confidence_set && !is.null(cs$cs)) {
+    c(
+      lower = cs$cs[1, ]$CI_lower_bound,
+      upper = cs$cs[1, ]$CI_upper_bound
+    )
+  } else {
+    NULL
+  }
 
   result <- if (!include_confidence_set) {
     c(
@@ -513,6 +553,7 @@ lago_optimization <- function(
         rec_int = rec_int,
         rec_int_cost = rec_int_cost,
         est_outcome_goal = est_outcome_goal,
+        est_outcome_ci = est_outcome_ci,
         confidence_set_size_percentage = cs$confidence_set_size_percentage,
         # cs$cs is NULL when no confidence set was found for the goal
         cs = if (is.null(cs$cs)) NULL else cs$cs[-1, ],
