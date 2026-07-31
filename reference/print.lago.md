@@ -1,12 +1,15 @@
 # Print a LAGO optimization result
 
-Concise console display of the object returned by
-\[lago_optimization()\]: the recommended intervention (component and
-value), its cost, the estimated outcome, and, when available, the
-confidence-set size and whether a power goal or overall test was used.
-Rendered with boxed, colour-accented \[cli\]\[cli::cli\] sections
-through the shared presentation formatter so it never drifts from
-\[summary.lago()\] or the in-run summary.
+Full console display of the object returned by \[lago_optimization()\],
+rendered with boxed, colour-accented \[cli\]\[cli::cli\] sections: an
+inputs recap (data dimensions, outcome, intervention components, model
+family/link and fixed effects, goals, costs and bounds), the fitted
+outcome-model coefficient table, the overall intervention-effect test,
+the recommended intervention with its cost and the estimated outcome
+(and its 95 confidence interval), and the confidence set (size, cost
+IQR, and first rows). Everything is shown on the console so results can
+be read without further calls. \[summary.lago()\] renders the same
+output.
 
 ## Usage
 

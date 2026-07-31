@@ -11,10 +11,21 @@
 - Restyled the [`print()`](https://rdrr.io/r/base/print.html) and
   [`summary()`](https://rdrr.io/r/base/summary.html) console output for
   `"lago"` results with boxed, colour-accented `cli` sections through a
-  shared presentation formatter. The non-quiet in-run summary now routes
+  shared presentation formatter. The non-quiet in-run summary routes
   through the same formatter, so the output shown during a run is
   identical to [`print()`](https://rdrr.io/r/base/print.html) and the
-  old double-render is gone.
+  old double-render is gone. The console output shows the full picture,
+  so results can be read without further calls: an inputs recap (data
+  dimensions, outcome, intervention components, model family/link and
+  fixed effects, goals, costs and bounds), the fitted outcome-model
+  coefficient table, the overall intervention-effect test, the
+  recommended intervention with its cost and the 95% CI for the
+  estimated outcome, and the confidence set (size, cost IQR, and first
+  rows). [`summary()`](https://rdrr.io/r/base/summary.html) renders the
+  same output.
+- The fitted outcome model is now carried on the result as `$model`, and
+  the 95% confidence interval for the estimated outcome at the
+  recommended intervention as `$est_outcome_ci`.
 - [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
   now returns an object of class `"lago"` with
   [`print()`](https://rdrr.io/r/base/print.html),

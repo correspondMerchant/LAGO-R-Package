@@ -78,7 +78,10 @@ The `quiet = TRUE` argument suppresses the progress messages so the
 vignette output stays clean; it does not change the result.
 
 The returned object has a [`print()`](https://rdrr.io/r/base/print.html)
-method:
+method that shows the full result on the console: an inputs recap, the
+fitted outcome-model coefficient table, the overall intervention-effect
+test, the recommended intervention with its cost and the
+estimated-outcome confidence interval, and the confidence set:
 
 ``` r
 
@@ -86,18 +89,78 @@ result
 #> 
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
+#> ── Inputs
+#> Input data dimensions: 6124 rows, 21 columns
+#> Outcome name: pp3_oxytocin_mother
+#> Outcome type: binary
+#> 2 intervention component(s): coaching_updt, launch_duration
+#> 1 center characteristic(s): birth_volume_100
+#> Outcome model family: binomial
+#> Outcome model link: logit
+#> Fixed center effects: FALSE
+#> Fixed time effects: FALSE
+#> Outcome goal: 0.85
+#> Power goal: not specified
+#> Intervention component costs: c(0, 1.7), c(0, 8)
+#> Intervention lower bounds: 1, 1
+#> Intervention upper bounds: 40, 5
+#> 
+#> ── Outcome model fit
+#> 
+#> Call:
+#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> 
+#> Coefficients:
+#>                   Estimate Std. Error z value Pr(>|z|)    
+#> (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
+#> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
+#> launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
+#> birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> (Dispersion parameter for binomial family taken to be 1)
+#> 
+#>     Null deviance: 8470.8  on 6123  degrees of freedom
+#> Residual deviance: 5161.2  on 6120  degrees of freedom
+#> AIC: 5169.2
+#> 
+#> Number of Fisher Scoring iterations: 6
+#> 
+#> ── Overall intervention-effect test
+#> To see the overall test results, include a 'group' column in the data with
+#> values 'treatment' or 'control' (binary outcomes only).
+#> 
 #> ── Recommended intervention
 #> coaching_updt: 1
 #> launch_duration: 2.7785
 #> Cost: 23.9278
 #> Estimated outcome: 0.85
+#> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
+#> 
+#> ── Confidence set
 #> 95% confidence set size: 10.56% of the grid
-#> Use summary() for the confidence set and test detail, plot() to visualize.
+#> IQR of the cost within the 95% confidence set: 31.08 - 69.98
+#> First rows of the confidence set (use $cs for all):
+#>     coaching_updt launch_duration birth_volume_100 CI_lower_bound
+#> 81             40             1.5             1.75          0.755
+#> 108            27             2.0             1.75          0.811
+#> 109            28             2.0             1.75          0.814
+#> 110            29             2.0             1.75          0.816
+#> 111            30             2.0             1.75          0.819
+#> 112            31             2.0             1.75          0.822
+#>     CI_upper_bound cost
+#> 81           0.851 80.0
+#> 108          0.851 61.9
+#> 109          0.855 63.6
+#> 110          0.859 65.3
+#> 111          0.863 67.0
+#> 112          0.867 68.7
 ```
 
-and a [`summary()`](https://rdrr.io/r/base/summary.html) method that
-adds the confidence-set cost range and its first rows:
+[`summary()`](https://rdrr.io/r/base/summary.html) renders the same
+output:
 
 ``` r
 
@@ -105,17 +168,60 @@ summary(result)
 #> 
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
+#> ── Inputs
+#> Input data dimensions: 6124 rows, 21 columns
+#> Outcome name: pp3_oxytocin_mother
+#> Outcome type: binary
+#> 2 intervention component(s): coaching_updt, launch_duration
+#> 1 center characteristic(s): birth_volume_100
+#> Outcome model family: binomial
+#> Outcome model link: logit
+#> Fixed center effects: FALSE
+#> Fixed time effects: FALSE
+#> Outcome goal: 0.85
+#> Power goal: not specified
+#> Intervention component costs: c(0, 1.7), c(0, 8)
+#> Intervention lower bounds: 1, 1
+#> Intervention upper bounds: 40, 5
+#> 
+#> ── Outcome model fit
+#> 
+#> Call:
+#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> 
+#> Coefficients:
+#>                   Estimate Std. Error z value Pr(>|z|)    
+#> (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
+#> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
+#> launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
+#> birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> (Dispersion parameter for binomial family taken to be 1)
+#> 
+#>     Null deviance: 8470.8  on 6123  degrees of freedom
+#> Residual deviance: 5161.2  on 6120  degrees of freedom
+#> AIC: 5169.2
+#> 
+#> Number of Fisher Scoring iterations: 6
+#> 
+#> ── Overall intervention-effect test
+#> To see the overall test results, include a 'group' column in the data with
+#> values 'treatment' or 'control' (binary outcomes only).
+#> 
 #> ── Recommended intervention
 #> coaching_updt: 1
 #> launch_duration: 2.7785
 #> Cost: 23.9278
 #> Estimated outcome: 0.85
+#> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
-#> 95% confidence set size: 10.56% of the grid
 #> 
 #> ── Confidence set
-#> Cost range in the 95% confidence set: 21.7 - 84
-#> First rows of the confidence set:
+#> 95% confidence set size: 10.56% of the grid
+#> IQR of the cost within the 95% confidence set: 31.08 - 69.98
+#> First rows of the confidence set (use $cs for all):
 #>     coaching_updt launch_duration birth_volume_100 CI_lower_bound
 #> 81             40             1.5             1.75          0.755
 #> 108            27             2.0             1.75          0.811
