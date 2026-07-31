@@ -34,11 +34,12 @@ Renders a self-contained HTML report for the object returned by
 [lago_optimization()]. The report knits a bundled parameterized R Markdown
 template and lays out the same sections, in the same order and with the same
 labels, as the console methods ([print.lago()] / [summary.lago()]): the
-recommended intervention, its cost, the estimated outcome and goal, the power
-goal (when present), the confidence set (size, cost range, and first rows),
-the overall intervention-effect test (when present), and the confidence-set
-plot from [plot.lago()] (when a confidence set is available). A
-`sessionInfo()` footer records the environment the report was produced in.
+recommended intervention, its cost, the estimated outcome (with its 95% CI)
+and goal, the power goal (when present), the confidence set (size, cost IQR,
+and first rows), the overall intervention-effect test (when present), the
+fitted outcome-model coefficient table, and the confidence-set plot from
+[plot.lago()] (when a confidence set is available). A `sessionInfo()` footer
+records the environment the report was produced in.
 
 No new statistics are computed; every value is taken verbatim from an
 existing field on `x` and formatted exactly as the console output formats it.

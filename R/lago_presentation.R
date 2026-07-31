@@ -12,8 +12,8 @@
 # --- small formatting helpers -------------------------------------------------
 # Rounding kept consistent with print.lago / summary.lago:
 #   - recommendation values, cost, estimated outcome: round(., 4)
-#   - confidence-set cost range: round(., 2)
-#   - p-values: signif(., 3) in the compact line, signif(., 4) in the full line
+#   - confidence-set cost IQR: round(., 2)
+#   - p-values: signif(., 4)
 
 .lago_fmt_value <- function(v) round(v, 4)
 
@@ -38,12 +38,120 @@
 #'
 #' @param x A "lago" object returned by [lago_optimization()].
 #'
-#' @return A named list with elements `recommendation`, `cost`, `outcome`,
-#'   `power`, `confidence_set`, and `test`, in that order.
+#' @return A named list with elements `inputs`, `recommendation`, `cost`,
+#'   `outcome`, `power`, `confidence_set`, and `test`, in that order.
 #'
 #' @keywords internal
 #' @noRd
 lago_blocks <- function(x) {
+  # --- inputs recap: echoes the key user inputs so the console output can be
+  # read on its own, the way the old output did. NULL when the fields were not
+  # carried (older objects). Each entry is a pre-formatted "label: value" line.
+  inputs <- NULL
+  if (!is.null(x$outcome_name) || !is.null(x$input_nrow)) {
+    input_rows <- character(0)
+    if (!is.null(x$input_nrow)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          "Input data dimensions: ", x$input_nrow, " rows, ",
+          x$input_ncol, " columns"
+        )
+      )
+    }
+    if (!is.null(x$outcome_name)) {
+      input_rows <- c(input_rows, paste0("Outcome name: ", x$outcome_name))
+    }
+    if (!is.null(x$outcome_type)) {
+      input_rows <- c(input_rows, paste0("Outcome type: ", x$outcome_type))
+    }
+    comps_in <- x$intervention_components
+    if (!is.null(comps_in)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          length(comps_in), " intervention component(s): ",
+          paste(comps_in, collapse = ", ")
+        )
+      )
+    }
+    if (isTRUE(x$include_interaction_terms) && !is.null(x$main_components)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          length(x$main_components), " main effect component(s): ",
+          paste(x$main_components, collapse = ", ")
+        )
+      )
+    }
+    if (!is.null(x$center_characteristics)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          length(x$center_characteristics), " center characteristic(s): ",
+          paste(x$center_characteristics, collapse = ", ")
+        )
+      )
+    }
+    if (!is.null(x$family)) {
+      input_rows <- c(
+        input_rows,
+        paste0("Outcome model family: ", x$family),
+        paste0("Outcome model link: ", x$link),
+        paste0("Fixed center effects: ", isTRUE(x$include_center_effects)),
+        paste0("Fixed time effects: ", isTRUE(x$include_time_effects))
+      )
+    }
+    # Both goal lines are always shown (with "not specified" when NULL), as the
+    # old output did, so the recap is unambiguous about which goal was set.
+    input_rows <- c(
+      input_rows,
+      paste0(
+        "Outcome goal: ",
+        if (is.null(x$outcome_goal)) "not specified" else x$outcome_goal
+      ),
+      paste0(
+        "Power goal: ",
+        if (is.null(x$power_goal)) "not specified" else x$power_goal
+      )
+    )
+    if (!is.null(x$power_goal) && !is.null(x$effective_outcome_goal)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          "Effective outcome goal (max of outcome goal and ",
+          "power-implied outcome): ",
+          .lago_fmt_value(x$effective_outcome_goal)
+        )
+      )
+    }
+    if (!is.null(x$cost_list_of_vectors)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          "Intervention component costs: ",
+          toString(x$cost_list_of_vectors)
+        )
+      )
+    }
+    if (!is.null(x$intervention_lower_bounds)) {
+      input_rows <- c(
+        input_rows,
+        paste0(
+          "Intervention lower bounds: ",
+          paste(x$intervention_lower_bounds, collapse = ", ")
+        ),
+        paste0(
+          "Intervention upper bounds: ",
+          paste(x$intervention_upper_bounds, collapse = ", ")
+        )
+      )
+    }
+    if (length(input_rows) > 0) {
+      inputs <- list(title = "Inputs", rows = input_rows)
+    }
+  }
+
   # --- recommendation: zip rec_int with its component labels, exactly like
   # print.lago does. display_components lines up with rec_int; fall back to
   # intervention_components for robustness.
@@ -69,10 +177,28 @@ lago_blocks <- function(x) {
     rows = paste0("Cost: ", .lago_fmt_value(x$rec_int_cost))
   )
 
-  # --- outcome (estimated outcome, plus the outcome goal when present)
+  # --- outcome (estimated outcome, its 95% CI when available, and the outcome
+  # goal when present). The CI is the interval for the estimated outcome at the
+  # recommended intervention (row 1 of the raw confidence set), carried on the
+  # object as est_outcome_ci.
   outcome_rows <- paste0(
     "Estimated outcome: ", .lago_fmt_value(x$est_outcome_goal)
   )
+  # Always show a CI line, with the old fallback wording when the interval is
+  # not available (no confidence set found, or the set was not requested).
+  ci_line <- if (!is.null(x$est_outcome_ci)) {
+    paste0(
+      "95% CI for the estimated outcome: ",
+      .lago_fmt_value(x$est_outcome_ci[["lower"]]),
+      " - ",
+      .lago_fmt_value(x$est_outcome_ci[["upper"]])
+    )
+  } else if (!is.null(x$confidence_set_size_percentage)) {
+    "95% CI for the estimated outcome: not available (no confidence set found for the current goal)"
+  } else {
+    "95% CI for the estimated outcome: not available (set include_confidence_set = TRUE)"
+  }
+  outcome_rows <- c(outcome_rows, ci_line)
   if (!is.null(x$outcome_goal)) {
     outcome_rows <- c(
       outcome_rows,
@@ -108,13 +234,16 @@ lago_blocks <- function(x) {
       )
     }
     if (!is.null(x$cs$cost)) {
+      # IQR (25th-75th percentile) of the cost within the confidence set, as the
+      # old console output reported it.
+      qs <- stats::quantile(x$cs$cost, probs = c(0.25, 0.75), names = FALSE)
       cs_rows <- c(
         cs_rows,
         paste0(
-          "Cost range in the 95% confidence set: ",
-          .lago_fmt_cost_range(min(x$cs$cost)),
+          "IQR of the cost within the 95% confidence set: ",
+          .lago_fmt_cost_range(qs[1]),
           " - ",
-          .lago_fmt_cost_range(max(x$cs$cost))
+          .lago_fmt_cost_range(qs[2])
         )
       )
     }
@@ -124,21 +253,31 @@ lago_blocks <- function(x) {
     )
   }
 
-  # --- overall intervention-effect test (NULL when no test results)
+  # --- overall intervention-effect test (NULL when no test results). Binary
+  # outcomes use the two-sample test for a difference in proportions; the label
+  # names the test, as the old output did.
   test <- NULL
   if (!is.null(x$test_results)) {
+    test_rows <- character(0)
+    if (identical(x$outcome_type, "binary")) {
+      test_rows <- c(
+        test_rows,
+        "Two-sample test for the difference in two proportions:"
+      )
+    }
+    test_rows <- c(
+      test_rows,
+      paste0("Test statistic: ", .lago_fmt_value(x$test_results$test_stat)),
+      paste0("P-value: ", .lago_fmt_pval(x$test_results$p_val, 4))
+    )
     test <- list(
       title = "Overall intervention-effect test",
-      rows = paste0(
-        "test statistic = ",
-        .lago_fmt_value(x$test_results$test_stat),
-        ", p = ",
-        .lago_fmt_pval(x$test_results$p_val, 4)
-      )
+      rows = test_rows
     )
   }
 
   list(
+    inputs = inputs,
     recommendation = recommendation,
     cost = cost,
     outcome = outcome,

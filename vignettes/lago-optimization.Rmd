@@ -73,14 +73,16 @@ result <- lago_optimization(
 The `quiet = TRUE` argument suppresses the progress messages so the vignette
 output stays clean; it does not change the result.
 
-The returned object has a `print()` method:
+The returned object has a `print()` method that shows the full result on the
+console: an inputs recap, the fitted outcome-model coefficient table, the
+overall intervention-effect test, the recommended intervention with its cost and
+the estimated-outcome confidence interval, and the confidence set:
 
 ```{r}
 result
 ```
 
-and a `summary()` method that adds the confidence-set cost range and its first
-rows:
+`summary()` renders the same output:
 
 ```{r}
 summary(result)
