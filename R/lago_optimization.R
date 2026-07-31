@@ -475,34 +475,6 @@ lago_optimization <- function(
   if (!quiet) cli::cli_alert_info("Printing the output...")
 
   if (!quiet) Sys.sleep(0.25)
-  # print the output, including some user inputs
-  if (!quiet) {
-    print_output(
-      data = data,
-      outcome_name = outcome_name,
-      outcome_type = outcome_type,
-      intervention_components = intervention_components,
-      include_interaction_terms = include_interaction_terms,
-      main_components = main_components,
-      center_characteristics = center_characteristics,
-      family_object = family_object,
-      include_center_effects = include_center_effects,
-      include_time_effects = include_time_effects,
-      outcome_goal = outcome_goal,
-      power_goal = power_goal,
-      effective_outcome_goal = effective_outcome_goal,
-      cost_list_of_vectors = cost_list_of_vectors,
-      intervention_lower_bounds = intervention_lower_bounds,
-      intervention_upper_bounds = intervention_upper_bounds,
-      model = model,
-      rec_int = rec_int,
-      rec_int_cost = rec_int_cost,
-      est_outcome_goal = est_outcome_goal,
-      include_confidence_set = include_confidence_set,
-      cs = if (include_confidence_set) cs else NULL,
-      test_results = test_results
-      )
-  }
 
   # Metadata carried on the result so the print/summary/plot methods can render
   # it (rec_int is an unnamed numeric, and these are not otherwise stored).
@@ -554,5 +526,16 @@ lago_optimization <- function(
   # S3 class so print()/summary()/plot() dispatch. The object is still a plain
   # list, so existing $/[[/names access is unchanged.
   class(result) <- "lago"
-  return(result)
+
+  # Non-quiet in-run summary renders through the SAME formatter as print.lago,
+  # so the in-run output and an explicit print(result) are byte-identical. The
+  # quiet path produces no output.
+  if (!quiet) print(result)
+
+  # Return INVISIBLY. An unassigned top-level call, e.g. lago_optimization(...),
+  # auto-prints a *visible* return value, which combined with the in-run print()
+  # above would render the summary box twice. Returning invisibly renders it
+  # exactly once (the in-run print) while assigned calls, r <- ..., are
+  # unaffected. Visibility, not the value, is what drives the duplicate render.
+  return(invisible(result))
 }

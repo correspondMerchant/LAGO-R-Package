@@ -22,4 +22,4 @@ VignetteBuilder: knitr
 Config/testthat/edition: 3
 Depends:
     R (>= 2.10)
-RoxygenNote: 7.3.2
+Config/roxygen2/version: 8.0.0

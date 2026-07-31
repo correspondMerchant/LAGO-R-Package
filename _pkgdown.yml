@@ -9,6 +9,10 @@ reference:
   contents:
   - lago_optimization
   - visualize_cost
+- title: Reporting
+  desc: Generate a shareable report from an optimization result.
+  contents:
+  - lago_report
 - title: Methods
   desc: Methods for the object returned by lago_optimization().
   contents:

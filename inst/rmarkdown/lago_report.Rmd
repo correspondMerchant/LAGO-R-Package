@@ -1,0 +1,100 @@
+---
+params:
+  x: NULL
+  title: "LAGO optimization report"
+title: "`r params$title`"
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M')`"
+output:
+  html_document:
+    self_contained: true
+    theme: cosmo
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+x <- params$x
+# lago_blocks() is the shared presentation formatter; the report renders from
+# the same blocks as print.lago()/summary.lago() so the two can never drift.
+# It is an internal helper, hence the triple-colon access.
+blocks <- LAGO:::lago_blocks(x)
+# plot.lago() only draws a figure for 1- or 2-component interventions; for 3+
+# components it emits no plot. Gate the plot heading and figure on the same
+# capability so a 3+ component result does not get a dangling, empty
+# "Confidence set plot" section. Mirror plot.lago()'s own component count,
+# which comes from the stored labels (not ncol(cs)).
+plot_components <- if (!is.null(x$display_components)) {
+  x$display_components
+} else {
+  x$intervention_components
+}
+plottable_cs <- !is.null(x$cs) && length(plot_components) %in% 1:2
+```
+
+## `r blocks$recommendation$title`
+
+```{r recommendation}
+rec_rows <- blocks$recommendation$rows
+if (!is.null(rec_rows$component)) {
+  knitr::kable(
+    rec_rows,
+    col.names = c("Component", "Value"),
+    align = c("l", "r")
+  )
+} else {
+  knitr::kable(
+    rec_rows,
+    col.names = "Value",
+    align = "r"
+  )
+}
+```
+
+## `r blocks$cost$title`
+
+```{r cost, results='asis'}
+cat(paste0("- ", blocks$cost$rows), sep = "\n")
+```
+
+## `r blocks$outcome$title`
+
+```{r outcome, results='asis'}
+cat(paste0("- ", blocks$outcome$rows), sep = "\n")
+```
+
+```{r power, results='asis', eval=!is.null(blocks$power)}
+cat("## ", blocks$power$title, "\n\n", sep = "")
+cat(paste0("- ", blocks$power$rows), sep = "\n")
+```
+
+```{r confidence-set-text, results='asis', eval=!is.null(blocks$confidence_set)}
+cat("## ", blocks$confidence_set$title, "\n\n", sep = "")
+cat(paste0("- ", blocks$confidence_set$rows), sep = "\n")
+```
+
+```{r confidence-set-head, eval=!is.null(blocks$confidence_set)}
+knitr::kable(
+  utils::head(x$cs),
+  caption = "First rows of the confidence set"
+)
+```
+
+```{r test, results='asis', eval=!is.null(blocks$test)}
+cat("## ", blocks$test$title, "\n\n", sep = "")
+cat(paste0("- ", blocks$test$rows), sep = "\n")
+```
+
+```{r plot-heading, results='asis', eval=plottable_cs}
+cat("## Confidence set plot\n")
+```
+
+```{r plot, eval=plottable_cs, fig.width=7, fig.height=5}
+plot(x)
+```
+
+## Session info
+
+```{r session-info}
+sessionInfo()
+```
