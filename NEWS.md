@@ -4,6 +4,11 @@
   `"lago"` result. It knits a bundled R Markdown template that lays out the same
   sections as the console methods plus the confidence-set plot and a session-info
   footer. Requires the suggested `rmarkdown` and `knitr` packages.
+* Restyled the `print()` and `summary()` console output for `"lago"` results
+  with boxed, colour-accented `cli` sections through a shared presentation
+  formatter. The non-quiet in-run summary now routes through the same formatter,
+  so the output shown during a run is identical to `print()` and the old
+  double-render is gone.
 * `lago_optimization()` now returns an object of class `"lago"` with `print()`,
   `summary()`, and `plot()` methods for a readable console summary and a
   confidence-set plot. The result is still a plain list, so existing `$`-based
