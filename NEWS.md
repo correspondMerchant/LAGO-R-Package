@@ -2,7 +2,7 @@
 
 * Added runnable `@examples` to every exported function that lacked them:
   `get_confidence_set()` and the `print()`, `summary()`, and `plot()` methods
-  for `"lago"` objects. Every documented function now ships an example.
+  for `"lago"` objects. Every exported function now ships an example.
 * Added `lago_report()`, which renders a self-contained HTML report for a
   `"lago"` result. It knits a bundled R Markdown template that lays out the same
   sections as the console methods plus the confidence-set plot and a session-info

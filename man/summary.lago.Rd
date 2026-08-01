@@ -22,6 +22,9 @@ the confidence set. Provided so `summary()` works as expected on a "lago"
 object.
 }
 \examples{
+# summary() currently renders exactly the same output as print(). The lower
+# bounds start at 1 while the data also contains 0s, so the optimizer warns
+# about that; the warning is expected here.
 result <- lago_optimization(
   data = BB_data,
   outcome_name = "pp3_oxytocin_mother",

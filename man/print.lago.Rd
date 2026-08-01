@@ -27,7 +27,8 @@ further calls. [summary.lago()] renders the same output.
 }
 \examples{
 # lago_optimization() already prints the result, so quiet = TRUE avoids
-# rendering it twice here.
+# rendering it twice here. The lower bounds start at 1 while the data also
+# contains 0s, so the optimizer warns about that; the warning is expected.
 result <- lago_optimization(
   data = BB_data,
   outcome_name = "pp3_oxytocin_mother",

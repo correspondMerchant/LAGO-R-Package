@@ -116,7 +116,8 @@
 #'
 #' @examples
 #' # lago_optimization() already prints the result, so quiet = TRUE avoids
-#' # rendering it twice here.
+#' # rendering it twice here. The lower bounds start at 1 while the data also
+#' # contains 0s, so the optimizer warns about that; the warning is expected.
 #' result <- lago_optimization(
 #'   data = BB_data,
 #'   outcome_name = "pp3_oxytocin_mother",
@@ -156,6 +157,9 @@ print.lago <- function(x, ...) {
 #' @return `object`, invisibly.
 #'
 #' @examples
+#' # summary() currently renders exactly the same output as print(). The lower
+#' # bounds start at 1 while the data also contains 0s, so the optimizer warns
+#' # about that; the warning is expected here.
 #' result <- lago_optimization(
 #'   data = BB_data,
 #'   outcome_name = "pp3_oxytocin_mother",
@@ -197,8 +201,12 @@ summary.lago <- function(object, ...) {
 #' invisibly.
 #'
 #' @examples
-#' # include_confidence_set = TRUE is required: there is nothing to plot
-#' # without a confidence set.
+#' # A plot needs a non-empty confidence set: plot() returns invisibly with a
+#' # message when result$cs is NULL, which can happen even with
+#' # include_confidence_set = TRUE (its default) if no confidence set was found
+#' # for the outcome goal, or if the shrinking method was used.
+#' # The lower bounds start at 1 while the data also contains 0s, so the
+#' # optimizer warns about that; the warning is expected here.
 #' result <- lago_optimization(
 #'   data = BB_data,
 #'   outcome_name = "pp3_oxytocin_mother",
