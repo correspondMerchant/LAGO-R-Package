@@ -112,4 +112,41 @@ List(
 Internal function that calculates the confidence set
 for the recommended interventions
 }
+\examples{
+# Normally called through lago_optimization(include_confidence_set = TRUE).
+# Called directly, it needs the already-fitted outcome model and the
+# recommended intervention from the optimization step.
+data(BB_data)
+
+intervention_components <- c("coaching_updt", "launch_duration")
+predictors <- c(intervention_components, "birth_volume_100")
+
+fitted_model <- glm(
+  pp3_oxytocin_mother ~ coaching_updt + launch_duration + birth_volume_100,
+  family = binomial(link = "logit"),
+  data = BB_data
+)
+
+cs <- get_confidence_set(
+  predictors_data = BB_data[, predictors, drop = FALSE],
+  intervention_components = intervention_components,
+  outcome_data = BB_data$pp3_oxytocin_mother,
+  fitted_model = fitted_model,
+  link = "logit",
+  outcome_goal = 0.85,
+  outcome_type = "binary",
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  confidence_set_grid_step_size = c(1, 1),
+  center_characteristics = "birth_volume_100",
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  rec_int = c(28, 5)
+)
+
+# Percentage of the grid inside the 95\% confidence set, and the set itself.
+cs$confidence_set_size_percentage
+head(cs$cs)
+
+}
 \keyword{internal}

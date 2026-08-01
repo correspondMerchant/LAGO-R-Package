@@ -23,3 +23,29 @@ confidence interval bounds against the dose. Requires a confidence set
 (`include_confidence_set = TRUE` in [lago_optimization()]); otherwise it
 returns invisibly with a message rather than erroring.
 }
+\examples{
+# include_confidence_set = TRUE is required: there is nothing to plot
+# without a confidence set.
+result <- lago_optimization(
+  data = BB_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  glm_family = "binomial",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  center_characteristics = c("birth_volume_100"),
+  center_characteristics_optimization_values = 1.75,
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  include_confidence_set = TRUE,
+  confidence_set_grid_step_size = c(1, 1),
+  quiet = TRUE
+)
+
+# Two components: the confidence set grid with the recommended
+# intervention marked.
+plot(result)
+
+}
