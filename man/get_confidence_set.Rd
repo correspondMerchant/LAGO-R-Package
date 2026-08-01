@@ -168,10 +168,10 @@ cs <- get_confidence_set(
 cs$confidence_set_size_percentage
 
 # rec_int is prepended to the grid so its confidence interval is computed
-# too, and a recommendation from the optimizer is always inside its own
-# confidence set, so row 1 is that recommendation. It need not be a grid
-# point, and lago_optimization() strips it from the confidence set it
-# returns. Rows 2 and on are the grid points inside the confidence set.
+# too, and row 1 is that prepended row whenever rec_int's own interval
+# covers the outcome goal, as it does here. It need not be a grid point,
+# and lago_optimization() strips row 1 from the confidence set it returns.
+# Rows 2 and on are the grid points inside the confidence set.
 cs$cs[1, ]
 head(cs$cs[-1, ])
 
