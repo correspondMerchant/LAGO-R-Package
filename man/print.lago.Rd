@@ -20,8 +20,8 @@ Full console display of the object returned by
 sections: an inputs recap (data dimensions, outcome, intervention components,
 model family/link and fixed effects, goals, costs and bounds), the fitted
 outcome-model coefficient table, the overall intervention-effect test, the
-recommended intervention with its cost and the estimated outcome (and its 95%
-confidence interval), and the confidence set (size, cost IQR, and first
+recommended intervention with its cost and the estimated outcome (and its
+95\% confidence interval), and the confidence set (size, cost IQR, and first
 rows). Everything is shown on the console so results can be read without
 further calls. [summary.lago()] renders the same output.
 }

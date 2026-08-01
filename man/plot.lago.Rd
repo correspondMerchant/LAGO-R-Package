@@ -16,12 +16,14 @@ A ggplot object (invisibly) when a plot is produced, otherwise `NULL`
 invisibly.
 }
 \description{
-Visualizes the 95% confidence set. For a two-component
+Visualizes the 95\% confidence set. For a two-component
 intervention it plots the grid points in the confidence set with the
 recommended intervention highlighted; for a single component it plots the
-confidence interval bounds against the dose. Requires a confidence set
-(`include_confidence_set = TRUE` in [lago_optimization()]); otherwise it
-returns invisibly with a message rather than erroring.
+confidence interval bounds against the dose. A non-empty confidence set is
+required. `result$cs` can be NULL even with `include_confidence_set = TRUE`
+(its default), when no confidence set was found for the outcome goal or the
+shrinking method was used, and then plot() returns invisibly with a message
+rather than erroring.
 }
 \examples{
 # A plot needs a non-empty confidence set: plot() returns invisibly with a

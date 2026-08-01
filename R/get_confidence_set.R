@@ -66,10 +66,14 @@
 #' # Normally reached through lago_optimization(include_confidence_set = TRUE).
 #' # Called directly it needs the fitted outcome model and the recommended
 #' # intervention from the optimization step, so both are taken from a run of
-#' # the optimizer rather than refitting the model by hand. Fitting it by hand
-#' # also works, but the model's coefficient order must match the order the
-#' # intervention components and center characteristics are listed in, because
-#' # the prediction matrix is bound to the coefficient vector by position.
+#' # the optimizer rather than refitting the model by hand: get_confidence_set()
+#' # binds its prediction matrix to the coefficient vector by position, so
+#' # passing opt$model is the reliable way to get that order right. A
+#' # hand-fitted model works only if its coefficients are in the order the
+#' # prediction matrix is assembled in: intercept, fixed center effects, fixed
+#' # time effects, intervention components, additional covariates, then center
+#' # characteristics. A wrong number of coefficients errors; a wrong order is
+#' # silent and returns a different confidence set.
 #' # The lower bounds start at 1 while the data also contains 0s, so the
 #' # optimizer warns about that; the warning is expected here.
 #' opt <- lago_optimization(
@@ -109,13 +113,15 @@
 #'   rec_int = opt$rec_int
 #' )
 #'
-#' # Percentage of the grid inside the 95% confidence set.
+#' # Fraction of the grid inside the 95% confidence set. print() shows the
+#' # same number as a percentage.
 #' cs$confidence_set_size_percentage
 #'
-#' # Row 1 is the recommended intervention, prepended to the grid so its
-#' # confidence interval is computed too; it need not be a grid point, and
-#' # lago_optimization() strips it from the confidence set it returns. Rows 2
-#' # and on are the grid points inside the confidence set.
+#' # rec_int is prepended to the grid so its confidence interval is computed
+#' # too, and a recommendation from the optimizer is always inside its own
+#' # confidence set, so row 1 is that recommendation. It need not be a grid
+#' # point, and lago_optimization() strips it from the confidence set it
+#' # returns. Rows 2 and on are the grid points inside the confidence set.
 #' cs$cs[1, ]
 #' head(cs$cs[-1, ])
 #'
