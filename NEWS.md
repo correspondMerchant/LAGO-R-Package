@@ -66,11 +66,12 @@
   none, and the empty result collapsed the center-level effects to nothing.
   Periods are now resolved against the levels the model was fitted on.
 * Fixed the interval for the estimated outcome being computed at the last time
-  period while the estimate itself used the requested one. The two described
-  different periods, far enough apart that the reported interval could exclude
-  the estimate printed beside it. The interval now follows the requested
-  period, so a recommendation reported for one period is no longer given
-  another period's interval.
+  period while the estimate itself used the requested one, so a recommendation
+  reported for one period was given another period's interval. The interval now
+  follows the requested period. This was largely masked before, because the
+  interval was suppressed whenever no grid intervention qualified; now that it
+  is always reported, an interval far enough from the estimate to exclude it
+  would have become visible.
 * Fixed an additional covariate or center characteristic whose name contains
   "center" being counted as a fixed center effect. The recommended
   intervention itself was corrupted through silent vector recycling, so the
