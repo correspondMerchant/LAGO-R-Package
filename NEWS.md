@@ -42,7 +42,11 @@
   for those configurations, and the corrected values are what the fixes above
   produce. Where the recommended intervention's interval covers the goal and
   at least one grid intervention qualifies, which is the common case, every
-  reported number is unchanged.
+  reported number is unchanged. The estimated-outcome interval additionally
+  changes for most runs that include fixed time effects, since it was computed
+  at the last period rather than the requested one, and the recommended
+  intervention itself changes where a covariate's name was being read as a
+  fixed effect.
 * Fixed the prediction matrix in `get_confidence_set()` being paired with the
   outcome-model coefficients by position. Its columns were relabelled with the
   coefficient names rather than reordered to them, so a model whose terms were
@@ -85,10 +89,11 @@
 * Fixed the confidence set changing when the rows of `data` were reordered.
   The variance-covariance matrix built for continuous outcomes enumerated
   factor levels in order of first appearance while the model orders them by
-  level, so the two were misaligned whenever the data was not already sorted
-  by the factor, and the standard errors were wrong. The matrix is now built
-  with the model's own level order and paired with the prediction matrix by
-  name. The columns of `predictors_data` may also be supplied in any order.
+  level, so the two were misaligned whenever a factor's levels first appeared
+  in an order other than their level order, and the standard errors were then
+  wrong. The matrix is now built with the model's own level order and paired
+  with the prediction matrix by name. The columns of `predictors_data` may
+  also be supplied in any order.
 * Fixed passing more than one center characteristic, which either failed or
   silently added a single recycled column of values to the confidence set
   instead of one column per characteristic.
