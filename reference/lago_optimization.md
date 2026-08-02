@@ -361,11 +361,11 @@ lago_optimization(
 ## Value
 
 List( recommended interventions, associated cost for the interventions,
-estimated outcome mean/probability for the intervention group, 95 95
-overall intervention test results (test_results), a list with the test
-statistic and p-value; NULL unless a valid 'group' column is supplied.
-The confidence set fields are only present when include_confidence_set =
-TRUE.)
+estimated outcome mean/probability for the intervention group, 95%
+confidence set percentage, 95% confidence set, overall intervention test
+results (test_results), a list with the test statistic and p-value; NULL
+unless a valid 'group' column is supplied. The confidence set fields are
+only present when include_confidence_set = TRUE.)
 
 ## Examples
 

@@ -75,6 +75,107 @@ object.</p>
     <p>`object`, invisibly.</p>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># summary() currently renders exactly the same output as print(). The lower</span></span></span>
+<span class="r-in"><span><span class="co"># bounds start at 1 while the data also contains 0s, so the optimizer warns</span></span></span>
+<span class="r-in"><span><span class="co"># about that; the warning is expected here.</span></span></span>
+<span class="r-in"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="lago_optimization.html">lago_optimization</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  data <span class="op">=</span> <span class="va">BB_data</span>,</span></span>
+<span class="r-in"><span>  outcome_name <span class="op">=</span> <span class="st">"pp3_oxytocin_mother"</span>,</span></span>
+<span class="r-in"><span>  outcome_type <span class="op">=</span> <span class="st">"binary"</span>,</span></span>
+<span class="r-in"><span>  glm_family <span class="op">=</span> <span class="st">"binomial"</span>,</span></span>
+<span class="r-in"><span>  intervention_components <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coaching_updt"</span>, <span class="st">"launch_duration"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  center_characteristics <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"birth_volume_100"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  center_characteristics_optimization_values <span class="op">=</span> <span class="fl">1.75</span>,</span></span>
+<span class="r-in"><span>  intervention_lower_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">40</span>, <span class="fl">5</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.7</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  outcome_goal <span class="op">=</span> <span class="fl">0.85</span>,</span></span>
+<span class="r-in"><span>  outcome_goal_intention <span class="op">=</span> <span class="st">"maximize"</span>,</span></span>
+<span class="r-in"><span>  include_confidence_set <span class="op">=</span> <span class="cn">TRUE</span>,</span></span>
+<span class="r-in"><span>  confidence_set_grid_step_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  quiet <span class="op">=</span> <span class="cn">TRUE</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component launch_duration is greater than the minimum value in the data.</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="color: #0087D7; font-weight: bold;">LAGO optimization result</span> <span style="color: #00BBBB;">────────────────────────────────────────────────────</span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Inputs</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Input data dimensions: 6124 rows, 21 columns</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome name: pp3_oxytocin_mother</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome type: binary</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 2 intervention component(s): coaching_updt, launch_duration</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 1 center characteristic(s): birth_volume_100</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model family: binomial</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model link: logit</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed center effects: FALSE</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed time effects: FALSE</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Power goal: not specified</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: c(0, 1.7), c(0, 8)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention lower bounds: 1, 1</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention upper bounds: 40, 5</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Outcome model fit</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Call:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> glm(formula = formula, family = family_object, data = data, weights = weights)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Coefficients:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                   Estimate Std. Error z value Pr(&gt;|z|)    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (Intercept)      -2.299892   0.068371 -33.638  &lt; 2e-16 ***</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> launch_duration   1.024470   0.074135  13.819  &lt; 2e-16 ***</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> birth_volume_100  0.664511   0.029627  22.429  &lt; 2e-16 ***</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> ---</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (Dispersion parameter for binomial family taken to be 1)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     Null deviance: 8470.8  on 6123  degrees of freedom</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Residual deviance: 5161.2  on 6120  degrees of freedom</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> AIC: 5169.2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Number of Fisher Scoring iterations: 6</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Overall intervention-effect test</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> To see the overall test results, include a 'group' column in the data with</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> values 'treatment' or 'control' (binary outcomes only).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 1</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 2.7785</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 23.9278</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.85</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: 0.802 - 0.898</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Confidence set</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% confidence set size: 9% of the grid</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> IQR of the cost within the 95% confidence set: 62.32 - 76.78</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> First rows of the confidence set (use $cs for all):</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 68            27               2             1.75          0.811          0.851</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 69            28               2             1.75          0.814          0.855</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 70            29               2             1.75          0.816          0.859</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 71            30               2             1.75          0.819          0.863</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 72            31               2             1.75          0.822          0.867</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 73            32               2             1.75          0.824          0.871</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    cost</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 68 61.9</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 69 63.6</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 70 65.3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 71 67.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 72 68.7</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 73 70.4</span>
+<span class="r-in"><span></span></span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

@@ -2,6 +2,13 @@
 
 ## LAGO 1.0.12
 
+- Added runnable `@examples` to every exported function that lacked
+  them:
+  [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  and the [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html), and
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) methods for
+  `"lago"` objects. Every exported function now ships an example.
 - Added
   [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
   which renders a self-contained HTML report for a `"lago"` result. It
