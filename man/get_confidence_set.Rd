@@ -9,6 +9,7 @@ get_confidence_set(
   include_center_effects = FALSE,
   center_weights_for_outcome_goal = 1,
   include_time_effects = FALSE,
+  time_effect_optimization_value = NULL,
   additional_covariates = NULL,
   intervention_components,
   include_interaction_terms = FALSE,
@@ -43,6 +44,12 @@ The weights need to sum up to 1.}
 
 \item{include_time_effects}{A boolean. Specifies whether the fixed time
 effects should be included in the outcome model.}
+
+\item{time_effect_optimization_value}{The period the confidence set is
+computed at, as the value of the "period" column that identifies it. The
+recommended intervention and the estimated outcome reported alongside the
+confidence set are computed at this period, so the interval is computed at
+it too. Required when include_time_effects is TRUE.}
 
 \item{additional_covariates}{A character vector. The names of the columns in
 the dataset that represent additional covariates that need to be included

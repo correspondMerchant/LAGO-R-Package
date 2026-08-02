@@ -196,7 +196,10 @@ lago_blocks <- function(x) {
       .lago_fmt_value(x$est_outcome_ci[["upper"]])
     )
   } else if (!is.null(x$confidence_set_size_percentage)) {
-    "95% CI for the estimated outcome: not available (no confidence set found for the current goal)"
+    paste0(
+      "95% CI for the estimated outcome: not available (the interval at the ",
+      "recommended intervention could not be computed)"
+    )
   } else {
     "95% CI for the estimated outcome: not available (set include_confidence_set = TRUE)"
   }

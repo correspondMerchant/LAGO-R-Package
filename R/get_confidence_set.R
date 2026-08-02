@@ -13,6 +13,11 @@
 #' The weights need to sum up to 1.
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model.
+#' @param time_effect_optimization_value The period the confidence set is
+#' computed at, as the value of the "period" column that identifies it. The
+#' recommended intervention and the estimated outcome reported alongside the
+#' confidence set are computed at this period, so the interval is computed at
+#' it too. Required when include_time_effects is TRUE.
 #' @param additional_covariates A character vector. The names of the columns in
 #' the dataset that represent additional covariates that need to be included
 #' in the outcome model. This includes interaction terms or any other additional
@@ -148,6 +153,7 @@ get_confidence_set <- function(
     include_center_effects = FALSE,
     center_weights_for_outcome_goal = 1,
     include_time_effects = FALSE,
+    time_effect_optimization_value = NULL,
     additional_covariates = NULL,
     intervention_components,
     include_interaction_terms = FALSE,
@@ -230,18 +236,23 @@ get_confidence_set <- function(
     new_grid <- grid_x
   }
 
-  # the coefficient names glm gave the fixed-effect dummy columns. Every name
-  # the assembly below can supply for itself is set aside first, so a covariate
-  # whose own name begins with "center" or "period" is not mistaken for a
-  # dummy. glm expands a factor into one dummy per non-reference level, in
-  # level order, which is also the order the dummy columns are built in below.
+  # the coefficient names glm gave each term of the fitted model, so every
+  # block below can be labelled with the coefficients it actually stands for.
+  # glm expands a factor term into one dummy coefficient per non-reference
+  # level and names the dummies after the levels, so a term's own name is in
+  # general not one of its coefficient names: a column 'arm' with levels
+  # post/pre is a coefficient named 'armpre'. NULL when the mapping cannot be
+  # established, in which case every term is taken to carry a coefficient of
+  # its own name, which is what the checks below then report as unmatched.
+  coef_mapping <- term_coef_names(fitted_model)
+  model_coef_names <- names(coef(fitted_model))
+  # every name the assembly below can supply for itself, set aside so the
+  # fallback in fixed_effect_coef_names() does not take a covariate whose own
+  # name begins with "center" or "period" for a fixed-effect dummy.
   named_predictors <- gsub("`", "", c(
     "(Intercept)", intervention_components, additional_covariates,
     center_characteristics
   ))
-  fixed_effect_coefs <- names(coef(fitted_model))[
-    !gsub("`", "", names(coef(fitted_model))) %in% named_predictors
-  ]
 
   # the names the assembled columns of one block carry. A block whose width and
   # number of coefficient names disagree cannot be matched at all, so it is
@@ -272,7 +283,9 @@ get_confidence_set <- function(
     # center_weights_for_outcome_goal is in center level order, so column i
     # above is the i-th non-reference center, which is the i-th center dummy.
     center_effect_names <- block_names(
-      grep("^center", fixed_effect_coefs, value = TRUE, ignore.case = TRUE),
+      fixed_effect_coef_names(
+        "center", coef_mapping, model_coef_names, named_predictors
+      ),
       n_centers,
       "unmatched center effect "
     )
@@ -281,15 +294,31 @@ get_confidence_set <- function(
   # add time effects (if specified) to the data that
   # will be used for predictions
   if (include_time_effects) {
-    # one column per time dummy, in period level order, so the last column is
-    # the last period, which is the one set to 1 below
-    time_effect_names <- grep(
-      "^period", fixed_effect_coefs,
-      value = TRUE, ignore.case = TRUE
+    # one column per time dummy, in period level order
+    time_effect_names <- fixed_effect_coef_names(
+      "period", coef_mapping, model_coef_names, named_predictors
     )
     n_periods <- length(time_effect_names)
+    if (n_periods == 0) {
+      stop(paste0(
+        "'include_time_effects' is TRUE but no fixed time effect coefficient ",
+        "could be identified in 'fitted_model'. The model must be fitted with ",
+        "a 'period' term, as outcome_model_fitting() builds it, so the ",
+        "confidence set can be computed at a single period."
+      ))
+    }
+    # the confidence set is computed at ONE period, the same one the
+    # recommended intervention and the reported estimated outcome are computed
+    # at, so the interval and the point estimate refer to the same quantity.
+    # It used to be hardcoded to the last period, so with any other requested
+    # period the reported interval was the interval of a different period than
+    # the reported point estimate, and could exclude it outright. The reference
+    # period has no dummy of its own and is all-zero columns.
+    indicators <- time_effect_indicator(
+      fitted_model, time_effect_names, time_effect_optimization_value
+    )
     repeated_time_effects <- rep(
-      c(rep(0, n_periods - 1), 1), # assuming we want the last period
+      indicators,
       length.out = n_rows * n_periods
     )
     repeated_time_effects_mat <- matrix(
@@ -303,7 +332,17 @@ get_confidence_set <- function(
   # add additional covariates (if specified) to the data that
   # will be used for predictions
   if (length(additional_covariates) > 0) {
-    n_additional <- length(additional_covariates)
+    # one column per coefficient a covariate expands into, not one column per
+    # covariate: a factor or character covariate is one coefficient per
+    # non-reference level, so it needs that many columns. Every column is 0,
+    # which is the value a numeric covariate has always been held at and, for
+    # a factor, is its reference level, so the same "held at 0" convention
+    # carries over one level down without any choice of level being made here.
+    additional_names <- unlist(
+      lapply(additional_covariates, predictor_coef_names, coef_mapping),
+      use.names = FALSE
+    )
+    n_additional <- length(additional_names)
     repeated_additional <- rep(
       0,
       length.out = n_rows * n_additional
@@ -348,18 +387,25 @@ get_confidence_set <- function(
   components$new_grid <- new_grid
   assembled_names <- c(assembled_names, colnames(new_grid))
   if (length(additional_covariates) > 0) {
-    # n_additional is length(additional_covariates), so the covariate names
-    # already line up with the columns one for one
+    # n_additional is length(additional_names), so the coefficient names the
+    # covariates expand into already line up with the columns one for one
     components$additional <- repeated_additional_mat
-    assembled_names <- c(assembled_names, additional_covariates)
+    assembled_names <- c(assembled_names, additional_names)
   }
   if (length(center_characteristics) > 0) {
     # this block is as wide as center_characteristics_optimization_values,
     # which validate_inputs() requires to match center_characteristics in
-    # length and order
+    # length and order, so one value per characteristic. A characteristic that
+    # is a factor with more than two levels expands to more coefficients than
+    # that, and which of its dummies the single value belongs to is not
+    # knowable, so the helper raises rather than guessing.
+    center_cha_names <- center_characteristic_coef_names(
+      center_characteristics, coef_mapping
+    )
     components$center_cha <- repeated_center_cha_mat
     assembled_names <- c(assembled_names, block_names(
-      center_characteristics, n_center_cha,
+      center_cha_names,
+      n_center_cha,
       "unmatched center characteristic "
     ))
   }
@@ -388,23 +434,45 @@ get_confidence_set <- function(
   if (anyNA(coef_positions) ||
     length(coef_keys) != length(column_keys) ||
     anyDuplicated(coef_keys) > 0 || anyDuplicated(column_keys) > 0) {
-    describe <- function(x) {
-      if (length(x) > 0) paste(x, collapse = ", ") else "none"
+    # only the causes that actually apply are listed, so the message always
+    # names what went wrong instead of reporting empty lists for the causes
+    # that did not. A duplicated name on either side is a cause of its own and
+    # is reported as such, since it can be the sole trigger.
+    reason <- function(label, x) {
+      if (length(x) > 0) {
+        paste0("  ", label, ": ", paste(x, collapse = ", "), "\n")
+      } else {
+        ""
+      }
     }
+    reasons <- paste0(
+      reason(
+        "coefficient(s) with no matching predictor",
+        names(model_coefs)[!coef_keys %in% column_keys]
+      ),
+      reason(
+        "predictor(s) with no matching coefficient",
+        colnames(new_data)[!column_keys %in% coef_keys]
+      ),
+      reason(
+        "coefficient(s) named more than once",
+        unique(coef_keys[duplicated(coef_keys)])
+      ),
+      reason(
+        "predictor(s) named more than once",
+        unique(column_keys[duplicated(column_keys)])
+      )
+    )
     stop(paste0(
       "The coefficients of 'fitted_model' do not match the predictors the ",
       "confidence set is computed over.\n",
       "  ", length(model_coefs), " coefficient(s), ", ncol(new_data),
       " predictor(s)\n",
-      "  coefficient(s) with no matching predictor: ",
-      describe(names(model_coefs)[!coef_keys %in% column_keys]), "\n",
-      "  predictor(s) with no matching coefficient: ",
-      describe(colnames(new_data)[!column_keys %in% coef_keys]), "\n",
-      "  predictor(s) named more than once: ",
-      describe(unique(column_keys[duplicated(column_keys)])), "\n",
+      reasons,
       "'fitted_model' must be fitted on exactly the intercept, the fixed ",
       "center and time effects, the intervention components, the additional ",
-      "covariates and the center characteristics passed here. The order of ",
+      "covariates and the center characteristics passed here. Its factor and ",
+      "character terms may expand to several coefficients each. The order of ",
       "its terms does not matter."
     ))
   }
@@ -453,14 +521,25 @@ get_confidence_set <- function(
         # For each column in predictors_data
         for (col in names(data)) {
           if (is.factor(data[[col]]) || is.character(data[[col]])) {
-            # Create dummies for categorical variables
-            # (using first level as reference)
-            levels <- unique(data[[col]])
+            # Create dummies for categorical variables, using the same
+            # reference level and the same dummy order glm() uses, so this
+            # matrix's columns pair with the model's coefficients. glm() drops
+            # the FIRST LEVEL, not the first value it happens to meet, and
+            # numbers the rest in level order, so unique() is wrong on both
+            # counts: it can pick a different reference level and order the
+            # dummies by first appearance. That made the variance estimate
+            # depend on the row order of the input data.
+            levels <- model_factor_levels(data[[col]])
             for (lev in levels[-1]) {
               dummy <- as.numeric(data[[col]] == lev)
               X <- cbind(X, dummy)
               colnames(X)[ncol(X)] <- paste0(col, lev)
             }
+          } else if (is.logical(data[[col]])) {
+            # glm() treats a logical column as a two-level factor whose only
+            # dummy is TRUE, and names the coefficient accordingly
+            X <- cbind(X, as.numeric(data[[col]]))
+            colnames(X)[ncol(X)] <- paste0(col, "TRUE")
           } else {
             # Numeric columns added as is
             X <- cbind(X, data[[col]])
@@ -661,9 +740,33 @@ get_confidence_set <- function(
       link = link
     )
 
-    # get predicted values. vcov_matrix is not built from the fitted model's
-    # coefficients but from predictors_data, which is in the assembly order,
-    # so it is used as it comes and is not reordered with the coefficients.
+    # vcov_matrix is not built from the fitted model but from predictors_data,
+    # so its rows and columns are in the column order of predictors_data, which
+    # a caller need not supply in the assembly order. Pair them with the
+    # assembled columns BY NAME, the same way the coefficients are, rather than
+    # trusting the two orders to agree: a mismatch would multiply every column
+    # by another column's variance and there would be nothing to show it.
+    vcov_keys <- gsub("`", "", colnames(vcov_matrix))
+    vcov_positions <- match(column_keys, vcov_keys)
+    if (anyNA(vcov_positions) || anyDuplicated(vcov_keys) > 0) {
+      stop(paste0(
+        "The columns of 'predictors_data' do not match the predictors the ",
+        "confidence set is computed over, so the variance-covariance matrix ",
+        "built from them cannot be paired with them.\n",
+        "  predictor(s) with no matching column of 'predictors_data': ",
+        paste(
+          colnames(new_data)[is.na(vcov_positions)],
+          collapse = ", "
+        ), "\n",
+        "'predictors_data' must hold exactly the columns the model was ",
+        "fitted on, i.e. 'center' and 'period' where the fixed effects are ",
+        "included, the intervention components, the additional covariates and ",
+        "the center characteristics. Their order does not matter."
+      ))
+    }
+    vcov_matrix <- vcov_matrix[vcov_positions, vcov_positions, drop = FALSE]
+
+    # get predicted values
     new_data <- as.matrix(new_data)
     pred_all <- (new_data %*% as.matrix(model_coefs))
 
@@ -690,6 +793,16 @@ get_confidence_set <- function(
       # For "logit" (or other logistic-like) link, apply expit.
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
+  } else {
+    # ci_prob_all is assigned in the two branches above and read by the shared
+    # code below, so an unrecognised outcome type would reach that code with it
+    # undefined and fail on "object 'ci_prob_all' not found" instead of saying
+    # what is wrong. lago_optimization() validates outcome_type, so this is
+    # reachable only through a direct call.
+    stop(paste0(
+      "'outcome_type' must be either \"binary\" or \"continuous\", not \"",
+      outcome_type, "\"."
+    ))
   }
 
   # rows whose interval could not be computed (an NA bound) cannot be tested
@@ -767,8 +880,20 @@ get_confidence_set <- function(
   )
 
   if (length(center_characteristics) > 0) {
+    # one column per center characteristic, each holding that
+    # characteristic's own optimization value down every row: the confidence
+    # set is computed for a single center, so every row of it shares the same
+    # characteristic values. cbind()ing the value vector itself added ONE
+    # recycled column rather than one per characteristic, which errored on the
+    # name assignment below, or, when nrow(cs) was a multiple of the number of
+    # characteristics, silently produced a single column cycling through the
+    # values down the rows. validate_inputs() requires one value per
+    # characteristic, in the same order, so the two line up here.
     original_cs_name <- names(cs)
-    cs <- cbind(cs, center_characteristics_optimization_values)
+    cs <- cbind(cs, matrix(
+      rep(center_characteristics_optimization_values, each = nrow(cs)),
+      nrow = nrow(cs)
+    ))
     names(cs) <- c(original_cs_name, center_characteristics)
   }
 
@@ -798,5 +923,170 @@ get_confidence_set <- function(
     confidence_set_size_percentage = confidence_set_size_percentage,
     rec_int_ci = rec_int_ci,
     cs = cs
+  ))
+}
+
+# the coefficient names glm() gave each term of a fitted model, as a list whose
+# names are the term labels of the model formula and whose elements are the
+# coefficient names that term expands into. A term's own name is in general
+# NOT one of its coefficient names: glm expands a factor term into one dummy
+# per non-reference level and names each dummy after its level, so a column
+# 'arm' with levels post/pre becomes a coefficient named 'armpre'.
+# The mapping is read off the model matrix's "assign" attribute, which records
+# the term each of its columns came from and is what R itself pairs
+# coefficients with terms by. No name prefixes are compared, so a covariate
+# whose name is a prefix of another term's name, e.g. dose beside dose2, can
+# never be resolved to the other term's coefficients.
+# Returns NULL when the mapping cannot be rebuilt or does not account for
+# every coefficient, e.g. the data the model was fitted on is gone. A partial
+# mapping is discarded rather than used to label some blocks and not others.
+term_coef_names <- function(model) {
+  mapping <- tryCatch(
+    {
+      design <- model.matrix(model)
+      term_labels <- attr(terms(model), "term.labels")
+      assign_idx <- attr(design, "assign")
+      if (is.null(assign_idx) || length(term_labels) == 0) {
+        NULL
+      } else {
+        setNames(
+          lapply(
+            seq_along(term_labels),
+            function(i) colnames(design)[assign_idx == i]
+          ),
+          gsub("`", "", term_labels)
+        )
+      }
+    },
+    error = function(e) NULL
+  )
+  if (!is.null(mapping)) {
+    covered <- c("(Intercept)", unlist(mapping, use.names = FALSE))
+    if (!all(names(coef(model)) %in% covered)) {
+      mapping <- NULL
+    }
+  }
+  mapping
+}
+
+# the coefficient names one named predictor column stands for in the fitted
+# model. Looked up in the term-to-coefficient mapping, which is exact. A
+# predictor the mapping does not know, including the case of no mapping at
+# all, is taken to carry a single coefficient of its own name, so it is
+# reported as unmatched by the check in get_confidence_set() rather than
+# paired with a coefficient that merely looks like it.
+predictor_coef_names <- function(predictor, coef_mapping) {
+  matched <- coef_mapping[[gsub("`", "", predictor)]]
+  if (length(matched) == 0) predictor else matched
+}
+
+# the coefficient names of the fixed center or time effects, whose term is
+# "center" or "period": outcome_model_fitting() always puts them in the model
+# formula under those names, so the mapping names their dummies exactly.
+# The fallback for a model whose mapping could not be rebuilt is the prefix
+# search this used to do, restricted to the coefficients no other block can
+# claim so that a covariate named like center_size or period_flag is not
+# taken for a dummy.
+fixed_effect_coef_names <- function(term,
+                                    coef_mapping,
+                                    model_coef_names,
+                                    named_predictors) {
+  mapped <- coef_mapping[[term]]
+  if (length(mapped) > 0) {
+    return(mapped)
+  }
+  unclaimed <- model_coef_names[
+    !gsub("`", "", model_coef_names) %in% named_predictors
+  ]
+  grep(paste0("^", term), unclaimed, value = TRUE, ignore.case = TRUE)
+}
+
+# the coefficient name each center characteristic stands for, one per
+# characteristic and in the order they were given. A characteristic that is a
+# factor or character column with more than two levels expands to more than one
+# coefficient, and only one value per characteristic is supplied in
+# center_characteristics_optimization_values, so nothing says which of its
+# levels that value belongs to: say so rather than pick one, which would ignore
+# the value the caller supplied or hold the characteristic at a level it did not
+# ask for.
+center_characteristic_coef_names <- function(center_characteristics,
+                                            coef_mapping) {
+  resolved <- lapply(
+    center_characteristics, predictor_coef_names, coef_mapping
+  )
+  ambiguous <- center_characteristics[lengths(resolved) > 1]
+  if (length(ambiguous) > 0) {
+    stop(paste0(
+      "The center characteristic(s) ", paste(ambiguous, collapse = ", "),
+      " expand to more than one coefficient each in the outcome model, which ",
+      "means they are factor or character columns with more than two ",
+      "levels. Only one value per center characteristic is supplied, in ",
+      "'center_characteristics_optimization_values', so there is no way to ",
+      "say which of the levels the optimization should be computed at. ",
+      "Center characteristics with more than two levels are not supported: ",
+      "please recode them as numeric columns, or as one two-level column per ",
+      "level, and pass a value for each."
+    ))
+  }
+  unlist(resolved, use.names = FALSE)
+}
+
+# the levels of a column in the order glm() builds its dummies from, i.e. with
+# the reference level first. glm() uses the factor's levels, dropping any that
+# no row takes, and orders an unclassed character column's levels by sorting it,
+# which is what factor() does.
+model_factor_levels <- function(x) {
+  if (is.factor(x)) {
+    levels(droplevels(x))
+  } else {
+    levels(factor(x))
+  }
+}
+
+# a 0/1 indicator over the fixed time effect dummies of the model that selects
+# ONE period: 1 on the dummy of the requested period, 0 on the rest. The
+# reference period has no dummy of its own, so it is all zeros, which is a
+# legitimate answer rather than a failure to match.
+# The period the caller asked for is resolved against the period levels the
+# model was fitted on, which is the authoritative set, so it is never confused
+# with a coefficient that merely looks like it and a value that is not a period
+# at all raises rather than silently standing for the reference period.
+# The names are matched exactly, not by prefix: glm() names a period dummy with
+# the term name followed by the level, so the dummy of level "1" is exactly
+# "period1" and never "period10".
+time_effect_indicator <- function(model, time_effect_names, period_value) {
+  if (length(period_value) != 1 || is.na(period_value)) {
+    stop(paste0(
+      "'time_effect_optimization_value' must be a single non-missing value ",
+      "identifying the period to compute at when 'include_time_effects' is ",
+      "TRUE."
+    ))
+  }
+  period_levels <- model$xlevels[["period"]]
+  wanted <- as.character(period_value)
+  if (length(period_levels) > 0 && !wanted %in% period_levels) {
+    stop(paste0(
+      "'time_effect_optimization_value' (", wanted, ") is not one of the ",
+      "periods the outcome model was fitted on, which are ",
+      paste(period_levels, collapse = ", "),
+      ". It must be one of the values of the 'period' column."
+    ))
+  }
+  indicator <- rep(0, length(time_effect_names))
+  hits <- which(time_effect_names == paste0("period", wanted))
+  if (length(hits) == 1) {
+    indicator[hits] <- 1
+    return(indicator)
+  }
+  if (length(hits) == 0 && length(period_levels) > 0 &&
+    wanted == period_levels[1]) {
+    # the reference period, which glm() left out of the dummies on purpose
+    return(indicator)
+  }
+  stop(paste0(
+    "'time_effect_optimization_value' (", wanted, ") does not identify ",
+    "exactly one fixed time effect of the outcome model. Its time effect ",
+    "coefficient(s) are ", paste(time_effect_names, collapse = ", "),
+    ", plus the reference period, which has no coefficient of its own."
   ))
 }

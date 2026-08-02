@@ -432,6 +432,10 @@ lago_optimization <- function(
       step_size_results = step_size_results,
       include_center_effects = include_center_effects,
       include_time_effects = include_time_effects,
+      # the confidence set is computed at the same period the recommended
+      # intervention was, so the reported interval is the interval of the
+      # reported estimated outcome and not of some other period
+      time_effect_optimization_value = time_effect_optimization_value,
       intervention_components = intervention_components,
       additional_covariates = additional_covariates,
       center_characteristics = center_characteristics,
