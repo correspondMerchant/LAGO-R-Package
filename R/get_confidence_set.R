@@ -55,8 +55,18 @@
 #' from the optimization step.
 #'
 #' @return List(
-#'   confidence_set_size_percentage = <number>,
-#'   cs = <data.frame of interventions in the confidence set>
+#'   confidence_set_size_percentage = <number, the size of the confidence set
+#'     as a fraction of the grid. Both the count of qualifying interventions
+#'     and the size of the grid count grid interventions only, so rec_int is
+#'     excluded from each>,
+#'   rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
+#'     the confidence interval at rec_int. Computed whether or not it covers
+#'     the outcome goal, so callers never have to look for rec_int inside cs.
+#'     NULL when that interval is not computable>,
+#'   cs = <data.frame of the grid interventions whose confidence interval
+#'     covers the outcome goal, with their interval bounds and cost. rec_int is
+#'     never one of its rows, and need not be a grid intervention at all.
+#'     NULL when no grid intervention qualifies>
 #' )
 #'
 #' @import stats
@@ -66,14 +76,13 @@
 #' # Normally reached through lago_optimization(include_confidence_set = TRUE).
 #' # Called directly it needs the fitted outcome model and the recommended
 #' # intervention from the optimization step, so both are taken from a run of
-#' # the optimizer rather than refitting the model by hand: get_confidence_set()
-#' # binds its prediction matrix to the coefficient vector by position, so
-#' # passing opt$model is the reliable way to get that order right. A
-#' # hand-fitted model works only if its coefficients are in the order the
-#' # prediction matrix is assembled in: intercept, fixed center effects, fixed
-#' # time effects, intervention components, additional covariates, then center
-#' # characteristics. A wrong number of coefficients errors; a wrong order is
-#' # silent and returns a different confidence set.
+#' # the optimizer rather than refitting the model by hand. get_confidence_set()
+#' # binds its prediction matrix to the coefficient vector by name, so a
+#' # hand-fitted model may list its terms in any order. It must be fitted on
+#' # exactly the predictors passed here, though: the intercept, the fixed
+#' # center effects, the fixed time effects, the intervention components, the
+#' # additional covariates and the center characteristics. Any other set of
+#' # coefficients is an error naming what did not match.
 #' # The lower bounds start at 1 while the data also contains 0s, so the
 #' # optimizer warns about that; the warning is expected here.
 #' opt <- lago_optimization(
@@ -113,17 +122,23 @@
 #'   rec_int = opt$rec_int
 #' )
 #'
-#' # Fraction of the grid inside the 95% confidence set. print() shows the
-#' # same number as a percentage.
+#' # Fraction of the grid inside the 95% confidence set: 18 of the 200 grid
+#' # interventions qualify here (40 coaching values by 5 launch durations), so
+#' # 0.09. print() shows the same number as a percentage.
 #' cs$confidence_set_size_percentage
 #'
-#' # rec_int is prepended to the grid so its confidence interval is computed
-#' # too, and row 1 is that prepended row whenever rec_int's own interval
-#' # covers the outcome goal, as it does here. It need not be a grid point,
-#' # and lago_optimization() strips row 1 from the confidence set it returns.
-#' # Rows 2 and on are the grid points inside the confidence set.
-#' cs$cs[1, ]
-#' head(cs$cs[-1, ])
+#' # The confidence interval at the recommended intervention, reported in its
+#' # own field as c(lower, upper). It is computed whether or not it covers the
+#' # outcome goal, so it is available even when no grid intervention qualifies.
+#' # lago_optimization() reports this interval as $est_outcome_ci.
+#' cs$rec_int_ci
+#'
+#' # rec_int need not be one of the grid interventions, and here it is not:
+#' # its launch_duration is about 2.78 while the grid steps through whole
+#' # days. It is never a row of cs either, which holds the 18 qualifying grid
+#' # interventions and nothing else.
+#' opt$rec_int
+#' head(cs$cs)
 #'
 #' @keywords internal
 #' @export
@@ -163,8 +178,14 @@ get_confidence_set <- function(
   }
   # expand grid
   grid_x <- expand.grid(sequences)
+  # the number of grid interventions, before the recommended intervention is
+  # prepended. The confidence set and its size are reported over these
+  # interventions only, so this is the denominator of the percentage.
+  n_grid_rows <- nrow(grid_x)
   # add the rec_int values to the grid so that
-  # the CI can be calculated for the recommended interventions
+  # the CI can be calculated for the recommended interventions.
+  # rec_int is row 1 from here on, and the grid interventions are rows
+  # 2 to n_rows. rec_int need not be one of the grid interventions.
   grid_x <- rbind(rec_int, grid_x)
   n_rows <- nrow(grid_x)
 
@@ -209,6 +230,31 @@ get_confidence_set <- function(
     new_grid <- grid_x
   }
 
+  # the coefficient names glm gave the fixed-effect dummy columns. Every name
+  # the assembly below can supply for itself is set aside first, so a covariate
+  # whose own name begins with "center" or "period" is not mistaken for a
+  # dummy. glm expands a factor into one dummy per non-reference level, in
+  # level order, which is also the order the dummy columns are built in below.
+  named_predictors <- gsub("`", "", c(
+    "(Intercept)", intervention_components, additional_covariates,
+    center_characteristics
+  ))
+  fixed_effect_coefs <- names(coef(fitted_model))[
+    !gsub("`", "", names(coef(fitted_model))) %in% named_predictors
+  ]
+
+  # the names the assembled columns of one block carry. A block whose width and
+  # number of coefficient names disagree cannot be matched at all, so it is
+  # named unmatchably and reported by the coefficient check below instead of
+  # failing here.
+  block_names <- function(coef_names, n_cols, label) {
+    if (length(coef_names) == n_cols) {
+      coef_names
+    } else {
+      paste0(label, seq_len(n_cols))
+    }
+  }
+
   # add center effects (if specified) to the data that
   # will be used for predictions
   if (include_center_effects) {
@@ -223,14 +269,25 @@ get_confidence_set <- function(
       ncol = n_centers,
       byrow = TRUE
     )
+    # center_weights_for_outcome_goal is in center level order, so column i
+    # above is the i-th non-reference center, which is the i-th center dummy.
+    center_effect_names <- block_names(
+      grep("^center", fixed_effect_coefs, value = TRUE, ignore.case = TRUE),
+      n_centers,
+      "unmatched center effect "
+    )
   }
 
   # add time effects (if specified) to the data that
   # will be used for predictions
   if (include_time_effects) {
-    n_periods <- length(
-      grep("period", names(coef(fitted_model)), ignore.case = TRUE)
+    # one column per time dummy, in period level order, so the last column is
+    # the last period, which is the one set to 1 below
+    time_effect_names <- grep(
+      "^period", fixed_effect_coefs,
+      value = TRUE, ignore.case = TRUE
     )
+    n_periods <- length(time_effect_names)
     repeated_time_effects <- rep(
       c(rep(0, n_periods - 1), 1), # assuming we want the last period
       length.out = n_rows * n_periods
@@ -275,50 +332,106 @@ get_confidence_set <- function(
     )
   }
 
-  # assemble the new data for prediction
+  # assemble the new data for prediction. Each block is labelled with the
+  # coefficient names its columns actually stand for, so the coefficients can
+  # be matched to the columns by name below.
   components <- list()
+  assembled_names <- character(0)
   if (include_center_effects) {
     components$center_effects <- repeated_center_effects_mat
+    assembled_names <- c(assembled_names, center_effect_names)
   }
   if (include_time_effects) {
     components$time_effects <- repeated_time_effects_mat
+    assembled_names <- c(assembled_names, time_effect_names)
   }
   components$new_grid <- new_grid
+  assembled_names <- c(assembled_names, colnames(new_grid))
   if (length(additional_covariates) > 0) {
+    # n_additional is length(additional_covariates), so the covariate names
+    # already line up with the columns one for one
     components$additional <- repeated_additional_mat
+    assembled_names <- c(assembled_names, additional_covariates)
   }
   if (length(center_characteristics) > 0) {
+    # this block is as wide as center_characteristics_optimization_values,
+    # which validate_inputs() requires to match center_characteristics in
+    # length and order
     components$center_cha <- repeated_center_cha_mat
+    assembled_names <- c(assembled_names, block_names(
+      center_characteristics, n_center_cha,
+      "unmatched center characteristic "
+    ))
   }
   new_data <- as.data.frame(do.call(cbind, components))
   new_data <- cbind(Intercept = 1, new_data)
-  colnames(new_data) <- names(fitted_model$coefficients)
+  # "(Intercept)" is the name glm() gives the intercept coefficient
+  colnames(new_data) <- c("(Intercept)", assembled_names)
+
+  # pair the coefficients with the columns they belong to BY NAME. The columns
+  # above are assembled in the order outcome_model_fitting() builds the model
+  # formula in, so a model fitted with its terms in some other order has its
+  # coefficients in that other order too, and pairing them by position would
+  # silently multiply every column by the wrong coefficient. Reordering the
+  # coefficients rather than the columns also keeps new_data lined up with the
+  # var-cov matrix the continuous branch builds from predictors_data.
+  # Backticks are stripped from both sides before matching, since an
+  # interaction term is named `a:b` in the model formula and glm keeps the
+  # backticks in the coefficient name, while a caller may pass it either way.
+  model_coefs <- coef(fitted_model)
+  coef_keys <- gsub("`", "", names(model_coefs))
+  column_keys <- gsub("`", "", colnames(new_data))
+  coef_positions <- match(column_keys, coef_keys)
+  # the match has to be one to one in both directions. A coefficient with no
+  # column would otherwise be dropped silently, and a duplicated name on
+  # either side would make the pairing ambiguous.
+  if (anyNA(coef_positions) ||
+    length(coef_keys) != length(column_keys) ||
+    anyDuplicated(coef_keys) > 0 || anyDuplicated(column_keys) > 0) {
+    describe <- function(x) {
+      if (length(x) > 0) paste(x, collapse = ", ") else "none"
+    }
+    stop(paste0(
+      "The coefficients of 'fitted_model' do not match the predictors the ",
+      "confidence set is computed over.\n",
+      "  ", length(model_coefs), " coefficient(s), ", ncol(new_data),
+      " predictor(s)\n",
+      "  coefficient(s) with no matching predictor: ",
+      describe(names(model_coefs)[!coef_keys %in% column_keys]), "\n",
+      "  predictor(s) with no matching coefficient: ",
+      describe(colnames(new_data)[!column_keys %in% coef_keys]), "\n",
+      "  predictor(s) named more than once: ",
+      describe(unique(column_keys[duplicated(column_keys)])), "\n",
+      "'fitted_model' must be fitted on exactly the intercept, the fixed ",
+      "center and time effects, the intervention components, the additional ",
+      "covariates and the center characteristics passed here. The order of ",
+      "its terms does not matter."
+    ))
+  }
+  model_coefs <- model_coefs[coef_positions]
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
 
   if (outcome_type == "binary") {
+    # vcov() is indexed by the same coefficient names, so reorder it the same
+    # way the coefficients were
+    model_vcov <- vcov(fitted_model)[
+      coef_positions, coef_positions,
+      drop = FALSE
+    ]
     new_data <- as.matrix(new_data)
-    pred_all <- expit(new_data %*% coef(fitted_model))
+    pred_all <- expit(new_data %*% model_coefs)
     se_pred_all <- sqrt(
-      diag((new_data) %*% vcov(fitted_model) %*% t(new_data))
+      diag((new_data) %*% model_vcov %*% t(new_data))
     ) * pred_all * (1 - pred_all)
 
     # lower and upper bounds of predictions
     lb_prob_all <- pred_all - critical_value * se_pred_all
     ub_prob_all <- pred_all + critical_value * se_pred_all
+    # the shared code below turns these bounds into the confidence set and
+    # its size, for both outcome types
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
-    valid_rows <- complete.cases(ci_prob_all) # Identify rows without NA values
-    ci_prob_all_cleaned <- ci_prob_all[valid_rows, , drop = FALSE]
-
-    # calculate percentage of interventions
-    # that are included in the confidence set
-    set_size_intervals <- sum(apply(
-      ci_prob_all_cleaned,
-      1,
-      function(y) findInterval(x = outcome_goal, vec = y)
-    ) == 1)
-    confidence_set_size_percentage <- (set_size_intervals - 1) / (n_rows - 1)
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity" in your usage
     # If link == "logit", use the logistic-like approach
@@ -548,9 +661,11 @@ get_confidence_set <- function(
       link = link
     )
 
-    # get predicted values
+    # get predicted values. vcov_matrix is not built from the fitted model's
+    # coefficients but from predictors_data, which is in the assembly order,
+    # so it is used as it comes and is not reordered with the coefficients.
     new_data <- as.matrix(new_data)
-    pred_all <- (new_data %*% as.matrix(coef(fitted_model)))
+    pred_all <- (new_data %*% as.matrix(model_coefs))
 
     # Calculate standard errors for all rows
     std_er_all <- suppressWarnings({
@@ -575,34 +690,53 @@ get_confidence_set <- function(
       # For "logit" (or other logistic-like) link, apply expit.
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
-    valid_rows <- complete.cases(ci_prob_all) # Identify rows without NA values
-    ci_prob_all_cleaned <- ci_prob_all[valid_rows, , drop = FALSE]
-
-    # calculate percentage of interventions that are included
-    # in the confidence set
-    set_size_intervals <- sum(apply(
-      ci_prob_all_cleaned,
-      1,
-      function(y) findInterval(x = outcome_goal, vec = y)
-    ) == 1)
-    confidence_set_size_percentage <- (set_size_intervals - 1) / (n_rows - 1)
   }
 
-  # obtain the confidence set
-  cs_row_indices <- which((apply(
-    ci_prob_all_cleaned,
+  # rows whose interval could not be computed (an NA bound) cannot be tested
+  # against the outcome goal, so they are dropped. Rows are identified by their
+  # position in grid_x throughout, so keep the original row numbers rather than
+  # renumbering the kept rows: ci_prob_all keeps its full length and only the
+  # dropped rows are marked as not covering the goal.
+  valid_rows <- complete.cases(ci_prob_all) # Identify rows without NA values
+
+  # rows whose interval covers the outcome goal, i.e. lower <= goal <= upper.
+  # findInterval() returns 1 exactly for that case. Indices are grid_x row
+  # numbers, so row 1 is rec_int and rows 2+ are the grid interventions.
+  covers_goal <- logical(n_rows)
+  covers_goal[valid_rows] <- apply(
+    ci_prob_all[valid_rows, , drop = FALSE],
     1,
     function(y) findInterval(x = outcome_goal, vec = y)
-  ) == 1) == 1)
+  ) == 1
 
-  # if there is at most one row in the confidence set, it means the
-  # recommended intervention (the first row) is the only intervention in the
-  # confidence set (== 1), or not even the recommended intervention's
-  # confidence interval covers the outcome goal (== 0). In either case there
-  # is no confidence set to report.
-  if (length(cs_row_indices) <= 1) {
+  # the confidence interval at the recommended intervention, reported whether
+  # or not it covers the outcome goal, so callers do not have to look for
+  # rec_int inside the confidence set. NULL when it could not be computed.
+  rec_int_ci <- if (valid_rows[1]) {
+    c(
+      lower = round(ci_prob_all[1, 1], 3),
+      upper = round(ci_prob_all[1, 2], 3)
+    )
+  } else {
+    NULL
+  }
+
+  # the confidence set is the set of GRID interventions whose interval covers
+  # the outcome goal. Row 1 (rec_int) is excluded: it is reported through
+  # rec_int_ci, and it is not necessarily a grid intervention.
+  cs_row_indices <- which(covers_goal[-1]) + 1
+
+  # the size of the confidence set as a fraction of the grid. Both the
+  # numerator and the denominator count grid interventions only.
+  confidence_set_size_percentage <- length(cs_row_indices) / n_grid_rows
+
+  # no grid intervention's confidence interval covers the outcome goal, so
+  # there is no confidence set to report. rec_int_ci is still returned, since
+  # it does not depend on the confidence set being non-empty.
+  if (length(cs_row_indices) == 0) {
     return(list(
-      confidence_set_size_percentage = 0,
+      confidence_set_size_percentage = confidence_set_size_percentage,
+      rec_int_ci = rec_int_ci,
       cs = NULL
     ))
   }
@@ -638,9 +772,11 @@ get_confidence_set <- function(
     names(cs) <- c(original_cs_name, center_characteristics)
   }
 
+  # cs_row_indices are grid_x row numbers, and ci_prob_all is indexed by the
+  # same row numbers, so the bounds line up with the cs rows they belong to.
   cs_output_names <- names(cs)
-  ci_lower_bound <- round(ci_prob_all_cleaned[cs_row_indices, 1], 3)
-  ci_upper_bound <- round(ci_prob_all_cleaned[cs_row_indices, 2], 3)
+  ci_lower_bound <- round(ci_prob_all[cs_row_indices, 1], 3)
+  ci_upper_bound <- round(ci_prob_all[cs_row_indices, 2], 3)
 
   cs <- cbind(
     cs,
@@ -660,6 +796,7 @@ get_confidence_set <- function(
 
   return(list(
     confidence_set_size_percentage = confidence_set_size_percentage,
+    rec_int_ci = rec_int_ci,
     cs = cs
   ))
 }

@@ -524,14 +524,11 @@ lago_optimization <- function(
   )
 
   # The 95% confidence interval for the estimated outcome at the recommended
-  # intervention is row 1 of the raw confidence set (get_confidence_set()
-  # prepends rec_int as the first grid row). The object trims that row from $cs
-  # below, so capture the interval here before the trim.
-  est_outcome_ci <- if (include_confidence_set && !is.null(cs$cs)) {
-    c(
-      lower = cs$cs[1, ]$CI_lower_bound,
-      upper = cs$cs[1, ]$CI_upper_bound
-    )
+  # intervention. get_confidence_set() reports it as its own field, computed at
+  # the recommended intervention whether or not that interval covers the
+  # outcome goal, so it is available even when the confidence set is empty.
+  est_outcome_ci <- if (include_confidence_set) {
+    cs$rec_int_ci
   } else {
     NULL
   }
@@ -555,8 +552,9 @@ lago_optimization <- function(
         est_outcome_goal = est_outcome_goal,
         est_outcome_ci = est_outcome_ci,
         confidence_set_size_percentage = cs$confidence_set_size_percentage,
-        # cs$cs is NULL when no confidence set was found for the goal
-        cs = if (is.null(cs$cs)) NULL else cs$cs[-1, ],
+        # cs$cs already holds the grid interventions in the confidence set, and
+        # is NULL when no grid intervention qualifies for the goal
+        cs = cs$cs,
         # test_results is NULL unless a valid 'group' column was supplied
         test_results = test_results
       ),
