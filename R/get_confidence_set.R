@@ -748,14 +748,30 @@ get_confidence_set <- function(
     # by another column's variance and there would be nothing to show it.
     vcov_keys <- gsub("`", "", colnames(vcov_matrix))
     vcov_positions <- match(column_keys, vcov_keys)
-    if (anyNA(vcov_positions) || anyDuplicated(vcov_keys) > 0) {
+    # The pairing must be one to one in BOTH directions. Matching only the
+    # assembled columns would let an EXTRA column of predictors_data through:
+    # it widens the matrix built from them, the extra row and column are
+    # dropped by the subset below, and every remaining variance is silently
+    # taken from the wrong fit.
+    extra_vcov_keys <- setdiff(vcov_keys, column_keys)
+    if (anyNA(vcov_positions) || anyDuplicated(vcov_keys) > 0 ||
+      length(extra_vcov_keys) > 0) {
       stop(paste0(
         "The columns of 'predictors_data' do not match the predictors the ",
         "confidence set is computed over, so the variance-covariance matrix ",
         "built from them cannot be paired with them.\n",
         "  predictor(s) with no matching column of 'predictors_data': ",
         paste(
-          colnames(new_data)[is.na(vcov_positions)],
+          if (anyNA(vcov_positions)) {
+            colnames(new_data)[is.na(vcov_positions)]
+          } else {
+            "none"
+          },
+          collapse = ", "
+        ), "\n",
+        "  column(s) of 'predictors_data' matching no predictor: ",
+        paste(
+          if (length(extra_vcov_keys) > 0) extra_vcov_keys else "none",
           collapse = ", "
         ), "\n",
         "'predictors_data' must hold exactly the columns the model was ",

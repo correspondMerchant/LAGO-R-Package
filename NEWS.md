@@ -56,6 +56,42 @@
   "period" is also no longer counted as a fixed time effect, which used to make
   the prediction matrix one column too wide and fail with "non-conformable
   arguments".
+* Fixed the estimated outcome being reported as 0 whenever a fixed time effect
+  was included and the optimization asked for the reference period. The period
+  was looked up among the model's coefficients, where the reference period has
+  none, and the empty result collapsed the center-level effects to nothing.
+  Periods are now resolved against the levels the model was fitted on.
+* Fixed the interval for the estimated outcome being computed at the last time
+  period while the estimate itself used the requested one. The two described
+  different periods, far enough apart that the reported interval could exclude
+  the estimate printed beside it. The interval now follows the requested
+  period, so a recommendation reported for one period is no longer given
+  another period's interval.
+* Fixed an additional covariate or center characteristic whose name contains
+  "center" being counted as a fixed center effect. The recommended
+  intervention itself was corrupted through silent vector recycling, so the
+  optimizer could report an intervention whose estimated outcome was not the
+  one shown. Model terms are now resolved through the fitted model's own
+  term-to-coefficient mapping rather than by matching names.
+* Fixed a factor or character additional covariate or center characteristic
+  raising an error or being paired with the wrong coefficient. The outcome
+  model names such a coefficient after the factor level, not the column, so
+  looking the column name up among the coefficients found nothing. A factor
+  covariate is now held at its reference level, matching how numeric
+  covariates are held at 0. More than one center characteristic per factor
+  cannot be resolved this way, because exactly one optimization value is
+  allowed per characteristic, and that combination now raises rather than
+  choosing a level silently.
+* Fixed the confidence set changing when the rows of `data` were reordered.
+  The variance-covariance matrix built for continuous outcomes enumerated
+  factor levels in order of first appearance while the model orders them by
+  level, so the two were misaligned whenever the data was not already sorted
+  by the factor, and the standard errors were wrong. The matrix is now built
+  with the model's own level order and paired with the prediction matrix by
+  name. The columns of `predictors_data` may also be supplied in any order.
+* Fixed passing more than one center characteristic, which either failed or
+  silently added a single recycled column of values to the confidence set
+  instead of one column per characteristic.
 * Added runnable `@examples` to every exported function that lacked them:
   `get_confidence_set()` and the `print()`, `summary()`, and `plot()` methods
   for `"lago"` objects. Every exported function now ships an example.
