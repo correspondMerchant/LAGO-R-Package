@@ -524,8 +524,12 @@ get_recommended_interventions <- function(
           ))
         }
 
+        # cost_results holds the cost each restart converged to, so the best
+        # restart is the cheapest one. Every restart satisfies the outcome
+        # constraint, which solnl() enforces through confun, so choosing among
+        # them is purely a matter of cost.
         valid_indices <- which(!is.na(cost_results))
-        min_position <- valid_indices[which.max(cost_results[valid_indices])]
+        min_position <- valid_indices[which.min(cost_results[valid_indices])]
         rec_int_cost <- cost_results[min_position]
         int_components <- results_int_components[, min_position]
 
