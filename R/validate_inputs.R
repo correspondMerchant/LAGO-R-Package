@@ -135,16 +135,21 @@ validate_inputs <- function(
   if (!is.character(link)) {
     stop("The link option must be a character string.")
   }
-  # check if the provided link option is supported
-  supported_link_options <- c("logit", "probit", "identity", "log", "default")
+  # check if the provided link option is supported. The set is
+  # supported_outcome_links(), the one place the links the outcome machinery
+  # implements are written down, plus "default", which is resolved to one of
+  # them from the glm family just below.
+  # "probit" and "log" used to be accepted here and are not any more. Nothing
+  # implemented their inverse links, so get_outcome() fell through to its
+  # identity branch and reported the LINEAR PREDICTOR as the estimated
+  # probability or mean: a probit fit asked to hold the outcome at most 0.20
+  # reported 0.200 as reached while the actual probability was pnorm(0.20) =
+  # 0.579, and get_confidence_set() built its interval on the wrong scale too.
+  # Accepting a link only some of the machinery handles reports wrong numbers
+  # with no sign anything is wrong, so the link is refused up front instead.
+  supported_link_options <- c(supported_outcome_links(), "default")
   if (!(link %in% supported_link_options)) {
-    stop(paste(
-      "link=", link, ".",
-      paste0(
-        "The link option has to be one of ",
-        "the following: logit, probit, identity, and log."
-      )
-    ))
+    stop(unsupported_link_message(link))
   }
   # assign link based on the glm_family
   if (link == "default") {

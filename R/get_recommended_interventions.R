@@ -62,7 +62,8 @@
 #' Default value without user specification:
 #' 1/20 of the range for each intervention component.
 #' @param link A character string. Specifies the link function used when fitting
-#' the outcome model.
+#' the outcome model, either "logit" or "identity". These are the only links the
+#' outcome machinery implements, see supported_outcome_links().
 #' @param lower_outcome_goal A boolean value. Specifies whether the outcome goal
 #' is intended to be lower or higher than the average outcome.
 #' @param prev_recommended_interventions A numeric vector. Specifies the
