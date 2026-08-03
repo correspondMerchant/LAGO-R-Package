@@ -4,6 +4,7 @@ confidence_set_processor <- function(
     step_size_results,
     include_center_effects,
     include_time_effects,
+    time_effect_optimization_value = NULL,
     intervention_components,
     additional_covariates,
     center_characteristics,
@@ -63,13 +64,20 @@ confidence_set_processor <- function(
     # indexes predictors_data by column (names(), data[[col]]), which fails if a
     # one-column selection collapses to a vector.
     predictors_data = data[, predictors_list, drop = FALSE],
-    include_center_effects,
-    center_weights_for_outcome_goal,
-    include_time_effects,
-    additional_covariates,
-    intervention_components,
-    include_interaction_terms,
-    main_components,
+    # every argument is named: get_confidence_set() takes more of them than it
+    # used to, so positional matching would silently pass each one to the
+    # argument that now sits in its place
+    include_center_effects = include_center_effects,
+    center_weights_for_outcome_goal = center_weights_for_outcome_goal,
+    include_time_effects = include_time_effects,
+    # the confidence set is computed at the same period the recommended
+    # intervention and the reported estimated outcome are, so the reported
+    # interval and point estimate refer to the same quantity
+    time_effect_optimization_value = time_effect_optimization_value,
+    additional_covariates = additional_covariates,
+    intervention_components = intervention_components,
+    include_interaction_terms = include_interaction_terms,
+    main_components = main_components,
     outcome_data = data[, outcome_name],
     fitted_model = model,
     link = family_object$link,
@@ -83,7 +91,7 @@ confidence_set_processor <- function(
       center_characteristics_optimization_values,
     confidence_set_alpha = confidence_set_alpha,
     cluster_id = cluster_id,
-    cost_list_of_vectors,
+    cost_list_of_vectors = cost_list_of_vectors,
     rec_int = rec_int
   )
 

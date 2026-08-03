@@ -9,6 +9,7 @@ get_confidence_set(
   include_center_effects = FALSE,
   center_weights_for_outcome_goal = 1,
   include_time_effects = FALSE,
+  time_effect_optimization_value = NULL,
   additional_covariates = NULL,
   intervention_components,
   include_interaction_terms = FALSE,
@@ -43,6 +44,12 @@ The weights need to sum up to 1.}
 
 \item{include_time_effects}{A boolean. Specifies whether the fixed time
 effects should be included in the outcome model.}
+
+\item{time_effect_optimization_value}{The period the confidence set is
+computed at, as the value of the "period" column that identifies it. The
+recommended intervention and the estimated outcome reported alongside the
+confidence set are computed at this period, so the interval is computed at
+it too. Required when include_time_effects is TRUE.}
 
 \item{additional_covariates}{A character vector. The names of the columns in
 the dataset that represent additional covariates that need to be included
@@ -104,8 +111,18 @@ from the optimization step.}
 }
 \value{
 List(
-  confidence_set_size_percentage = <number>,
-  cs = <data.frame of interventions in the confidence set>
+  confidence_set_size_percentage = <number, the size of the confidence set
+    as a fraction of the grid. Both the count of qualifying interventions
+    and the size of the grid count grid interventions only, so rec_int is
+    excluded from each>,
+  rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
+    the confidence interval at rec_int. Computed whether or not it covers
+    the outcome goal, so callers never have to look for rec_int inside cs.
+    NULL when that interval is not computable>,
+  cs = <data.frame of the grid interventions whose confidence interval
+    covers the outcome goal, with their interval bounds and cost. rec_int is
+    never one of its rows, and need not be a grid intervention at all.
+    NULL when no grid intervention qualifies>
 )
 }
 \description{
@@ -116,14 +133,13 @@ for the recommended interventions
 # Normally reached through lago_optimization(include_confidence_set = TRUE).
 # Called directly it needs the fitted outcome model and the recommended
 # intervention from the optimization step, so both are taken from a run of
-# the optimizer rather than refitting the model by hand: get_confidence_set()
-# binds its prediction matrix to the coefficient vector by position, so
-# passing opt$model is the reliable way to get that order right. A
-# hand-fitted model works only if its coefficients are in the order the
-# prediction matrix is assembled in: intercept, fixed center effects, fixed
-# time effects, intervention components, additional covariates, then center
-# characteristics. A wrong number of coefficients errors; a wrong order is
-# silent and returns a different confidence set.
+# the optimizer rather than refitting the model by hand. get_confidence_set()
+# binds its prediction matrix to the coefficient vector by name, so a
+# hand-fitted model may list its terms in any order. It must be fitted on
+# exactly the predictors passed here, though: the intercept, the fixed
+# center effects, the fixed time effects, the intervention components, the
+# additional covariates and the center characteristics. Any other set of
+# coefficients is an error naming what did not match.
 # The lower bounds start at 1 while the data also contains 0s, so the
 # optimizer warns about that; the warning is expected here.
 opt <- lago_optimization(
@@ -163,17 +179,23 @@ cs <- get_confidence_set(
   rec_int = opt$rec_int
 )
 
-# Fraction of the grid inside the 95\% confidence set. print() shows the
-# same number as a percentage.
+# Fraction of the grid inside the 95\% confidence set: 18 of the 200 grid
+# interventions qualify here (40 coaching values by 5 launch durations), so
+# 0.09. print() shows the same number as a percentage.
 cs$confidence_set_size_percentage
 
-# rec_int is prepended to the grid so its confidence interval is computed
-# too, and row 1 is that prepended row whenever rec_int's own interval
-# covers the outcome goal, as it does here. It need not be a grid point,
-# and lago_optimization() strips row 1 from the confidence set it returns.
-# Rows 2 and on are the grid points inside the confidence set.
-cs$cs[1, ]
-head(cs$cs[-1, ])
+# The confidence interval at the recommended intervention, reported in its
+# own field as c(lower, upper). It is computed whether or not it covers the
+# outcome goal, so it is available even when no grid intervention qualifies.
+# lago_optimization() reports this interval as $est_outcome_ci.
+cs$rec_int_ci
+
+# rec_int need not be one of the grid interventions, and here it is not:
+# its launch_duration is about 2.78 while the grid steps through whole
+# days. It is never a row of cs either, which holds the 18 qualifying grid
+# interventions and nothing else.
+opt$rec_int
+head(cs$cs)
 
 }
 \keyword{internal}

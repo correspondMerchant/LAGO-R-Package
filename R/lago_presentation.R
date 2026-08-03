@@ -179,13 +179,15 @@ lago_blocks <- function(x) {
 
   # --- outcome (estimated outcome, its 95% CI when available, and the outcome
   # goal when present). The CI is the interval for the estimated outcome at the
-  # recommended intervention (row 1 of the raw confidence set), carried on the
-  # object as est_outcome_ci.
+  # recommended intervention, which get_confidence_set() reports in its own
+  # rec_int_ci field, carried on the object as est_outcome_ci.
   outcome_rows <- paste0(
     "Estimated outcome: ", .lago_fmt_value(x$est_outcome_goal)
   )
   # Always show a CI line, with the old fallback wording when the interval is
-  # not available (no confidence set found, or the set was not requested).
+  # not available. The interval no longer depends on the confidence set being
+  # non-empty, so with the set requested it is missing only when the interval
+  # at the recommended intervention itself could not be computed.
   ci_line <- if (!is.null(x$est_outcome_ci)) {
     paste0(
       "95% CI for the estimated outcome: ",
@@ -194,7 +196,10 @@ lago_blocks <- function(x) {
       .lago_fmt_value(x$est_outcome_ci[["upper"]])
     )
   } else if (!is.null(x$confidence_set_size_percentage)) {
-    "95% CI for the estimated outcome: not available (no confidence set found for the current goal)"
+    paste0(
+      "95% CI for the estimated outcome: not available (the interval at the ",
+      "recommended intervention could not be computed)"
+    )
   } else {
     "95% CI for the estimated outcome: not available (set include_confidence_set = TRUE)"
   }

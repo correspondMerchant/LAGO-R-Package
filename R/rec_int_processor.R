@@ -27,13 +27,39 @@ rec_int_processor <- function(
     outcome_name,
     icc = NULL,
     power_goal_cluster_id = NULL) {
+  # the coefficient names glm() gave each term of the model, so every
+  # coefficient below is picked out by the term it came from rather than by
+  # what its name happens to look like. A term's own name is in general NOT one
+  # of its coefficient names: glm() expands a factor or character term into one
+  # dummy per non-reference level and names each dummy after its level, so a
+  # column vol_hi with levels lo/hi is a coefficient named vol_hihi.
+  coef_mapping <- term_coef_names(model)
+  all_coefs <- coef(model)
+
   # get coefficients for the intervention components
   intervention_components_coeff <-
     model$coefficients[c("(Intercept)", intervention_components)]
 
-  # get coefficients for the center characteristics
+  # get coefficients for the center characteristics. Looked up through the term
+  # mapping: indexing model$coefficients by the raw column name yielded NA for
+  # a factor or character characteristic, since its coefficient is named after
+  # its level, and the NA then propagated through the estimated outcome and
+  # broke the optimization.
   if (!is.null(center_characteristics)) {
-    center_characteristics_coeff <- model$coefficients[center_characteristics]
+    center_characteristics_coeff <- all_coefs[
+      center_characteristic_coef_names(center_characteristics, coef_mapping)
+    ]
+    if (anyNA(center_characteristics_coeff)) {
+      stop(paste0(
+        "The center characteristic(s) ",
+        paste(
+          center_characteristics[is.na(center_characteristics_coeff)],
+          collapse = ", "
+        ),
+        " have no coefficient in the outcome model, so the recommended ",
+        "intervention cannot be computed at the values supplied for them."
+      ))
+    }
   }
 
   # set the values of center_cha_coeff_vec and
@@ -47,13 +73,24 @@ rec_int_processor <- function(
   }
 
   # get coefficients for facilities, which includes both the fixed
-  # center effects (if specified) and fixed time effects (if specified)
+  # center effects (if specified) and fixed time effects (if specified).
+  # The fixed center and time effect dummies are identified by the term they
+  # came from rather than by what their names happen to look like. A covariate
+  # whose own name starts with "center", e.g. center_size, came from its own
+  # term and so is never taken for a center dummy. Adding it to the
+  # center-level effects would shift every predicted outcome by its
+  # coefficient, and the first-element lookups downstream would then read a
+  # coefficient that is not a center effect at all.
+  # The fallback for a model whose term mapping could not be rebuilt, which
+  # outcome_model_fitting() does not produce, is the name search this used to
+  # do, anchored so that only a name beginning with the term is matched.
+  fixed_effect_coefs <- function(term) {
+    fixed_effect_coef_names(term, coef_mapping, names(all_coefs), character(0))
+  }
+
   if (include_center_effects) {
-    all_coefs <- coef(model)
     intercept_only <- all_coefs["(Intercept)"]
-    fixed_center_coefs <- all_coefs[
-      grep("center", names(all_coefs), ignore.case = TRUE)
-    ]
+    fixed_center_coefs <- all_coefs[fixed_effect_coefs("center")]
     # add intercept to each center coefficient to get "true" effects
     true_center_effects <- fixed_center_coefs + intercept_only
     all_center_lvl_effects <- c(intercept_only, true_center_effects)
@@ -61,16 +98,28 @@ rec_int_processor <- function(
     all_center_lvl_effects <- 0
   }
 
-  # add fixed time effect (if specified)
+  # add the fixed time effect of the requested period (if specified). The
+  # period is resolved against the period levels the model was fitted on and
+  # its dummy is matched by exact name, so a value that is not a period raises
+  # instead of contributing nothing. Matching by pattern let the requested
+  # period miss every dummy and silently return a zero-length coefficient,
+  # which collapsed all_center_lvl_effects to length zero and made the
+  # estimated outcome 0. The reference period contributes 0, since glm() leaves
+  # it out of the dummies and it is already carried by the intercept.
   if (include_time_effects) {
+    period_coefs <- fixed_effect_coefs("period")
+    if (length(period_coefs) == 0) {
+      stop(paste0(
+        "'include_time_effects' is TRUE but no fixed time effect coefficient ",
+        "could be identified in the outcome model. It must be fitted with a ",
+        "'period' term, as outcome_model_fitting() builds it."
+      ))
+    }
+    period_indicators <- time_effect_indicator(
+      model, period_coefs, time_effect_optimization_value
+    )
     all_center_lvl_effects <- all_center_lvl_effects +
-      all_coefs[
-        grep(
-          paste0("period", time_effect_optimization_value, "$"),
-          names(all_coefs),
-          ignore.case = TRUE
-        )
-      ]
+      sum(period_indicators * all_coefs[period_coefs])
   }
 
   # calculate default step size
