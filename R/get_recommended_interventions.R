@@ -343,11 +343,10 @@ get_recommended_interventions <- function(
       return(list(
         est_rec_int = est_rec_int,
         rec_int_cost = rec_int_cost,
-        est_reachable_outcome = ifelse(
-          lower_outcome_goal,
-          -1 * est_reachable_outcome,
-          est_reachable_outcome
-        ),
+        # left on the flipped scale, like everything else this optimizer
+        # computes. It is put back on the original outcome scale once, at the
+        # single un-flip in this function's return value below.
+        est_reachable_outcome = est_reachable_outcome,
         shrinking_method_used = shrinking_method_used
       ))
     }
@@ -591,11 +590,10 @@ get_recommended_interventions <- function(
       return(list(
         est_rec_int = est_rec_int,
         rec_int_cost = rec_int_cost,
-        est_reachable_outcome = ifelse(
-          lower_outcome_goal,
-          -1 * est_reachable_outcome,
-          est_reachable_outcome
-        ),
+        # left on the flipped scale, like max_achievable_outcome and everything
+        # else this optimizer computes. It is put back on the original outcome
+        # scale once, at the single un-flip in this function's return below.
+        est_reachable_outcome = est_reachable_outcome,
         max_achievable_outcome = max_achievable_outcome,
         shrinking_method_used = shrinking_method_used
       ))
@@ -615,21 +613,33 @@ get_recommended_interventions <- function(
     )
   }
 
+  # THE scale boundary. Everything above works on the flipped outcome scale
+  # when lower_outcome_goal is TRUE (the "minimize" direction is implemented by
+  # negating the fitted coefficients, see lago_optimization()), and every
+  # caller below expects the original outcome scale. So the flip is undone
+  # here, once, for every outcome-valued field and on every path, rather than
+  # inside each optimizer. Each optimizer previously undid it for itself, with
+  # its own copy of the inverse, which is how the two came to disagree with the
+  # flip they were inverting.
+  #
+  # Only outcome-valued fields are un-flipped. est_rec_int and rec_int_cost are
+  # an intervention and its cost: they live on the intervention scale, which
+  # the flip never touched, so they pass through untouched.
+  un_flip <- function(value) {
+    if (lower_outcome_goal) flip_outcome_scale(value, link) else value
+  }
+
   return(list(
     est_rec_int = opt_results$est_rec_int,
     rec_int_cost = opt_results$rec_int_cost,
-    est_reachable_outcome = opt_results$est_reachable_outcome,
+    est_reachable_outcome = un_flip(opt_results$est_reachable_outcome),
     shrinking_method_used = opt_results$shrinking_method_used,
     # the effective outcome goal actually used for optimization:
     # max(power-implied outcome, outcome_goal). Equals outcome_goal when
     # no power goal is set, and the power-implied outcome when only a
-    # power goal is set. Reported on the original outcome scale (re-negated
-    # for the "minimize" case, mirroring est_reachable_outcome) so downstream
+    # power goal is set. Reported on the original outcome scale, like
+    # est_reachable_outcome above and through the same un-flip, so downstream
     # consumers such as the confidence set and printout can use it directly.
-    effective_outcome_goal = if (lower_outcome_goal) {
-      -1 * new_outcome_goal
-    } else {
-      new_outcome_goal
-    }
+    effective_outcome_goal = un_flip(new_outcome_goal)
   ))
 }
