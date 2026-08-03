@@ -70,7 +70,9 @@ of interest.}
 
 \item{fitted_model}{A glm(). The fitted glm() outcome model.}
 
-\item{link}{A character string. The link function (e.g. "logit", "identity").}
+\item{link}{A character string. The link function the interval is computed
+on, either "logit" or "identity". These are the only links the outcome
+machinery implements, see supported_outcome_links().}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
 probability or mean value.}
