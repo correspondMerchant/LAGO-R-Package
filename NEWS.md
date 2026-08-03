@@ -14,17 +14,19 @@
   or below. An unachievable goal was also never detected, so the warning about
   shrinking towards the previous stage's intervention could not appear.
   Recommendations, costs and confidence sets change for minimize runs with a
-  logit link. Nothing changes for `maximize`, or for minimize with an identity
-  link, where negation was already the correct inverse.
+  logit link. Minimize with an identity link is unaffected, since negation was
+  already the correct inverse there. This particular fix changes nothing for
+  `maximize`, though the two fixes below do.
 * Fixed the recommended intervention being allowed outside
-  `intervention_lower_bounds` and `intervention_upper_bounds` when the
-  shrinking method was used. The interpolation the shrinking method performs
-  was not confined to the bounds, so it could return a value below the lower
-  bound, a value above the upper bound, or a value that was not finite. The
-  bundled data returned a `launch_duration` of 0.81 against a lower bound of 1.
-  A recommendation is now always within the bounds supplied. This affected both
-  goal directions: with a power goal and an unachievable outcome goal, the
-  maximize direction could return `Inf` as a recommended intervention.
+  `intervention_lower_bounds` and `intervention_upper_bounds`. The
+  interpolation the shrinking method performs was not confined to the bounds,
+  so for an outcome goal it could not reach it returned a value above the upper
+  bound or one that was not finite: asking for an outcome of 1 returned `Inf`,
+  and with lower bounds of 10 it returned a negative intervention of -23.3.
+  Both are reachable in the maximize direction with no power goal. A
+  recommendation is now brought onto the bounds supplied. The numerical
+  optimizer can still stop a solver tolerance outside them, on the order of
+  1e-4, and that residue is projected back rather than reported.
 * Fixed the numerical optimization returning the most expensive of its
   candidate solutions rather than the cheapest. The optimizer runs from several
   starting points and all of them satisfy the outcome goal, so the intended

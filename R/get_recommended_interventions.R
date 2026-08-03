@@ -587,12 +587,40 @@ get_recommended_interventions <- function(
 
         # cost_results holds the cost each restart converged to, so the best
         # restart is the cheapest one. Every restart satisfies the outcome
-        # constraint, which solnl() enforces through confun, so choosing among
-        # them is purely a matter of cost.
-        valid_indices <- which(!is.na(cost_results))
+        # constraint, which solnl() enforces through confun, so cost is the only
+        # thing to choose on among the ones that are actually implementable.
+        #
+        # solnl() treats the box as a soft constraint and will step a little
+        # outside it to buy a lower objective, so the cheapest restart is
+        # systematically the one furthest outside the bounds: selecting on cost
+        # alone selects for the violation. Restarts that left the box are
+        # therefore dropped before the comparison. If every restart left it they
+        # are all kept, so a recommendation is still returned, and the result is
+        # brought back onto the box below.
+        in_box <- apply(
+          results_int_components, 2,
+          function(x) {
+            all(x >= intervention_lower_bounds) &&
+              all(x <= intervention_upper_bounds)
+          }
+        )
+        valid_indices <- which(!is.na(cost_results) & in_box)
+        if (length(valid_indices) == 0) {
+          valid_indices <- which(!is.na(cost_results))
+        }
         min_position <- valid_indices[which.min(cost_results[valid_indices])]
-        rec_int_cost <- cost_results[min_position]
         int_components <- results_int_components[, min_position]
+
+        # The chosen restart can still sit a solver tolerance outside the box,
+        # when every restart did. A recommendation has to be implementable, so
+        # it is brought back onto the bounds and its cost recomputed at the
+        # value actually being recommended rather than reported from the point
+        # the solver stopped at.
+        int_components <- pmin(
+          pmax(int_components, intervention_lower_bounds),
+          intervention_upper_bounds
+        )
+        rec_int_cost <- cost_obj_fun(int_components)
 
         est_rec_int <- int_components
 
