@@ -380,6 +380,10 @@ lago_optimization <- function(
   # the two are not comparable and the goal constraint is meaningless. That map
   # is flip_outcome_scale(), which is a negation on a linear link but a
   # reflection about 1/2 on the logit link, where the outcome is a probability.
+  # It is applied inside get_recommended_interventions(), which is the function
+  # that works on the flipped scale, so the goal handed over here is the
+  # caller's own value and comes back out unchanged rather than as a value
+  # recovered by flipping a flipped copy.
   if (lower_outcome_goal) {
     new_model <- model
     new_model$coefficients <- -1 * (model$coefficients)
@@ -401,11 +405,7 @@ lago_optimization <- function(
     cost_list_of_vectors = cost_list_of_vectors,
     intervention_lower_bounds = intervention_lower_bounds,
     intervention_upper_bounds = intervention_upper_bounds,
-    outcome_goal = if (lower_outcome_goal) {
-      flip_outcome_scale(outcome_goal, link)
-    } else {
-      outcome_goal
-    },
+    outcome_goal = outcome_goal,
     center_characteristics_optimization_values =
       center_characteristics_optimization_values,
     time_effect_optimization_value = time_effect_optimization_value,

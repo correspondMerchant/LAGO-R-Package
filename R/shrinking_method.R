@@ -104,10 +104,46 @@ shrinking_method <- function(
 
     beta_max <- left
 
-    # Calculate beta min and recommended value
+    # beta_max is the coefficient this component would need, at its upper
+    # bound, to reach the outcome goal on its own. The recommendation is an
+    # interpolation between the two ENDPOINTS below, indexed by how far
+    # beta_vec[c] has travelled along [beta_min, beta_max]:
+    #
+    #   beta_vec[c] == beta_min  ->  stage_1_intervention[c]
+    #   beta_vec[c] == beta_max  ->  up[c]
+    #
+    # (substitute either into the interpolation and it returns exactly that
+    # endpoint). Both endpoints are inside [lo, up]: up[c] is a bound, and the
+    # stage-1 intervention is one too, since a user-supplied
+    # prev_recommended_interventions is validated against the bounds and the
+    # colMeans() default it falls back to is projected onto them. So the
+    # interpolation stays inside the bounds exactly as long as its fraction
+    # stays in [0, 1], i.e. as long as beta_vec[c] stays inside the bracket,
+    # and that is what the three branches below enforce.
+    #
+    # beta_min = beta_max / 2 is "half as effective as needed", which only
+    # brackets beta_max from below while beta_max > 0. Under the "minimize"
+    # direction the fitted coefficients are negated (see lago_optimization()),
+    # so beta_max is routinely <= 0: halving it then moves it AWAY from zero's
+    # side and the bracket is empty or inverted, beta_max - beta_min <= 0. The
+    # interpolation has no meaning on an empty bracket -- with a negative width
+    # it runs backwards, away from up[c] and out through lo[c], and with a zero
+    # width it divides by zero and returns a non-finite intervention. There is
+    # no fraction to compute in that case, so the fallback the caller warned
+    # about, the stage-1 intervention itself, is what is returned. This is
+    # decided from the bracket the binary search produced rather than from the
+    # sign of any coefficient, so it does not depend on the optimization
+    # direction: an inverted bracket is refused the same way whichever
+    # direction produced it.
     beta_min <- beta_max / 2
-    if (beta_vec[c] <= beta_min) {
+    if (beta_max - beta_min <= 0 || beta_vec[c] <= beta_min) {
+      # at or below the bottom of the bracket, or no usable bracket at all
       recommended_values[c] <- stage_1_intervention[c]
+    } else if (beta_vec[c] >= beta_max) {
+      # at or above the top of the bracket. The interpolation's value at
+      # beta_max is up[c], and extrapolating past it would recommend more of
+      # the component than the upper bound allows.
+      recommended_values[c] <- up[c]
     } else {
       slope <- (up[c] - stage_1_intervention[c]) / (beta_max - beta_min)
       recommended_values[c] <- stage_1_intervention[c] +
