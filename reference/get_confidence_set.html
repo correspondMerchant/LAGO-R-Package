@@ -50,6 +50,7 @@ for the recommended interventions</p>
 <span>  include_center_effects <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  center_weights_for_outcome_goal <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  include_time_effects <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  time_effect_optimization_value <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  additional_covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">intervention_components</span>,</span>
 <span>  include_interaction_terms <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -95,6 +96,14 @@ The weights need to sum up to 1.</p></dd>
 <dt id="arg-include-time-effects">include_time_effects<a class="anchor" aria-label="anchor" href="#arg-include-time-effects"></a></dt>
 <dd><p>A boolean. Specifies whether the fixed time
 effects should be included in the outcome model.</p></dd>
+
+
+<dt id="arg-time-effect-optimization-value">time_effect_optimization_value<a class="anchor" aria-label="anchor" href="#arg-time-effect-optimization-value"></a></dt>
+<dd><p>The period the confidence set is
+computed at, as the value of the "period" column that identifies it. The
+recommended intervention and the estimated outcome reported alongside the
+confidence set are computed at this period, so the interval is computed at
+it too. Required when include_time_effects is TRUE.</p></dd>
 
 
 <dt id="arg-additional-covariates">additional_covariates<a class="anchor" aria-label="anchor" href="#arg-additional-covariates"></a></dt>
@@ -194,8 +203,18 @@ from the optimization step.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>List(
-  confidence_set_size_percentage = &lt;number&gt;,
-  cs = &lt;data.frame of interventions in the confidence set&gt;
+  confidence_set_size_percentage = &lt;number, the size of the confidence set
+    as a fraction of the grid. Both the count of qualifying interventions
+    and the size of the grid count grid interventions only, so rec_int is
+    excluded from each&gt;,
+  rec_int_ci = &lt;named numeric c(lower, upper) rounded to 3 decimal places,
+    the confidence interval at rec_int. Computed whether or not it covers
+    the outcome goal, so callers never have to look for rec_int inside cs.
+    NULL when that interval is not computable&gt;,
+  cs = &lt;data.frame of the grid interventions whose confidence interval
+    covers the outcome goal, with their interval bounds and cost. rec_int is
+    never one of its rows, and need not be a grid intervention at all.
+    NULL when no grid intervention qualifies&gt;
 )</p>
     </div>
 
@@ -204,14 +223,13 @@ from the optimization step.</p></dd>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Normally reached through lago_optimization(include_confidence_set = TRUE).</span></span></span>
 <span class="r-in"><span><span class="co"># Called directly it needs the fitted outcome model and the recommended</span></span></span>
 <span class="r-in"><span><span class="co"># intervention from the optimization step, so both are taken from a run of</span></span></span>
-<span class="r-in"><span><span class="co"># the optimizer rather than refitting the model by hand: get_confidence_set()</span></span></span>
-<span class="r-in"><span><span class="co"># binds its prediction matrix to the coefficient vector by position, so</span></span></span>
-<span class="r-in"><span><span class="co"># passing opt$model is the reliable way to get that order right. A</span></span></span>
-<span class="r-in"><span><span class="co"># hand-fitted model works only if its coefficients are in the order the</span></span></span>
-<span class="r-in"><span><span class="co"># prediction matrix is assembled in: intercept, fixed center effects, fixed</span></span></span>
-<span class="r-in"><span><span class="co"># time effects, intervention components, additional covariates, then center</span></span></span>
-<span class="r-in"><span><span class="co"># characteristics. A wrong number of coefficients errors; a wrong order is</span></span></span>
-<span class="r-in"><span><span class="co"># silent and returns a different confidence set.</span></span></span>
+<span class="r-in"><span><span class="co"># the optimizer rather than refitting the model by hand. get_confidence_set()</span></span></span>
+<span class="r-in"><span><span class="co"># binds its prediction matrix to the coefficient vector by name, so a</span></span></span>
+<span class="r-in"><span><span class="co"># hand-fitted model may list its terms in any order. It must be fitted on</span></span></span>
+<span class="r-in"><span><span class="co"># exactly the predictors passed here, though: the intercept, the fixed</span></span></span>
+<span class="r-in"><span><span class="co"># center effects, the fixed time effects, the intervention components, the</span></span></span>
+<span class="r-in"><span><span class="co"># additional covariates and the center characteristics. Any other set of</span></span></span>
+<span class="r-in"><span><span class="co"># coefficients is an error naming what did not match.</span></span></span>
 <span class="r-in"><span><span class="co"># The lower bounds start at 1 while the data also contains 0s, so the</span></span></span>
 <span class="r-in"><span><span class="co"># optimizer warns about that; the warning is expected here.</span></span></span>
 <span class="r-in"><span><span class="va">opt</span> <span class="op">&lt;-</span> <span class="fu"><a href="lago_optimization.html">lago_optimization</a></span><span class="op">(</span></span></span>
@@ -253,22 +271,27 @@ from the optimization step.</p></dd>
 <span class="r-in"><span>  rec_int <span class="op">=</span> <span class="va">opt</span><span class="op">$</span><span class="va">rec_int</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Fraction of the grid inside the 95% confidence set. print() shows the</span></span></span>
-<span class="r-in"><span><span class="co"># same number as a percentage.</span></span></span>
+<span class="r-in"><span><span class="co"># Fraction of the grid inside the 95% confidence set: 18 of the 200 grid</span></span></span>
+<span class="r-in"><span><span class="co"># interventions qualify here (40 coaching values by 5 launch durations), so</span></span></span>
+<span class="r-in"><span><span class="co"># 0.09. print() shows the same number as a percentage.</span></span></span>
 <span class="r-in"><span><span class="va">cs</span><span class="op">$</span><span class="va">confidence_set_size_percentage</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.09</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># rec_int is prepended to the grid so its confidence interval is computed</span></span></span>
-<span class="r-in"><span><span class="co"># too, and row 1 is that prepended row whenever rec_int's own interval</span></span></span>
-<span class="r-in"><span><span class="co"># covers the outcome goal, as it does here. It need not be a grid point,</span></span></span>
-<span class="r-in"><span><span class="co"># and lago_optimization() strips row 1 from the confidence set it returns.</span></span></span>
-<span class="r-in"><span><span class="co"># Rows 2 and on are the grid points inside the confidence set.</span></span></span>
-<span class="r-in"><span><span class="va">cs</span><span class="op">$</span><span class="va">cs</span><span class="op">[</span><span class="fl">1</span>, <span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1             1        2.778472             1.75          0.802          0.898</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    cost</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 23.93</span>
-<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">cs</span><span class="op">$</span><span class="va">cs</span><span class="op">[</span><span class="op">-</span><span class="fl">1</span>, <span class="op">]</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># The confidence interval at the recommended intervention, reported in its</span></span></span>
+<span class="r-in"><span><span class="co"># own field as c(lower, upper). It is computed whether or not it covers the</span></span></span>
+<span class="r-in"><span><span class="co"># outcome goal, so it is available even when no grid intervention qualifies.</span></span></span>
+<span class="r-in"><span><span class="co"># lago_optimization() reports this interval as $est_outcome_ci.</span></span></span>
+<span class="r-in"><span><span class="va">cs</span><span class="op">$</span><span class="va">rec_int_ci</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> lower upper </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 0.802 0.898 </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># rec_int need not be one of the grid interventions, and here it is not:</span></span></span>
+<span class="r-in"><span><span class="co"># its launch_duration is about 2.78 while the grid steps through whole</span></span></span>
+<span class="r-in"><span><span class="co"># days. It is never a row of cs either, which holds the 18 qualifying grid</span></span></span>
+<span class="r-in"><span><span class="co"># interventions and nothing else.</span></span></span>
+<span class="r-in"><span><span class="va">opt</span><span class="op">$</span><span class="va">rec_int</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1.000000 2.778472</span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">cs</span><span class="op">$</span><span class="va">cs</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 68            27               2             1.75          0.811          0.851</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 69            28               2             1.75          0.814          0.855</span>
