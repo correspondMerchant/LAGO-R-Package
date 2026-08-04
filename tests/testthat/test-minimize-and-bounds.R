@@ -71,6 +71,44 @@ bb_config <- function(outcome_goal,
   args
 }
 
+# A THREE-component numerical configuration, shared by the bounds test and the
+# rec_int_cost test below because it is the only one either of them has that
+# reaches the numerical optimizer's "every restart left the box" fallback.
+#
+# With two components solnl() always brings at least one restart back inside the
+# bounds, so the fallback is dead code and the projection that follows it has
+# nothing to move: instrumented over every numerical call the rest of the suite
+# makes, the projection displaced the chosen point by exactly 0 and the fallback
+# fired 0 times. With three components and a goal that is only just reachable,
+# all eleven restarts stop a solver tolerance outside the box, the fallback keeps
+# them all, and the winner is 2.0e-07 BELOW its lower bound before the projection
+# repairs it. That is what makes the projection, and the cost recomputation at
+# the projected point, checkable from outside.
+#
+# birth_volume_100 is an intervention component here rather than a center
+# characteristic, which is what makes this three components and not two; it has
+# no center_characteristics argument for that reason and so cannot use
+# bb_config().
+bb_three_component_config <- function() {
+  list(
+    data = BB_data,
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    intervention_components = c(
+      "coaching_updt", "launch_duration", "birth_volume_100"
+    ),
+    intervention_lower_bounds = c(1, 1, 1),
+    intervention_upper_bounds = c(41, 6, 11),
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8), c(0, 2)),
+    outcome_goal = 0.95,
+    outcome_goal_intention = "maximize",
+    optimization_method = "numerical",
+    include_confidence_set = FALSE,
+    quiet = TRUE
+  )
+}
+
 run_lago <- function(args) {
   suppressWarnings(suppressMessages(do.call(lago_optimization, args)))
 }
@@ -330,7 +368,16 @@ test_that("the recommendation never leaves the intervention bounds", {
     "continuous minimize infeasible, grid_search" =
       mtcars_config(c("disp", "hp"), c(0, 0), c(500, 350), 5, "minimize",
         method = "grid_search", step = c(50, 50)
-      )
+      ),
+    # --- the numerical fallback where EVERY restart left the box -------------
+    # The only case in this file that reaches it, and the only reason the
+    # projection onto the bounds is checked at all: with two components some
+    # restart always lands inside, so the projection never has to move
+    # anything. Here all eleven restarts stop outside, the winner is 2.0e-07
+    # below its lower bound of 1, and only the projection brings it back. See
+    # bb_three_component_config().
+    "binary maximize feasible, THREE components, numerical" =
+      bb_three_component_config()
   )
 
   for (label in names(cases)) {
@@ -368,6 +415,109 @@ test_that("the shrinking fallback returns the projected previous intervention", 
     as.numeric(observed_means),
     tolerance = 1e-6
   )))
+})
+
+test_that("an empty shrink bracket falls back to stage 1, not to the upper corner", {
+  # The other half of the shrinking method's bracket guard, and the only defect
+  # in this file that the bounds invariant structurally cannot see: BOTH answers
+  # are inside the box, so its VALUE is the signal and is pinned here on purpose.
+  #
+  # The interpolation runs over [beta_min, beta_max] with beta_min = beta_max/2,
+  # which brackets beta_max from below only while beta_max > 0. When it does not
+  # -- beta_max - beta_min <= 0 -- there is no bracket, no fraction to compute,
+  # and the answer is the stage-1 intervention the caller's warning promised.
+  #
+  # outcome_goal = 1 is unreachable under a logit link, expit() being strictly
+  # below 1, so this is the shrinking path. It also makes the bracket EMPTY in
+  # the zero-width way rather than the negative-width way: the binary search
+  # accepts mid = 0 as its lower end, then the next probe is within 1e-6 of the
+  # goal and breaks out, and `beta_max <- left` keeps that 0. Both components
+  # come back with beta_max == beta_min == 0 exactly (measured, not inferred).
+  #
+  # With the guard removed, beta_vec[c] > 0 == beta_max sends both components to
+  # the NEXT branch, the >= beta_max clamp, so the recommendation is up[c] for
+  # every component at once: the maximum-everything corner, legal and expensive
+  # and nothing to do with stage 1. The two guards are therefore not
+  # independent -- the lower one is what stops a degenerate bracket from being
+  # read as "already past the top" -- which is why deleting it alone still
+  # returns an in-box answer and the bounds invariant stays green.
+  observed_means <- colMeans(BB_data[, c("coaching_updt", "launch_duration")])
+  # the stage-1 intervention here is the observed column means projected onto
+  # the bounds, since no prev_recommended_interventions was supplied
+  stage_1 <- pmin(pmax(observed_means, c(1, 1)), c(40, 5))
+
+  for (method in c("numerical", "grid_search")) {
+    args <- bb_config(1, "maximize", optimization_method = method)
+    if (method == "grid_search") {
+      args$optimization_grid_search_step_size <- c(10, 2)
+    }
+    res <- run_lago(args)
+
+    # the stage-1 intervention itself, to the last bit: it is not computed, it
+    # is returned unchanged, so there is no solver tolerance to allow for.
+    expect_equal(as.numeric(res$rec_int), as.numeric(stage_1),
+      tolerance = 1e-12, info = method
+    )
+    expect_equal(res$rec_int_cost,
+      cost_at(stage_1, args$cost_list_of_vectors),
+      tolerance = 1e-12, info = method
+    )
+    # and NOT the corner. Stated separately because it is the actual failure
+    # mode and it is worth naming: c(40, 5) costs 108, nearly 5x the 22.22 the
+    # stage-1 fallback costs, and both are inside the bounds.
+    expect_false(
+      isTRUE(all.equal(as.numeric(res$rec_int), c(40, 5), tolerance = 1e-6)),
+      info = method
+    )
+    expect_lt(res$rec_int_cost, 30)
+  }
+
+  # The same guard at the unit level, where the three cases are pure and cheap
+  # to separate -- and in its other degenerate mode, which is why these are not
+  # a restatement of the run above. beta_max is the coefficient the component
+  # would need at its upper bound to reach the goal alone; with the other
+  # component already pinning the outcome above the goal it comes back
+  # NEGATIVE, so beta_min = beta_max / 2 sits ABOVE beta_max and the bracket is
+  # INVERTED rather than merely zero-width. Both modes have to reach the
+  # stage-1 fallback, and only the "<= 0" comparison covers both.
+  shrinking_method <- getFromNamespace("shrinking_method", "LAGO")
+  shrink <- function(beta, goal = 0.85, stage_1 = c(8.365, 0.81)) {
+    shrinking_method(
+      lo = c(1, 1), up = c(40, 5), beta = beta, outcome_goal = goal,
+      include_interaction_terms = FALSE,
+      intervention_components = c("a", "b"), main_components = NULL,
+      all_center_lvl_effects = 0, center_weights_for_outcome_goal = 1,
+      center_cha_coeff_vec = 0, center_cha = 0, link = "logit",
+      stage_1_intervention = stage_1
+    )
+  }
+  # both components effective enough that neither needs a positive beta_max:
+  # both brackets are empty and both components fall back to stage 1
+  expect_equal(shrink(c(0.1, 5, 5)), c(8.365, 0.81), tolerance = 1e-12)
+  # only the first component is effective, so only the second one's bracket is
+  # empty. The first is above a usable beta_max and correctly clamps to up[1],
+  # which is the neighbouring branch and must keep working.
+  expect_equal(shrink(c(0.1, 5, -0.5)), c(40, 0.81), tolerance = 1e-12)
+  # neither is effective: beta_max is positive and beta_vec is below beta_min,
+  # so this is the ordinary below-the-bracket fallback, same answer by a
+  # different branch. Included so the pin above is not read as "stage 1 always".
+  expect_equal(shrink(c(0.1, 0.01, 0.01)), c(8.365, 0.81), tolerance = 1e-12)
+
+  # an identity link with negated coefficients, which is how the "minimize"
+  # direction reaches this branch: beta_max is routinely <= 0 there, so the
+  # guard is not a binary-outcome curiosity.
+  expect_equal(
+    shrinking_method(
+      lo = c(0, 0), up = c(10, 10), beta = c(-2, 0.45, 0.25),
+      outcome_goal = -0.2, include_interaction_terms = FALSE,
+      intervention_components = c("a", "b"), main_components = NULL,
+      all_center_lvl_effects = 0, center_weights_for_outcome_goal = 1,
+      center_cha_coeff_vec = 0, center_cha = 0, link = "identity",
+      stage_1_intervention = c(3, 4)
+    ),
+    c(3, 4),
+    tolerance = 1e-12
+  )
 })
 
 test_that("an unachievable minimize goal warns about the right extreme", {
@@ -466,15 +616,18 @@ test_that("rec_int_cost is the cost of the returned rec_int", {
   # before the cheapest is chosen, because solnl() treats the box as soft and
   # the cheapest restart is cheapest precisely by sitting outside the bounds.
   #
-  # It does NOT pin the projection that follows, nor the recomputation of the
-  # cost at the projected point. Once out-of-box restarts are dropped, the
-  # survivor is already inside the box, so the projection has nothing to move:
-  # instrumenting it over several hundred runs showed it displacing the chosen
-  # point either not at all or by around 1e-15. Removing the projection, or
-  # reporting the solver's cost instead of recomputing it, leaves this test
-  # green. Both remain correct for the fallback where every restart left the
-  # box, and covering them needs a unit test on the internal rather than a call
-  # through lago_optimization().
+  # It also pins the projection onto the bounds that follows, and the
+  # recomputation of the cost at the projected point, but ONLY through the
+  # three-component case at the end of the list. Every two-component
+  # configuration leaves at least one restart inside the box, so the filter's
+  # survivor is already implementable and the projection has nothing to move --
+  # measured over every numerical call this suite makes, it displaced the chosen
+  # point by exactly 0. The three-component case is the one where all eleven
+  # restarts stop outside, the fallback keeps them all, and the projection moves
+  # the winner by 2.0e-07: without it the recommendation is below its lower
+  # bound, and with the solver's own cost reported instead of the recomputed one
+  # the reported cost is 3.4e-07 away from the cost of the point returned. The
+  # tolerance of 1e-10 below is tight enough to see that.
   #
   # Recomputing the cost polynomial in the test is what makes the filter
   # checkable from the outside: the reported cost has to agree with the
@@ -507,7 +660,12 @@ test_that("rec_int_cost is the cost of the returned rec_int", {
     "linear cost, maximize, unachievable goal (shrinking fallback)" =
       bb_config(1, "maximize"),
     "linear cost, minimize, unachievable goal (shrinking fallback)" =
-      bb_config(0.10, "minimize")
+      bb_config(0.10, "minimize"),
+    # the one case that reaches the all-restarts-out-of-box fallback, so the
+    # one case where the projection and the cost recomputation are live. See
+    # the note above and bb_three_component_config().
+    "linear cost, maximize, THREE components (projection fallback)" =
+      bb_three_component_config()
   )
 
   for (label in names(cases)) {

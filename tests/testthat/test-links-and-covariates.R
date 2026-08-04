@@ -211,6 +211,34 @@ test_that("get_confidence_set() refuses a model that does not correspond to the 
     ),
     "predictor\\(s\\) with no matching coefficient: launch_duration"
   )
+
+  # An OVER-SPECIFIED model, which is the other half of the check and the half
+  # the case above cannot reach. wrong_model has the SAME number of
+  # coefficients as there are columns, so anyNA(coef_positions) alone catches
+  # it and the length comparison is never exercised. Here every column does
+  # match a coefficient and a coefficient is left OVER, so anyNA() sees nothing
+  # and only the count separates them. Weakened to that one direction the extra
+  # coefficient is silently dropped and a plausible confidence set is returned.
+  extra_model <- fit_bb_model(c(
+    "coaching_updt", "launch_duration", "birth_volume_100", "leadership_updt"
+  ))
+  # the fixture really is over-specified in one direction only: 5 coefficients
+  # for the 4 columns the confidence set is assembled over, and every column
+  # has a coefficient.
+  expect_length(coef(extra_model), 5)
+  expect_true(all(
+    c("(Intercept)", "coaching_updt", "launch_duration", "birth_volume_100") %in%
+      names(coef(extra_model))
+  ))
+  expect_error(
+    bb_confidence_set(extra_model),
+    "coefficient\\(s\\) with no matching predictor: leadership_updt"
+  )
+  # the count is named, so the message says which side has the surplus
+  expect_error(
+    bb_confidence_set(extra_model),
+    "5 coefficient\\(s\\), 4 predictor\\(s\\)"
+  )
 })
 
 

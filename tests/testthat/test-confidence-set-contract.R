@@ -330,6 +330,68 @@ test_that("a confidence set of exactly one grid point is reported, not discarded
   expect_true(res$cs$CI_lower_bound <= 0.52 && 0.52 <= res$cs$CI_upper_bound)
 })
 
+test_that("a grid point that attains the goal EXACTLY qualifies, and is the answer", {
+  # The inequality that decides which grid points qualify is >=, not >, and no
+  # other test can tell the two apart: every fixture's goal falls strictly
+  # between two grid points' outcomes, so the boundary case never arises.
+  #
+  # Landing on it exactly cannot be arranged by choosing a round-looking goal and
+  # hoping. It is arranged the other way round: the model is fitted first and the
+  # goal is DERIVED from a grid point's own fitted outcome, so the two are the
+  # same double by construction and the comparison is exact in floating point.
+  # The fixture below is deterministic (a fixed sinusoidal wobble rather than
+  # rnorm) and the coefficients LAGO fits are identical() to the ones the goal is
+  # derived from, which is asserted rather than assumed.
+  #
+  # This lives in the contract file rather than the optimizer file because the
+  # same inequality governs confidence-set membership: the interval at the
+  # exactly-attaining point has to cover the goal too, and it is asserted below.
+  d <- data.frame(x1 = rep(0:4, each = 8))
+  d$y <- 1 + 2 * d$x1 + 0.01 * sin(seq_len(nrow(d)))
+  model <- glm(y ~ x1, data = d, family = gaussian())
+  # the fitted outcome AT the grid point x1 == 2, which is what the goal is set
+  # to. Every grid point below x1 == 2 falls short of it and every one above
+  # exceeds it, so x1 == 2 qualifies on equality alone.
+  exact_goal <- as.numeric(
+    coef(model)[["(Intercept)"]] + coef(model)[["x1"]] * 2
+  )
+
+  args <- list(
+    data = d, outcome_name = "y", outcome_type = "continuous",
+    glm_family = "gaussian", link = "identity",
+    intervention_components = "x1",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 4,
+    cost_list_of_vectors = list(c(0, 1)),
+    outcome_goal = exact_goal, outcome_goal_intention = "maximize",
+    optimization_method = "grid_search",
+    optimization_grid_search_step_size = 1,
+    include_confidence_set = TRUE, confidence_set_grid_step_size = 1,
+    quiet = TRUE
+  )
+  res <- suppressWarnings(suppressMessages(do.call(lago_optimization, args)))
+
+  # the fixture's whole point: the goal is the fitted outcome of a grid point,
+  # bit for bit, so ">= goal" and "> goal" disagree on exactly that point.
+  expect_identical(unname(coef(res$model)), unname(coef(model)))
+  expect_identical(res$est_outcome_goal, exact_goal)
+
+  # x1 == 2 attains the goal and costs 2. Under ">" it is skipped and the next
+  # grid point up, x1 == 3, is recommended instead: a 50% cost overrun for an
+  # outcome the user never asked for.
+  expect_equal(res$rec_int, 2)
+  expect_equal(res$rec_int_cost, 2)
+  expect_false(isTRUE(all.equal(as.numeric(res$rec_int), 3)))
+
+  # and the confidence set agrees: the exactly-attaining point is in it, with an
+  # interval that brackets the goal.
+  expect_equal(nrow(res$cs), 1)
+  expect_equal(res$cs$x1, 2)
+  expect_true(
+    res$cs$CI_lower_bound <= exact_goal & exact_goal <= res$cs$CI_upper_bound
+  )
+  expect_equal(res$confidence_set_size_percentage, 1 / 5)
+})
+
 test_that("rec_int_ci is reported even when no grid point qualifies", {
   # the recommendation's interval does not depend on the confidence set being
   # non-empty, so it is returned either way. It used to be read out of the set,
