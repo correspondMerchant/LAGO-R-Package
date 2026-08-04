@@ -133,7 +133,8 @@ get_recommended_interventions(
 - link:
 
   A character string. Specifies the link function used when fitting the
-  outcome model.
+  outcome model, either "logit" or "identity". These are the only links
+  the outcome machinery implements, see supported_outcome_links().
 
 - lower_outcome_goal:
 

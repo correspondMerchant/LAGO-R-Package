@@ -259,6 +259,9 @@ Default value without user specification:
 
 <dt id="arg-link">link<a class="anchor" aria-label="anchor" href="#arg-link"></a></dt>
 <dd><p>A character string. The link function of the glm() outcome model.
+Must be either "logit" or "identity": those are the links whose inverse the
+estimated outcome and the confidence set are computed with, so they are the
+only ones that can be reported on the outcome scale the goal is stated on.
 Default value without user specification:
 "identity" for continuous outcomes, "logit" for binary outcomes.</p></dd>
 
@@ -713,9 +716,9 @@ The confidence set fields are only present when include_confidence_set = TRUE.)<
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 38.9887</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 4.7809</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 104.5281</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.8377</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 4.793</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 104.6248</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.838</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (set include_confidence_set =</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> TRUE)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>

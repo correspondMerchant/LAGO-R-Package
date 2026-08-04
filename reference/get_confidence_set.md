@@ -96,7 +96,9 @@ get_confidence_set(
 
 - link:
 
-  A character string. The link function (e.g. "logit", "identity").
+  A character string. The link function the interval is computed on,
+  either "logit" or "identity". These are the only links the outcome
+  machinery implements, see supported_outcome_links().
 
 - outcome_goal:
 

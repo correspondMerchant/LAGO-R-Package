@@ -2,6 +2,58 @@
 
 ## LAGO 1.0.12
 
+- Fixed `outcome_goal_intention = "minimize"` ignoring the outcome goal.
+  The minimize direction is implemented by negating the fitted
+  coefficients and maximizing instead, and the result was converted back
+  by negating it. For a logit link that is not the inverse of the
+  transform: negating the coefficients maps a probability to one minus
+  itself, not to minus itself. The estimated outcome was therefore
+  reported as a negative probability, and, more seriously, the goal
+  handed to the optimization was negated while the quantity it
+  constrains stays between 0 and 1, so the constraint held for every
+  candidate and the recommendation was driven by cost alone. On a
+  constructed example the optimizer returned the do-nothing intervention
+  at zero cost, with a true outcome probability of 0.94, and reported it
+  as meeting a goal of 0.5 or below. An unachievable goal was also never
+  detected, so the warning about shrinking towards the previous stage’s
+  intervention could not appear. Recommendations, costs and confidence
+  sets change for minimize runs with a logit link. Minimize with an
+  identity link is unaffected, since negation was already the correct
+  inverse there. This particular fix changes nothing for `maximize`,
+  though the two fixes below do.
+- Fixed the recommended intervention being allowed outside
+  `intervention_lower_bounds` and `intervention_upper_bounds`. The
+  interpolation the shrinking method performs was not confined to the
+  bounds, so for an outcome goal it could not reach it returned a value
+  below the lower bound, a value above the upper bound, or a value that
+  was not finite: asking for an outcome of 1 returned `Inf`, and with
+  lower bounds of 10 it returned a negative intervention of -23.3. Both
+  are reachable in the maximize direction with no power goal, and a
+  value below the lower bound is reachable on its own at ordinary goals
+  such as 0.995. A recommendation is now brought onto the bounds
+  supplied. The numerical optimizer can still stop a solver tolerance
+  outside them, on the order of 1e-4, and that residue is projected back
+  rather than reported.
+- Fixed the numerical optimization returning the most expensive of its
+  candidate solutions rather than the cheapest. The optimizer runs from
+  several starting points and all of them satisfy the outcome goal, so
+  the intended choice is the lowest-cost one. The recommendation and its
+  cost change where the starting points converged to different local
+  optima.
+- Fixed the estimated outcome being wrong when more than one center
+  characteristic was supplied. One term of the linear predictor was not
+  summed, so it stayed a vector and the surrounding arithmetic recycled
+  it. With a single center characteristic the term is a scalar and
+  results are unchanged.
+- `link = "probit"` and `link = "log"` are no longer accepted. They
+  passed validation and were documented as supported, but the outcome
+  calculation only ever implemented `logit` and `identity` and returned
+  the linear predictor unchanged for the other two, reporting it as a
+  probability or a mean. Asking for an outcome of 0.20 or below under
+  `probit` returned an intervention reported as achieving exactly
+  0.200000, where the probability it corresponds to is 0.579. Supporting
+  either link needs inverse-link and variance paths the confidence set
+  does not have, so they are rejected rather than silently wrong.
 - Fixed the 95% confidence interval reported for the estimated outcome.
   [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
   prepends the recommended intervention to the confidence-set grid so
@@ -205,3 +257,18 @@
   together, taking the higher of the outcome goal and the power-implied
   outcome.
   ([\#40](https://github.com/correspondMerchant/LAGO-R-Package/issues/40))
+
+### Known limitations
+
+- The confidence set is the set of interventions whose confidence
+  interval covers the outcome goal, which is a two sided test and does
+  not depend on `outcome_goal_intention`. Under
+  `outcome_goal_intention = "minimize"` it can therefore contain
+  interventions whose estimated outcome is above the goal, and which
+  cost more than the recommendation, because their interval still
+  reaches the goal from above. Read the confidence set as the
+  interventions the data cannot distinguish from the goal, not as the
+  interventions that meet it. The estimated outcome and its interval,
+  reported as `est_outcome_goal` and `est_outcome_ci`, are computed at
+  the recommended intervention and are direction independent, so they
+  are unaffected.

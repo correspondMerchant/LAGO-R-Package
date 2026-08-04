@@ -203,9 +203,12 @@ lago_optimization(
 
 - link:
 
-  A character string. The link function of the glm() outcome model.
-  Default value without user specification: "identity" for continuous
-  outcomes, "logit" for binary outcomes.
+  A character string. The link function of the glm() outcome model. Must
+  be either "logit" or "identity": those are the links whose inverse the
+  estimated outcome and the confidence set are computed with, so they
+  are the only ones that can be reported on the outcome scale the goal
+  is stated on. Default value without user specification: "identity" for
+  continuous outcomes, "logit" for binary outcomes.
 
 - optimization_method:
 
@@ -644,9 +647,9 @@ lago_optimization(
 #> 
 #> ── Recommended intervention 
 #> coaching_updt: 38.9887
-#> launch_duration: 4.7809
-#> Cost: 104.5281
-#> Estimated outcome: 0.8377
+#> launch_duration: 4.793
+#> Cost: 104.6248
+#> Estimated outcome: 0.838
 #> 95% CI for the estimated outcome: not available (set include_confidence_set =
 #> TRUE)
 #> Outcome goal: 0.85
