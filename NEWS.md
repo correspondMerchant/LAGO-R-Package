@@ -199,3 +199,16 @@
 * `lago_optimization()` now accepts a standalone power goal, an outcome goal, or
   both together, taking the higher of the outcome goal and the power-implied
   outcome. (#40)
+
+## Known limitations
+
+* The confidence set is the set of interventions whose confidence interval
+  covers the outcome goal, which is a two sided test and does not depend on
+  `outcome_goal_intention`. Under `outcome_goal_intention = "minimize"` it can
+  therefore contain interventions whose estimated outcome is above the goal, and
+  which cost more than the recommendation, because their interval still reaches
+  the goal from above. Read the confidence set as the interventions the data
+  cannot distinguish from the goal, not as the interventions that meet it. The
+  estimated outcome and its interval, reported as `est_outcome_goal` and
+  `est_outcome_ci`, are computed at the recommended intervention and are
+  direction independent, so they are unaffected.
