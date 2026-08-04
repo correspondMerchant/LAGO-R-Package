@@ -108,7 +108,8 @@ center_characteristics.
 For example: c(1.75)}
 
 \item{link}{A character string. Specifies the link function used when fitting
-the outcome model.}
+the outcome model, either "logit" or "identity". These are the only links the
+outcome machinery implements, see supported_outcome_links().}
 
 \item{lower_outcome_goal}{A boolean value. Specifies whether the outcome goal
 is intended to be lower or higher than the average outcome.}

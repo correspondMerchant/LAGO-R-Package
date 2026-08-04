@@ -169,6 +169,9 @@ Default value without user specification:
 "gaussian" for continuous outcomes, "binomial" for binary outcomes.}
 
 \item{link}{A character string. The link function of the glm() outcome model.
+Must be either "logit" or "identity": those are the links whose inverse the
+estimated outcome and the confidence set are computed with, so they are the
+only ones that can be reported on the outcome scale the goal is stated on.
 Default value without user specification:
 "identity" for continuous outcomes, "logit" for binary outcomes.}
 

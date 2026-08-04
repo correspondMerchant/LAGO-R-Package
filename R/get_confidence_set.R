@@ -31,7 +31,9 @@
 #' @param outcome_data A vector. The input data containing the outcome
 #' of interest.
 #' @param fitted_model A glm(). The fitted glm() outcome model.
-#' @param link A character string. The link function (e.g. "logit", "identity").
+#' @param link A character string. The link function the interval is computed
+#' on, either "logit" or "identity". These are the only links the outcome
+#' machinery implements, see supported_outcome_links().
 #' @param outcome_goal A numeric value. Specifies the outcome goal, a desired
 #' probability or mean value.
 #' @param outcome_type A character string. Specifies the type of the outcome.
@@ -172,6 +174,17 @@ get_confidence_set <- function(
     cluster_id = NULL,
     cost_list_of_vectors,
     rec_int) {
+  # the interval is built on the outcome scale of ONE of the links the package
+  # implements, and both branches below assume it is one of those two: the
+  # continuous branch applies expit() to anything that is not "identity", and
+  # the binary branch applies it unconditionally. So any other link silently
+  # produced a logit-scale interval regardless of what was asked for. This
+  # function is exported and so reachable with any link at all, not only
+  # through lago_optimization(), which is why the link is checked here as well
+  # as in validate_inputs().
+  if (!link %in% supported_outcome_links()) {
+    stop(unsupported_link_message(link))
+  }
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
@@ -501,7 +514,8 @@ get_confidence_set <- function(
     # its size, for both outcome types
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
   } else if (outcome_type == "continuous") {
-    # link is either "logit" or "identity" in your usage
+    # link is either "logit" or "identity", the only links the outcome
+    # machinery implements, see supported_outcome_links().
     # If link == "logit", use the logistic-like approach
     # If link == "identity", use linear approach.
 

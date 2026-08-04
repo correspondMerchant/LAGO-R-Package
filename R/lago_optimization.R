@@ -73,6 +73,9 @@
 #' Default value without user specification:
 #' "gaussian" for continuous outcomes, "binomial" for binary outcomes.
 #' @param link A character string. The link function of the glm() outcome model.
+#' Must be either "logit" or "identity": those are the links whose inverse the
+#' estimated outcome and the confidence set are computed with, so they are the
+#' only ones that can be reported on the outcome scale the goal is stated on.
 #' Default value without user specification:
 #' "identity" for continuous outcomes, "logit" for binary outcomes.
 #' @param weights A numeric vector. The weights argument of the glm()
@@ -370,6 +373,17 @@ lago_optimization <- function(
   list2env(outcome_model, envir = environment())
 
   if (!quiet) cli::cli_alert_info("Calculating the recommended intervention...")
+  # the "minimize" direction is implemented by negating the fitted
+  # coefficients, which turns "reach an outcome at most as large as the goal"
+  # into the maximization problem the optimizers already solve. The outcome
+  # goal has to be moved onto the same flipped scale, using the same map, or
+  # the two are not comparable and the goal constraint is meaningless. That map
+  # is flip_outcome_scale(), which is a negation on a linear link but a
+  # reflection about 1/2 on the logit link, where the outcome is a probability.
+  # It is applied inside get_recommended_interventions(), which is the function
+  # that works on the flipped scale, so the goal handed over here is the
+  # caller's own value and comes back out unchanged rather than as a value
+  # recovered by flipping a flipped copy.
   if (lower_outcome_goal) {
     new_model <- model
     new_model$coefficients <- -1 * (model$coefficients)
@@ -391,7 +405,7 @@ lago_optimization <- function(
     cost_list_of_vectors = cost_list_of_vectors,
     intervention_lower_bounds = intervention_lower_bounds,
     intervention_upper_bounds = intervention_upper_bounds,
-    outcome_goal = if (lower_outcome_goal) -1 * outcome_goal else outcome_goal,
+    outcome_goal = outcome_goal,
     center_characteristics_optimization_values =
       center_characteristics_optimization_values,
     time_effect_optimization_value = time_effect_optimization_value,

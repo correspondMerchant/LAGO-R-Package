@@ -1,3 +1,35 @@
+# The warning for an outcome goal that no intervention inside the bounds is
+# estimated to reach, so that the recommendation falls back to shrinking
+# towards the previous stage's intervention.
+#
+# Which extreme is out of reach, and in which direction, depends on the
+# optimization direction: under "maximize" the goal is above everything
+# reachable, and under "minimize" it is below everything reachable. Only the
+# "maximize" sentence was ever written, and under "minimize" it named the wrong
+# extreme and the wrong inequality, i.e. it described a comparison that had not
+# happened. This was unreachable until the "minimize" goal constraint started
+# binding, since a vacuous constraint is never unachievable.
+unachievable_goal_message <- function(lower_outcome_goal) {
+  reason <- if (lower_outcome_goal) {
+    paste(
+      "Since the minimum estimated achievable outcome\n",
+      "is greater than the outcome goal,"
+    )
+  } else {
+    paste(
+      "Since the maximum estimated achievable outcome\n",
+      "is less than the outcome goal,"
+    )
+  }
+  paste(
+    "The outcome goal is not estimated to be achievable.",
+    reason,
+    "we will shrink the recommended intervention towards the\n",
+    "recommended intervention from the previous stage."
+  )
+}
+
+
 #' get_recommended_interventions
 #'
 #' @description Internal function that calculates the LAGO recommended
@@ -62,7 +94,8 @@
 #' Default value without user specification:
 #' 1/20 of the range for each intervention component.
 #' @param link A character string. Specifies the link function used when fitting
-#' the outcome model.
+#' the outcome model, either "logit" or "identity". These are the only links the
+#' outcome machinery implements, see supported_outcome_links().
 #' @param lower_outcome_goal A boolean value. Specifies whether the outcome goal
 #' is intended to be lower or higher than the average outcome.
 #' @param prev_recommended_interventions A numeric vector. Specifies the
@@ -146,9 +179,28 @@ get_recommended_interventions <- function(
       power_goal_cluster_id = power_goal_cluster_id
     )
 
-    new_outcome_goal <- max(power_desired_outcome, outcome_goal)
+    effective_outcome_goal <- max(power_desired_outcome, outcome_goal)
   } else {
-    new_outcome_goal <- outcome_goal
+    effective_outcome_goal <- outcome_goal
+  }
+
+  # THE scale boundary on the way IN. outcome_goal arrives on the outcome scale
+  # the caller stated it on, and everything below optimizes on the flipped
+  # scale when lower_outcome_goal is TRUE (the "minimize" direction is
+  # implemented by negating the fitted coefficients, see lago_optimization()).
+  # So the flip is applied here, once, to the one goal the optimizers compare
+  # against, using the same flip_outcome_scale() that the un-flip below
+  # inverts. Doing it here rather than in the caller is what lets the original
+  # goal be REPORTED as the caller supplied it: it is carried through
+  # untouched in effective_outcome_goal instead of being recovered by flipping
+  # a flipped copy. The two flips would not compose to the identity in floating
+  # point on a logit link -- 1 - (1 - g) is off by up to an ulp of g -- so
+  # round-tripping would hand the confidence set a goal that differs from the
+  # user's in its last bits.
+  new_outcome_goal <- if (lower_outcome_goal) {
+    flip_outcome_scale(effective_outcome_goal, link)
+  } else {
+    effective_outcome_goal
   }
 
   # Function to create a cost function based on coefficients
@@ -169,9 +221,25 @@ get_recommended_interventions <- function(
     }
     # drop = FALSE keeps a one-column selection as a data.frame; without it,
     # data[, single_col] collapses to a vector and colMeans() errors.
-    shrink_to_int_values <- colMeans(
+    observed_mean_int_values <- colMeans(
       data[, all_components, drop = FALSE],
       na.rm = TRUE
+    )
+    # the shrinking method shrinks TOWARDS this vector and can return it
+    # unchanged, so it is a candidate recommendation and has to be one the user
+    # could actually implement, i.e. inside the bounds they gave. The observed
+    # column means are a property of the DATA and need not be: the bounds
+    # describe what the next stage may do, and validate_inputs() only warns
+    # when they exclude values the data contains. Left unprojected, an
+    # intervention the user's own bounds forbid was returned as the
+    # recommendation. Projecting onto the box is the nearest intervention to
+    # the observed mean that the bounds allow, which is what "shrink towards
+    # what was done before" can mean when what was done before is off-limits
+    # now. A user-supplied prev_recommended_interventions needs no projection:
+    # validate_inputs() already rejects one outside the bounds.
+    shrink_to_int_values <- pmin(
+      pmax(observed_mean_int_values, intervention_lower_bounds),
+      intervention_upper_bounds
     )
   } else {
     shrink_to_int_values <- prev_recommended_interventions
@@ -291,14 +359,7 @@ get_recommended_interventions <- function(
         est_rec_int <- as.numeric(full_grid[best_index, ])
         rec_int_cost <- all_costs[best_index]
       } else {
-        warning(paste(
-          "The outcome goal is not estimated to be achievable.",
-          "Since the maximum estimated achievable outcome\n",
-          "is less than the outcome goal, we will shrink",
-          "the recommended intervention towards the\n",
-          "recommended intervention from the previous stage.",
-          collapse = " "
-        ))
+        warning(unachievable_goal_message(lower_outcome_goal))
         shrinking_results <- shrinking_method(
           lo = lo,
           up = up,
@@ -343,11 +404,10 @@ get_recommended_interventions <- function(
       return(list(
         est_rec_int = est_rec_int,
         rec_int_cost = rec_int_cost,
-        est_reachable_outcome = ifelse(
-          lower_outcome_goal,
-          -1 * est_reachable_outcome,
-          est_reachable_outcome
-        ),
+        # left on the flipped scale, like everything else this optimizer
+        # computes. It is put back on the original outcome scale once, at the
+        # single un-flip in this function's return value below.
+        est_reachable_outcome = est_reachable_outcome,
         shrinking_method_used = shrinking_method_used
       ))
     }
@@ -525,10 +585,42 @@ get_recommended_interventions <- function(
           ))
         }
 
-        valid_indices <- which(!is.na(cost_results))
-        min_position <- valid_indices[which.max(cost_results[valid_indices])]
-        rec_int_cost <- cost_results[min_position]
+        # cost_results holds the cost each restart converged to, so the best
+        # restart is the cheapest one. Every restart satisfies the outcome
+        # constraint, which solnl() enforces through confun, so cost is the only
+        # thing to choose on among the ones that are actually implementable.
+        #
+        # solnl() treats the box as a soft constraint and will step a little
+        # outside it to buy a lower objective, so the cheapest restart is
+        # systematically the one furthest outside the bounds: selecting on cost
+        # alone selects for the violation. Restarts that left the box are
+        # therefore dropped before the comparison. If every restart left it they
+        # are all kept, so a recommendation is still returned, and the result is
+        # brought back onto the box below.
+        in_box <- apply(
+          results_int_components, 2,
+          function(x) {
+            all(x >= intervention_lower_bounds) &&
+              all(x <= intervention_upper_bounds)
+          }
+        )
+        valid_indices <- which(!is.na(cost_results) & in_box)
+        if (length(valid_indices) == 0) {
+          valid_indices <- which(!is.na(cost_results))
+        }
+        min_position <- valid_indices[which.min(cost_results[valid_indices])]
         int_components <- results_int_components[, min_position]
+
+        # The chosen restart can still sit a solver tolerance outside the box,
+        # when every restart did. A recommendation has to be implementable, so
+        # it is brought back onto the bounds and its cost recomputed at the
+        # value actually being recommended rather than reported from the point
+        # the solver stopped at.
+        int_components <- pmin(
+          pmax(int_components, intervention_lower_bounds),
+          intervention_upper_bounds
+        )
+        rec_int_cost <- cost_obj_fun(int_components)
 
         est_rec_int <- int_components
 
@@ -545,14 +637,7 @@ get_recommended_interventions <- function(
           center_cha = center_cha
         )
       } else {
-        warning(paste(
-          "The outcome goal is not estimated to be achievable.",
-          "Since the maximum estimated achievable outcome\n",
-          "is less than the outcome goal, we will shrink",
-          "the recommended intervention towards the\n",
-          "recommended intervention from the previous stage.",
-          collapse = " "
-        ))
+        warning(unachievable_goal_message(lower_outcome_goal))
 
         shrinking_results <- shrinking_method(
           lo = lo,
@@ -591,11 +676,10 @@ get_recommended_interventions <- function(
       return(list(
         est_rec_int = est_rec_int,
         rec_int_cost = rec_int_cost,
-        est_reachable_outcome = ifelse(
-          lower_outcome_goal,
-          -1 * est_reachable_outcome,
-          est_reachable_outcome
-        ),
+        # left on the flipped scale, like max_achievable_outcome and everything
+        # else this optimizer computes. It is put back on the original outcome
+        # scale once, at the single un-flip in this function's return below.
+        est_reachable_outcome = est_reachable_outcome,
         max_achievable_outcome = max_achievable_outcome,
         shrinking_method_used = shrinking_method_used
       ))
@@ -615,21 +699,34 @@ get_recommended_interventions <- function(
     )
   }
 
+  # THE scale boundary. Everything above works on the flipped outcome scale
+  # when lower_outcome_goal is TRUE (the "minimize" direction is implemented by
+  # negating the fitted coefficients, see lago_optimization()), and every
+  # caller below expects the original outcome scale. So the flip is undone
+  # here, once, for every outcome-valued field and on every path, rather than
+  # inside each optimizer. Each optimizer previously undid it for itself, with
+  # its own copy of the inverse, which is how the two came to disagree with the
+  # flip they were inverting.
+  #
+  # Only outcome-valued fields are un-flipped. est_rec_int and rec_int_cost are
+  # an intervention and its cost: they live on the intervention scale, which
+  # the flip never touched, so they pass through untouched.
+  un_flip <- function(value) {
+    if (lower_outcome_goal) flip_outcome_scale(value, link) else value
+  }
+
   return(list(
     est_rec_int = opt_results$est_rec_int,
     rec_int_cost = opt_results$rec_int_cost,
-    est_reachable_outcome = opt_results$est_reachable_outcome,
+    est_reachable_outcome = un_flip(opt_results$est_reachable_outcome),
     shrinking_method_used = opt_results$shrinking_method_used,
     # the effective outcome goal actually used for optimization:
     # max(power-implied outcome, outcome_goal). Equals outcome_goal when
     # no power goal is set, and the power-implied outcome when only a
-    # power goal is set. Reported on the original outcome scale (re-negated
-    # for the "minimize" case, mirroring est_reachable_outcome) so downstream
-    # consumers such as the confidence set and printout can use it directly.
-    effective_outcome_goal = if (lower_outcome_goal) {
-      -1 * new_outcome_goal
-    } else {
-      new_outcome_goal
-    }
+    # power goal is set. Already on the original outcome scale: it is the value
+    # the flip above was applied TO, so it is reported exactly as the caller
+    # stated it rather than un-flipped back, and downstream consumers such as
+    # the confidence set and the printout can use it directly.
+    effective_outcome_goal = effective_outcome_goal
   ))
 }
