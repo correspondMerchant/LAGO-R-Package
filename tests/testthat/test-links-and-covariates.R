@@ -101,7 +101,12 @@ test_that("get_confidence_set() pairs coefficients with predictors by name, not 
   # and the shared answer is a real confidence set, not six copies of a
   # degenerate one: 3 of the 40 grid interventions qualify, and the interval at
   # the recommended intervention covers the outcome goal of 0.85.
+  # The row count is asserted alongside the size because the size alone cannot
+  # tell the two formulas apart here: the old (n - 1) / (N - 1) over 4
+  # qualifying rows of a grid it had widened to 41 also gives 0.075, from a
+  # genuinely different set. The count separates 3 from 4.
   expect_equal(results[[1]]$confidence_set_size_percentage, 3 / 40)
+  expect_equal(nrow(results[[1]]$cs), 3)
   expect_equal(
     results[[1]]$rec_int_ci,
     c(lower = 0.802, upper = 0.898),
@@ -459,9 +464,13 @@ test_that("a factor center_characteristic is found by its level-named coefficien
     tolerance = 1e-10
   )
   expect_equal(as_factor$est_outcome_goal, 0.85, tolerance = 1e-8)
-  # a loose tolerance on purpose: the subject here is the coefficient LOOKUP,
-  # and the exact point the numerical optimizer stops at is not, so this is not
-  # made sensitive to a solver tolerance on the lower bound.
+  # A loose tolerance on purpose, and do NOT tighten it. The subject here is
+  # the coefficient LOOKUP. On the tree that predates the restart-selection fix
+  # this same call returns 1.00038 rather than 1, because the cheapest restart
+  # was chosen without checking it had stayed inside the bounds. That is a
+  # different defect, pinned tightly by its own test in
+  # test-minimize-and-bounds.R, and tightening this tolerance would make this
+  # test fail for that reason instead of for the lookup it is about.
   expect_equal(as_factor$rec_int, c(1, 1.747970), tolerance = 1e-3)
 
   # the factor and its explicit dummy are the same model
