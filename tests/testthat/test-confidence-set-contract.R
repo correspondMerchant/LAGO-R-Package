@@ -26,6 +26,51 @@
 # the row's own coordinates, a permutation giving an identical object) over
 # copied output, so they keep their meaning if the numbers legitimately move.
 
+# How close the confidence set's boundary runs to the outcome goal, in relative
+# terms. Membership is decided by whether an intervention's interval brackets
+# the goal, so an interval endpoint sitting a hair from the goal means a tiny
+# coefficient change moves that intervention across the boundary and changes
+# the row count with nothing being wrong. Row-count fixtures are guarded with
+# this so a boundary shift reports itself as a fixture to update rather than as
+# a broken confidence set.
+#
+# The margin is computed over the WHOLE grid, not over the returned rows: the
+# tightest case is an intervention just OUTSIDE the set, which is exactly the
+# one about to move in. It also recomputes the intervals unrounded, because the
+# returned bounds are rounded to three decimals and would hide any margin
+# finer than that. The recomputation is the delta method the package documents,
+# fitted with glm() here rather than taken from the result, so it does not
+# depend on the code being guarded.
+cs_boundary_margin <- function(args, outcome_goal) {
+  model <- glm(
+    stats::as.formula(paste(
+      args$outcome_name, "~",
+      paste(c(
+        args$intervention_components, args$center_characteristics
+      ), collapse = " + ")
+    )),
+    data = args$data, family = args$glm_family
+  )
+  grid <- expand.grid(
+    seq(
+      args$intervention_lower_bounds[1], args$intervention_upper_bounds[1],
+      by = args$confidence_set_grid_step_size[1]
+    ),
+    seq(
+      args$intervention_lower_bounds[2], args$intervention_upper_bounds[2],
+      by = args$confidence_set_grid_step_size[2]
+    )
+  )
+  new_data <- cbind(
+    1, as.matrix(grid), args$center_characteristics_optimization_values
+  )
+  eta <- as.numeric(new_data %*% coef(model))
+  se <- sqrt(diag(new_data %*% vcov(model) %*% t(new_data)))
+  p <- rje::expit(eta)
+  half <- stats::qnorm(0.975) * se * p * (1 - p)
+  min(abs(c(p - half, p + half) - outcome_goal)) / outcome_goal
+}
+
 # The published BB_data configuration, as arguments for lago_optimization().
 # 40 coaching values by 5 launch durations at step c(1, 1) is a 200-point grid,
 # which is the denominator every size assertion below is checked against.
@@ -149,7 +194,18 @@ test_that("the confidence set holds qualifying GRID points and is sized over the
     # code subtracted the prepended row from a count that never included it and
     # divided by a grid it had widened by one.
     expect_equal(nrow(res$cs), res$confidence_set_size_percentage * grid_n)
-    # reference values verified against the current tree
+
+    # The reference row count is a fixture, not an invariant, and it sits on a
+    # narrow margin: at the maximize goal of 0.85 the nearest excluded grid
+    # intervention, c(5, 3), has a lower confidence bound of 0.85014, only
+    # 1.4e-4 above the goal. A coefficient perturbation of that relative size,
+    # from another BLAS or a new glm, would move it into the set and change the
+    # count without anything being wrong. The margin is therefore asserted
+    # first, so that case reports itself as a fixture that needs updating
+    # rather than as a broken confidence set.
+    expect_gt(
+      cs_boundary_margin(bb_cs_args(cfg$goal, cfg$intention), cfg$goal), 1e-4
+    )
     expect_equal(res$confidence_set_size_percentage, cfg$size, tolerance = 1e-6)
     expect_equal(nrow(res$cs), cfg$rows)
 

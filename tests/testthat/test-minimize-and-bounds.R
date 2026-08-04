@@ -462,16 +462,23 @@ test_that("the numerical optimizer picks the cheapest in-box restart", {
 })
 
 test_that("rec_int_cost is the cost of the returned rec_int", {
-  # Two things are pinned at once. Restarts that left the box are dropped
-  # before the cheapest is chosen (solnl() treats the box as soft, so the
-  # cheapest restart is cheapest precisely by sitting outside the bounds), and
-  # the survivor is projected onto the box with its cost RECOMPUTED at the
-  # projected value. Reporting the solver's cost instead would leave
-  # rec_int_cost describing a point that is not the recommendation.
+  # What this pins is the in-box filter: restarts that left the box are dropped
+  # before the cheapest is chosen, because solnl() treats the box as soft and
+  # the cheapest restart is cheapest precisely by sitting outside the bounds.
   #
-  # Recomputing the cost polynomial in the test is what makes this checkable
-  # from the outside: it has to agree with the returned intervention, not with
-  # wherever the solver stopped.
+  # It does NOT pin the projection that follows, nor the recomputation of the
+  # cost at the projected point. Once out-of-box restarts are dropped, the
+  # survivor is already inside the box, so the projection has nothing to move:
+  # instrumenting it over several hundred runs showed it displacing the chosen
+  # point either not at all or by around 1e-15. Removing the projection, or
+  # reporting the solver's cost instead of recomputing it, leaves this test
+  # green. Both remain correct for the fallback where every restart left the
+  # box, and covering them needs a unit test on the internal rather than a call
+  # through lago_optimization().
+  #
+  # Recomputing the cost polynomial in the test is what makes the filter
+  # checkable from the outside: the reported cost has to agree with the
+  # returned intervention.
   cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGO")
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),

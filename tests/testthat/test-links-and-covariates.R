@@ -84,9 +84,20 @@ test_that("get_confidence_set() pairs coefficients with predictors by name, not 
     ),
     function(perm) bb_confidence_set(fit_bb_model(predictors[perm]))
   )
-  expect_true(all(vapply(
-    results, function(r) identical(r, results[[1]]), logical(1)
-  )))
+  # Compared one permutation at a time so a failure names the permutation that
+  # disagreed, rather than reporting that some element of a logical vector was
+  # not TRUE.
+  perm_labels <- c(
+    "1,2,3", "1,3,2", "2,1,3", "2,3,1", "3,1,2", "3,2,1"
+  )
+  for (i in seq_along(results)[-1]) {
+    expect_identical(
+      results[[i]], results[[1]],
+      info = paste0(
+        "term order ", perm_labels[i], " disagreed with ", perm_labels[1]
+      )
+    )
+  }
   # and the shared answer is a real confidence set, not six copies of a
   # degenerate one: 3 of the 40 grid interventions qualify, and the interval at
   # the recommended intervention covers the outcome goal of 0.85.
