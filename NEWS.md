@@ -20,10 +20,12 @@
 * Fixed the recommended intervention being allowed outside
   `intervention_lower_bounds` and `intervention_upper_bounds`. The
   interpolation the shrinking method performs was not confined to the bounds,
-  so for an outcome goal it could not reach it returned a value above the upper
-  bound or one that was not finite: asking for an outcome of 1 returned `Inf`,
-  and with lower bounds of 10 it returned a negative intervention of -23.3.
-  Both are reachable in the maximize direction with no power goal. A
+  so for an outcome goal it could not reach it returned a value below the lower
+  bound, a value above the upper bound, or a value that was not finite: asking
+  for an outcome of 1 returned `Inf`, and with lower bounds of 10 it returned a
+  negative intervention of -23.3. Both are reachable in the maximize direction
+  with no power goal, and a value below the lower bound is reachable on its own
+  at ordinary goals such as 0.995. A
   recommendation is now brought onto the bounds supplied. The numerical
   optimizer can still stop a solver tolerance outside them, on the order of
   1e-4, and that residue is projected back rather than reported.
