@@ -95,8 +95,9 @@ bb_config <- function(outcome_goal,
 # units in the last place, around 1e-16 on a bound of 1. A solver that converges
 # more tightly, which a new NlcOptim could reasonably ship, lands some of those
 # restarts exactly on the bound instead: with solnl() at tolX = 1e-8,
-# tolFun = tolCon = 1e-9, two restarts come back to a violation of exactly 0,
-# the fallback stops firing, and the projection is unreachable from here again.
+# tolFun = tolCon = 1e-9, several restarts come back to a violation of exactly
+# 0, which is enough for the fallback to stop firing and the projection to be
+# unreachable from here again.
 # It would not fail, it would quietly stop exercising that branch, and nothing
 # in this file detects it. Nor can it be detected from the outside: the
 # projection puts a component exactly on a bound, and so does a solver that

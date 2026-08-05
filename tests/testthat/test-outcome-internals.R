@@ -461,8 +461,10 @@ test_that("rec_int_processor() itself excludes the covariates it names", {
   expect_identical(via_fallback$rec_int, via_mapping$rec_int)
   expect_identical(via_fallback$rec_int_cost, via_mapping$rec_int_cost)
 
-  # and the value itself, so this is not two wrong numbers agreeing. Verified by
-  # hand below.
+  # and the value itself, so this is not two wrong numbers agreeing. It is a
+  # fixture, recorded from the fixed tree rather than derived here: the two
+  # assertions above are what pin the behaviour, and this one only holds them to
+  # a number that was checked once.
   expect_equal(via_mapping$est_outcome_goal, -1.28046742730091,
     tolerance = 1e-12
   )
@@ -506,10 +508,11 @@ test_that("rec_int_processor() itself excludes the covariates it names", {
 # ---------------------------------------------------------------------------
 
 # a linear total cost, the shape create_cost_function() builds from
-# cost_list_of_vectors = list(c(0, 2), c(0, 5)). Linear and increasing, which is
-# what makes projecting a below-bound component RAISE the cost, so reporting the
-# solver's cost understates the recommendation rather than merely differing from
-# it.
+# cost_list_of_vectors = list(c(0, 2), c(0, 5)). Linear and increasing, so
+# projecting a component UP to a lower bound raises the cost and projecting one
+# DOWN to an upper bound lowers it. The recomputed cost is therefore not on a
+# predictable side of the solver's, which is why it is recomputed rather than
+# adjusted.
 srb_cost <- function(x) sum(c(2, 5) * x)
 srb_lower <- c(1, 1)
 srb_upper <- c(10, 5)
@@ -707,9 +710,10 @@ test_that("with no restart in the box the winner is projected and recosted", {
   #
   # A recommendation the user's own bounds forbid is not a recommendation, so
   # the winner is brought back onto the box; and the cost has to be that of the
-  # point being recommended, not of the point the solver stopped at. For an
-  # increasing cost function the projection can only RAISE the cost, so
-  # reporting the solver's number understates what the recommendation costs.
+  # point being recommended, not of the point the solver stopped at. Which way
+  # the cost then moves depends on which bound was crossed, so the solver's
+  # number is not usable as an estimate of it: the test below projects a
+  # component down to an upper bound and the cost falls, from 35.5 to 27.
   select_restart_within_bounds <- getFromNamespace(
     "select_restart_within_bounds", "LAGO"
   )

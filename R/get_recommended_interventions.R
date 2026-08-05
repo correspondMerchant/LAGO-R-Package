@@ -56,8 +56,10 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 #' every restart did. A recommendation has to be implementable, so it is
 #' projected onto the bounds and its cost recomputed at the value actually being
 #' recommended rather than reported from the point the solver stopped at. The
-#' projection can only raise the cost of a monotone cost function, so reporting
-#' the solver's cost understates what the recommendation costs.
+#' recomputed cost can be either side of the one the solver reported, since
+#' projection moves a component up to a lower bound or down to an upper one, so
+#' the solver's cost is not a bound on the recommendation's cost in either
+#' direction.
 #'
 #' @param restart_points A numeric matrix with one column per restart and one
 #' row per intervention component, holding the point each restart converged to.
