@@ -232,3 +232,130 @@ test_that("weights length is validated against the number of observations, not c
     "number of observations"
   )
 })
+
+
+test_that("an unsolvable numerical optimization says to use grid_search", {
+  # END TO END, which is what the unit test of the guard cannot show: that a
+  # configuration a user can actually pass reaches it. Every solnl() restart of
+  # the max-achievable-outcome loop fails on this fit, and the loop records each
+  # failure as NA. With all of them NA, which.max() is integer(0), the outcome
+  # read out of it is numeric(0), and the goal comparison that follows used to
+  # fail with the base-R error "argument is of length zero" -- no mention of the
+  # optimizer, the goal, or what to do instead. The cost loop 60 lines further
+  # down already refused the same situation with a message naming grid_search;
+  # this path simply never reached it.
+  #
+  # What makes every restart fail here: 6 recycled centers against 3 recycled
+  # periods are ALIASED (6 and 3 share a factor, so the period indicators are
+  # linear combinations of the center ones), glm() returns NA for the aliased
+  # period coefficients, and those NAs flow into the center-level effects. Every
+  # outcome the solver is asked for is then NA, so every restart fails. That is
+  # a rank-deficient model rather than a hard optimization, and it is the
+  # smallest reproducer of the all-failed path; see the note at the end of this
+  # test about the separate defect it also exposes.
+  bbp <- as.data.frame(BB_proportions)
+  bbp$center <- factor(rep_len(paste0("s", 1:6), nrow(bbp)))
+  bbp$period <- factor(rep_len(1:3, nrow(bbp)))
+  aliased <- suppressWarnings(glm(
+    EBP_proportions ~ center + period + coaching_updt + launch_duration,
+    data = bbp, family = quasibinomial(link = "logit")
+  ))
+  # the precondition, asserted rather than assumed: if a future R made this fit
+  # full rank the restarts would stop failing and this test would be vacuous
+  expect_true(anyNA(coef(aliased)))
+
+  run <- function() {
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      outcome_type = "continuous",
+      glm_family = "quasibinomial",
+      link = "logit",
+      intervention_components = c("coaching_updt", "launch_duration"),
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      outcome_goal = 0.85,
+      include_center_effects = TRUE,
+      include_time_effects = TRUE,
+      time_effect_optimization_value = 1,
+      include_confidence_set = FALSE,
+      quiet = TRUE
+    )))
+  }
+
+  # the message a user can act on, and the recommendation it makes
+  expect_error(run(), "Numerical optimization failed to find a solution")
+  expect_error(run(), "'grid_search'")
+  # and NOT the base-R error the missing guard produced. This is the assertion
+  # that fails without the fix: the old message was exactly this string.
+  expect_error(run(), "^(?!.*argument is of length zero).*$", perl = TRUE)
+
+  # NOT asserted here: that following the message's advice succeeds on THIS
+  # data. It does not, and deliberately so -- the cause on this fixture is the
+  # rank-deficient fit above, which grid_search cannot help with either. Asked
+  # for grid_search on the same inputs, the NA outcome reaches that optimizer's
+  # own goal comparison and it fails with the base-R "missing value where
+  # TRUE/FALSE needed", i.e. the same class of opaque failure this test fixes on
+  # the numerical path, in the other optimizer and from a different cause.
+  #
+  # That is a SEPARATE defect from the one under test and is left alone here: it
+  # is an unguarded NA outcome from an aliased model, not an unguarded
+  # all-failed restart set, and fixing it means refusing a rank-deficient fit,
+  # which is a wider behaviour change than this one. Pinned as the current
+  # behaviour so that the day it is fixed, this assertion is what says so.
+  grid_error <- tryCatch(
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      outcome_type = "continuous",
+      glm_family = "quasibinomial",
+      link = "logit",
+      intervention_components = c("coaching_updt", "launch_duration"),
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      outcome_goal = 0.85,
+      include_center_effects = TRUE,
+      include_time_effects = TRUE,
+      time_effect_optimization_value = 1,
+      optimization_method = "grid_search",
+      optimization_grid_search_step_size = c(4, 1),
+      include_confidence_set = FALSE,
+      quiet = TRUE
+    ))),
+    error = function(e) conditionMessage(e)
+  )
+  expect_match(grid_error, "missing value where TRUE/FALSE needed")
+
+  # and on a FULL-RANK fit of the same shape, where the aliasing is gone because
+  # 5 centers and 3 periods share no factor, both optimizers succeed. This is
+  # what confines the failures above to the rank-deficient fixture rather than
+  # to fixed center and time effects in general.
+  full_rank <- bbp
+  full_rank$center <- factor(rep_len(paste0("s", 1:5), nrow(full_rank)))
+  expect_false(anyNA(coef(suppressWarnings(glm(
+    EBP_proportions ~ center + period + coaching_updt + launch_duration,
+    data = full_rank, family = quasibinomial(link = "logit")
+  )))))
+  ok <- suppressWarnings(suppressMessages(lago_optimization(
+    data = full_rank,
+    outcome_name = "EBP_proportions",
+    outcome_type = "continuous",
+    glm_family = "quasibinomial",
+    link = "logit",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85,
+    include_center_effects = TRUE,
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 1,
+    include_confidence_set = FALSE,
+    quiet = TRUE
+  )))
+  expect_length(ok$rec_int, 2)
+  expect_true(all(ok$rec_int >= c(1, 1)))
+  expect_true(all(ok$rec_int <= c(40, 5)))
+})

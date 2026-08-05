@@ -266,6 +266,104 @@ test_that("center_weights_for_outcome_goal must sum to 1", {
     "sum up to 1")
 })
 
+test_that("center_weights_for_outcome_goal must be non-negative and finite", {
+  # Summing to 1 does not make a vector a set of weights. The weights are a
+  # convex combination over the centers -- the reported outcome is
+  # sum(weight_i * outcome_i), a weighted MEAN of the per-center outcomes -- so
+  # a negative weight lets the result leave the range of the values it averages.
+  # c(-10, 11, 0) sums to exactly 1, passed every check, and produced a logit
+  # "probability" of 10.95 for a binary outcome: a wrong number, silently.
+  cw <- function(w) {
+    a <- vi_args(include_center_effects = TRUE,
+      center_weights_for_outcome_goal = w)
+    a$data <- data.frame(
+      mpg = c(21, 22, 23, 24, 25, 26),
+      gear = c(3, 4, 3, 4, 3, 4),
+      qsec = c(16, 17, 18, 19, 20, 21),
+      center = factor(c(1, 1, 2, 2, 3, 3))
+    )
+    suppressMessages(do.call(LAGO:::validate_inputs, a))
+  }
+
+  # the wild case, summing to EXACTLY 1 so the sum check cannot catch it
+  expect_identical(sum(c(-10, 11, 0)), 1)
+  expect_error(cw(c(-10, 11, 0)), "must be non-negative")
+  # and a mild one, also summing to 1
+  expect_error(cw(c(-0.05, 0.55, 0.5)), "must be non-negative")
+
+  # a weight of exactly 0 is ALLOWED, deliberately: it means a center the
+  # recommendation is not being computed for, which is what the package itself
+  # builds from center_effects_optimization_values (the named center gets 1 and
+  # every other center 0). Refusing 0 would refuse that documented path.
+  expect_identical(
+    cw(c(0.5, 0.5, 0))$center_weights_for_outcome_goal,
+    c(0.5, 0.5, 0)
+  )
+  expect_identical(
+    cw(c(1, 0, 0))$center_weights_for_outcome_goal,
+    c(1, 0, 0)
+  )
+
+  # NA, NaN and Inf are named rather than reaching the sum comparison, where
+  # any(NA < 0) is not FALSE but the base-R error "missing value where
+  # TRUE/FALSE needed" -- which said nothing about weights.
+  for (bad in list(c(NA_real_, 0.5, 0.5), c(NaN, 0.5, 0.5),
+    c(Inf, 0.5, 0.5), c(Inf, -Inf, 1))) {
+    expect_error(cw(bad), "must all be finite")
+  }
+  expect_error(cw(c(NA_real_, 0.5, 0.5)), "not weights")
+
+  # all-zero weights are refused by the sum check, which is also what keeps the
+  # renormalisation from dividing by zero: a vector summing to 0 is 1 away from
+  # 1, not within the 0.001 tolerance of it.
+  expect_error(cw(c(0, 0, 0)), "sum up to 1")
+
+  # a compliant vector is still returned untouched, so none of the above
+  # narrowed what is accepted
+  expect_identical(
+    cw(c(0.25, 0.25, 0.5))$center_weights_for_outcome_goal,
+    c(0.25, 0.25, 0.5)
+  )
+})
+
+test_that("the weight checks cover the DEFAULT weights, not just supplied", {
+  # The checks are placed after every branch that can produce the weights, not
+  # inside the one that reads them from the caller, so they cover the
+  # center-size default and the single-named-center indicator as well. That
+  # matters: the default is center_sizes / total_sample_size, which with every
+  # center_sample_size zero is 0/0, i.e. all NaN, and it then reached the sum
+  # comparison as the opaque "missing value where TRUE/FALSE needed".
+  a <- vi_args(include_center_effects = TRUE, outcome_type = "binary",
+    glm_family = "binomial", input_data_structure = "center_level",
+    outcome_name = "proportion", intervention_components = c("x1", "x2"),
+    intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(10, 10),
+    outcome_goal = 0.6)
+  a$data <- data.frame(
+    proportion = c(0.4, 0.5, 0.6, 0.7),
+    center_sample_size = c(0, 0, 0, 0),
+    center = factor(c("a", "b", "c", "d")),
+    x1 = c(1, 2, 3, 4), x2 = c(2, 3, 4, 5)
+  )
+  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+    "must all be finite")
+  # and the message says where an unsupplied set of weights came from, since the
+  # caller passed none and would otherwise have nothing to go on
+  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+    "center_sample_size")
+
+  # with real sample sizes the same call is accepted and the default weights are
+  # the sample-size shares, so the guard did not break the path it guards.
+  # Compared as values: on the center_level path the default comes from tapply()
+  # and so carries that function's 1-d array shape, which is pre-existing and
+  # not what this test is about.
+  a$data$center_sample_size <- c(10, 20, 30, 40)
+  expect_identical(
+    as.numeric(suppressMessages(do.call(LAGO:::validate_inputs,
+      a))$center_weights_for_outcome_goal),
+    c(0.1, 0.2, 0.3, 0.4)
+  )
+})
+
 
 # --- Group 3: time effects, interaction terms, additional covariates --------
 

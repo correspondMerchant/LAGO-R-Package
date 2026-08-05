@@ -30,6 +30,52 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 }
 
 
+#' refuse_if_all_restarts_failed
+#'
+#' @description Internal guard for a multi-start numerical optimization in
+#' which EVERY restart failed, so there is no result among them to choose
+#' from.
+#'
+#' @details Both restart loops of the numerical optimizer record a failed
+#' NlcOptim::solnl() call as NA and carry on, so that one bad starting point
+#' does not lose the whole optimization. All of them failing is a different
+#' situation: there is nothing to select, and the only thing to tell the
+#' caller is that this optimizer could not solve their problem and which one
+#' can.
+#'
+#' The condition and the message live here, once, rather than at each loop.
+#' The max-achievable-outcome loop had no such check at all while the cost loop
+#' had one, and the difference was not visible as a difference: an all-failed
+#' max-outcome loop reached `which.max()` over all NAs, which is `integer(0)`,
+#' so the outcome it indexed was `numeric(0)` and the goal comparison two
+#' statements later failed with the R error "argument is of length zero". One
+#' guard both loops call is what stops a third loop from being written without
+#' one, and what keeps a single wording for a single situation.
+#'
+#' @param results A numeric vector, one entry per restart, holding the value
+#' that restart converged to. NA marks a restart whose optimization failed.
+#'
+#' @return Invisibly NULL when at least one restart succeeded. Raises
+#' otherwise, so the callers below can treat returning as "there is something
+#' to choose from".
+#'
+#' @noRd
+refuse_if_all_restarts_failed <- function(results) {
+  if (all(is.na(results))) {
+    stop(paste(
+      "Numerical optimization failed to find a solution.",
+      "Please consider using the 'grid_search' method by",
+      "setting the 'optimization_method' parameter to",
+      "'grid_search', and provide proper values for the",
+      "'optimization_grid_search_step_size' parameter.",
+      "This problem usually occurs when you have more than",
+      "three intervention components."
+    ))
+  }
+  invisible(NULL)
+}
+
+
 #' select_restart_within_bounds
 #'
 #' @description Internal function that picks the recommended intervention out
@@ -581,6 +627,15 @@ get_recommended_interventions <- function(
           results[i] <- NA # Assign NA if the optimization failed
         }
       }
+      # every restart having failed is refused here, before anything is read
+      # out of results. which.max() over an all-NA vector is integer(0), so
+      # the outcome below would be numeric(0) and the goal comparison further
+      # down would fail with "argument is of length zero" instead of saying
+      # what went wrong. Some restarts failing is not this case and is handled
+      # by which.max() itself, which skips NAs: the surviving restarts are
+      # compared and the winner's column of results_int_components is the
+      # column that same restart wrote, since both are indexed by restart.
+      refuse_if_all_restarts_failed(results)
       max_position <- which.max(results)
       max_achievable_outcome <- results[max_position]
 
@@ -652,18 +707,10 @@ get_recommended_interventions <- function(
           }
         }
 
-        # if numerical solution fails to find a solution
-        if (all(is.na(cost_results))) {
-          stop(paste(
-            "Numerical optimization failed to find a solution.",
-            "Please consider using the 'grid_search' method by",
-            "setting the 'optimization_method' parameter to",
-            "'grid_search', and provide proper values for the",
-            "'optimization_grid_search_step_size' parameter.",
-            "This problem usually occurs when you have more than",
-            "three intervention components."
-          ))
-        }
+        # if numerical solution fails to find a solution. The same refusal the
+        # max-outcome loop above makes, from the same place, so the two loops
+        # cannot come to describe the same situation differently.
+        refuse_if_all_restarts_failed(cost_results)
 
         # Choosing among the restarts, and making the winner implementable, is
         # one decision and lives in select_restart_within_bounds(): the in-box

@@ -502,6 +502,176 @@ test_that("rec_int_processor() itself excludes the covariates it names", {
   )
 })
 
+
+test_that("a FACTOR covariate's coefficient is excluded, not just its column", {
+  # The test above uses a NUMERIC covariate, center_size, whose single
+  # coefficient IS named after its column, so passing the column name held it
+  # back. A factor or character covariate is one coefficient per non-reference
+  # level, each named after the LEVEL: a column center_grp with levels a/b is a
+  # coefficient named center_grpb. So a list of column names held back nothing
+  # for it, the anchored search claimed center_grpb as a 16th center dummy, and
+  # the numeric case passing was not evidence the factor case did.
+  #
+  # This is #68's defect surviving on the factor case alone, and it is a wrong
+  # NUMBER rather than an error: all_center_lvl_effects came back 17 long
+  # against 16 weights, the weights recycled, and the reported outcome was off
+  # by 5% with nothing said. The exclusion list is therefore built from the
+  # coefficient names the predictors account for, which claimed_coef_names()
+  # resolves from the model.
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  # a FACTOR covariate whose own name begins with "center", i.e. the #68 shape
+  # one level down
+  pulesa$center_grp <- factor(rep_len(c("a", "b"), nrow(pulesa)))
+  model <- glm(
+    Proportions ~ center + AccessMedicines + AccessBPMachines + center_grp,
+    data = pulesa, family = gaussian()
+  )
+  n_centers <- length(levels(pulesa$Clinic))
+  expect_equal(n_centers, 16)
+
+  # the fixture has to contain the confusable name, or there is nothing to be
+  # wrongly claimed. The coefficient is named after the LEVEL, not the column:
+  # that asymmetry is the whole defect.
+  model_coef_names <- names(coef(model))
+  expect_true("center_grpb" %in% model_coef_names)
+  expect_false("center_grp" %in% model_coef_names)
+
+  no_mapping <- model
+  attr(no_mapping$terms, "term.labels") <- character(0)
+  expect_true(is.null(term_coef_names(no_mapping)))
+
+  # THROUGH THE CALLER, which is where the wrong number appeared. Taking the
+  # fallback must give the same answer as resolving through the mapping: the
+  # fallback is a reconstruction of the mapping's result, so the two agreeing is
+  # the whole requirement on it.
+  run <- function(fitted) {
+    suppressWarnings(suppressMessages(rec_int_processor(
+      data = pulesa,
+      model = fitted,
+      center_characteristics = NULL,
+      additional_covariates = "center_grp",
+      include_center_effects = TRUE,
+      include_time_effects = FALSE,
+      include_interaction_terms = FALSE,
+      main_components = NULL,
+      intervention_components = c("AccessMedicines", "AccessBPMachines"),
+      optimization_method = "grid_search",
+      optimization_grid_search_step_size = c(5, 0.5),
+      link = "identity",
+      center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 1),
+      outcome_goal = 0.6,
+      center_characteristics_optimization_values = NULL,
+      time_effect_optimization_value = NULL,
+      lower_outcome_goal = FALSE,
+      prev_recommended_interventions = NULL,
+      shrinkage_threshold = 0.25,
+      power_goal = NULL,
+      power_goal_approach = "unconditional",
+      num_centers_in_next_stage = NULL,
+      patients_per_center_in_next_stage = NULL,
+      outcome_name = "Proportions"
+    )))
+  }
+  via_mapping <- run(model)
+  via_fallback <- run(no_mapping)
+  expect_identical(
+    via_fallback$est_outcome_goal, via_mapping$est_outcome_goal
+  )
+  expect_identical(via_fallback$rec_int, via_mapping$rec_int)
+  expect_identical(via_fallback$rec_int_cost, via_mapping$rec_int_cost)
+
+  # and the value itself, so this is not two wrong numbers agreeing. The
+  # unfixed fallback reported 0.745 against this 0.708, a 5.2% error, which is
+  # the magnitude the recycling produces here.
+  expect_equal(via_mapping$est_outcome_goal, 0.708333856066007,
+    tolerance = 1e-12
+  )
+
+  # and the same thing one layer down, in the names themselves. This is placed
+  # AFTER the end-to-end assertions on purpose: the defect is a wrong NUMBER, so
+  # what must fail on an unfixed tree is the comparison above, not a lookup of a
+  # helper that tree does not have.
+  # the list the caller owes now names the coefficient, and the model's own
+  # xlevels is where the level comes from, so no name is guessed from its shape
+  columns <- c(
+    "(Intercept)", "AccessMedicines", "AccessBPMachines", "center_grp"
+  )
+  claimed <- getFromNamespace("claimed_coef_names", "LAGO")(
+    no_mapping, NULL, columns
+  )
+  expect_true("center_grpb" %in% claimed)
+  # the column name is kept too: a numeric column IS its own coefficient name
+  expect_true(all(columns %in% claimed))
+
+  # with it, only the 15 real dummies are claimed
+  expect_length(
+    fixed_effect_coef_names("center", NULL, model_coef_names, claimed),
+    n_centers - 1
+  )
+  expect_false("center_grpb" %in%
+    fixed_effect_coef_names("center", NULL, model_coef_names, claimed))
+  # and with the raw COLUMN names, which is what used to be passed, the factor
+  # coefficient is claimed as a 16th. This is the assertion that fails if the
+  # list regresses to column names.
+  expect_true("center_grpb" %in%
+    fixed_effect_coef_names("center", NULL, model_coef_names, columns))
+  expect_length(
+    fixed_effect_coef_names("center", NULL, model_coef_names, columns),
+    n_centers
+  )
+
+
+  # the OTHER call site, get_confidence_set(), on the same fallback model. It
+  # cross-checks its assembled columns against the model's coefficients, so the
+  # extra claimed dummy there is refused rather than reported as a number: its
+  # symptom was an error, not a wrong answer. The fix does not make this model
+  # work -- a factor covariate held at its reference level is still one column
+  # against two coefficient names -- but it does make the refusal name the one
+  # coefficient that is genuinely unmatched instead of all 16.
+  cs_error <- tryCatch(
+    suppressWarnings(suppressMessages(get_confidence_set(
+      predictors_data = pulesa[, c(
+        "center", "AccessMedicines", "AccessBPMachines", "center_grp"
+      ), drop = FALSE],
+      include_center_effects = TRUE,
+      center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+      additional_covariates = "center_grp",
+      intervention_components = c("AccessMedicines", "AccessBPMachines"),
+      outcome_data = pulesa$Proportions,
+      fitted_model = no_mapping,
+      link = "identity",
+      outcome_goal = 0.6,
+      outcome_type = "continuous",
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 1),
+      confidence_set_grid_step_size = c(5, 0.5),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(5, 0.5)
+    ))),
+    error = function(e) conditionMessage(e)
+  )
+  expect_match(cs_error, "do not match the predictors")
+  # the unmatched coefficient is the factor dummy and NOTHING else: the 15 real
+  # center dummies are resolved. Unfixed, all 15 were listed here too, because
+  # the block was one column too wide and every name shifted.
+  unmatched <- sub(
+    ".*coefficient\\(s\\) with no matching predictor: ([^\n]*).*", "\\1",
+    cs_error
+  )
+  expect_identical(trimws(unmatched), "center_grpb")
+})
+
+
 test_that("lago_optimization() passes additional_covariates on to the processor", {
   # The test above runs rec_int_processor() directly, so it pins what the callee
   # does with the argument but not that its caller supplies it. Deleting the one
@@ -742,6 +912,64 @@ test_that("a restart whose optimization failed is not selected", {
   # substitution is not smuggling in different arithmetic
   expect_identical(srb_cost(c(3, 1)), srb_cost_as_assembled(c(3, 1)))
   expect_identical(srb_cost(c(4, 1)), srb_cost_as_assembled(c(4, 1)))
+})
+
+
+test_that("an all-failed restart set is refused by one guard, for both loops", {
+  # The refusal the test above relies on being upstream. Both restart loops of
+  # the numerical optimizer record a failed solnl() as NA and carry on, and both
+  # have to refuse the case where every restart failed, because there is then
+  # nothing to select. The cost loop always did; the max-achievable-outcome loop
+  # did not, and reached which.max() over an all-NA vector, which is integer(0),
+  # so the outcome it indexed was numeric(0) and the goal comparison two
+  # statements later failed with the base-R error "argument is of length zero"
+  # rather than telling the caller what to do instead.
+  #
+  # The condition and the wording are now one function both loops call, so this
+  # tests the guard itself rather than one loop's copy of it.
+  refuse_if_all_restarts_failed <- getFromNamespace(
+    "refuse_if_all_restarts_failed", "LAGO"
+  )
+
+  # all failed: refused, and by the message that names the way out
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11)),
+    "Numerical optimization failed to find a solution"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11)),
+    "'grid_search'"
+  )
+  # a single restart, failed, is still every restart
+  expect_error(
+    refuse_if_all_restarts_failed(NA_real_),
+    "Numerical optimization failed to find a solution"
+  )
+
+  # SOME failing is not this case and must pass through untouched, which is the
+  # half that a guard written as any(is.na()) would break: one bad starting
+  # point out of eleven has to leave the optimization running.
+  expect_silent(refuse_if_all_restarts_failed(c(NA_real_, 0.5, NA_real_)))
+  expect_null(refuse_if_all_restarts_failed(c(NA_real_, 0.5)))
+  expect_silent(refuse_if_all_restarts_failed(c(0.1, 0.2, 0.3)))
+
+  # and what the surviving restarts then resolve to, which is the reason the
+  # partial case is safe to pass through: which.max() skips NAs, so it returns
+  # the position of the best SURVIVOR in the original indexing. Both the value
+  # and the restart's converged point are indexed by that same position, so they
+  # stay the pair one restart produced rather than being read off different
+  # restarts.
+  results <- c(NA_real_, 0.4, NA_real_, 0.9, 0.2)
+  points <- matrix(
+    c(0, 0, 4, 1, 0, 0, 9, 2, 1, 3),
+    nrow = 2
+  )
+  max_position <- which.max(results)
+  expect_identical(max_position, 4L)
+  expect_identical(results[max_position], 0.9)
+  expect_identical(points[, max_position], c(9, 2))
+  # not the NA-bearing first column, which an is.na()-blind max would take
+  expect_false(identical(points[, 1], points[, max_position]))
 })
 
 

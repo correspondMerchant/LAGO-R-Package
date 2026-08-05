@@ -100,7 +100,13 @@ rec_int_processor <- function(
   # adds its coefficient to all_center_lvl_effects and makes that vector one
   # longer than center_weights_for_outcome_goal, which shifts every predicted
   # outcome and recycles the weights: the #68 defect, one layer down.
-  named_predictors <- gsub("`", "", c(
+  #
+  # The list is the COEFFICIENT names those columns account for, which
+  # claimed_coef_names() resolves against the model. Passing the raw column
+  # names held back only the numeric ones: a factor or character covariate's
+  # coefficient is named after its level, so center_grp never held back
+  # center_grpb and the same #68 shape came back on the factor case alone.
+  named_predictors <- claimed_coef_names(model, coef_mapping, c(
     "(Intercept)", intervention_components, additional_covariates,
     center_characteristics
   ))

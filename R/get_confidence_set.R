@@ -259,10 +259,13 @@ get_confidence_set <- function(
   # its own name, which is what the checks below then report as unmatched.
   coef_mapping <- term_coef_names(fitted_model)
   model_coef_names <- names(coef(fitted_model))
-  # every name the assembly below can supply for itself, set aside so the
-  # fallback in fixed_effect_coef_names() does not take a covariate whose own
-  # name begins with "center" or "period" for a fixed-effect dummy.
-  named_predictors <- gsub("`", "", c(
+  # every COEFFICIENT name the assembly below can supply for itself, set aside
+  # so the fallback in fixed_effect_coef_names() does not take a covariate
+  # whose own name begins with "center" or "period" for a fixed-effect dummy.
+  # Coefficient names and not column names: a factor covariate's coefficient is
+  # named after its level, so center_grp on its own never held back
+  # center_grpb. See claimed_coef_names().
+  named_predictors <- claimed_coef_names(fitted_model, coef_mapping, c(
     "(Intercept)", intervention_components, additional_covariates,
     center_characteristics
   ))
@@ -1017,6 +1020,14 @@ predictor_coef_names <- function(predictor, coef_mapping) {
 # search this used to do, restricted to the coefficients no other block can
 # claim so that a covariate named like center_size or period_flag is not
 # taken for a dummy.
+#
+# named_predictors is the COEFFICIENT names the callers claim, not the column
+# names, which is what claimed_coef_names() builds for them. Excluding by
+# column name only excluded a numeric predictor, whose single coefficient is
+# named after the column; a factor or character predictor is one coefficient
+# per non-reference level, named after the LEVEL, so center_grp in the list
+# never excluded its coefficient center_grpb and the anchored search below
+# claimed it as a center dummy.
 fixed_effect_coef_names <- function(term,
                                     coef_mapping,
                                     model_coef_names,
@@ -1029,6 +1040,60 @@ fixed_effect_coef_names <- function(term,
     !gsub("`", "", model_coef_names) %in% named_predictors
   ]
   grep(paste0("^", term), unclaimed, value = TRUE, ignore.case = TRUE)
+}
+
+# every coefficient name the caller's own named predictors account for, which
+# is what fixed_effect_coef_names() must not claim as a fixed center or time
+# effect. Both callers hold the same thing back: the intercept, the
+# intervention components, the additional covariates and the center
+# characteristics.
+#
+# A predictor's coefficient names are NOT in general its column name. glm()
+# expands a factor or character column into one dummy per non-reference level
+# and names each dummy after the level, so a column center_grp with levels a/b
+# is a coefficient named center_grpb. Passing the column names alone therefore
+# held back nothing for such a column, and its coefficient was claimed as a
+# center dummy: all_center_lvl_effects came back one entry too long, the
+# weights recycled against it, and the reported outcome was wrong by 5% with no
+# indication. That is #68's defect on a factor covariate, and it is the reason
+# this expansion exists rather than the raw names being passed.
+#
+# The expansion is done in two ways because the two apply in disjoint cases.
+# predictor_coef_names() is exact and is used whenever the term mapping is
+# available. It cannot help when the mapping is NULL, since it then returns the
+# column name unchanged -- and NULL is exactly when fixed_effect_coef_names()
+# consults this list at all. So for that case the levels the model was fitted
+# on are used instead: model$xlevels records them per column and survives a
+# model = FALSE fit whose data has left scope, which is one way a mapping goes
+# missing, and glm() names the dummy of each non-reference level
+# paste0(column, level). Both level sets and both namings come from the model
+# itself, so no name is guessed from its shape.
+#
+# Both expansions are unioned with the raw column names rather than replacing
+# them: a numeric column IS its own coefficient name, a column the model does
+# not treat as a factor has no xlevels entry, and holding back a name the model
+# has no coefficient for costs nothing.
+claimed_coef_names <- function(model, coef_mapping, named_predictors) {
+  columns <- gsub("`", "", named_predictors)
+  xlevels <- model$xlevels
+  level_names <- unlist(
+    lapply(columns, function(column) {
+      levels <- xlevels[[column]]
+      if (length(levels) < 2) {
+        character(0)
+      } else {
+        # the reference level has no dummy of its own: glm() leaves it out and
+        # the intercept carries it
+        paste0(column, levels[-1])
+      }
+    }),
+    use.names = FALSE
+  )
+  mapped_names <- unlist(
+    lapply(columns, predictor_coef_names, coef_mapping),
+    use.names = FALSE
+  )
+  unique(c(columns, level_names, mapped_names))
 }
 
 # the coefficient name each center characteristic stands for, one per
