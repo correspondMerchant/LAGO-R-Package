@@ -85,10 +85,13 @@ rec_int_processor <- function(
   # The fallback for a model whose term mapping could not be rebuilt is the name
   # search this used to do, anchored so that only a name beginning with the term
   # is matched, and restricted to the coefficients no other block below claims
-  # for itself. It is reachable: a model fitted with model = FALSE whose data
-  # has since left scope cannot rebuild its mapping, and the exported
-  # get_confidence_set() accepts any model the caller passes, so the fallback is
-  # what a caller in that position gets rather than dead code.
+  # for itself. It is reachable: a model fitted with model = FALSE cannot
+  # rebuild its mapping once the name it was given as data= has left scope, so
+  # model.matrix() has neither a frame to read nor data to re-derive one from.
+  # model = FALSE alone leaves the mapping intact, since the data is still
+  # reachable. The exported get_confidence_set() accepts any model the caller
+  # passes, so the fallback is what a caller in that position gets rather than
+  # dead code.
   #
   # That exclusion list is the point of named_predictors, and it has to be the
   # names THIS function looks up on its own account, exactly as

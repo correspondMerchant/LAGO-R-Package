@@ -387,7 +387,13 @@ validate_inputs <- function(
     # weights being 0 is a different matter, and it is already refused by the
     # sum check below, which is what keeps the renormalisation from dividing by
     # zero: a vector summing to 0 is 1 away from 1, not within 0.001 of it.
-    if (any(center_weights_for_outcome_goal < 0)) {
+    # Compared against a small negative tolerance rather than against 0. A
+    # weight a caller computes as a residual, one minus the others, can land a
+    # few floating-point units below zero while the vector still sums to 1, and
+    # refusing that would contradict allowing a weight of exactly 0. Anything
+    # further below zero than rounding explains is a weight the caller meant to
+    # be negative.
+    if (any(center_weights_for_outcome_goal < -sqrt(.Machine$double.eps))) {
       stop(paste(
         "values in center_weights_for_outcome_goal must be non-negative.",
         "The weights average the per-center outcomes, so a negative weight",

@@ -1048,52 +1048,111 @@ fixed_effect_coef_names <- function(term,
 # intervention components, the additional covariates and the center
 # characteristics.
 #
-# A predictor's coefficient names are NOT in general its column name. glm()
-# expands a factor or character column into one dummy per non-reference level
-# and names each dummy after the level, so a column center_grp with levels a/b
-# is a coefficient named center_grpb. Passing the column names alone therefore
-# held back nothing for such a column, and its coefficient was claimed as a
-# center dummy: all_center_lvl_effects came back one entry too long, the
-# weights recycled against it, and the reported outcome was wrong by 5% with no
-# indication. That is #68's defect on a factor covariate, and it is the reason
-# this expansion exists rather than the raw names being passed.
+# A predictor's coefficient names are NOT in general its column name. A column
+# the model contrast-codes carries one coefficient per contrast column, named
+# after that contrast column and not after the term, so a column center_grp
+# with levels a/b is a coefficient named center_grpb. Passing the column names
+# alone therefore held back nothing for such a column, and its coefficient was
+# claimed as a center dummy: all_center_lvl_effects came back one entry too
+# long, the weights recycled against it, and the reported outcome was wrong by
+# 5% with no indication. That is #68's defect on a factor covariate, and it is
+# the reason this expansion exists rather than the raw names being passed.
 #
 # The expansion is done in two ways because the two apply in disjoint cases.
 # predictor_coef_names() is exact and is used whenever the term mapping is
 # available. It cannot help when the mapping is NULL, since it then returns the
 # column name unchanged -- and NULL is exactly when fixed_effect_coef_names()
-# consults this list at all. So for that case the levels the model was fitted
-# on are used instead: model$xlevels records them per column and survives a
-# model = FALSE fit whose data has left scope, which is one way a mapping goes
-# missing, and glm() names the dummy of each non-reference level
-# paste0(column, level). Both level sets and both namings come from the model
-# itself, so no name is guessed from its shape.
+# consults this list at all. So for that case the coding the model was fitted
+# under is used instead, via contrast_coef_names() below, which reads it off
+# model$contrasts and model$xlevels. Both survive a fit made with
+# model = FALSE whose data= name has since left scope, which is one way a
+# mapping goes missing: model = FALSE alone leaves the mapping intact, since
+# model.matrix() re-derives the frame from the data that is still reachable.
 #
 # Both expansions are unioned with the raw column names rather than replacing
-# them: a numeric column IS its own coefficient name, a column the model does
-# not treat as a factor has no xlevels entry, and holding back a name the model
-# has no coefficient for costs nothing.
-claimed_coef_names <- function(model, coef_mapping, named_predictors) {
+# them: a numeric column IS its own coefficient name, so it is not
+# contrast-coded and has no $contrasts entry to expand.
+claimed_coef_names <- function(model, coef_mapping, named_predictors,
+                               fixed_effect_terms = c("center", "period")) {
   columns <- gsub("`", "", named_predictors)
-  xlevels <- model$xlevels
-  level_names <- unlist(
-    lapply(columns, function(column) {
-      levels <- xlevels[[column]]
-      if (length(levels) < 2) {
-        character(0)
-      } else {
-        # the reference level has no dummy of its own: glm() leaves it out and
-        # the intercept carries it
-        paste0(column, levels[-1])
-      }
-    }),
+  # A column named exactly like a fixed-effect term is dropped rather than
+  # resolved. Its dummies would be named paste0("center", level), which is how
+  # the real center dummies are named, so nothing distinguishes them once the
+  # term mapping is gone: holding them back would take every genuine dummy with
+  # them and leave the fixed effects empty, which is worse than the
+  # over-claiming this list prevents. Leaving such a column out means the search
+  # below over-claims by exactly its coefficients, which the caller's
+  # coefficient count check then refuses, so the collision is reported instead
+  # of silently resolved either way.
+  columns <- setdiff(columns, fixed_effect_terms)
+  contrast_names <- unlist(
+    lapply(columns, contrast_coef_names, model),
     use.names = FALSE
   )
   mapped_names <- unlist(
     lapply(columns, predictor_coef_names, coef_mapping),
     use.names = FALSE
   )
-  unique(c(columns, level_names, mapped_names))
+  unique(c(columns, contrast_names, mapped_names))
+}
+
+# the coefficient names one column of the fitted model was contrast-coded into,
+# derived from the coding the model itself records rather than from a naming
+# convention. Empty for a column the model did not contrast-code at all, e.g. a
+# numeric one, whose single coefficient is its own column name.
+#
+# The names are not reconstructed from the levels. glm() names a dummy
+# paste0(column, level) only under contr.treatment, and three supported column
+# types are coded some other way:
+#   - an ordered factor defaults to contr.poly, giving center_ord.L and
+#     center_ord.Q rather than one dummy per level;
+#   - a logical column is contrast-coded as a two-level factor FALSE/TRUE
+#     (center_flagTRUE) but gets NO $xlevels entry, so a levels-driven
+#     expansion saw fewer than two levels and held nothing back at all;
+#   - a caller may set any coding through options(contrasts=) or the per-column
+#     contrasts= argument of glm(), and contr.sum, contr.helmert and an unnamed
+#     contrast matrix all name their dummies by POSITION: center_grp1,
+#     center_grp2.
+# Each of those was a name the model has and this function did not report, so
+# the anchored search in fixed_effect_coef_names() claimed it as a center or
+# period dummy: the #68 recycling shape, silently wrong by 10.5% on the
+# ordered case.
+#
+# model$contrasts is the slot R records the coding in. It names every
+# contrast-coded column, logicals included, and holds either the name of the
+# contrast function or the contrast matrix itself. stats::contrasts() resolves
+# either to the matrix, and its colnames() are the suffixes glm() appends --
+# NULL colnames meaning the columns are numbered from 1, which is what
+# model.matrix() does with them. The factor is rebuilt from the model's own
+# levels with the recorded coding attached, so the answer depends on the fit
+# and not on the caller's current options(contrasts=).
+contrast_coef_names <- function(column, model) {
+  contrast <- model$contrasts[[column]]
+  if (is.null(contrast)) {
+    return(character(0))
+  }
+  # a logical column is coded as the two-level factor factor(x, c(FALSE, TRUE))
+  # and so has no $xlevels entry of its own to read
+  levels <- model$xlevels[[column]]
+  if (is.null(levels)) {
+    levels <- c("FALSE", "TRUE")
+  }
+  matrix <- tryCatch(
+    {
+      rebuilt <- factor(levels, levels = levels)
+      attr(rebuilt, "contrasts") <- contrast
+      stats::contrasts(rebuilt)
+    },
+    error = function(e) NULL
+  )
+  if (!is.matrix(matrix) || ncol(matrix) == 0) {
+    return(character(0))
+  }
+  suffixes <- colnames(matrix)
+  if (is.null(suffixes)) {
+    suffixes <- as.character(seq_len(ncol(matrix)))
+  }
+  paste0(column, suffixes)
 }
 
 # the coefficient name each center characteristic stands for, one per
