@@ -523,6 +523,7 @@ test_that("a FACTOR covariate's coefficient is excluded, not just its column", {
   fixed_effect_coef_names <- getFromNamespace(
     "fixed_effect_coef_names", "LAGO"
   )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
 
   pulesa <- as.data.frame(main_pulesa_data)
   pulesa$center <- pulesa$Clinic
@@ -546,6 +547,42 @@ test_that("a FACTOR covariate's coefficient is excluded, not just its column", {
   no_mapping <- model
   attr(no_mapping$terms, "term.labels") <- character(0)
   expect_true(is.null(term_coef_names(no_mapping)))
+
+  # The levels come from model$xlevels rather than from the model frame, and the
+  # reason is a fit made with model = FALSE whose data has gone out of scope:
+  # that fit has no $model to read levels from. Reading them from there instead
+  # would pass every assertion below, because this fixture still carries its
+  # model frame, so the case that justifies the choice is asserted here on its
+  # own. Both conditions are needed to reach the fallback: model = FALSE alone
+  # leaves the term mapping intact.
+  detached <- local({
+    scoped <- pulesa
+    glm(
+      Proportions ~ center + AccessMedicines + AccessBPMachines + center_grp,
+      data = scoped, family = gaussian(), model = FALSE
+    )
+  })
+  expect_null(detached$model)
+  expect_false(is.null(detached$xlevels))
+  attr(detached$terms, "term.labels") <- character(0)
+  expect_true(is.null(term_coef_names(detached)))
+
+  # with no model frame to fall back on, the level-named coefficient is still
+  # held back and center still resolves to its 15 dummies. Reading levels from
+  # the absent frame gives 16, which is the recycling shape of the original
+  # defect.
+  detached_excluded <- claimed_coef_names(
+    detached, term_coef_names(detached),
+    c("(Intercept)", "AccessMedicines", "AccessBPMachines", "center_grp")
+  )
+  expect_true("center_grpb" %in% detached_excluded)
+  expect_length(
+    fixed_effect_coef_names(
+      "center", term_coef_names(detached), names(coef(detached)),
+      detached_excluded
+    ),
+    n_centers - 1
+  )
 
   # THROUGH THE CALLER, which is where the wrong number appeared. Taking the
   # fallback must give the same answer as resolving through the mapping: the

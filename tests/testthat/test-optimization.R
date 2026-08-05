@@ -358,4 +358,31 @@ test_that("an unsolvable numerical optimization says to use grid_search", {
   expect_length(ok$rec_int, 2)
   expect_true(all(ok$rec_int >= c(1, 1)))
   expect_true(all(ok$rec_int <= c(40, 5)))
+
+  # the comment above says BOTH optimizers succeed on the full-rank fit, so both
+  # are run: the call above takes the default numerical method, this one the grid
+  # search that fails on the aliased fixture. Asserting it is what confines that
+  # failure to rank deficiency rather than to the method.
+  ok_grid <- suppressWarnings(suppressMessages(lago_optimization(
+    data = full_rank,
+    outcome_name = "EBP_proportions",
+    outcome_type = "continuous",
+    glm_family = "quasibinomial",
+    link = "logit",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85,
+    optimization_method = "grid_search",
+    optimization_grid_search_step_size = c(10, 2),
+    include_center_effects = TRUE,
+    include_time_effects = TRUE,
+    time_effect_optimization_value = 1,
+    include_confidence_set = FALSE,
+    quiet = TRUE
+  )))
+  expect_length(ok_grid$rec_int, 2)
+  expect_true(all(ok_grid$rec_int >= c(1, 1)))
+  expect_true(all(ok_grid$rec_int <= c(40, 5)))
 })
