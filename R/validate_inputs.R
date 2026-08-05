@@ -393,7 +393,7 @@ validate_inputs <- function(
     # refusing that would contradict allowing a weight of exactly 0. Anything
     # further below zero than rounding explains is a weight the caller meant to
     # be negative.
-    if (any(center_weights_for_outcome_goal < -sqrt(.Machine$double.eps))) {
+    if (any(center_weights_for_outcome_goal < -8 * .Machine$double.eps)) {
       stop(paste(
         "values in center_weights_for_outcome_goal must be non-negative.",
         "The weights average the per-center outcomes, so a negative weight",

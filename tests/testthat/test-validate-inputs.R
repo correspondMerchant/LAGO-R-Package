@@ -316,6 +316,14 @@ test_that("center_weights_for_outcome_goal must be non-negative and finite", {
   # admits floating-point noise and not a weight the caller meant
   expect_error(cw(c(0.5, 0.51, -0.01)), "must be non-negative")
 
+  # and the boundary itself, so the gate cannot be widened without a test
+  # failing. Asserting only the two cases above leaves every size in between
+  # unconstrained: a gate of -1e-3 would satisfy them both while admitting
+  # weights that are negative by far more than any subtraction explains.
+  # Anything past a few units in the last place of 1 is refused.
+  expect_error(cw(c(0.5, 0.5, -1e-9)), "must be non-negative")
+  expect_error(cw(c(0.5, 0.5, -1e-12)), "must be non-negative")
+
   # a weight of exactly 0 is ALLOWED, deliberately: it means a center the
   # recommendation is not being computed for, which is what the package itself
   # builds from center_effects_optimization_values (the named center gets 1 and

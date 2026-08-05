@@ -1125,7 +1125,20 @@ claimed_coef_names <- function(model, coef_mapping, named_predictors,
 # NULL colnames meaning the columns are numbered from 1, which is what
 # model.matrix() does with them. The factor is rebuilt from the model's own
 # levels with the recorded coding attached, so the answer depends on the fit
-# and not on the caller's current options(contrasts=).
+# and not on the caller's current options(contrasts=). The levels have to be
+# carried over rather than left to factor(), which would sort them: under the
+# default coding the suffixes ARE the levels, so a re-sorted rebuild names a
+# dummy the model does not have.
+#
+# What this cannot do is tell whose coefficient a name belongs to. It appends a
+# suffix to a column name, and the resulting string can be spelled the same as
+# a coefficient of another term: a column "cent" with a level "erKakiri HC III"
+# gives "centerKakiri HC III", the name of a real center dummy, and on the
+# fallback that dummy is then held back from the center effects. The case that
+# is actually reachable, a column named exactly like a fixed-effect term, is
+# handled by claimed_coef_names() above. The rest is the residual ambiguity of
+# looking coefficients up by name at all, which is why this path exists only
+# for models whose own term mapping is gone.
 contrast_coef_names <- function(column, model) {
   contrast <- model$contrasts[[column]]
   if (is.null(contrast)) {
