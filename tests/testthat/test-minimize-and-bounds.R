@@ -89,6 +89,24 @@ bb_config <- function(outcome_goal,
 # characteristic, which is what makes this three components and not two; it has
 # no center_characteristics argument for that reason and so cannot use
 # bb_config().
+#
+# HOW FRAGILE THIS IS. Reaching the fallback requires EVERY restart to stop
+# outside the box, and most of them miss it by one to six units in the last
+# place, around 1e-16 on a bound of 1. A solver that converges more tightly,
+# which a new NlcOptim could reasonably ship, would land some of those restarts
+# exactly on the bound instead. The fallback would then stop firing and the two
+# tests below would keep passing while no longer covering the projection or the
+# cost recomputation at all. They would not fail, they would quietly stop
+# testing anything, and nothing here detects that.
+#
+# It cannot be detected from the outside either: the projection puts a component
+# exactly on a bound, and so does a solver that converged there, so the returned
+# value cannot distinguish the two. Covering these two lines durably means
+# lifting the projection out of the function nested inside
+# optimize_cost_nlcoptim() to somewhere a test can call it directly, with no
+# solver in between. That is a source change and is deliberately not made here.
+# Until then, treat this fixture as covering those lines TODAY and not as a
+# guarantee that it still will after a solver upgrade.
 bb_three_component_config <- function() {
   list(
     data = BB_data,
@@ -393,6 +411,7 @@ test_that("the recommendation never leaves the intervention bounds", {
     expect_true(all(res$rec_int >= lower), info = label)
     expect_true(all(res$rec_int <= upper), info = label)
   }
+
 })
 
 test_that("the shrinking fallback returns the projected previous intervention", {
