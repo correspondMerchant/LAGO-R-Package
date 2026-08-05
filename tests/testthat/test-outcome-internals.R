@@ -972,6 +972,17 @@ test_that("the fallback equals the mapping for every column type it handles", {
     `unused level` = list(function(k) {
       factor(rep_len(c("a", "b"), k), levels = c("a", "b", "z"))
     }, NULL),
+    # levels in an order factor() would not choose for itself. Every other
+    # factor case here is alphabetical, so rebuilding the column WITHOUT
+    # carrying its levels over would still produce the right suffixes and this
+    # would all pass. Under contr.treatment the suffixes ARE the levels, so a
+    # rebuild that re-sorted them holds back a name the model does not have and
+    # misses one it does.
+    `unsorted levels` = list(function(k) {
+      factor(rep_len(c("mid", "lo", "hi"), k),
+        levels = c("mid", "lo", "hi")
+      )
+    }, NULL),
     `contr.sum` = list(
       function(k) factor(rep_len(c("a", "b", "c"), k)), "contr.sum"
     ),
