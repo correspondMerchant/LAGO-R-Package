@@ -30,6 +30,84 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 }
 
 
+#' select_restart_within_bounds
+#'
+#' @description Internal function that picks the recommended intervention out
+#' of the points a multi-start numerical optimizer converged to, and returns it
+#' together with the cost of the point being recommended.
+#'
+#' @details The filter, the fallback, the choice, the projection and the cost
+#' recomputation are one decision and are deliberately kept together: each
+#' step's correctness depends on the one before it.
+#'
+#' costs holds the cost each restart converged to, so the best restart is the
+#' cheapest one. Every restart satisfies the outcome constraint, which
+#' NlcOptim::solnl() enforces through confun, so cost is the only thing to
+#' choose on among the ones that are actually implementable.
+#'
+#' solnl() treats the box as a soft constraint and will step a little outside it
+#' to buy a lower objective, so the cheapest restart is systematically the one
+#' furthest outside the bounds: selecting on cost alone selects for the
+#' violation. Restarts that left the box are therefore dropped before the
+#' comparison. If every restart left it they are all kept, so a recommendation
+#' is still returned, and the survivor is brought back onto the box.
+#'
+#' The chosen restart can still sit a solver tolerance outside the box, when
+#' every restart did. A recommendation has to be implementable, so it is
+#' projected onto the bounds and its cost recomputed at the value actually being
+#' recommended rather than reported from the point the solver stopped at. The
+#' projection can only raise the cost of a monotone cost function, so reporting
+#' the solver's cost understates what the recommendation costs.
+#'
+#' @param restart_points A numeric matrix with one column per restart and one
+#' row per intervention component, holding the point each restart converged to.
+#' @param costs A numeric vector, one entry per column of restart_points, with
+#' the cost that restart converged to. NA marks a restart whose optimization
+#' failed. Not every entry may be NA: the caller refuses that case with its own
+#' message before calling this.
+#' @param lower_bounds A numeric vector. The lower bounds of the intervention
+#' components.
+#' @param upper_bounds A numeric vector. The upper bounds of the intervention
+#' components.
+#' @param cost_fun A function of one numeric vector returning the total cost of
+#' that intervention.
+#'
+#' @return A list with:
+#' - int_components: the chosen intervention, projected onto the bounds.
+#' - rec_int_cost: cost_fun() evaluated at int_components.
+#'
+#' @keywords internal
+select_restart_within_bounds <- function(restart_points,
+                                         costs,
+                                         lower_bounds,
+                                         upper_bounds,
+                                         cost_fun) {
+  in_box <- apply(
+    restart_points, 2,
+    function(x) {
+      all(x >= lower_bounds) &&
+        all(x <= upper_bounds)
+    }
+  )
+  valid_indices <- which(!is.na(costs) & in_box)
+  if (length(valid_indices) == 0) {
+    valid_indices <- which(!is.na(costs))
+  }
+  min_position <- valid_indices[which.min(costs[valid_indices])]
+  int_components <- restart_points[, min_position]
+
+  int_components <- pmin(
+    pmax(int_components, lower_bounds),
+    upper_bounds
+  )
+
+  list(
+    int_components = int_components,
+    rec_int_cost = cost_fun(int_components)
+  )
+}
+
+
 #' get_recommended_interventions
 #'
 #' @description Internal function that calculates the LAGO recommended
@@ -585,44 +663,26 @@ get_recommended_interventions <- function(
           ))
         }
 
-        # cost_results holds the cost each restart converged to, so the best
-        # restart is the cheapest one. Every restart satisfies the outcome
-        # constraint, which solnl() enforces through confun, so cost is the only
-        # thing to choose on among the ones that are actually implementable.
-        #
-        # solnl() treats the box as a soft constraint and will step a little
-        # outside it to buy a lower objective, so the cheapest restart is
-        # systematically the one furthest outside the bounds: selecting on cost
-        # alone selects for the violation. Restarts that left the box are
-        # therefore dropped before the comparison. If every restart left it they
-        # are all kept, so a recommendation is still returned, and the result is
-        # brought back onto the box below.
-        in_box <- apply(
-          results_int_components, 2,
-          function(x) {
-            all(x >= intervention_lower_bounds) &&
-              all(x <= intervention_upper_bounds)
-          }
+        # Choosing among the restarts, and making the winner implementable, is
+        # one decision and lives in select_restart_within_bounds(): the in-box
+        # filter, the keep-everything fallback, the cheapest-survivor choice,
+        # the projection onto the bounds and the cost recomputation at the
+        # projected point. It is a package-level internal rather than inline
+        # here so that each of those steps can be tested with a hand-built
+        # restart matrix, with no solver, model or data in between. The last two
+        # steps only do anything when EVERY restart left the box, which is
+        # exceptional from the outside, so they are not otherwise reachable from
+        # a test.
+        selected <- select_restart_within_bounds(
+          restart_points = results_int_components,
+          costs = cost_results,
+          lower_bounds = intervention_lower_bounds,
+          upper_bounds = intervention_upper_bounds,
+          cost_fun = cost_obj_fun
         )
-        valid_indices <- which(!is.na(cost_results) & in_box)
-        if (length(valid_indices) == 0) {
-          valid_indices <- which(!is.na(cost_results))
-        }
-        min_position <- valid_indices[which.min(cost_results[valid_indices])]
-        int_components <- results_int_components[, min_position]
+        rec_int_cost <- selected$rec_int_cost
 
-        # The chosen restart can still sit a solver tolerance outside the box,
-        # when every restart did. A recommendation has to be implementable, so
-        # it is brought back onto the bounds and its cost recomputed at the
-        # value actually being recommended rather than reported from the point
-        # the solver stopped at.
-        int_components <- pmin(
-          pmax(int_components, intervention_lower_bounds),
-          intervention_upper_bounds
-        )
-        rec_int_cost <- cost_obj_fun(int_components)
-
-        est_rec_int <- int_components
+        est_rec_int <- selected$int_components
 
         est_reachable_outcome <- get_est_reachable_outcome(
           x = est_rec_int,

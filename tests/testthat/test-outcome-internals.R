@@ -26,6 +26,14 @@
 #     own: the search is anchored, and it skips the names the assembly can
 #     supply for itself. The mapping is available for every model the suite
 #     fits, so the fallback never runs and neither guard is tested end to end.
+#   - select_restart_within_bounds() projects the chosen restart onto the
+#     intervention bounds and recomputes its cost there. Both only do anything
+#     when EVERY restart left the box, which needs solnl() to stop a tolerance
+#     outside every one of its bounds on every restart. The three-component
+#     integration fixture in test-minimize-and-bounds.R does reach it, but only
+#     because most of its restarts miss the box by around 1e-16, so a solver
+#     that converged more tightly would disarm it silently. Called directly with
+#     a hand-built restart matrix there is no solver to depend on.
 #
 # getFromNamespace() is how test-helpers.R reaches the other internals, and is
 # used here for the same reason.
@@ -247,4 +255,635 @@ test_that("the fixed-effect fallback is anchored and skips the named predictors"
     ),
     0
   )
+})
+
+
+test_that("both callers pass the names they have already claimed", {
+  # The guard above is a PARAMETER, so it has two halves: the helper filtering
+  # against the list, and the caller building a list to filter against. The
+  # helper half is covered above. This is the caller half, which
+  # rec_int_processor() used to defeat by passing character(0): a list that
+  # excludes nothing makes the helper's exclusion a no-op, so the two are not
+  # independent guards and covering one does not cover the other.
+  #
+  # The exclusion list each caller owes is the names it looks up on its own
+  # account: the intercept, the intervention components, the additional
+  # covariates and the center characteristics. Built here the way both callers
+  # build it, over the coefficient names glm() actually produces for a fit with
+  # real center and period dummies alongside a center_size covariate and a
+  # period_flag covariate.
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+
+  bb <- as.data.frame(BB_data)
+  bb$center <- factor(rep_len(paste0("c", 1:3), nrow(bb)))
+  bb$period <- factor(rep_len(1:3, nrow(bb)))
+  bb$center_size <- bb$staff_nurse
+  bb$period_flag <- bb$distance_10
+  model <- suppressWarnings(glm(
+    pp3_oxytocin_mother ~ center + period + coaching_updt +
+      launch_duration + center_size + period_flag,
+    data = bb, family = binomial()
+  ))
+  model_coef_names <- names(coef(model))
+  # the fixture has to contain the confusable names, or there is nothing for an
+  # empty exclusion list to wrongly claim
+  expect_true(all(c("centerc2", "centerc3", "period2", "period3",
+    "center_size", "period_flag") %in% model_coef_names))
+
+  # the list, built exactly as both call sites build it
+  named_predictors <- gsub("`", "", c(
+    "(Intercept)", c("coaching_updt", "launch_duration"),
+    c("center_size", "period_flag"), NULL
+  ))
+
+  # with the list the callers owe, only the real dummies are claimed
+  expect_equal(
+    fixed_effect_coef_names(
+      "center", NULL, model_coef_names, named_predictors
+    ),
+    c("centerc2", "centerc3")
+  )
+  expect_equal(
+    fixed_effect_coef_names(
+      "period", NULL, model_coef_names, named_predictors
+    ),
+    c("period2", "period3")
+  )
+
+  # and EMPTIED, which is what rec_int_processor() used to pass, the covariates
+  # are claimed as dummies. This is the assertion that fails if either call site
+  # regresses to character(0).
+  expect_equal(
+    fixed_effect_coef_names(
+      "center", NULL, model_coef_names, character(0)
+    ),
+    c("centerc2", "centerc3", "center_size")
+  )
+  expect_equal(
+    fixed_effect_coef_names(
+      "period", NULL, model_coef_names, character(0)
+    ),
+    c("period2", "period3", "period_flag")
+  )
+  # the two disagree, so the argument is load-bearing rather than incidental
+  expect_false(identical(
+    fixed_effect_coef_names(
+      "center", NULL, model_coef_names, named_predictors
+    ),
+    fixed_effect_coef_names("center", NULL, model_coef_names, character(0))
+  ))
+
+  # WHY it matters, spelled out in the units rec_int_processor() works in.
+  # all_center_lvl_effects is the intercept followed by one entry per center
+  # dummy, and it is averaged against center_weights_for_outcome_goal, which has
+  # one entry per center. An extra claimed coefficient makes it one longer than
+  # the weights, so the weights recycle and every predicted outcome shifts.
+  all_coefs <- coef(model)
+  effects_of <- function(exclusions) {
+    dummies <- fixed_effect_coef_names(
+      "center", NULL, model_coef_names, exclusions
+    )
+    intercept <- all_coefs[["(Intercept)"]]
+    c(intercept, all_coefs[dummies] + intercept)
+  }
+  n_centers <- length(levels(bb$center))
+  expect_length(effects_of(named_predictors), n_centers)
+  expect_length(effects_of(character(0)), n_centers + 1)
+
+  # a center characteristic is excluded on the same footing as a covariate, so
+  # the list covers both ways center_size can enter the model
+  as_characteristic <- gsub("`", "", c(
+    "(Intercept)", c("coaching_updt", "launch_duration"), NULL, "center_size"
+  ))
+  expect_equal(
+    fixed_effect_coef_names(
+      "center", NULL, model_coef_names, as_characteristic
+    ),
+    c("centerc2", "centerc3")
+  )
+
+  # For the record on reachability, which is why this is a
+  # documentation-of-intent guard rather than a live defect: the fallback runs
+  # only when term_coef_names() returns NULL, and it does not for this model or
+  # for any model outcome_model_fitting() builds. The mapping resolves the
+  # dummies exactly and the fallback is never consulted.
+  mapping <- term_coef_names(model)
+  expect_false(is.null(mapping))
+  expect_equal(mapping$center, c("centerc2", "centerc3"))
+  expect_equal(
+    fixed_effect_coef_names(
+      "center", mapping, model_coef_names, character(0)
+    ),
+    c("centerc2", "centerc3")
+  )
+})
+
+
+test_that("rec_int_processor() itself excludes the covariates it names", {
+  # The test above builds the exclusion list the way the callers build it, which
+  # pins what the list must BE but cannot observe a caller that stops passing
+  # one: it never runs the caller. This does, through rec_int_processor(), on a
+  # model whose term mapping has been removed so the fallback is the code path
+  # actually taken.
+  #
+  # The pulesa data has 16 clinics, so a correct run resolves 15 center dummies
+  # and all_center_lvl_effects has 16 entries, matching the 16 weights. With the
+  # exclusion list emptied the center_size covariate is claimed as a 16th dummy,
+  # all_center_lvl_effects becomes 17 long, the weights recycle against it and
+  # the estimated outcome changes. That difference is what this asserts.
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  # a covariate whose own name begins with "center", i.e. the #68 shape
+  pulesa$center_size <- 5 + 0.01 * seq_len(nrow(pulesa))
+  model <- glm(
+    Proportions ~ center + AccessMedicines + AccessBPMachines + center_size,
+    data = pulesa, family = gaussian()
+  )
+  n_centers <- length(levels(pulesa$Clinic))
+  expect_equal(n_centers, 16)
+
+  # the fallback is only reached with no mapping, and the mapping is available
+  # for this model as fitted, so it is removed on purpose here. Emptying
+  # term.labels is what makes term_coef_names() return NULL.
+  no_mapping <- model
+  attr(no_mapping$terms, "term.labels") <- character(0)
+  expect_false(is.null(term_coef_names(model)))
+  expect_true(is.null(term_coef_names(no_mapping)))
+
+  run <- function(fitted) {
+    suppressWarnings(suppressMessages(rec_int_processor(
+      data = pulesa,
+      model = fitted,
+      center_characteristics = NULL,
+      additional_covariates = "center_size",
+      include_center_effects = TRUE,
+      include_time_effects = FALSE,
+      include_interaction_terms = FALSE,
+      main_components = NULL,
+      intervention_components = c("AccessMedicines", "AccessBPMachines"),
+      optimization_method = "grid_search",
+      optimization_grid_search_step_size = c(5, 0.5),
+      link = "identity",
+      center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 1),
+      outcome_goal = 0.6,
+      center_characteristics_optimization_values = NULL,
+      time_effect_optimization_value = NULL,
+      lower_outcome_goal = FALSE,
+      prev_recommended_interventions = NULL,
+      shrinkage_threshold = 0.25,
+      power_goal = NULL,
+      power_goal_approach = "unconditional",
+      num_centers_in_next_stage = NULL,
+      patients_per_center_in_next_stage = NULL,
+      outcome_name = "Proportions"
+    )))
+  }
+
+  # taking the fallback must give the SAME answer as resolving through the
+  # mapping: the fallback is a reconstruction of the mapping's result, so the
+  # two agreeing is the whole requirement on it. They agree only while the
+  # exclusion list is passed. Emptied, the fallback claims center_size as a 16th
+  # dummy and the two diverge.
+  via_mapping <- run(model)
+  via_fallback <- run(no_mapping)
+  expect_identical(
+    via_fallback$est_outcome_goal, via_mapping$est_outcome_goal
+  )
+  expect_identical(via_fallback$rec_int, via_mapping$rec_int)
+  expect_identical(via_fallback$rec_int_cost, via_mapping$rec_int_cost)
+
+  # and the value itself, so this is not two wrong numbers agreeing. Verified by
+  # hand below.
+  expect_equal(via_mapping$est_outcome_goal, -1.28046742730091,
+    tolerance = 1e-12
+  )
+
+  # the OTHER call site, get_confidence_set(), on the same model and the same
+  # fallback. It assembles its prediction columns from the resolved names and
+  # then checks them against the model's coefficients, so an emptied exclusion
+  # list there does not report a wrong number: the extra claimed dummy makes the
+  # block one column too wide and the coefficient check refuses the model. That
+  # this SUCCEEDS is therefore the assertion, and it is what fails if that call
+  # site stops passing its list.
+  cs <- suppressWarnings(suppressMessages(get_confidence_set(
+    predictors_data = pulesa[, c(
+      "center", "AccessMedicines", "AccessBPMachines", "center_size"
+    ), drop = FALSE],
+    include_center_effects = TRUE,
+    center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+    additional_covariates = "center_size",
+    intervention_components = c("AccessMedicines", "AccessBPMachines"),
+    outcome_data = pulesa$Proportions,
+    fitted_model = no_mapping,
+    link = "identity",
+    outcome_goal = 0.6,
+    outcome_type = "continuous",
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 1),
+    confidence_set_grid_step_size = c(5, 0.5),
+    cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+    rec_int = c(5, 0.5)
+  )))
+  expect_equal(
+    as.numeric(cs$rec_int_ci),
+    c(-2.414, -0.262),
+    tolerance = 1e-3
+  )
+})
+
+
+# ---------------------------------------------------------------------------
+# select_restart_within_bounds(): the numerical optimizer's restart selection
+# ---------------------------------------------------------------------------
+
+# a linear total cost, the shape create_cost_function() builds from
+# cost_list_of_vectors = list(c(0, 2), c(0, 5)). Linear and increasing, which is
+# what makes projecting a below-bound component RAISE the cost, so reporting the
+# solver's cost understates the recommendation rather than merely differing from
+# it.
+srb_cost <- function(x) sum(c(2, 5) * x)
+srb_lower <- c(1, 1)
+srb_upper <- c(10, 5)
+
+# the cost function get_recommended_interventions() actually assembles: one
+# closure per component from create_cost_function(), reduced with mapply(). Same
+# values as srb_cost() on a two-component intervention, but it ERRORS on a
+# zero-length intervention instead of returning 0, which is used below where
+# that distinction is the point.
+srb_cost_as_assembled <- local({
+  create_cost_function <- function(coeffs) {
+    function(x) {
+      sum(sapply(seq_along(coeffs), function(i) coeffs[i] * x^(i - 1)))
+    }
+  }
+  cost_functions <- lapply(list(c(0, 2), c(0, 5)), create_cost_function)
+  function(x) sum(mapply(function(f, x) f(x), cost_functions, x))
+})
+
+# restart columns and their costs together, so a test cannot accidentally pair a
+# cost with the wrong restart: the cost of every restart IS srb_cost() at it,
+# which is what solnl() converges to and reports in cost_results.
+srb_restarts <- function(...) {
+  points <- cbind(...)
+  list(points = points, costs = apply(points, 2, srb_cost))
+}
+
+
+test_that("out-of-box restarts are dropped and the cheapest is taken", {
+  # The first three steps, on restarts that need no projection. solnl() steps a
+  # little outside the box to buy a lower objective, so the cheapest restart is
+  # systematically the one furthest outside the bounds: choosing on cost alone
+  # chooses the violation. That is why the in-box filter runs FIRST and the
+  # comparison is only over the survivors.
+  select_restart_within_bounds <- getFromNamespace(
+    "select_restart_within_bounds", "LAGO"
+  )
+
+  # ALL in box. The filter keeps everything, so the answer is just the cheapest,
+  # and the projection has nothing to move: the chosen point comes back
+  # unchanged, bit for bit.
+  all_in <- srb_restarts(c(2, 2), c(3, 1), c(5, 4))
+  expect_equal(all_in$costs, c(14, 11, 30))
+  chosen <- select_restart_within_bounds(
+    all_in$points, all_in$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+  expect_identical(chosen$rec_int_cost, 11)
+
+  # SOME in box, and the cheapest restart overall is one of the ones that left
+  # it: column 1 costs 6, which is cheaper than every survivor, and it is
+  # discarded because its first component is 0.5 against a lower bound of 1.
+  # Without the filter it would win, and its projection to c(1, 1) would then be
+  # recommended at a cost of 7 rather than the genuine in-box optimum of 11.
+  some_in <- srb_restarts(c(0.5, 1), c(3, 1), c(4, 2))
+  expect_equal(some_in$costs, c(6, 11, 18))
+  chosen <- select_restart_within_bounds(
+    some_in$points, some_in$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+  expect_identical(chosen$rec_int_cost, 11)
+  # and it really did pass over a cheaper number
+  expect_lt(min(some_in$costs), chosen$rec_int_cost)
+
+  # an UPPER-bound violation is dropped just the same as a lower-bound one, so
+  # the filter is not one-sided
+  upper_out <- srb_restarts(c(3, 1), c(10, 5.5), c(10.5, 1))
+  chosen <- select_restart_within_bounds(
+    upper_out$points, upper_out$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+
+  # a SINGLE restart, in box: the degenerate case of the same three steps, and
+  # the one that a which.min() over an empty selection would break on
+  single <- srb_restarts(c(3, 1))
+  chosen <- select_restart_within_bounds(
+    single$points, single$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+  expect_identical(chosen$rec_int_cost, 11)
+})
+
+
+test_that("a tie in restart cost resolves to the first such restart", {
+  # which.min() takes the first minimum, so two restarts of equal cost resolve
+  # to the earlier column. This is not arbitrary: the restarts are ordered by
+  # their start point along the box diagonal, so the tie-break is deterministic
+  # and reproducible rather than dependent on the order NlcOptim happened to
+  # return. Pinning it is what makes a future change of reduction (e.g. to
+  # which() plus sample(), or to the LAST minimum) visible.
+  select_restart_within_bounds <- getFromNamespace(
+    "select_restart_within_bounds", "LAGO"
+  )
+
+  # c(3, 1) and c(1, 1.8) both cost 11, exactly, and both are in the box
+  tie <- srb_restarts(c(3, 1), c(1, 1.8), c(5, 4))
+  expect_identical(tie$costs[[1]], tie$costs[[2]])
+  expect_identical(tie$costs, c(11, 11, 30))
+  chosen <- select_restart_within_bounds(
+    tie$points, tie$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+  expect_identical(chosen$rec_int_cost, 11)
+
+  # the tie-break happens AFTER the filter, not before it: put an equally cheap
+  # restart outside the box in front of the winner and the winner is unchanged,
+  # because the out-of-box one is not in the comparison at all
+  tie_out <- srb_restarts(c(0.5, 2), c(3, 1), c(5, 4))
+  expect_identical(tie_out$costs, c(11, 11, 30))
+  chosen <- select_restart_within_bounds(
+    tie_out$points, tie_out$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+})
+
+
+test_that("a restart whose optimization failed is not selected", {
+  # solnl() is wrapped in tryCatch() and a restart that errors leaves NA in
+  # cost_results with its column of the restart matrix left at whatever it was
+  # initialised to, i.e. all zeros. An NA cost must therefore exclude the
+  # restart outright: which.min() ignores NA, but `!is.na(costs)` is what stops
+  # the all-zeros column from being read as a legitimate in-box point of unknown
+  # cost.
+  select_restart_within_bounds <- getFromNamespace(
+    "select_restart_within_bounds", "LAGO"
+  )
+
+  # column 1 is the zeros a failed restart leaves behind. It is OUT of the box
+  # (0 < lower bound 1) and its cost is NA.
+  with_na <- srb_restarts(c(0, 0), c(3, 1), c(5, 4))
+  costs <- c(NA_real_, with_na$costs[[2]], with_na$costs[[3]])
+  chosen <- select_restart_within_bounds(
+    with_na$points, costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+  expect_identical(chosen$rec_int_cost, 11)
+
+  # the harder version: the NA is on a restart that IS in the box, and would be
+  # the cheapest if its cost were read as 0. The in-box filter alone does not
+  # exclude it, so this is the NA guard on its own.
+  na_in_box <- srb_restarts(c(1, 1), c(3, 1), c(5, 4))
+  chosen <- select_restart_within_bounds(
+    na_in_box$points, c(NA_real_, 11, 30), srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(3, 1))
+  expect_identical(chosen$rec_int_cost, 11)
+
+  # and when the ONLY in-box restart is the failed one, the fallback keeps the
+  # out-of-box ones rather than returning nothing, and the cheapest of THOSE is
+  # projected. c(0.5, 1) costs 6 unprojected and c(1, 1) costs 7.
+  only_na_in_box <- srb_restarts(c(2, 2), c(0.5, 1), c(11, 2))
+  expect_identical(only_na_in_box$costs, c(14, 6, 32))
+  chosen <- select_restart_within_bounds(
+    only_na_in_box$points, c(NA_real_, 6, 32),
+    srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(1, 1))
+  expect_identical(chosen$rec_int_cost, 7)
+
+  # EVERY restart failing selects nothing at all: both the filter and the
+  # fallback are `which()` over an all-NA condition, so there is no column to
+  # index and no intervention to project. get_recommended_interventions()
+  # refuses that case with its own "Numerical optimization failed to find a
+  # solution" message BEFORE calling this, which is why there is no stop() here.
+  # This pins that the refusal upstream is load-bearing: reached anyway, the
+  # cost function the optimizer assembles errors out, so a deleted upstream
+  # refusal surfaces as an opaque failure rather than as a recommendation.
+  all_failed <- srb_restarts(c(2, 2), c(3, 1), c(5, 4))
+  expect_error(
+    select_restart_within_bounds(
+      all_failed$points, rep(NA_real_, 3), srb_lower, srb_upper,
+      srb_cost_as_assembled
+    ),
+    "invalid 'type'"
+  )
+  # the selection itself is what is empty, independently of the cost function:
+  # with a cost function that tolerates a zero-length argument, the returned
+  # intervention has no components at all.
+  chosen <- select_restart_within_bounds(
+    all_failed$points, rep(NA_real_, 3), srb_lower, srb_upper, srb_cost
+  )
+  expect_length(chosen$int_components, 0)
+  # and the two cost functions agree on every non-degenerate case, so that
+  # substitution is not smuggling in different arithmetic
+  expect_identical(srb_cost(c(3, 1)), srb_cost_as_assembled(c(3, 1)))
+  expect_identical(srb_cost(c(4, 1)), srb_cost_as_assembled(c(4, 1)))
+})
+
+
+test_that("with no restart in the box the winner is projected and recosted", {
+  # THE POINT OF THE EXTRACTION. Both the projection and the cost recomputation
+  # are only reachable when every restart left the box, which from the outside
+  # needs solnl() to stop a tolerance outside every bound on every restart. Here
+  # it is just an argument.
+  #
+  # A recommendation the user's own bounds forbid is not a recommendation, so
+  # the winner is brought back onto the box; and the cost has to be that of the
+  # point being recommended, not of the point the solver stopped at. For an
+  # increasing cost function the projection can only RAISE the cost, so
+  # reporting the solver's number understates what the recommendation costs.
+  select_restart_within_bounds <- getFromNamespace(
+    "select_restart_within_bounds", "LAGO"
+  )
+
+  # none of the three is in the box: column 1 is below the first lower bound,
+  # column 2 below the second, column 3 above the first upper bound.
+  none_in <- srb_restarts(c(0.9, 2), c(4, 0.5), c(11, 2))
+  expect_identical(none_in$costs, c(11.8, 10.5, 32))
+  # the precondition this test is about, asserted rather than assumed
+  expect_false(any(apply(
+    none_in$points, 2,
+    function(x) all(x >= srb_lower) && all(x <= srb_upper)
+  )))
+
+  chosen <- select_restart_within_bounds(
+    none_in$points, none_in$costs, srb_lower, srb_upper, srb_cost
+  )
+
+  # the fallback kept them all, so the cheapest of the three wins: column 2, at
+  # 10.5. Its second component is 0.5, below its lower bound of 1, and the
+  # PROJECTION is what puts it on the bound. Exactly on it, not near it.
+  expect_identical(chosen$int_components, c(4, 1))
+  expect_identical(chosen$int_components[[2]], srb_lower[[2]])
+
+  # the RECOMPUTATION: the reported cost is srb_cost() at the projected point,
+  # 2*4 + 5*1 = 13, and NOT the 10.5 the solver stopped at. The two differ by
+  # 2.5, so reporting the solver's cost is a 19% understatement of what the
+  # recommendation actually costs.
+  expect_identical(chosen$rec_int_cost, 13)
+  expect_identical(chosen$rec_int_cost, srb_cost(chosen$int_components))
+  expect_false(isTRUE(all.equal(chosen$rec_int_cost, none_in$costs[[2]])))
+  expect_gt(chosen$rec_int_cost, none_in$costs[[2]])
+
+  # the same on a SINGLE restart that violates both bounds in opposite
+  # directions, so the projection is a pmax on one component and a pmin on the
+  # other in the same call. c(0.25, 7) projects to c(1, 5) and costs 27, against
+  # the 35.5 the solver reported.
+  both_ways <- srb_restarts(c(0.25, 7))
+  expect_identical(both_ways$costs, 35.5)
+  chosen <- select_restart_within_bounds(
+    both_ways$points, both_ways$costs, srb_lower, srb_upper, srb_cost
+  )
+  expect_identical(chosen$int_components, c(1, 5))
+  expect_identical(chosen$rec_int_cost, 27)
+  expect_identical(chosen$rec_int_cost, srb_cost(chosen$int_components))
+  # here the projection LOWERS the cost, since the binding violation is on the
+  # upper bound. The requirement is not a direction, it is that the cost belongs
+  # to the returned point.
+  expect_lt(chosen$rec_int_cost, both_ways$costs)
+
+  # the returned intervention is inside the box in every one of these, which is
+  # the invariant lago_optimization() reports to the user
+  for (case in list(none_in, both_ways)) {
+    result <- select_restart_within_bounds(
+      case$points, case$costs, srb_lower, srb_upper, srb_cost
+    )
+    expect_true(all(result$int_components >= srb_lower))
+    expect_true(all(result$int_components <= srb_upper))
+    expect_identical(result$rec_int_cost, srb_cost(result$int_components))
+  }
+})
+
+
+# ---------------------------------------------------------------------------
+# validate_inputs(): the center weights are renormalised, not merely checked
+# ---------------------------------------------------------------------------
+
+test_that("center weights are renormalised exactly when they need it", {
+  # The tolerance says the input was MEANT to be a set of weights; it does not
+  # make it one. The weights multiply the per-center outcomes and are summed, so
+  # a set summing to 1 - d scales EVERY reported outcome by 1 - d: the relative
+  # bias is exactly sum(w) - 1, on the estimated outcome, on the goal comparison
+  # the recommendation is chosen against, and on the confidence set.
+  #
+  # Renormalising here rather than tightening the tolerance keeps documented
+  # input accepted. The requirement is two-sided: a no-op for a compliant
+  # caller, and unbiased for everyone else.
+  validate_inputs <- getFromNamespace("validate_inputs", "LAGO")
+  get_outcome <- getFromNamespace("get_outcome", "LAGO")
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  vi <- function(weights) {
+    suppressWarnings(suppressMessages(validate_inputs(
+      data = pulesa,
+      outcome_name = "Proportions",
+      outcome_type = "continuous",
+      intervention_components = c("AccessMedicines", "AccessBPMachines"),
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 1),
+      outcome_goal = 0.6,
+      outcome_goal_intention = "maximize",
+      power_goal = NULL,
+      power_goal_approach = "unconditional",
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      include_center_effects = TRUE,
+      center_weights_for_outcome_goal = weights
+    )))$center_weights_for_outcome_goal
+  }
+
+  # COMPLIANT: bit-identical, not merely equal. x / 1 is exact in floating
+  # point, so a caller already summing to 1 is unaffected by construction.
+  n_centers <- length(levels(pulesa$Clinic))
+  compliant <- rep(1 / n_centers, n_centers)
+  expect_identical(sum(compliant), 1)
+  expect_identical(vi(compliant), compliant)
+
+  # NON-COMPLIANT but inside the tolerance: 15 weights of 0.0624 and one of
+  # 0.0632 sum to 0.9992, which the 0.001 check accepts. It comes back
+  # renormalised, and to the same value as dividing by the sum by hand.
+  raw <- c(rep(0.0624, n_centers - 1), 0.0632)
+  expect_equal(sum(raw), 0.9992)
+  expect_lt(abs(sum(raw) - 1), 0.001)
+  corrected <- vi(raw)
+  expect_identical(corrected, raw / sum(raw))
+  expect_identical(sum(corrected), 1)
+  expect_false(identical(corrected, raw))
+
+  # the bias this removes, on the estimated outcome, computed by hand. The
+  # identity link makes get_outcome() a plain weighted sum of the per-center
+  # linear predictors, so scaling the weights scales the result: the relative
+  # error is exactly sum(w) - 1 and nothing else.
+  center_effects <- c(0.30, 0.45, 0.55, 0.40, 0.52, 0.35, 0.48, 0.42,
+                      0.38, 0.50, 0.44, 0.36, 0.46, 0.41, 0.53, 0.39)
+  beta <- c(0.05, 0.02, 0.10)
+  int_vector <- c(1, 4, 0.8)
+  eta <- center_effects + sum(beta * int_vector) - beta[1]
+  biased <- get_outcome(raw, center_effects, beta, int_vector, 0, 0, "identity")
+  unbiased <- get_outcome(
+    corrected, center_effects, beta, int_vector, 0, 0, "identity"
+  )
+  # both hand derivations, independent of the package
+  expect_equal(biased, sum(raw * eta), tolerance = 1e-14)
+  expect_equal(unbiased, sum((raw / sum(raw)) * eta), tolerance = 1e-14)
+  # the relative bias IS sum(w) - 1, i.e. -8e-4 here
+  expect_equal((biased - unbiased) / unbiased, sum(raw) - 1, tolerance = 1e-9)
+  expect_equal((biased - unbiased) / unbiased, -8e-4, tolerance = 1e-9)
+  # and the unbiased value is the one a weighted mean must give: bracketed by
+  # the values it averages, which the biased one is free to leave
+  expect_gte(unbiased, min(eta))
+  expect_lte(unbiased, max(eta))
+
+  # the tolerance is still the check that the input was MEANT to be weights, so
+  # something that is not is refused rather than silently rescaled. 16 weights
+  # of 0.05 sum to 0.8.
+  expect_error(
+    vi(rep(0.05, n_centers)),
+    "must sum up to 1"
+  )
+
+  # the correction is SILENT: no message and no warning. It is at most 0.1% of a
+  # weight and is what the caller already asked for by passing something the
+  # tolerance accepts. Warning would fire on rounded input the documentation
+  # invites, e.g. three weights written as c(0.333, 0.333, 0.334).
+  messages <- character(0)
+  warnings <- character(0)
+  withCallingHandlers(
+    suppressWarnings(suppressMessages(vi(raw))),
+    message = function(m) {
+      messages <<- c(messages, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    },
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_length(grep("weight", messages, ignore.case = TRUE), 0)
+  expect_length(grep("weight", warnings, ignore.case = TRUE), 0)
+
+  # the DEFAULT weights, which validate_inputs() derives from the center sample
+  # sizes rather than taking from the caller, already sum to 1 and so are also
+  # unaffected. The renormalisation sits after every branch that can produce
+  # them, so it covers the caller's weights, the sample-size default and the
+  # single-named-center indicator alike.
+  expect_identical(sum(vi(NULL)), 1)
 })

@@ -2,6 +2,7 @@ rec_int_processor <- function(
     data,
     model,
     center_characteristics,
+    additional_covariates = NULL,
     include_center_effects,
     include_time_effects,
     include_interaction_terms,
@@ -83,9 +84,27 @@ rec_int_processor <- function(
   # coefficient that is not a center effect at all.
   # The fallback for a model whose term mapping could not be rebuilt, which
   # outcome_model_fitting() does not produce, is the name search this used to
-  # do, anchored so that only a name beginning with the term is matched.
+  # do, anchored so that only a name beginning with the term is matched, and
+  # restricted to the coefficients no other block below claims for itself.
+  #
+  # That exclusion list is the point of named_predictors, and it has to be the
+  # names THIS function looks up on its own account, exactly as
+  # get_confidence_set() passes its own: the intervention components, the
+  # additional covariates, the center characteristics and the intercept. Passing
+  # character(0) excluded nothing, so on the fallback a covariate or
+  # characteristic named center_size was claimed as a center dummy and
+  # period_flag as a period dummy. Reading center_size as a center dummy
+  # adds its coefficient to all_center_lvl_effects and makes that vector one
+  # longer than center_weights_for_outcome_goal, which shifts every predicted
+  # outcome and recycles the weights: the #68 defect, one layer down.
+  named_predictors <- gsub("`", "", c(
+    "(Intercept)", intervention_components, additional_covariates,
+    center_characteristics
+  ))
   fixed_effect_coefs <- function(term) {
-    fixed_effect_coef_names(term, coef_mapping, names(all_coefs), character(0))
+    fixed_effect_coef_names(
+      term, coef_mapping, names(all_coefs), named_predictors
+    )
   }
 
   if (include_center_effects) {

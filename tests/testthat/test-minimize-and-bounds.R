@@ -90,23 +90,32 @@ bb_config <- function(outcome_goal,
 # no center_characteristics argument for that reason and so cannot use
 # bb_config().
 #
-# HOW FRAGILE THIS IS. Reaching the fallback requires EVERY restart to stop
-# outside the box, and most of them miss it by one to six units in the last
-# place, around 1e-16 on a bound of 1. A solver that converges more tightly,
-# which a new NlcOptim could reasonably ship, would land some of those restarts
-# exactly on the bound instead. The fallback would then stop firing and the two
-# tests below would keep passing while no longer covering the projection or the
-# cost recomputation at all. They would not fail, they would quietly stop
-# testing anything, and nothing here detects that.
+# WHAT THIS FIXTURE DOES AND DOES NOT COVER. Reaching the fallback requires
+# EVERY restart to stop outside the box, and most of them miss it by one to six
+# units in the last place, around 1e-16 on a bound of 1. A solver that converges
+# more tightly, which a new NlcOptim could reasonably ship, lands some of those
+# restarts exactly on the bound instead: with solnl() at tolX = 1e-8,
+# tolFun = tolCon = 1e-9, two restarts come back to a violation of exactly 0,
+# the fallback stops firing, and the projection is unreachable from here again.
+# It would not fail, it would quietly stop exercising that branch, and nothing
+# in this file detects it. Nor can it be detected from the outside: the
+# projection puts a component exactly on a bound, and so does a solver that
+# converged there, so the returned value cannot distinguish the two.
 #
-# It cannot be detected from the outside either: the projection puts a component
-# exactly on a bound, and so does a solver that converged there, so the returned
-# value cannot distinguish the two. Covering these two lines durably means
-# lifting the projection out of the function nested inside
-# optimize_cost_nlcoptim() to somewhere a test can call it directly, with no
-# solver in between. That is a source change and is deliberately not made here.
-# Until then, treat this fixture as covering those lines TODAY and not as a
-# guarantee that it still will after a solver upgrade.
+# That is why the projection and the cost recomputation no longer DEPEND on this
+# fixture. They live in select_restart_within_bounds(), and
+# test-outcome-internals.R calls it directly with a hand-built restart matrix,
+# so the out-of-box fallback, the projection and the recomputation are each
+# pinned with no solver, model or data in between. Verified: deleting the
+# projection, or reporting the solver's cost instead of the cost at the
+# projected point, fails those unit tests even with the tighter tolerances above
+# applied, i.e. even when this fixture has stopped reaching the fallback at all.
+#
+# What this fixture still adds, and why it stays: it is the only case in the
+# suite where the INTEGRATION path reaches that branch, so it is what shows the
+# restart selection is wired into optimize_cost_nlcoptim() correctly and that a
+# real solnl() run can leave every restart outside the box. Treat it as covering
+# the integration, not as the guarantee for those two lines.
 bb_three_component_config <- function() {
   list(
     data = BB_data,
