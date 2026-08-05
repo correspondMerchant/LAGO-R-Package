@@ -291,6 +291,31 @@ test_that("center_weights_for_outcome_goal must be non-negative and finite", {
   # and a mild one, also summing to 1
   expect_error(cw(c(-0.05, 0.55, 0.5)), "must be non-negative")
 
+  # a residual weight, written the way a caller writes it, is ALLOWED even
+  # though it lands a few floating-point units below zero. R evaluates
+  # 1 - .3 - .3 - .4 left to right and the result is -5.55e-17, while
+  # 1 - sum(c(.3, .3, .4)) folds the addends first and gives exactly 0, so only
+  # the sequential form reaches this at all. The vector still sums to exactly 1.
+  # Refusing it would contradict allowing a weight of exactly 0 two assertions
+  # below, which is why the check compares against a tolerance.
+  # The fixture above has three centers. Which literals produce a negative
+  # residual depends on how R folds them, so the value is stated outright
+  # rather than computed here: one unit in the last place below zero, which is
+  # what a caller's subtraction can land on.
+  residual <- -.Machine$double.eps / 2
+  expect_lt(residual, 0)
+  # accepted rather than returned unchanged: the vector sums to a hair under 1,
+  # so the renormalisation rescales it, which is its job. What this asserts is
+  # that the sign check does not refuse it.
+  expect_equal(
+    cw(c(0.5, 0.5, residual))$center_weights_for_outcome_goal,
+    c(0.5, 0.5, residual),
+    tolerance = 1e-12
+  )
+  # a weight negative by more than rounding is still refused, so the tolerance
+  # admits floating-point noise and not a weight the caller meant
+  expect_error(cw(c(0.5, 0.51, -0.01)), "must be non-negative")
+
   # a weight of exactly 0 is ALLOWED, deliberately: it means a center the
   # recommendation is not being computed for, which is what the package itself
   # builds from center_effects_optimization_values (the named center gets 1 and

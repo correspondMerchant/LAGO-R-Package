@@ -382,6 +382,57 @@ test_that("both callers pass the names they have already claimed", {
 })
 
 
+test_that("a covariate named exactly like a fixed effect keeps the term's dummies", {
+  # The exclusion list is built by appending each column's levels to its own
+  # name, which is a string, and for a covariate named exactly "center" those
+  # strings ARE the names of the real center dummies. Holding them back takes
+  # every genuine dummy out of the center effects and leaves them empty, which
+  # is worse than the over-claiming the list prevents, and once the term mapping
+  # is gone nothing distinguishes the two. Such a column is therefore left out
+  # of the list.
+  #
+  # Every other fixture in this file names its covariate with a PREFIX of the
+  # term (center_size, center_grp, center_flag), which the list must still hold
+  # back. Only an exact match is dropped, so both assertions are made here: an
+  # earlier attempt at this fix filtered on startsWith() and reintroduced the
+  # defect the prefixed fixtures cover.
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  model <- glm(
+    Proportions ~ center + AccessMedicines,
+    data = pulesa, family = gaussian()
+  )
+  real_dummies <- grep("^center", names(coef(model)), value = TRUE)
+  expect_length(real_dummies, length(levels(pulesa$Clinic)) - 1)
+
+  # a covariate named exactly "center": none of the real dummies may be held
+  # back, or the center effects come back empty
+  exact <- claimed_coef_names(model, NULL, c(
+    "(Intercept)", "AccessMedicines", "center"
+  ))
+  expect_equal(sum(real_dummies %in% exact), 0)
+
+  # a covariate named with the term as a PREFIX is still held back, which is the
+  # case the exclusion list exists for
+  pulesa$center_grp <- factor(rep_len(c("a", "b"), nrow(pulesa)))
+  prefixed_model <- glm(
+    Proportions ~ center + AccessMedicines + center_grp,
+    data = pulesa, family = gaussian()
+  )
+  prefixed <- claimed_coef_names(prefixed_model, NULL, c(
+    "(Intercept)", "AccessMedicines", "center_grp"
+  ))
+  expect_true("center_grpb" %in% prefixed)
+  expect_equal(
+    sum(grep("^center", names(coef(prefixed_model)), value = TRUE) %in%
+      prefixed),
+    1
+  )
+})
+
+
 test_that("rec_int_processor() itself excludes the covariates it names", {
   # The test above builds the exclusion list the way the callers build it, which
   # pins what the list must BE but cannot observe a caller that stops passing
