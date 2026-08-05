@@ -393,6 +393,7 @@ lago_optimization <- function(
     data = data,
     model = if (lower_outcome_goal) new_model else model,
     center_characteristics = center_characteristics,
+    additional_covariates = additional_covariates,
     include_center_effects = include_center_effects,
     include_time_effects = include_time_effects,
     include_interaction_terms = include_interaction_terms,

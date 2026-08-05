@@ -348,12 +348,47 @@ validate_inputs <- function(
 
   # check if values of center_weights_for_outcome_goal sum up to 1
   if (!is.null(center_weights_for_outcome_goal)) {
-    if (abs(sum(center_weights_for_outcome_goal) - 1) >= 0.001) {
+    weights_sum <- sum(center_weights_for_outcome_goal)
+    if (abs(weights_sum - 1) >= 0.001) {
       stop(paste(
         "values in center_weights_for_outcome_goal must",
         "sum up to 1."
       ))
     }
+    # The tolerance above says the input was MEANT to be a set of weights. It
+    # does not make it one: the weights multiply the per-center outcomes and are
+    # then summed, so a set summing to 0.999 scales every reported outcome by
+    # 0.999 and one summing to 1.001 by 1.001. On the documented example weights
+    # that is a bias of 6.7e-4 on the reported outcome, in the direction of the
+    # error and on every outcome the run reports, including the goal comparison
+    # the recommendation is chosen against.
+    #
+    # Renormalising here rather than tightening the tolerance: the tolerance is
+    # documented and callers rely on it, so tightening it would turn accepted
+    # input into a hard error. Renormalising leaves weights that sum to exactly
+    # 1 bit for bit unchanged, since dividing by 1 is exact, and removes the
+    # bias for everyone else. It is not quite a no-op on the defaults computed
+    # below: a vector of center sizes divided by its own total need not sum to
+    # exactly 1, and about one such vector in four hundred sums to one unit in
+    # the last place away from it, so those runs move by the same amount. That
+    # is the correction doing its job on a genuinely non-unit sum, not an error
+    # introduced here.
+    #
+    # Done once, here, where the weights are validated, so nothing downstream
+    # needs to know: this is the only place lago_optimization() obtains them,
+    # whether from the caller, from the center sample sizes, or from a single
+    # named center, and the value returned from here is what every optimizer,
+    # the shrinking method and the confidence set are all given.
+    #
+    # Silently, deliberately. The correction is at most 0.1% of a weight and is
+    # what the caller already asked for by passing something the tolerance
+    # accepts as a set of weights. Warning on it would fire on rounded input
+    # that the documentation invites -- c(0.333, 0.333, 0.334) is the natural
+    # way to write three equal weights -- so it would be noise on correct
+    # usage while the actual behaviour is now right. A caller who did not intend
+    # weights is still refused, by the check above.
+    center_weights_for_outcome_goal <-
+      center_weights_for_outcome_goal / weights_sum
   }
 
   # check if include_time_effects is logical
