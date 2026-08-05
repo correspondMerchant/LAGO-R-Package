@@ -365,10 +365,14 @@ validate_inputs <- function(
     #
     # Renormalising here rather than tightening the tolerance: the tolerance is
     # documented and callers rely on it, so tightening it would turn accepted
-    # input into a hard error. Renormalising is EXACTLY a no-op for a compliant
-    # caller -- weights already summing to 1 divide by 1 and come back bit for
-    # bit unchanged, since x / 1 is exact in floating point -- and removes the
-    # bias for everyone else.
+    # input into a hard error. Renormalising leaves weights that sum to exactly
+    # 1 bit for bit unchanged, since dividing by 1 is exact, and removes the
+    # bias for everyone else. It is not quite a no-op on the defaults computed
+    # below: a vector of center sizes divided by its own total need not sum to
+    # exactly 1, and about one such vector in four hundred sums to one unit in
+    # the last place away from it, so those runs move by the same amount. That
+    # is the correction doing its job on a genuinely non-unit sum, not an error
+    # introduced here.
     #
     # Done once, here, where the weights are validated, so nothing downstream
     # needs to know: this is the only place lago_optimization() obtains them,

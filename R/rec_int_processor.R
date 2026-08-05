@@ -82,10 +82,13 @@ rec_int_processor <- function(
   # center-level effects would shift every predicted outcome by its
   # coefficient, and the first-element lookups downstream would then read a
   # coefficient that is not a center effect at all.
-  # The fallback for a model whose term mapping could not be rebuilt, which
-  # outcome_model_fitting() does not produce, is the name search this used to
-  # do, anchored so that only a name beginning with the term is matched, and
-  # restricted to the coefficients no other block below claims for itself.
+  # The fallback for a model whose term mapping could not be rebuilt is the name
+  # search this used to do, anchored so that only a name beginning with the term
+  # is matched, and restricted to the coefficients no other block below claims
+  # for itself. It is reachable: a model fitted with model = FALSE whose data
+  # has since left scope cannot rebuild its mapping, and the exported
+  # get_confidence_set() accepts any model the caller passes, so the fallback is
+  # what a caller in that position gets rather than dead code.
   #
   # That exclusion list is the point of named_predictors, and it has to be the
   # names THIS function looks up on its own account, exactly as

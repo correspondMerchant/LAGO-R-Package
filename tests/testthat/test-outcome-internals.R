@@ -502,6 +502,49 @@ test_that("rec_int_processor() itself excludes the covariates it names", {
   )
 })
 
+test_that("lago_optimization() passes additional_covariates on to the processor", {
+  # The test above runs rec_int_processor() directly, so it pins what the callee
+  # does with the argument but not that its caller supplies it. Deleting the one
+  # line in lago_optimization() that forwards additional_covariates leaves that
+  # test green, because nothing else drives the caller.
+  #
+  # The fallback the argument protects needs a model whose term mapping is
+  # missing, which lago_optimization() never fits, so this cannot be reached
+  # end to end by running an optimization. What can be checked is the forwarding
+  # itself: rec_int_processor() is replaced for the duration of one call and
+  # asked what it received.
+  seen <- new.env(parent = emptyenv())
+  real <- getFromNamespace("rec_int_processor", "LAGO")
+  spy <- function(...) {
+    args <- list(...)
+    seen$additional_covariates <- args$additional_covariates
+    do.call(real, args)
+  }
+
+  testthat::with_mocked_bindings(
+    {
+      suppressWarnings(suppressMessages(lago_optimization(
+        data = BB_data,
+        outcome_name = "pp3_oxytocin_mother",
+        outcome_type = "binary",
+        glm_family = "binomial",
+        intervention_components = c("coaching_updt", "launch_duration"),
+        additional_covariates = "birth_volume_100",
+        intervention_lower_bounds = c(1, 1),
+        intervention_upper_bounds = c(40, 5),
+        cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+        outcome_goal = 0.85,
+        include_confidence_set = FALSE,
+        quiet = TRUE
+      )))
+    },
+    rec_int_processor = spy,
+    .package = "LAGO"
+  )
+
+  expect_identical(seen$additional_covariates, "birth_volume_100")
+})
+
 
 # ---------------------------------------------------------------------------
 # select_restart_within_bounds(): the numerical optimizer's restart selection
