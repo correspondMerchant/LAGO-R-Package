@@ -85,10 +85,13 @@ rec_int_processor <- function(
   # The fallback for a model whose term mapping could not be rebuilt is the name
   # search this used to do, anchored so that only a name beginning with the term
   # is matched, and restricted to the coefficients no other block below claims
-  # for itself. It is reachable: a model fitted with model = FALSE whose data
-  # has since left scope cannot rebuild its mapping, and the exported
-  # get_confidence_set() accepts any model the caller passes, so the fallback is
-  # what a caller in that position gets rather than dead code.
+  # for itself. It is reachable: a model fitted with model = FALSE cannot
+  # rebuild its mapping once the name it was given as data= has left scope, so
+  # model.matrix() has neither a frame to read nor data to re-derive one from.
+  # model = FALSE alone leaves the mapping intact, since the data is still
+  # reachable. The exported get_confidence_set() accepts any model the caller
+  # passes, so the fallback is what a caller in that position gets rather than
+  # dead code.
   #
   # That exclusion list is the point of named_predictors, and it has to be the
   # names THIS function looks up on its own account, exactly as
@@ -100,7 +103,13 @@ rec_int_processor <- function(
   # adds its coefficient to all_center_lvl_effects and makes that vector one
   # longer than center_weights_for_outcome_goal, which shifts every predicted
   # outcome and recycles the weights: the #68 defect, one layer down.
-  named_predictors <- gsub("`", "", c(
+  #
+  # The list is the COEFFICIENT names those columns account for, which
+  # claimed_coef_names() resolves against the model. Passing the raw column
+  # names held back only the numeric ones: a factor or character covariate's
+  # coefficient is named after its level, so center_grp never held back
+  # center_grpb and the same #68 shape came back on the factor case alone.
+  named_predictors <- claimed_coef_names(model, coef_mapping, c(
     "(Intercept)", intervention_components, additional_covariates,
     center_characteristics
   ))

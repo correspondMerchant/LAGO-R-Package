@@ -382,6 +382,57 @@ test_that("both callers pass the names they have already claimed", {
 })
 
 
+test_that("a covariate named exactly like a fixed effect keeps the term's dummies", {
+  # The exclusion list is built by appending each column's levels to its own
+  # name, which is a string, and for a covariate named exactly "center" those
+  # strings ARE the names of the real center dummies. Holding them back takes
+  # every genuine dummy out of the center effects and leaves them empty, which
+  # is worse than the over-claiming the list prevents, and once the term mapping
+  # is gone nothing distinguishes the two. Such a column is therefore left out
+  # of the list.
+  #
+  # Every other fixture in this file names its covariate with a PREFIX of the
+  # term (center_size, center_grp, center_flag), which the list must still hold
+  # back. Only an exact match is dropped, so both assertions are made here: an
+  # earlier attempt at this fix filtered on startsWith() and reintroduced the
+  # defect the prefixed fixtures cover.
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  model <- glm(
+    Proportions ~ center + AccessMedicines,
+    data = pulesa, family = gaussian()
+  )
+  real_dummies <- grep("^center", names(coef(model)), value = TRUE)
+  expect_length(real_dummies, length(levels(pulesa$Clinic)) - 1)
+
+  # a covariate named exactly "center": none of the real dummies may be held
+  # back, or the center effects come back empty
+  exact <- claimed_coef_names(model, NULL, c(
+    "(Intercept)", "AccessMedicines", "center"
+  ))
+  expect_equal(sum(real_dummies %in% exact), 0)
+
+  # a covariate named with the term as a PREFIX is still held back, which is the
+  # case the exclusion list exists for
+  pulesa$center_grp <- factor(rep_len(c("a", "b"), nrow(pulesa)))
+  prefixed_model <- glm(
+    Proportions ~ center + AccessMedicines + center_grp,
+    data = pulesa, family = gaussian()
+  )
+  prefixed <- claimed_coef_names(prefixed_model, NULL, c(
+    "(Intercept)", "AccessMedicines", "center_grp"
+  ))
+  expect_true("center_grpb" %in% prefixed)
+  expect_equal(
+    sum(grep("^center", names(coef(prefixed_model)), value = TRUE) %in%
+      prefixed),
+    1
+  )
+})
+
+
 test_that("rec_int_processor() itself excludes the covariates it names", {
   # The test above builds the exclusion list the way the callers build it, which
   # pins what the list must BE but cannot observe a caller that stops passing
@@ -501,6 +552,611 @@ test_that("rec_int_processor() itself excludes the covariates it names", {
     tolerance = 1e-3
   )
 })
+
+
+test_that("a FACTOR covariate's coefficient is excluded, not just its column", {
+  # The test above uses a NUMERIC covariate, center_size, whose single
+  # coefficient IS named after its column, so passing the column name held it
+  # back. A factor or character covariate is one coefficient per non-reference
+  # level, each named after the LEVEL: a column center_grp with levels a/b is a
+  # coefficient named center_grpb. So a list of column names held back nothing
+  # for it, the anchored search claimed center_grpb as a 16th center dummy, and
+  # the numeric case passing was not evidence the factor case did.
+  #
+  # This is #68's defect surviving on the factor case alone, and it is a wrong
+  # NUMBER rather than an error: all_center_lvl_effects came back 17 long
+  # against 16 weights, the weights recycled, and the reported outcome was off
+  # by 5% with nothing said. The exclusion list is therefore built from the
+  # coefficient names the predictors account for, which claimed_coef_names()
+  # resolves from the model.
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  # a FACTOR covariate whose own name begins with "center", i.e. the #68 shape
+  # one level down
+  pulesa$center_grp <- factor(rep_len(c("a", "b"), nrow(pulesa)))
+  model <- glm(
+    Proportions ~ center + AccessMedicines + AccessBPMachines + center_grp,
+    data = pulesa, family = gaussian()
+  )
+  n_centers <- length(levels(pulesa$Clinic))
+  expect_equal(n_centers, 16)
+
+  # the fixture has to contain the confusable name, or there is nothing to be
+  # wrongly claimed. The coefficient is named after the LEVEL, not the column:
+  # that asymmetry is the whole defect.
+  model_coef_names <- names(coef(model))
+  expect_true("center_grpb" %in% model_coef_names)
+  expect_false("center_grp" %in% model_coef_names)
+
+  no_mapping <- model
+  attr(no_mapping$terms, "term.labels") <- character(0)
+  expect_true(is.null(term_coef_names(no_mapping)))
+
+  # The levels come from model$xlevels rather than from the model frame, and the
+  # reason is a fit made with model = FALSE whose data has gone out of scope:
+  # that fit has no $model to read levels from. Reading them from there instead
+  # would pass every assertion below, because this fixture still carries its
+  # model frame, so the case that justifies the choice is asserted here on its
+  # own. Both conditions are needed to reach the fallback: model = FALSE alone
+  # leaves the term mapping intact.
+  detached <- local({
+    scoped <- pulesa
+    glm(
+      Proportions ~ center + AccessMedicines + AccessBPMachines + center_grp,
+      data = scoped, family = gaussian(), model = FALSE
+    )
+  })
+  expect_null(detached$model)
+  expect_false(is.null(detached$xlevels))
+  attr(detached$terms, "term.labels") <- character(0)
+  expect_true(is.null(term_coef_names(detached)))
+
+  # with no model frame to fall back on, the level-named coefficient is still
+  # held back and center still resolves to its 15 dummies. Reading levels from
+  # the absent frame gives 16, which is the recycling shape of the original
+  # defect.
+  detached_excluded <- claimed_coef_names(
+    detached, term_coef_names(detached),
+    c("(Intercept)", "AccessMedicines", "AccessBPMachines", "center_grp")
+  )
+  expect_true("center_grpb" %in% detached_excluded)
+  expect_length(
+    fixed_effect_coef_names(
+      "center", term_coef_names(detached), names(coef(detached)),
+      detached_excluded
+    ),
+    n_centers - 1
+  )
+
+  # THROUGH THE CALLER, which is where the wrong number appeared. Taking the
+  # fallback must give the same answer as resolving through the mapping: the
+  # fallback is a reconstruction of the mapping's result, so the two agreeing is
+  # the whole requirement on it.
+  run <- function(fitted) {
+    suppressWarnings(suppressMessages(rec_int_processor(
+      data = pulesa,
+      model = fitted,
+      center_characteristics = NULL,
+      additional_covariates = "center_grp",
+      include_center_effects = TRUE,
+      include_time_effects = FALSE,
+      include_interaction_terms = FALSE,
+      main_components = NULL,
+      intervention_components = c("AccessMedicines", "AccessBPMachines"),
+      optimization_method = "grid_search",
+      optimization_grid_search_step_size = c(5, 0.5),
+      link = "identity",
+      center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 1),
+      outcome_goal = 0.6,
+      center_characteristics_optimization_values = NULL,
+      time_effect_optimization_value = NULL,
+      lower_outcome_goal = FALSE,
+      prev_recommended_interventions = NULL,
+      shrinkage_threshold = 0.25,
+      power_goal = NULL,
+      power_goal_approach = "unconditional",
+      num_centers_in_next_stage = NULL,
+      patients_per_center_in_next_stage = NULL,
+      outcome_name = "Proportions"
+    )))
+  }
+  via_mapping <- run(model)
+  via_fallback <- run(no_mapping)
+  expect_identical(
+    via_fallback$est_outcome_goal, via_mapping$est_outcome_goal
+  )
+  expect_identical(via_fallback$rec_int, via_mapping$rec_int)
+  expect_identical(via_fallback$rec_int_cost, via_mapping$rec_int_cost)
+
+  # and the value itself, so this is not two wrong numbers agreeing. The
+  # unfixed fallback reported 0.745 against this 0.708, a 5.2% error, which is
+  # the magnitude the recycling produces here.
+  expect_equal(via_mapping$est_outcome_goal, 0.708333856066007,
+    tolerance = 1e-12
+  )
+
+  # and the same thing one layer down, in the names themselves. This is placed
+  # AFTER the end-to-end assertions on purpose: the defect is a wrong NUMBER, so
+  # what must fail on an unfixed tree is the comparison above, not a lookup of a
+  # helper that tree does not have.
+  # the list the caller owes now names the coefficient, and the model's own
+  # xlevels is where the level comes from, so no name is guessed from its shape
+  columns <- c(
+    "(Intercept)", "AccessMedicines", "AccessBPMachines", "center_grp"
+  )
+  claimed <- getFromNamespace("claimed_coef_names", "LAGO")(
+    no_mapping, NULL, columns
+  )
+  expect_true("center_grpb" %in% claimed)
+  # the column name is kept too: a numeric column IS its own coefficient name
+  expect_true(all(columns %in% claimed))
+
+  # with it, only the 15 real dummies are claimed
+  expect_length(
+    fixed_effect_coef_names("center", NULL, model_coef_names, claimed),
+    n_centers - 1
+  )
+  expect_false("center_grpb" %in%
+    fixed_effect_coef_names("center", NULL, model_coef_names, claimed))
+  # and with the raw COLUMN names, which is what used to be passed, the factor
+  # coefficient is claimed as a 16th. This is the assertion that fails if the
+  # list regresses to column names.
+  expect_true("center_grpb" %in%
+    fixed_effect_coef_names("center", NULL, model_coef_names, columns))
+  expect_length(
+    fixed_effect_coef_names("center", NULL, model_coef_names, columns),
+    n_centers
+  )
+
+
+  # the OTHER call site, get_confidence_set(), on the same fallback model. It
+  # cross-checks its assembled columns against the model's coefficients, so the
+  # extra claimed dummy there is refused rather than reported as a number: its
+  # symptom was an error, not a wrong answer. The fix does not make this model
+  # work -- a factor covariate held at its reference level is still one column
+  # against two coefficient names -- but it does make the refusal name the one
+  # coefficient that is genuinely unmatched instead of all 16.
+  cs_error <- tryCatch(
+    suppressWarnings(suppressMessages(get_confidence_set(
+      predictors_data = pulesa[, c(
+        "center", "AccessMedicines", "AccessBPMachines", "center_grp"
+      ), drop = FALSE],
+      include_center_effects = TRUE,
+      center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+      additional_covariates = "center_grp",
+      intervention_components = c("AccessMedicines", "AccessBPMachines"),
+      outcome_data = pulesa$Proportions,
+      fitted_model = no_mapping,
+      link = "identity",
+      outcome_goal = 0.6,
+      outcome_type = "continuous",
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 1),
+      confidence_set_grid_step_size = c(5, 0.5),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(5, 0.5)
+    ))),
+    error = function(e) conditionMessage(e)
+  )
+  expect_match(cs_error, "do not match the predictors")
+  # the unmatched coefficient is the factor dummy and NOTHING else: the 15 real
+  # center dummies are resolved. Unfixed, all 15 were listed here too, because
+  # the block was one column too wide and every name shifted.
+  unmatched <- sub(
+    ".*coefficient\\(s\\) with no matching predictor: ([^\n]*).*", "\\1",
+    cs_error
+  )
+  expect_identical(trimws(unmatched), "center_grpb")
+})
+
+
+# the fixture the four tests below share: a 16-center pulesa fit with one
+# covariate column named center_cov, whose coefficient the anchored ^center
+# search will claim unless it is held back. The covariate's TYPE and CODING are
+# what vary. Returning the pieces rather than the model keeps each test's own
+# assertions about its coding local to it.
+contrast_fixture <- function(column, contrasts_arg = NULL) {
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  pulesa$center_cov <- column(nrow(pulesa))
+  model <- if (is.null(contrasts_arg)) {
+    glm(Proportions ~ center + AccessMedicines + center_cov,
+      data = pulesa, family = gaussian()
+    )
+  } else {
+    glm(Proportions ~ center + AccessMedicines + center_cov,
+      data = pulesa, family = gaussian(),
+      contrasts = list(center_cov = contrasts_arg)
+    )
+  }
+  list(
+    data = pulesa,
+    model = model,
+    n_centers = length(levels(pulesa$Clinic)),
+    columns = c("(Intercept)", "AccessMedicines", "center_cov")
+  )
+}
+
+
+test_that("a LOGICAL covariate's coefficient is excluded (it has no xlevels)", {
+  # A logical column is contrast-coded exactly as a factor is -- glm() codes it
+  # as factor(x, c(FALSE, TRUE)) and its coefficient is center_covTRUE -- but it
+  # gets NO $xlevels entry at all. So an expansion driven off $xlevels saw fewer
+  # than two levels, held nothing back, and the anchored search claimed
+  # center_covTRUE as a 16th center dummy: #68's recycling shape on a column
+  # type the fix was meant to cover. The expansion is driven off $contrasts
+  # instead, which does list the column.
+  fx <- contrast_fixture(function(k) rep_len(c(TRUE, FALSE), k))
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  # the fixture's own preconditions: this is the asymmetry that is the defect
+  model_coef_names <- names(coef(fx$model))
+  expect_true("center_covTRUE" %in% model_coef_names)
+  expect_false("center_cov" %in% model_coef_names)
+  expect_true("center_cov" %in% names(fx$model$contrasts))
+  expect_false("center_cov" %in% names(fx$model$xlevels))
+
+  claimed <- claimed_coef_names(fx$model, NULL, fx$columns)
+  expect_true("center_covTRUE" %in% claimed)
+  # and the center block is its 15 real dummies, not 16
+  dummies <- fixed_effect_coef_names(
+    "center", NULL, model_coef_names, claimed
+  )
+  expect_length(dummies, fx$n_centers - 1)
+  expect_false("center_covTRUE" %in% dummies)
+  # the mapping path is the reference answer, and the fallback must equal it
+  mapping <- term_coef_names(fx$model)
+  expect_false(is.null(mapping))
+  expect_identical(
+    sort(dummies),
+    sort(fixed_effect_coef_names(
+      "center", mapping, model_coef_names,
+      claimed_coef_names(fx$model, mapping, fx$columns)
+    ))
+  )
+})
+
+
+test_that("an ORDERED covariate's coefficients are excluded (contr.poly)", {
+  # An ordered factor defaults to contr.poly, so its coefficients are
+  # center_cov.L and center_cov.Q -- polynomial contrasts, NOT one dummy per
+  # level. paste0(column, levels[-1]) built center_covmid and center_covhi,
+  # which are not coefficients of this model at all, so nothing real was held
+  # back and the anchored search claimed BOTH real ones as center dummies: 17
+  # against 16 weights. That is a larger silent error than the two-level factor
+  # case, because two extra effects enter rather than one.
+  fx <- contrast_fixture(function(k) {
+    factor(rep_len(c("lo", "mid", "hi"), k),
+      levels = c("lo", "mid", "hi"), ordered = TRUE
+    )
+  })
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  # the coefficients really are polynomial, and the level-named strings the old
+  # expansion built really are absent: without both halves there is no defect
+  model_coef_names <- names(coef(fx$model))
+  expect_true(all(c("center_cov.L", "center_cov.Q") %in% model_coef_names))
+  expect_false(any(c("center_covmid", "center_covhi") %in% model_coef_names))
+  expect_identical(fx$model$contrasts[["center_cov"]], "contr.poly")
+
+  claimed <- claimed_coef_names(fx$model, NULL, fx$columns)
+  expect_true(all(c("center_cov.L", "center_cov.Q") %in% claimed))
+  dummies <- fixed_effect_coef_names(
+    "center", NULL, model_coef_names, claimed
+  )
+  expect_length(dummies, fx$n_centers - 1)
+  expect_false(any(c("center_cov.L", "center_cov.Q") %in% dummies))
+  mapping <- term_coef_names(fx$model)
+  expect_false(is.null(mapping))
+  expect_identical(
+    sort(dummies),
+    sort(fixed_effect_coef_names(
+      "center", mapping, model_coef_names,
+      claimed_coef_names(fx$model, mapping, fx$columns)
+    ))
+  )
+})
+
+
+test_that("a NON-DEFAULT contrast's coefficients are excluded", {
+  # A caller may set any coding, through options(contrasts=) or the per-column
+  # contrasts= argument of glm(). contr.helmert names its dummies by POSITION,
+  # center_cov1 and center_cov2, so a levels-driven expansion built
+  # center_covb / center_covc -- names this model does not have -- and both real
+  # ones were claimed as center dummies. The suffixes come from the contrast
+  # matrix's colnames() instead, which is what glm() itself appends.
+  fx <- contrast_fixture(
+    function(k) factor(rep_len(c("a", "b", "c"), k)), "contr.helmert"
+  )
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  model_coef_names <- names(coef(fx$model))
+  expect_true(all(c("center_cov1", "center_cov2") %in% model_coef_names))
+  expect_false(any(c("center_covb", "center_covc") %in% model_coef_names))
+  # contr.helmert's own matrix has NO column names, so the suffixes are the
+  # column positions. Deriving them from colnames() alone would give nothing.
+  expect_null(colnames(contr.helmert(3)))
+
+  claimed <- claimed_coef_names(fx$model, NULL, fx$columns)
+  expect_true(all(c("center_cov1", "center_cov2") %in% claimed))
+  dummies <- fixed_effect_coef_names(
+    "center", NULL, model_coef_names, claimed
+  )
+  expect_length(dummies, fx$n_centers - 1)
+  mapping <- term_coef_names(fx$model)
+  expect_false(is.null(mapping))
+  expect_identical(
+    sort(dummies),
+    sort(fixed_effect_coef_names(
+      "center", mapping, model_coef_names,
+      claimed_coef_names(fx$model, mapping, fx$columns)
+    ))
+  )
+
+  # the same defect through options(contrasts=), which is set globally and so
+  # reaches a caller who never touched glm()'s contrasts argument. The coding is
+  # read off the FIT, so restoring the option must not change the answer.
+  previous <- options(contrasts = c("contr.sum", "contr.poly"))
+  summed <- contrast_fixture(function(k) factor(rep_len(c("a", "b", "c"), k)))
+  options(previous)
+  expect_identical(summed$model$contrasts[["center_cov"]], "contr.sum")
+  expect_identical(getOption("contrasts")[[1]], "contr.treatment")
+  summed_names <- names(coef(summed$model))
+  expect_true(all(c("center_cov1", "center_cov2") %in% summed_names))
+  expect_length(
+    fixed_effect_coef_names(
+      "center", NULL, summed_names,
+      claimed_coef_names(summed$model, NULL, summed$columns)
+    ),
+    summed$n_centers - 1
+  )
+})
+
+
+test_that("the fallback equals the mapping for every column type it handles", {
+  # The fallback is a reconstruction of what the term mapping gives, so the one
+  # requirement on it is that it AGREES with the mapping wherever the mapping
+  # exists. That is the strongest check available, because it does not depend on
+  # anybody's reasoning about what glm() names things: the mapping reads the
+  # names off the model matrix.
+  #
+  # Asserted per column type rather than on one model, because each type is
+  # coded differently and a fix for one need not fix another -- which is how a
+  # logical column and an ordered factor stayed broken while the two-level
+  # factor case was fixed.
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  unnamed_matrix <- contr.treatment(3)
+  colnames(unnamed_matrix) <- NULL
+  cases <- list(
+    numeric = list(function(k) seq_len(k) / k, NULL),
+    `factor 2 levels` = list(
+      function(k) factor(rep_len(c("a", "b"), k)), NULL
+    ),
+    `factor 4 levels` = list(
+      function(k) factor(rep_len(c("a", "b", "c", "d"), k)), NULL
+    ),
+    character = list(function(k) rep_len(c("a", "b"), k), NULL),
+    logical = list(function(k) rep_len(c(TRUE, FALSE), k), NULL),
+    ordered = list(function(k) {
+      factor(rep_len(c("lo", "mid", "hi"), k),
+        levels = c("lo", "mid", "hi"), ordered = TRUE
+      )
+    }, NULL),
+    `unused level` = list(function(k) {
+      factor(rep_len(c("a", "b"), k), levels = c("a", "b", "z"))
+    }, NULL),
+    # levels in an order factor() would not choose for itself. Every other
+    # factor case here is alphabetical, so rebuilding the column WITHOUT
+    # carrying its levels over would still produce the right suffixes and this
+    # would all pass. Under contr.treatment the suffixes ARE the levels, so a
+    # rebuild that re-sorted them holds back a name the model does not have and
+    # misses one it does.
+    `unsorted levels` = list(function(k) {
+      factor(rep_len(c("mid", "lo", "hi"), k),
+        levels = c("mid", "lo", "hi")
+      )
+    }, NULL),
+    `contr.sum` = list(
+      function(k) factor(rep_len(c("a", "b", "c"), k)), "contr.sum"
+    ),
+    `contr.SAS` = list(
+      function(k) factor(rep_len(c("a", "b", "c"), k)), "contr.SAS"
+    ),
+    `unnamed contrast matrix` = list(
+      function(k) factor(rep_len(c("a", "b", "c"), k)), unnamed_matrix
+    )
+  )
+
+  for (case in names(cases)) {
+    fx <- contrast_fixture(cases[[case]][[1]], cases[[case]][[2]])
+    mapping <- term_coef_names(fx$model)
+    # the mapping has to be available, or the comparison is vacuous
+    expect_false(is.null(mapping), info = case)
+    model_coef_names <- names(coef(fx$model))
+
+    # the invariant: the same center dummies either way
+    expect_identical(
+      sort(fixed_effect_coef_names(
+        "center", NULL, model_coef_names,
+        claimed_coef_names(fx$model, NULL, fx$columns)
+      )),
+      sort(fixed_effect_coef_names(
+        "center", mapping, model_coef_names,
+        claimed_coef_names(fx$model, mapping, fx$columns)
+      )),
+      info = case
+    )
+    # and it is the right SIZE, so the two agreeing is not two wrong answers
+    expect_length(
+      fixed_effect_coef_names(
+        "center", NULL, model_coef_names,
+        claimed_coef_names(fx$model, NULL, fx$columns)
+      ),
+      fx$n_centers - 1
+    )
+    # every name the fallback holds back for the covariate is a coefficient the
+    # model really has. The levels-driven expansion built center_covmid for an
+    # ordered factor, which is nobody's coefficient, and so held back nothing.
+    derived <- setdiff(
+      claimed_coef_names(fx$model, NULL, fx$columns), fx$columns
+    )
+    expect_true(all(derived %in% model_coef_names), info = case)
+    # and the covariate's own coefficients are exactly what the mapping says
+    expect_identical(
+      sort(unique(c(derived, "center_cov"))),
+      sort(unique(c(mapping[["center_cov"]], "center_cov"))),
+      info = case
+    )
+  }
+})
+
+
+test_that("the fallback equals the mapping on a fit with no model frame", {
+  # The route the fallback is written for: a model = FALSE fit whose data= name
+  # has left scope. That fit has no $model to read a level or a coding from, so
+  # the derivation must come off $contrasts and $xlevels, which both survive it.
+  # model = FALSE alone is not enough -- model.matrix() re-derives the frame
+  # from the data, which is still reachable -- so the term labels are cleared
+  # too, which is what makes term_coef_names() return NULL.
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  fixed_effect_coef_names <- getFromNamespace(
+    "fixed_effect_coef_names", "LAGO"
+  )
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  n_centers <- length(levels(pulesa$Clinic))
+  # a logical and an ordered column together, i.e. the two types with no
+  # $xlevels entry and no per-level naming
+  pulesa$center_flag <- rep_len(c(TRUE, FALSE), nrow(pulesa))
+  pulesa$center_ord <- factor(
+    rep_len(c("lo", "mid", "hi"), nrow(pulesa)),
+    levels = c("lo", "mid", "hi"), ordered = TRUE
+  )
+  formula <- Proportions ~ center + AccessMedicines + center_flag + center_ord
+  columns <- c(
+    "(Intercept)", "AccessMedicines", "center_flag", "center_ord"
+  )
+
+  model <- glm(formula, data = pulesa, family = gaussian())
+  mapping <- term_coef_names(model)
+  expect_false(is.null(mapping))
+  reference <- sort(fixed_effect_coef_names(
+    "center", mapping, names(coef(model)),
+    claimed_coef_names(model, mapping, columns)
+  ))
+  expect_length(reference, n_centers - 1)
+
+  # model = FALSE ALONE leaves the mapping intact: the frame is gone, but the
+  # name given as data= is still reachable from the formula's environment, so
+  # model.matrix() re-derives one. This is the half the comment used to omit.
+  still_reachable <- local({
+    scoped <- pulesa
+    glm(Proportions ~ center + AccessMedicines + center_flag + center_ord,
+      data = scoped, family = gaussian(), model = FALSE
+    )
+  })
+  expect_null(still_reachable$model)
+  expect_false(is.null(term_coef_names(still_reachable)))
+
+  # with the name out of scope as well, there is neither a frame to read nor
+  # data to rebuild one from, and the mapping really is NULL. No term label is
+  # cleared here: this is the route as a caller reaches it.
+  detached <- local({
+    scoped <- pulesa
+    glm(formula, data = scoped, family = gaussian(), model = FALSE)
+  })
+  expect_null(detached$model)
+  expect_true(is.null(term_coef_names(detached)))
+  # and what the derivation needs did survive. $contrasts lists the logical
+  # column even though $xlevels does not, which is why it is the source used.
+  expect_false(is.null(detached$contrasts))
+  expect_true("center_flag" %in% names(detached$contrasts))
+  expect_false("center_flag" %in% names(detached$xlevels))
+  expect_true("center_ord" %in% names(detached$xlevels))
+
+  claimed <- claimed_coef_names(detached, NULL, columns)
+  expect_true("center_flagTRUE" %in% claimed)
+  expect_true(all(c("center_ord.L", "center_ord.Q") %in% claimed))
+  expect_identical(
+    sort(fixed_effect_coef_names(
+      "center", NULL, names(coef(detached)), claimed
+    )),
+    reference
+  )
+
+  # THROUGH THE CALLER, which is where the wrong number appeared: two extra
+  # effects entered all_center_lvl_effects, the weights recycled against it, and
+  # the reported outcome was off by 10.5% with nothing said. Held back, the
+  # fallback reports what the mapping does.
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
+  run <- function(fitted) {
+    suppressWarnings(suppressMessages(rec_int_processor(
+      data = pulesa,
+      model = fitted,
+      center_characteristics = NULL,
+      additional_covariates = c("center_flag", "center_ord"),
+      include_center_effects = TRUE,
+      include_time_effects = FALSE,
+      include_interaction_terms = FALSE,
+      main_components = NULL,
+      intervention_components = "AccessMedicines",
+      optimization_method = "grid_search",
+      optimization_grid_search_step_size = 5,
+      link = "identity",
+      center_weights_for_outcome_goal = rep(1 / n_centers, n_centers),
+      cost_list_of_vectors = list(c(0, 1)),
+      intervention_lower_bounds = 0,
+      intervention_upper_bounds = 10,
+      outcome_goal = 0.6,
+      center_characteristics_optimization_values = NULL,
+      time_effect_optimization_value = NULL,
+      lower_outcome_goal = FALSE,
+      prev_recommended_interventions = NULL,
+      shrinkage_threshold = 0.25,
+      power_goal = NULL,
+      power_goal_approach = "unconditional",
+      num_centers_in_next_stage = NULL,
+      patients_per_center_in_next_stage = NULL,
+      outcome_name = "Proportions"
+    )))
+  }
+  via_mapping <- run(model)
+  via_fallback <- run(detached)
+  expect_identical(
+    via_fallback$est_outcome_goal, via_mapping$est_outcome_goal
+  )
+  expect_identical(via_fallback$rec_int, via_mapping$rec_int)
+})
+
 
 test_that("lago_optimization() passes additional_covariates on to the processor", {
   # The test above runs rec_int_processor() directly, so it pins what the callee
@@ -742,6 +1398,64 @@ test_that("a restart whose optimization failed is not selected", {
   # substitution is not smuggling in different arithmetic
   expect_identical(srb_cost(c(3, 1)), srb_cost_as_assembled(c(3, 1)))
   expect_identical(srb_cost(c(4, 1)), srb_cost_as_assembled(c(4, 1)))
+})
+
+
+test_that("an all-failed restart set is refused by one guard, for both loops", {
+  # The refusal the test above relies on being upstream. Both restart loops of
+  # the numerical optimizer record a failed solnl() as NA and carry on, and both
+  # have to refuse the case where every restart failed, because there is then
+  # nothing to select. The cost loop always did; the max-achievable-outcome loop
+  # did not, and reached which.max() over an all-NA vector, which is integer(0),
+  # so the outcome it indexed was numeric(0) and the goal comparison two
+  # statements later failed with the base-R error "argument is of length zero"
+  # rather than telling the caller what to do instead.
+  #
+  # The condition and the wording are now one function both loops call, so this
+  # tests the guard itself rather than one loop's copy of it.
+  refuse_if_all_restarts_failed <- getFromNamespace(
+    "refuse_if_all_restarts_failed", "LAGO"
+  )
+
+  # all failed: refused, and by the message that names the way out
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11)),
+    "Numerical optimization failed to find a solution"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11)),
+    "'grid_search'"
+  )
+  # a single restart, failed, is still every restart
+  expect_error(
+    refuse_if_all_restarts_failed(NA_real_),
+    "Numerical optimization failed to find a solution"
+  )
+
+  # SOME failing is not this case and must pass through untouched, which is the
+  # half that a guard written as any(is.na()) would break: one bad starting
+  # point out of eleven has to leave the optimization running.
+  expect_silent(refuse_if_all_restarts_failed(c(NA_real_, 0.5, NA_real_)))
+  expect_null(refuse_if_all_restarts_failed(c(NA_real_, 0.5)))
+  expect_silent(refuse_if_all_restarts_failed(c(0.1, 0.2, 0.3)))
+
+  # and what the surviving restarts then resolve to, which is the reason the
+  # partial case is safe to pass through: which.max() skips NAs, so it returns
+  # the position of the best SURVIVOR in the original indexing. Both the value
+  # and the restart's converged point are indexed by that same position, so they
+  # stay the pair one restart produced rather than being read off different
+  # restarts.
+  results <- c(NA_real_, 0.4, NA_real_, 0.9, 0.2)
+  points <- matrix(
+    c(0, 0, 4, 1, 0, 0, 9, 2, 1, 3),
+    nrow = 2
+  )
+  max_position <- which.max(results)
+  expect_identical(max_position, 4L)
+  expect_identical(results[max_position], 0.9)
+  expect_identical(points[, max_position], c(9, 2))
+  # not the NA-bearing first column, which an is.na()-blind max would take
+  expect_false(identical(points[, 1], points[, max_position]))
 })
 
 
