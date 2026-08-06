@@ -1519,6 +1519,21 @@ test_that("a rank-deficient fit is not answered by recommending grid_search", {
     refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
     "[Dd]rop or combine"
   )
+  # ONLY the aliased terms. Every assertion here matches a substring, so a
+  # message that named every coefficient in the model would satisfy all of them
+  # while telling the caller to drop the intercept, both intervention components
+  # and every center. The estimable terms are asserted absent for that reason:
+  # naming a term the caller should keep is worse than naming none, since it is
+  # advice they can follow.
+  deficient_message <- tryCatch(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    error = conditionMessage
+  )
+  for (estimable in c(
+    "(Intercept)", "coaching_updt", "launch_duration", "center2"
+  )) {
+    expect_false(grepl(estimable, deficient_message, fixed = TRUE))
+  }
   # and NOT the advice that cannot help. This is the assertion the shared
   # message fails: it recommended grid_search whatever the cause.
   expect_error(
@@ -1687,6 +1702,17 @@ test_that("the optimizers are told which coefficients could not be estimated", {
   expect_match(err, "rank-deficient")
   expect_match(err, "period2, period3")
   expect_no_match(err, "grid_search")
+  # and ONLY those terms. Every assertion above matches a substring, so a
+  # message listing every coefficient in the model would satisfy them all while
+  # telling the caller to drop the intercept, both intervention components and
+  # every center. Those are the terms glm() DID estimate, asserted absent here
+  # because this is the call site that decides which names are passed on, and so
+  # the only place the difference is visible.
+  for (estimable in c(
+    "(Intercept)", "coaching_updt", "launch_duration", "center2"
+  )) {
+    expect_false(grepl(estimable, err, fixed = TRUE))
+  }
 })
 
 
