@@ -1485,6 +1485,27 @@ test_that("a rank-deficient fit is not answered by recommending grid_search", {
 
   aliased <- c("period2", "period3")
 
+  # ONE aliased term takes the rank-deficient branch too, which is the boundary
+  # the branch is chosen at. Asserting only the two-term case leaves a test that
+  # a condition of "more than one aliased term" would satisfy, and a single
+  # aliased coefficient is what the message's own example produces: two
+  # intervention components that are rescalings of one another alias exactly
+  # one. Getting the boundary wrong restores the whole defect for that case,
+  # grid search recommended and more than three components blamed.
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), "launch_duration"),
+    "rank-deficient"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), "launch_duration"),
+    "launch_duration"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), "launch_duration"),
+    "^(?!.*grid_search).*$",
+    perl = TRUE
+  )
+
   # the rank-deficient branch: the cause, the terms, and what to do about them
   expect_error(
     refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
@@ -1544,6 +1565,11 @@ test_that("a rank-deficient fit is not answered by recommending grid_search", {
     "period2, period3")
   expect_error(refuse_if_no_grid_outcome(c(NA_real_, NA_real_), aliased),
     "rank-deficient")
+  # the same boundary as above: one aliased term takes this branch too
+  expect_error(refuse_if_no_grid_outcome(c(0.4, NA, 0.6), "launch_duration"),
+    "rank-deficient")
+  expect_error(refuse_if_no_grid_outcome(c(0.4, NA, 0.6), "launch_duration"),
+    "^(?!.*grid_search).*$", perl = TRUE)
   expect_identical(
     tryCatch(refuse_if_no_grid_outcome(rep(NA_real_, 3), aliased),
       error = conditionMessage),
