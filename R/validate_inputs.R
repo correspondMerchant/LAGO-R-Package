@@ -1193,6 +1193,18 @@ validate_inputs <- function(
 #'
 #' @noRd
 refuse_invalid_center_weights <- function(center_weights_for_outcome_goal) {
+  # Numeric first, because the two checks below cannot see anything else.
+  # is.finite() is TRUE for every level of a factor, so a factor passes it, and
+  # the comparison that follows then gives NA and the caller fails on the
+  # opaque "missing value where TRUE/FALSE needed" that this function exists to
+  # replace. A character vector fails the comparison the same way.
+  if (!is.numeric(center_weights_for_outcome_goal)) {
+    stop(paste(
+      "center_weights_for_outcome_goal must be a numeric vector. A factor or",
+      "character vector is not weights, even when its levels look like",
+      "numbers: use as.numeric() on the values themselves."
+    ))
+  }
   if (!all(is.finite(center_weights_for_outcome_goal))) {
     stop(paste(
       "values in center_weights_for_outcome_goal must all be finite",

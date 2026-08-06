@@ -346,6 +346,16 @@ test_that("center_weights_for_outcome_goal must be non-negative and finite", {
   }
   expect_error(cw(c(NA_real_, 0.5, 0.5)), "not weights")
 
+  # A factor whose levels look like numbers reaches neither of those checks:
+  # is.finite() is TRUE for every level, so it passes, and the comparison that
+  # follows gives NA and produces the same opaque base-R error this guard
+  # exists to replace. It is refused for what it is instead.
+  expect_true(all(is.finite(factor(c("0.5", "0.5")))))
+  expect_error(
+    cw(factor(c("0.5", "0.25", "0.25"))), "must be a numeric vector"
+  )
+  expect_error(cw(c("0.5", "0.25", "0.25")), "must be a numeric vector")
+
   # all-zero weights are refused by the sum check, which is also what keeps the
   # renormalisation from dividing by zero: a vector summing to 0 is 1 away from
   # 1, not within the 0.001 tolerance of it.

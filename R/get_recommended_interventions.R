@@ -74,7 +74,12 @@ rank_deficient_outcome_message <- function(aliased_coef_names) {
     "Drop or combine the collinear predictor(s) and fit again. Common causes",
     "are two intervention components that are rescalings of one another, and",
     "fixed center and time effects whose assignments are confounded rather",
-    "than crossed."
+    "than crossed. A model can also be saturated rather than collinear, with",
+    "as many coefficients as it has rows to fit them from, which is what",
+    "center-level data with one row per center gives once center effects are",
+    "included: there dropping a predictor still leaves nothing to estimate the",
+    "rest from, and what helps is more rows per center or fitting without the",
+    "center effects."
   )
 }
 
