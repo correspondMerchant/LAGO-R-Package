@@ -37,6 +37,19 @@ rec_int_processor <- function(
   coef_mapping <- term_coef_names(model)
   all_coefs <- coef(model)
 
+  # the coefficients glm() could not estimate. A term aliased with another gets
+  # an NA coefficient, every outcome computed from it is NA, and no optimizer
+  # can then find anything: the numerical one fails at every restart and the
+  # grid search cannot compare any grid point against the goal. Read off the
+  # model HERE, where the model is, because that is the only place the aliased
+  # TERMS can still be named -- an NA is summed into the center-level effects
+  # one step below and comes out carrying their names instead. Handed to the
+  # optimizers so their refusal can distinguish a rank-deficient fit, which no
+  # optimization method can help with, from a genuine optimization failure,
+  # which switching method may. Empty for a full-rank fit, which is every fit
+  # the package's own path produces unless the data makes it otherwise.
+  aliased_coef_names <- names(all_coefs)[is.na(all_coefs)]
+
   # get coefficients for the intervention components
   intervention_components_coeff <-
     model$coefficients[c("(Intercept)", intervention_components)]
@@ -199,7 +212,8 @@ rec_int_processor <- function(
     patients_per_center_in_next_stage = patients_per_center_in_next_stage,
     outcome_name = outcome_name,
     icc = icc,
-    power_goal_cluster_id = power_goal_cluster_id
+    power_goal_cluster_id = power_goal_cluster_id,
+    aliased_coef_names = aliased_coef_names
   )
 
   list(

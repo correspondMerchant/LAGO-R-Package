@@ -10,7 +10,9 @@
 #' @param center_weights_for_outcome_goal A numeric vector. Specifies the
 #' weights that will be used for calculating recommended interventions that
 #' satisfy the outcome goal for an (weighted) average center.
-#' The weights need to sum up to 1.
+#' The weights need to sum up to 1, and must all be non-negative and finite.
+#' A weight of 0 is allowed and excludes that center from the average. Only
+#' used, and only checked, when include_center_effects is TRUE.
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model.
 #' @param time_effect_optimization_value The period the confidence set is
@@ -184,6 +186,19 @@ get_confidence_set <- function(
   # as in validate_inputs().
   if (!link %in% supported_outcome_links()) {
     stop(unsupported_link_message(link))
+  }
+  # and for the same reason the weights are checked here too, whenever they are
+  # used at all. They average the per-center outcomes, so a negative one puts
+  # the interval outside the range of the intervals it averages: a weight of
+  # -8 beside 8.5 and 0.5 sums to 1, passed every check this function made, and
+  # reported a CI_upper_bound of 1.014 for a BINARY outcome, i.e. a
+  # "probability" above 1. lago_optimization() refuses that in
+  # validate_inputs(), which this function does not go through, so the guard
+  # would not otherwise cover a direct caller -- and the @param text saying the
+  # weights must be non-negative and finite would be true of one entry point
+  # and not the other. The same guard, so both name the same reason.
+  if (include_center_effects) {
+    refuse_invalid_center_weights(center_weights_for_outcome_goal)
   }
   # Create a list to store sequences for each component
   sequences <- list()
@@ -505,10 +520,40 @@ get_confidence_set <- function(
       drop = FALSE
     ]
     new_data <- as.matrix(new_data)
-    pred_all <- expit(new_data %*% model_coefs)
-    se_pred_all <- sqrt(
+    # the linear predictor and its standard error, which are what the model is
+    # fitted on whatever the link, and are mapped onto the outcome scale by the
+    # link below. Computed once so the two link branches can differ ONLY in
+    # that map, the way get_outcome() is written.
+    linear_predictor <- new_data %*% model_coefs
+    se_linear_predictor <- sqrt(
       diag((new_data) %*% model_vcov %*% t(new_data))
-    ) * pred_all * (1 - pred_all)
+    )
+
+    # link is either "logit" or "identity", the only links the outcome
+    # machinery implements, see supported_outcome_links(). Both this and the
+    # continuous branch below key on it, because the scale the interval belongs
+    # on is a property of the LINK the model was fitted on and not of the
+    # outcome's type. This branch used to apply expit() and the logit
+    # delta-method factor unconditionally, keyed on outcome_type alone, so a
+    # binomial fit with link = "identity" -- which lago_optimization() accepts
+    # -- was reported on the logit scale: an interval of 0.636 to 0.655 where
+    # the identity-scale interval is 1.040 to 1.072, not even containing the
+    # point estimate the same run reported. The point estimate was always right,
+    # since get_outcome() has keyed on the link all along; only the interval
+    # was on the wrong scale.
+    if (link == "identity") {
+      # the outcome IS the linear predictor, so the interval is already on the
+      # outcome scale and the delta-method factor is the derivative of the
+      # identity map, i.e. 1.
+      pred_all <- linear_predictor
+      se_pred_all <- se_linear_predictor
+    } else {
+      # the outcome is expit() of the linear predictor, and the delta method
+      # carries the standard error across by the derivative of that map,
+      # d expit(eta) / d eta = p * (1 - p).
+      pred_all <- expit(linear_predictor)
+      se_pred_all <- se_linear_predictor * pred_all * (1 - pred_all)
+    }
 
     # lower and upper bounds of predictions
     lb_prob_all <- pred_all - critical_value * se_pred_all
@@ -521,6 +566,27 @@ get_confidence_set <- function(
     # machinery implements, see supported_outcome_links().
     # If link == "logit", use the logistic-like approach
     # If link == "identity", use linear approach.
+    #
+    # This branch was already keyed on the link, which is why only the binary
+    # branch above needed correcting. The two are NOT merged into one, and the
+    # difference is deliberate rather than drift: this branch builds its own
+    # variance-covariance matrix from predictors_data -- sandwich-form,
+    # optionally clustered on up to two dimensions -- because a continuous
+    # outcome's clustering is not what glm()'s vcov() assumes, while the binary
+    # branch takes vcov(fitted_model) directly. So the two differ in the
+    # VARIANCE they use, and only agree on how a variance becomes an interval.
+    # What they must not differ on is the SCALE, which is the link's business,
+    # and that is now the same decision on both sides: transform the bounds for
+    # "logit", leave them alone for "identity".
+    #
+    # The order of the two steps differs too, and both are correct. Here the
+    # interval is built on the linear-predictor scale and its BOUNDS are
+    # transformed, which cannot leave [0, 1] because expit() cannot. The binary
+    # branch transforms the POINT and carries the standard error across by the
+    # delta method, which is the interval glm()'s own binary machinery reports
+    # and is what this package has always reported for a binary outcome.
+    # Changing that would move every binary logit number, which is not what is
+    # wrong with either branch.
 
     # define the function to manually calculate var-cov matrix
     get_vcov <- function(predictors_data,

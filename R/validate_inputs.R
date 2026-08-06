@@ -353,55 +353,12 @@ validate_inputs <- function(
   # is not automatically a set of weights either -- with every
   # center_sample_size zero it is 0/0, i.e. all NaN.
   if (!is.null(center_weights_for_outcome_goal)) {
-    # every weight has to be a number before either of the checks that follow
-    # can be made at all: any(NA < 0) is not FALSE, it is the R error "missing
-    # value where TRUE/FALSE needed", and that is what a missing weight used to
-    # surface as at the sum check below. An Inf was refused there, but for
-    # summing to Inf rather than for being one, and an Inf beside a -Inf sums to
-    # NaN and hit the same opaque comparison. None of these is a weight, so each
-    # is named here instead.
-    if (!all(is.finite(center_weights_for_outcome_goal))) {
-      stop(paste(
-        "values in center_weights_for_outcome_goal must all be finite",
-        "numbers. NA, NaN, Inf and -Inf are not weights. If the weights were",
-        "not supplied, they were derived from the 'center_sample_size'",
-        "column, which cannot be zero for every center."
-      ))
-    }
-    # the weights are a convex combination over the centers: the reported
-    # outcome is sum(weight_i * outcome_i) over the center-level effects, so it
-    # is a weighted MEAN of the per-center outcomes and has to lie between the
-    # smallest and the largest of them. A negative weight breaks exactly that,
-    # and summing to 1 does not rule one out: weights of -10 and 11 sum to 1 and
-    # gave 10.95 for a logit outcome, i.e. a reported "probability" outside
-    # [0, 1] for a binary outcome. That is a wrong number rather than an error,
-    # so it is refused here and not clamped: a caller who passed a negative
-    # weight did not mean a weight of 0, and quietly substituting one would
-    # answer a question they did not ask.
-    #
-    # A weight of exactly 0 is allowed, deliberately. It means a center the
-    # recommendation is not being computed for, which is a meaningful thing to
-    # ask for and is what the package itself builds from
-    # center_effects_optimization_values: the named center gets weight 1 and
-    # every other center 0. Refusing 0 would refuse that documented path. All
-    # weights being 0 is a different matter, and it is already refused by the
-    # sum check below, which is what keeps the renormalisation from dividing by
-    # zero: a vector summing to 0 is 1 away from 1, not within 0.001 of it.
-    # Compared against a small negative tolerance rather than against 0. A
-    # weight a caller computes as a residual, one minus the others, can land a
-    # few floating-point units below zero while the vector still sums to 1, and
-    # refusing that would contradict allowing a weight of exactly 0. Anything
-    # further below zero than rounding explains is a weight the caller meant to
-    # be negative.
-    if (any(center_weights_for_outcome_goal < -8 * .Machine$double.eps)) {
-      stop(paste(
-        "values in center_weights_for_outcome_goal must be non-negative.",
-        "The weights average the per-center outcomes, so a negative weight",
-        "makes the reported outcome fall outside the range of the outcomes it",
-        "averages, and for a binary outcome outside [0, 1]. A weight of 0 is",
-        "allowed and excludes that center from the average."
-      ))
-    }
+    # what a set of weights has to be at all, i.e. finite and non-negative,
+    # before the sum check below can be made on it. Shared with the exported
+    # get_confidence_set(), so the two entry points cannot come to refuse
+    # different things: see refuse_invalid_center_weights() for why each check
+    # is there.
+    refuse_invalid_center_weights(center_weights_for_outcome_goal)
     weights_sum <- sum(center_weights_for_outcome_goal)
     if (abs(weights_sum - 1) >= 0.001) {
       stop(paste(
@@ -1168,4 +1125,90 @@ validate_inputs <- function(
     lower_outcome_goal = lower_outcome_goal,
     prev_recommended_interventions = prev_recommended_interventions
   )
+}
+
+
+#' refuse_invalid_center_weights
+#'
+#' @description Internal guard for the center weights: refuses a vector that
+#' is not a set of weights at all, i.e. one holding a non-finite or a negative
+#' value.
+#'
+#' @details Both checks are here rather than at one caller because
+#' validate_inputs() is not the only entry point the weights arrive through.
+#' The exported get_confidence_set() takes them directly and does not go
+#' through validate_inputs(), so a negative weight passed to it reached the
+#' interval unchecked and reported a "probability" above 1 for a binary
+#' outcome. That is the same wrong number validate_inputs() already refused,
+#' from the other door, and the two must refuse it in the same words: a caller
+#' who moves between the two entry points should not be told two different
+#' things about the same vector.
+#'
+#' Finiteness first, because neither of the comparisons that follow can be made
+#' at all otherwise: any(NA < 0) is not FALSE, it is the R error "missing value
+#' where TRUE/FALSE needed", and that is what a missing weight used to surface
+#' as at the sum check in validate_inputs(). An Inf was refused there, but for
+#' summing to Inf rather than for being one, and an Inf beside a -Inf sums to
+#' NaN and hit the same opaque comparison. None of these is a weight, so each
+#' is named here instead.
+#'
+#' Then non-negativity. The weights are a convex combination over the centers:
+#' the reported outcome is sum(weight_i * outcome_i) over the center-level
+#' effects, so it is a weighted MEAN of the per-center outcomes and has to lie
+#' between the smallest and the largest of them. A negative weight breaks
+#' exactly that, and summing to 1 does not rule one out: weights of -10 and 11
+#' sum to 1 and gave 10.95 for a logit outcome, i.e. a reported "probability"
+#' outside [0, 1] for a binary outcome. That is a wrong number rather than an
+#' error, so it is refused and not clamped: a caller who passed a negative
+#' weight did not mean a weight of 0, and quietly substituting one would answer
+#' a question they did not ask.
+#'
+#' A weight of exactly 0 is allowed, deliberately. It means a center the
+#' recommendation is not being computed for, which is a meaningful thing to ask
+#' for and is what the package itself builds from
+#' center_effects_optimization_values: the named center gets weight 1 and every
+#' other center 0. Refusing 0 would refuse that documented path. All weights
+#' being 0 is a different matter, and it is refused by validate_inputs()' sum
+#' check, which is what keeps its renormalisation from dividing by zero: a
+#' vector summing to 0 is 1 away from 1, not within 0.001 of it.
+#'
+#' Compared against a small negative tolerance rather than against 0. A weight
+#' a caller computes as a residual, one minus the others, can land a few
+#' floating-point units below zero while the vector still sums to 1, and
+#' refusing that would contradict allowing a weight of exactly 0. Anything
+#' further below zero than rounding explains is a weight the caller meant to be
+#' negative.
+#'
+#' The SUM check is deliberately NOT here. validate_inputs() both refuses a sum
+#' far from 1 and renormalises what it accepts, and the renormalisation is what
+#' makes the tolerance safe; get_confidence_set() has no such step and is
+#' documented as taking the weights the optimization ran with, so requiring a
+#' unit sum of it would refuse the vector its own caller has already
+#' normalised for it.
+#'
+#' @param center_weights_for_outcome_goal A numeric vector of center weights.
+#'
+#' @return Invisibly NULL when every weight is finite and non-negative. Raises
+#' otherwise.
+#'
+#' @noRd
+refuse_invalid_center_weights <- function(center_weights_for_outcome_goal) {
+  if (!all(is.finite(center_weights_for_outcome_goal))) {
+    stop(paste(
+      "values in center_weights_for_outcome_goal must all be finite",
+      "numbers. NA, NaN, Inf and -Inf are not weights. If the weights were",
+      "not supplied, they were derived from the 'center_sample_size'",
+      "column, which cannot be zero for every center."
+    ))
+  }
+  if (any(center_weights_for_outcome_goal < -8 * .Machine$double.eps)) {
+    stop(paste(
+      "values in center_weights_for_outcome_goal must be non-negative.",
+      "The weights average the per-center outcomes, so a negative weight",
+      "makes the reported outcome fall outside the range of the outcomes it",
+      "averages, and for a binary outcome outside [0, 1]. A weight of 0 is",
+      "allowed and excludes that center from the average."
+    ))
+  }
+  invisible(NULL)
 }

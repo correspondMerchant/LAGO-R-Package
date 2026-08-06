@@ -234,25 +234,29 @@ test_that("weights length is validated against the number of observations, not c
 })
 
 
-test_that("an unsolvable numerical optimization says to use grid_search", {
+test_that("a rank-deficient fit is named as such, not sent to grid_search", {
   # END TO END, which is what the unit test of the guard cannot show: that a
   # configuration a user can actually pass reaches it. Every solnl() restart of
   # the max-achievable-outcome loop fails on this fit, and the loop records each
   # failure as NA. With all of them NA, which.max() is integer(0), the outcome
   # read out of it is numeric(0), and the goal comparison that follows used to
   # fail with the base-R error "argument is of length zero" -- no mention of the
-  # optimizer, the goal, or what to do instead. The cost loop 60 lines further
-  # down already refused the same situation with a message naming grid_search;
-  # this path simply never reached it.
+  # optimizer, the goal, or what to do instead.
   #
   # What makes every restart fail here: 6 recycled centers against 3 recycled
   # periods are ALIASED (6 and 3 share a factor, so the period indicators are
   # linear combinations of the center ones), glm() returns NA for the aliased
   # period coefficients, and those NAs flow into the center-level effects. Every
-  # outcome the solver is asked for is then NA, so every restart fails. That is
-  # a rank-deficient model rather than a hard optimization, and it is the
-  # smallest reproducer of the all-failed path; see the note at the end of this
-  # test about the separate defect it also exposes.
+  # outcome the solver is asked for is then NA, so every restart fails.
+  #
+  # That is a rank-deficient MODEL rather than a hard optimization, and it is
+  # what the message has to say, because the two want opposite advice. The
+  # message used to recommend 'grid_search' for every cause -- and grid_search
+  # fails on this same fit, since an NA outcome is an NA outcome whatever
+  # searches over it. Both halves are asserted below: the numerical path names
+  # the rank deficiency, and the grid path, which the old message sent the user
+  # to, now names the same cause instead of failing with the base-R "missing
+  # value where TRUE/FALSE needed".
   bbp <- as.data.frame(BB_proportions)
   bbp$center <- factor(rep_len(paste0("s", 1:6), nrow(bbp)))
   bbp$period <- factor(rep_len(1:3, nrow(bbp)))
@@ -284,27 +288,30 @@ test_that("an unsolvable numerical optimization says to use grid_search", {
     )))
   }
 
-  # the message a user can act on, and the recommendation it makes
-  expect_error(run(), "Numerical optimization failed to find a solution")
-  expect_error(run(), "'grid_search'")
-  # and NOT the base-R error the missing guard produced. This is the assertion
-  # that fails without the fix: the old message was exactly this string.
+  # the cause a user can act on, and the terms that carry it. Naming the
+  # coefficients is the actionable part: they are what has to be dropped or
+  # combined, and nothing else in the run reports them.
+  expect_error(run(), "rank-deficient")
+  expect_error(run(), "period2, period3")
+  expect_error(run(), "[Dd]rop or combine")
+  # and NOT the base-R error the missing guard produced
   expect_error(run(), "^(?!.*argument is of length zero).*$", perl = TRUE)
+  # and NOT the advice that cannot help. The old message recommended
+  # 'grid_search' here, which fails on this very fit, so a message naming it is
+  # the defect: it sends the user to a method that also cannot work. This is
+  # the assertion that fails on the unfixed source, where the message is
+  # exactly that recommendation.
+  expect_error(run(), "^(?!.*grid_search).*$", perl = TRUE)
+  expect_error(run(), "^(?!.*more than\\s+three intervention components).*$",
+    perl = TRUE)
 
-  # NOT asserted here: that following the message's advice succeeds on THIS
-  # data. It does not, and deliberately so -- the cause on this fixture is the
-  # rank-deficient fit above, which grid_search cannot help with either. Asked
-  # for grid_search on the same inputs, the NA outcome reaches that optimizer's
-  # own goal comparison and it fails with the base-R "missing value where
-  # TRUE/FALSE needed", i.e. the same class of opaque failure this test fixes on
-  # the numerical path, in the other optimizer and from a different cause.
-  #
-  # That is a SEPARATE defect from the one under test and is left alone here: it
-  # is an unguarded NA outcome from an aliased model, not an unguarded
-  # all-failed restart set, and fixing it means refusing a rank-deficient fit,
-  # which is a wider behaviour change than this one. Pinned as the current
-  # behaviour so that the day it is fixed, this assertion is what says so.
-  grid_error <- tryCatch(
+  # the other half: the method the old message sent the user to. It fails on
+  # this input too -- the NA outcome reaches its own goal comparison -- and it
+  # used to fail with the base-R "missing value where TRUE/FALSE needed", the
+  # same class of opaque failure, in the other optimizer. It now names the same
+  # cause as the numerical path, because the cause IS the same and neither
+  # method can proceed on it.
+  grid_run <- function() {
     suppressWarnings(suppressMessages(lago_optimization(
       data = bbp,
       outcome_name = "EBP_proportions",
@@ -323,10 +330,18 @@ test_that("an unsolvable numerical optimization says to use grid_search", {
       optimization_grid_search_step_size = c(4, 1),
       include_confidence_set = FALSE,
       quiet = TRUE
-    ))),
-    error = function(e) conditionMessage(e)
+    )))
+  }
+  expect_error(grid_run(), "rank-deficient")
+  expect_error(grid_run(), "period2, period3")
+  expect_error(grid_run(),
+    "^(?!.*missing value where TRUE/FALSE needed).*$", perl = TRUE)
+  # both optimizers say the SAME thing about the same fit, which is the point of
+  # sharing the message: the cause is the model, not the method.
+  expect_identical(
+    tryCatch(run(), error = conditionMessage),
+    tryCatch(grid_run(), error = conditionMessage)
   )
-  expect_match(grid_error, "missing value where TRUE/FALSE needed")
 
   # and on a FULL-RANK fit of the same shape, where the aliasing is gone because
   # 5 centers and 3 periods share no factor, both optimizers succeed. This is

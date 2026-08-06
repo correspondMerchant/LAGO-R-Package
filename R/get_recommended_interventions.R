@@ -30,6 +30,55 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 }
 
 
+#' rank_deficient_outcome_message
+#'
+#' @description The message for an optimization that had nothing to compare
+#' because the OUTCOME MODEL could not be estimated, i.e. glm() returned NA for
+#' at least one coefficient.
+#'
+#' @details This is the cause of the no-computable-outcome situation, as
+#' distinct from the optimizer struggling with a problem it could in principle
+#' solve, and the two need opposite advice. An aliased term's coefficient is
+#' NA, the outcome computed from it is NA, and nothing that searches over
+#' interventions can recover from that: every point it tries is NA whatever the
+#' search. So this branch must NOT send the caller to the other optimization
+#' method, which is what the single message here used to do for every cause. On
+#' the only configuration known to reach the all-failed path at all, following
+#' that advice reached the grid search's own goal comparison as the base-R error
+#' "missing value where TRUE/FALSE needed", i.e. a second opaque failure after
+#' being told to expect a solution.
+#'
+#' What the caller can act on is the model, so the message names the terms that
+#' could not be estimated and says to drop or combine them.
+#'
+#' The condition is read off the fitted coefficients rather than off the NA
+#' outcomes, so the terms can be NAMED: by the time an outcome is NA the NA has
+#' been summed into the center-level effects and carries their names, not the
+#' aliased term's.
+#'
+#' @param aliased_coef_names A character vector, the names of the coefficients
+#' glm() could not estimate. Non-empty: the caller branches on that.
+#'
+#' @return A character string, the message to raise.
+#'
+#' @noRd
+rank_deficient_outcome_message <- function(aliased_coef_names) {
+  paste(
+    "No outcome could be estimated at any of the interventions tried,",
+    "because the outcome model is rank-deficient: the coefficient(s)",
+    paste(aliased_coef_names, collapse = ", "),
+    "could not be estimated (glm() returned NA for them), which happens when",
+    "those predictors are collinear with others in the model. An outcome",
+    "computed from an NA coefficient is NA, so no optimization method can",
+    "proceed on this fit and changing the 'optimization_method' will not help.",
+    "Drop or combine the collinear predictor(s) and fit again. Common causes",
+    "are two intervention components that are rescalings of one another, and",
+    "fixed center and time effects whose assignments are confounded rather",
+    "than crossed."
+  )
+}
+
+
 #' refuse_if_all_restarts_failed
 #'
 #' @description Internal guard for a multi-start numerical optimization in
@@ -40,8 +89,17 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 #' NlcOptim::solnl() call as NA and carry on, so that one bad starting point
 #' does not lose the whole optimization. All of them failing is a different
 #' situation: there is nothing to select, and the only thing to tell the
-#' caller is that this optimizer could not solve their problem and which one
-#' can.
+#' caller is what stopped the optimization and what to do about it.
+#'
+#' WHICH of those to say depends on the cause, and the two causes want opposite
+#' advice, so the message branches on aliased_coef_names. A rank-deficient
+#' outcome model gets rank_deficient_outcome_message(), which does not
+#' recommend another optimizer, because none can help: every outcome is NA
+#' before any search begins. The wording below is kept for the other case, a
+#' genuine numerical-optimization failure on an estimable model, which is what
+#' a caller in that position still needs. One message for both blamed a cause
+#' ("more than three intervention components") that no reachable configuration
+#' demonstrated, and recommended a method that fails on the same input.
 #'
 #' The condition and the message live here, once, rather than at each loop.
 #' The max-achievable-outcome loop had no such check at all while the cost loop
@@ -54,14 +112,23 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 #'
 #' @param results A numeric vector, one entry per restart, holding the value
 #' that restart converged to. NA marks a restart whose optimization failed.
+#' @param aliased_coef_names A character vector, the names of the outcome
+#' model's coefficients glm() could not estimate. Empty (the default) means the
+#' model is of full rank, so an all-failed restart set is the optimizer's own
+#' failure. Defaulted so that a call site with no model to hand still gets the
+#' guard, with the wording it had.
 #'
 #' @return Invisibly NULL when at least one restart succeeded. Raises
 #' otherwise, so the callers below can treat returning as "there is something
 #' to choose from".
 #'
 #' @noRd
-refuse_if_all_restarts_failed <- function(results) {
+refuse_if_all_restarts_failed <- function(results,
+                                          aliased_coef_names = character(0)) {
   if (all(is.na(results))) {
+    if (length(aliased_coef_names) > 0) {
+      stop(rank_deficient_outcome_message(aliased_coef_names))
+    }
     stop(paste(
       "Numerical optimization failed to find a solution.",
       "Please consider using the 'grid_search' method by",
@@ -70,6 +137,59 @@ refuse_if_all_restarts_failed <- function(results) {
       "'optimization_grid_search_step_size' parameter.",
       "This problem usually occurs when you have more than",
       "three intervention components."
+    ))
+  }
+  invisible(NULL)
+}
+
+
+#' refuse_if_no_grid_outcome
+#'
+#' @description Internal guard for a grid search none of whose grid points has
+#' a computable outcome, so there is nothing to compare against the goal.
+#'
+#' @details The grid search's counterpart to
+#' refuse_if_all_restarts_failed(). The numerical optimizer records a failed
+#' restart as NA and refuses the all-failed case by name; the grid search had no
+#' such check, and an NA outcome flowed into `max(all_outcomes) >=
+#' new_outcome_goal`, which is not FALSE for an NA but the R error "missing
+#' value where TRUE/FALSE needed".
+#'
+#' Both guards exist for the same reason and both distinguish the same two
+#' causes, so the wording is shared: a rank-deficient outcome model must not be
+#' answered by recommending the other optimization method, because the other
+#' method fails on the same fit.
+#'
+#' It refuses on ANY NA rather than on all of them, unlike the restart guard,
+#' because the two situations differ. A failed restart is one starting point out
+#' of eleven and the survivors are a legitimate answer, so only all-failed is
+#' refused. A grid outcome is a function of the model, not of a starting point:
+#' one NA there means the model cannot produce an outcome and every other grid
+#' point's value is NA too. Refusing on any is also exactly the condition that
+#' already failed, since max() propagates a single NA, so this narrows nothing.
+#'
+#' @param all_outcomes A numeric vector, the estimated outcome at each grid
+#' intervention.
+#' @param aliased_coef_names A character vector, the names of the outcome
+#' model's coefficients glm() could not estimate. Empty means full rank; see
+#' refuse_if_all_restarts_failed().
+#'
+#' @return Invisibly NULL when every grid outcome is a number. Raises
+#' otherwise.
+#'
+#' @noRd
+refuse_if_no_grid_outcome <- function(all_outcomes,
+                                     aliased_coef_names = character(0)) {
+  if (anyNA(all_outcomes)) {
+    if (length(aliased_coef_names) > 0) {
+      stop(rank_deficient_outcome_message(aliased_coef_names))
+    }
+    stop(paste(
+      "The estimated outcome could not be computed at every intervention on",
+      "the grid, so none of them can be compared against the outcome goal.",
+      "This means the outcome model produced a missing estimated outcome.",
+      "Please check the fitted outcome model and the values supplied for the",
+      "center weights, the center characteristics and the time effect."
     ))
   }
   invisible(NULL)
@@ -247,6 +367,14 @@ select_restart_within_bounds <- function(restart_points,
 #' @param power_goal_cluster_id A character string. The name of a column in the
 #' data identifying the stage-1 centers, used to compute the stage-1 design
 #' effect when icc is non-zero. Default NULL.
+#' @param aliased_coef_names A character vector. The names of the outcome
+#' model's coefficients glm() could not estimate, which the caller reads off
+#' the fitted model. Empty (the default) means the model is of full rank. This
+#' function is given coefficient VECTORS rather than the model, so it cannot
+#' establish this for itself: an NA it sees has already been summed into the
+#' center-level effects and no longer names the term it came from. Used only to
+#' say which of the two causes stopped an optimization that could compute no
+#' outcome at all, since the two need opposite advice.
 #'
 #' @return List(
 #' est_rec_int = recommended interventions,
@@ -289,7 +417,8 @@ get_recommended_interventions <- function(
     patients_per_center_in_next_stage,
     outcome_name,
     icc = NULL,
-    power_goal_cluster_id = NULL) {
+    power_goal_cluster_id = NULL,
+    aliased_coef_names = character(0)) {
   # check if power goal is null, if not, calculate the desired outcome
   # value needed to achieve the power goal
   if (!is.null(power_goal)) {
@@ -474,6 +603,19 @@ get_recommended_interventions <- function(
       all_outcomes <- sapply(all_results, function(x) x$outcome)
       all_costs <- sapply(all_results, function(x) x$cost)
 
+      # an NA among the grid outcomes is refused here, before it reaches the
+      # goal comparison below. max() of anything holding an NA or NaN is NA, so
+      # "NA >= goal" is not FALSE but the R error "missing value where
+      # TRUE/FALSE needed", which is what this used to fail with -- no mention
+      # of the outcome, the model, or what to do. This is a GUARD and not a
+      # change of behaviour: anyNA(all_outcomes) holds exactly when
+      # is.na(max(all_outcomes)) does, i.e. exactly on the inputs that already
+      # failed, so no grid search that used to return one still raises.
+      # The numerical optimizer reaches the same situation as an all-failed
+      # restart set, since solnl() cannot optimize an NA objective either, and
+      # refuse_if_all_restarts_failed() names it there.
+      refuse_if_no_grid_outcome(all_outcomes, aliased_coef_names)
+
       # find the maximum outcome
       max_outcome <- max(all_outcomes)
 
@@ -635,7 +777,10 @@ get_recommended_interventions <- function(
       # by which.max() itself, which skips NAs: the surviving restarts are
       # compared and the winner's column of results_int_components is the
       # column that same restart wrote, since both are indexed by restart.
-      refuse_if_all_restarts_failed(results)
+      # The aliased coefficient names are what lets the refusal say WHY, since
+      # a rank-deficient model and a hard optimization both land here and want
+      # opposite advice.
+      refuse_if_all_restarts_failed(results, aliased_coef_names)
       max_position <- which.max(results)
       max_achievable_outcome <- results[max_position]
 
@@ -708,9 +853,10 @@ get_recommended_interventions <- function(
         }
 
         # if numerical solution fails to find a solution. The same refusal the
-        # max-outcome loop above makes, from the same place, so the two loops
-        # cannot come to describe the same situation differently.
-        refuse_if_all_restarts_failed(cost_results)
+        # max-outcome loop above makes, from the same place and with the same
+        # cause, so the two loops cannot come to describe the same situation
+        # differently.
+        refuse_if_all_restarts_failed(cost_results, aliased_coef_names)
 
         # Choosing among the restarts, and making the winner implementable, is
         # one decision and lives in select_restart_within_bounds(): the in-box

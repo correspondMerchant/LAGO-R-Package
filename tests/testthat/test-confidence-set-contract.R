@@ -717,3 +717,285 @@ test_that("the estimated outcome lies inside its interval at every requested per
   intervals <- unique(lapply(results, function(r) unname(r$est_outcome_ci)))
   expect_equal(length(intervals), length(periods))
 })
+
+
+test_that("the exported get_confidence_set() refuses a bad center weight", {
+  # get_confidence_set() is EXPORTED and does not go through validate_inputs(),
+  # so the weight guards lago_optimization() has do not cover a direct caller.
+  # The weights average the per-center outcomes, so a negative one puts the
+  # interval outside the range of the intervals it averages: c(8.5, -8, 0.5)
+  # sums to exactly 1, passed every check this function made, and reported a
+  # CI_upper_bound of 1.014 for a BINARY outcome -- a "probability" above 1,
+  # silently. This function already validates its own link and its own
+  # coefficient-to-predictor match for exactly this reason (it cannot trust its
+  # caller), and the weights are the same kind of argument.
+  d <- as.data.frame(BB_data)
+  d$center <- factor(rep_len(paste0("c", 1:3), nrow(d)))
+  components <- c("coaching_updt", "launch_duration")
+  model <- glm(
+    pp3_oxytocin_mother ~ center + coaching_updt + launch_duration,
+    data = d, family = binomial(link = "logit")
+  )
+
+  call_cs <- function(w, include_center_effects = TRUE) {
+    suppressWarnings(get_confidence_set(
+      predictors_data = d[, c("center", components), drop = FALSE],
+      include_center_effects = include_center_effects,
+      center_weights_for_outcome_goal = w,
+      intervention_components = components,
+      outcome_data = d$pp3_oxytocin_mother,
+      fitted_model = model,
+      link = "logit",
+      outcome_goal = 0.85,
+      outcome_type = "binary",
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      confidence_set_grid_step_size = c(8, 1),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      rec_int = c(20, 3)
+    ))
+  }
+
+  # a negative weight is refused, in the words validate_inputs() uses, so a
+  # caller who moves between the two entry points is told the same thing
+  expect_error(call_cs(c(8.5, -8, 0.5)), "must be non-negative")
+  expect_error(call_cs(c(0.75, -0.5, 0.75)), "must be non-negative")
+  expect_error(call_cs(c(20.5, -20, 0.5)), "must be non-negative")
+  # summing to 1 is what let it through, so the fixture asserts that it does
+  expect_identical(sum(c(8.5, -8, 0.5)), 1)
+  expect_identical(sum(c(0.75, -0.5, 0.75)), 1)
+
+  # the boundary, so the tolerance cannot be widened without a test failing.
+  # It admits floating-point noise from a residual weight and nothing larger.
+  expect_error(call_cs(c(0.5, -1e-9, 0.5)), "must be non-negative")
+  expect_error(call_cs(c(0.5, -1e-12, 0.5)), "must be non-negative")
+
+  # non-finite weights are named rather than reaching the interval, where they
+  # made every bound NA and rec_int_ci NULL with nothing said about why
+  for (bad in list(
+    c(0.5, NA_real_, 0.5), c(0.5, NaN, 0.5),
+    c(0.5, Inf, 0.5), c(0.5, 0.5, -Inf)
+  )) {
+    expect_error(call_cs(bad), "must all be finite")
+  }
+
+  # a weight of exactly 0 is still ALLOWED, and so is a residual weight a hair
+  # below zero: the guard must not narrow what the function accepts. The
+  # single-named-center path the package itself builds is exactly a vector of
+  # one 1 and the rest 0.
+  residual <- -.Machine$double.eps / 2
+  expect_lt(residual, 0)
+  for (good in list(
+    c(1, 1, 1) / 3, c(0.5, 0, 0.5), c(1, 0, 0), c(0, 0, 1),
+    c(0.5, residual, 0.5)
+  )) {
+    res <- call_cs(good)
+    expect_false(is.null(res$rec_int_ci))
+    expect_true(all(res$rec_int_ci >= 0 & res$rec_int_ci <= 1))
+  }
+
+  # and the numbers a compliant vector produces are unchanged, so the guard
+  # only removed the refused cases
+  uniform <- call_cs(c(1, 1, 1) / 3)
+  expect_true(all(uniform$cs$CI_upper_bound <= 1))
+  expect_true(all(uniform$cs$CI_lower_bound >= 0))
+
+  # the weights are only USED when the fixed center effects are included, so
+  # they are only checked then: a caller who is not asking for center effects
+  # passes the default 1 and must not be refused for a vector nobody reads.
+  expect_error(
+    suppressWarnings(get_confidence_set(
+      predictors_data = d[, components, drop = FALSE],
+      center_weights_for_outcome_goal = c(-1, 2),
+      intervention_components = components,
+      outcome_data = d$pp3_oxytocin_mother,
+      fitted_model = glm(
+        pp3_oxytocin_mother ~ coaching_updt + launch_duration,
+        data = d, family = binomial(link = "logit")
+      ),
+      link = "logit",
+      outcome_goal = 0.85,
+      outcome_type = "binary",
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      confidence_set_grid_step_size = c(8, 1),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      rec_int = c(20, 3)
+    )),
+    NA
+  )
+
+  # the same weights through the guarded primary path are refused there too, so
+  # the two entry points agree rather than one being stricter
+  primary <- function() {
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = d,
+      outcome_name = "pp3_oxytocin_mother",
+      outcome_type = "binary",
+      glm_family = "binomial",
+      intervention_components = components,
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      outcome_goal = 0.85,
+      include_center_effects = TRUE,
+      center_weights_for_outcome_goal = c(8.5, -8, 0.5),
+      include_confidence_set = FALSE,
+      quiet = TRUE
+    )))
+  }
+  expect_error(primary(), "must be non-negative")
+  expect_identical(
+    tryCatch(primary(), error = conditionMessage),
+    tryCatch(call_cs(c(8.5, -8, 0.5)), error = conditionMessage)
+  )
+})
+
+
+test_that("a binary outcome's interval is built on the link it was fitted on", {
+  # The binary branch applied expit() and the logit delta-method factor
+  # p * (1 - p) UNCONDITIONALLY, keyed on outcome_type and ignoring link. A
+  # binomial model fitted with link = "identity" -- which lago_optimization()
+  # accepts -- therefore got its interval on the logit scale: 0.636 to 0.655
+  # where the identity-scale interval is 0.558 to 0.642, an interval that does
+  # not even contain the point estimate the same run reported. The scale an
+  # interval belongs on is a property of the LINK, not of the outcome's type,
+  # which is what get_outcome() has keyed on all along -- hence the point
+  # estimate being right while the interval was not.
+  #
+  # The fixture converges cleanly (3 IRLS iterations, no glm warning), because a
+  # binomial identity fit that does not converge would leave it open whether the
+  # interval or the fit was the problem. It keeps the fitted probabilities well
+  # inside (0, 1): a linear probability model on a grid, replicated ten rows per
+  # cell so the design is balanced.
+  cells <- expand.grid(x1 = seq(0, 9, length.out = 40), x2 = 1:5)
+  p <- 0.30 + 0.02 * cells$x1 + 0.04 * cells$x2
+  expect_true(all(p > 0.05 & p < 0.95))
+  d <- do.call(rbind, lapply(seq_len(nrow(cells)), function(i) {
+    ones <- round(p[i] * 10)
+    data.frame(
+      x1 = cells$x1[i], x2 = cells$x2[i],
+      y = c(rep(1L, ones), rep(0L, 10 - ones))
+    )
+  }))
+
+  # the fixture's own precondition: the fit converges and glm() says nothing
+  fit_warnings <- character(0)
+  model <- withCallingHandlers(
+    glm(y ~ x1 + x2, data = d, family = binomial(link = "identity")),
+    warning = function(w) {
+      fit_warnings <<- c(fit_warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(model$converged)
+  expect_length(fit_warnings, 0)
+  expect_false(anyNA(coef(model)))
+
+  res <- suppressWarnings(suppressMessages(lago_optimization(
+    data = d,
+    outcome_name = "y",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    link = "identity",
+    intervention_components = c("x1", "x2"),
+    intervention_lower_bounds = c(0, 1),
+    intervention_upper_bounds = c(9, 5),
+    cost_list_of_vectors = list(c(0, 1), c(0, 2)),
+    outcome_goal = 0.6,
+    confidence_set_grid_step_size = c(1, 1),
+    quiet = TRUE
+  )))
+
+  # THE assertion. The interval is recomputed by hand from glm() itself -- the
+  # linear predictor and its standard error, with no link transformation,
+  # because on the identity link the outcome IS the linear predictor and the
+  # delta-method factor is the derivative of the identity map, i.e. 1. This
+  # oracle does not go through the package.
+  critical_value <- qnorm(0.975)
+  identity_interval <- function(x) {
+    row <- c(1, x)
+    point <- as.numeric(row %*% coef(model))
+    std_error <- sqrt(as.numeric(t(row) %*% vcov(model) %*% row))
+    c(
+      round(point - critical_value * std_error, 3),
+      round(point + critical_value * std_error, 3)
+    )
+  }
+  expect_identical(
+    unname(res$est_outcome_ci),
+    identity_interval(res$rec_int)
+  )
+
+  # and what the defect produced instead, so the test says which scale is wrong
+  # rather than only that the number changed: expit() of the point with the
+  # logit delta factor accounts for the OLD interval exactly, and it is a
+  # different interval from the one now reported.
+  row <- c(1, res$rec_int)
+  point <- as.numeric(row %*% coef(model))
+  std_error <- sqrt(as.numeric(t(row) %*% vcov(model) %*% row))
+  logit_point <- rje::expit(point)
+  logit_std_error <- std_error * logit_point * (1 - logit_point)
+  logit_interval <- c(
+    round(logit_point - critical_value * logit_std_error, 3),
+    round(logit_point + critical_value * logit_std_error, 3)
+  )
+  expect_false(identical(logit_interval, identity_interval(res$rec_int)))
+  expect_false(identical(unname(res$est_outcome_ci), logit_interval))
+
+  # the interval contains the point estimate, which the logit-scale one did not:
+  # the estimated outcome was 0.6 and the reported interval 0.636 to 0.655
+  expect_true(
+    res$est_outcome_ci[["lower"]] <= res$est_outcome_goal &&
+      res$est_outcome_goal <= res$est_outcome_ci[["upper"]]
+  )
+
+  # every confidence-set row, not only rec_int, and each against its own
+  # coordinates. A set whose intervals are on the wrong scale can still be
+  # non-empty, so containment of the goal alone would not catch this.
+  expect_gt(nrow(res$cs), 0)
+  for (i in seq_len(nrow(res$cs))) {
+    expect_identical(
+      c(res$cs$CI_lower_bound[i], res$cs$CI_upper_bound[i]),
+      identity_interval(c(res$cs$x1[i], res$cs$x2[i]))
+    )
+  }
+  # and they cover the goal, as membership claims, on the corrected scale
+  expect_true(all(
+    res$cs$CI_lower_bound <= 0.6 & res$cs$CI_upper_bound >= 0.6
+  ))
+
+  # the LOGIT case is untouched, which is what confines the change to the link
+  # that was wrong. Same oracle, the delta-method interval glm()'s own binary
+  # machinery reports, on the same package's default binary configuration.
+  logit_res <- suppressWarnings(suppressMessages(lago_optimization(
+    data = as.data.frame(BB_data),
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    glm_family = "binomial",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    outcome_goal = 0.85,
+    confidence_set_grid_step_size = c(8, 1),
+    quiet = TRUE
+  )))
+  logit_model <- glm(
+    pp3_oxytocin_mother ~ coaching_updt + launch_duration,
+    data = as.data.frame(BB_data), family = binomial(link = "logit")
+  )
+  logit_row <- c(1, logit_res$rec_int)
+  logit_eta <- as.numeric(logit_row %*% coef(logit_model))
+  logit_p <- rje::expit(logit_eta)
+  logit_se <- sqrt(
+    as.numeric(t(logit_row) %*% vcov(logit_model) %*% logit_row)
+  ) * logit_p * (1 - logit_p)
+  expect_identical(
+    unname(logit_res$est_outcome_ci),
+    c(
+      round(logit_p - critical_value * logit_se, 3),
+      round(logit_p + critical_value * logit_se, 3)
+    )
+  )
+})
