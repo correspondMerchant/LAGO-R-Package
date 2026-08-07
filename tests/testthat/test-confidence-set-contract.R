@@ -1183,7 +1183,16 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
     }
     bounds <- c(point - critical_value * se_point,
       point + critical_value * se_point)
-    round(pmin(pmax(bounds, 0), 1), 3)
+    # confined on the logit link only, matching the code: there the point
+    # estimate is expit(eta) and inside [0, 1], so confining the interval brings
+    # it into agreement with the estimate. On the identity link the estimate is
+    # the linear predictor and is itself unbounded, so confining the interval
+    # around it would report an interval excluding its own estimate. An oracle
+    # that clamped on both links would agree with any implementation that did.
+    if (link == "logit") {
+      bounds <- pmin(pmax(bounds, 0), 1)
+    }
+    round(bounds, 3)
   }
 
   for (link in c("logit", "identity")) {
@@ -1191,11 +1200,27 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
     model <- fit$model
     res <- fit$res
 
-    # THE assertion: no reported bound is outside [0, 1], on either link
+    # THE assertion, on the logit link: no reported bound is outside [0, 1].
+    # On the identity link the opposite is required, since the estimate itself
+    # is not confined there and an interval that excluded its own estimate would
+    # be worse than one leaving the range. Both are asserted, so neither arm
+    # passes by agreeing with whatever the code happens to do.
     expect_gt(nrow(res$cs), 0)
-    expect_true(all(res$cs$CI_lower_bound >= 0))
-    expect_true(all(res$cs$CI_upper_bound <= 1))
-    expect_true(all(res$rec_int_ci >= 0 & res$rec_int_ci <= 1))
+    if (link == "logit") {
+      expect_true(all(res$cs$CI_lower_bound >= 0))
+      expect_true(all(res$cs$CI_upper_bound <= 1))
+      expect_true(all(res$rec_int_ci >= 0 & res$rec_int_ci <= 1))
+    } else {
+      # every reported interval contains the estimate it belongs to, which is
+      # the property confining them on this link would break
+      for (i in seq_len(nrow(res$cs))) {
+        point <- as.numeric(
+          c(1, res$cs$a[i], res$cs$b[i]) %*% coef(model)
+        )
+        expect_gte(round(point, 3), res$cs$CI_lower_bound[i])
+        expect_lte(round(point, 3), res$cs$CI_upper_bound[i])
+      }
+    }
 
     # the fixture's own precondition: the UNCLAMPED delta-method interval really
     # does leave [0, 1] here, on both sides, so the assertion above has
@@ -1234,6 +1259,35 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
       unname(res$rec_int_ci), hand(model, c(2, 1.5), link)
     )
 
+    # rec_int_ci at a recommendation whose UNCLAMPED interval leaves the range.
+    # The recommendation above is inside it, so that assertion cannot observe
+    # the clamp on this field at all, and rec_int_ci is row 1 of the same matrix
+    # and is what the printed interval for the estimated outcome comes from: it
+    # has to be confined too, and only a stored snapshot was holding that.
+    out_of_range <- suppressWarnings(get_confidence_set(
+      predictors_data = d[, c("a", "b"), drop = FALSE],
+      intervention_components = c("a", "b"),
+      outcome_data = d$y, fitted_model = model, link = link,
+      outcome_goal = 0.5, outcome_type = "binary",
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(3, 2),
+      confidence_set_grid_step_size = c(1, 1),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(1, 1)
+    ))
+    expect_true(unclamped(c(1, 1))[1] < 0)
+    expect_identical(unname(out_of_range$rec_int_ci), hand(model, c(1, 1), link))
+    if (link == "logit") {
+      expect_true(all(
+        out_of_range$rec_int_ci >= 0 & out_of_range$rec_int_ci <= 1
+      ))
+    } else {
+      # not confined here, so it is the interval as computed
+      expect_identical(
+        unname(out_of_range$rec_int_ci), unclamped(c(1, 1))
+      )
+    }
+
     # the interval is NOT the logit-scale one transformed back, which is the
     # other way to bound it and would have moved every binary number. Asserted
     # so the test says which interval is reported, not merely that it is in
@@ -1250,10 +1304,43 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
     ))
 
     # a clamped bound sits at exactly the boundary, which is what distinguishes
-    # truncation from an interval that happens to end there
-    expect_true(any(
-      res$cs$CI_lower_bound == 0 | res$cs$CI_upper_bound == 1
-    ))
+    # truncation from an interval that happens to end there. Exactly 0 and
+    # exactly 1, not nearly: findInterval() treats the interval as [lower,
+    # upper), so a bound confined to 1e-6 rather than 0 would report a
+    # probability that is not one AND drop every row from a goal of exactly 0.
+    if (link == "logit") {
+      for (i in seq_len(nrow(res$cs))) {
+        bounds <- unclamped(c(res$cs$a[i], res$cs$b[i]))
+        if (bounds[1] < 0) {
+          expect_identical(res$cs$CI_lower_bound[i], 0)
+        }
+        if (bounds[2] > 1) {
+          expect_identical(res$cs$CI_upper_bound[i], 1)
+        }
+      }
+      expect_true(any(
+        res$cs$CI_lower_bound == 0 | res$cs$CI_upper_bound == 1
+      ))
+    } else {
+      # on the identity link nothing is confined, so a bound that left the range
+      # is reported as computed. Asserted so this arm cannot pass under a design
+      # that clamps here.
+      out <- vapply(
+        seq_len(nrow(res$cs)),
+        function(i) {
+          b <- unclamped(c(res$cs$a[i], res$cs$b[i]))
+          b[1] < 0 || b[2] > 1
+        },
+        logical(1)
+      )
+      if (any(out)) {
+        i <- which(out)[1]
+        expect_identical(
+          unname(c(res$cs$CI_lower_bound[i], res$cs$CI_upper_bound[i])),
+          unclamped(c(res$cs$a[i], res$cs$b[i]))
+        )
+      }
+    }
 
     # MEMBERSHIP is unchanged. The goal is a probability, so it lies in the
     # range the bounds are clamped to, and clamping a bound to the range it is

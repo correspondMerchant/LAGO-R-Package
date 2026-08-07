@@ -585,12 +585,23 @@ get_confidence_set <- function(
     # the shared code below turns these bounds into the confidence set and
     # its size, for both outcome types
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
-    # a binary outcome is a probability, so a REPORTED bound of -0.106 or 1.049
-    # is not a probability and cannot be one. Both bounds are confined to
-    # [0, 1] here, on both links: pred +- z*se is symmetric on the outcome scale
-    # and so is free to leave the range on either side, and it did on both links
-    # -- a small noisy logit fit reported CI_lower_bound -0.106 and
-    # CI_upper_bound 1.049 in the same returned set.
+    # a binary outcome fitted on the logit link is reported as a probability, so
+    # a REPORTED bound of -0.106 or 1.049 is not one and cannot be: the point
+    # estimate is expit(eta) and is inside [0, 1] by construction, while
+    # pred +- z*se is symmetric on the outcome scale and so is free to leave it.
+    # A small noisy logit fit reported CI_lower_bound -0.106 and CI_upper_bound
+    # 1.049 in the same returned set. Confining the bounds brings the interval
+    # into agreement with the estimate it belongs to.
+    #
+    # NOT done on the identity link, where the same operation would do the
+    # opposite. There the model is a linear probability model and the point
+    # estimate is the linear predictor itself, which extrapolates outside [0, 1]
+    # and is already reported that way: an estimated outcome of 1.0588 is
+    # printed as it stands. Confining only the interval around it would report
+    # an interval that excludes its own estimate, and where the whole interval
+    # is above 1 a zero-width one. The estimate leaving the range is a defect in
+    # its own right and is not this one, so this branch reports what it computed
+    # and leaves that alone rather than papering over half of it.
     #
     # This is a CLAMP: the interval is still the delta-method interval, and
     # clamping only bounds what is reported of it. It is not a different
@@ -625,19 +636,16 @@ get_confidence_set <- function(
     # about the report, so it is applied to what is reported and to nothing
     # else.
     #
-    # An interval lying WHOLLY outside [0, 1] has no part inside it to report,
-    # and clamping it would report that empty intersection as a non-empty
-    # interval: [1.02, 1.30] becomes [1, 1], a 95% interval of zero width which
-    # excludes the point estimate reported beside it. That is reachable on an
-    # identity link, where the model is a linear probability model and its
-    # prediction is the linear predictor, unbounded. Those rows report no
-    # interval instead. NA is already what a bound that could not be computed
-    # carries here, and every consumer below already handles it: the row is
-    # excluded from the set by the same filter, and lago_optimization() reports
-    # no interval rather than an impossible one.
-    outside_range <- ci_prob_all[, 1] > 1 | ci_prob_all[, 2] < 0
-    reported_ci_prob_all <- pmin(pmax(ci_prob_all, 0), 1)
-    reported_ci_prob_all[which(outside_range), ] <- NA_real_
+    # Gating on the link also removes the case of an interval lying WHOLLY
+    # outside the range, which has no part inside it to report and which
+    # clamping would report as the non-empty [1, 1]. On the logit link the
+    # estimate is inside [0, 1], so an interval centred on it always has a part
+    # inside too, and at most one of its bounds is ever confined.
+    reported_ci_prob_all <- if (link == "logit") {
+      pmin(pmax(ci_prob_all, 0), 1)
+    } else {
+      ci_prob_all
+    }
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links().
