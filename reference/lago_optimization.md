@@ -274,10 +274,12 @@ lago_optimization(
 
   A numeric vector. Specifies the weights that will be used for
   calculating recommended interventions that satisfy the outcome goal
-  for an (weighted) average center. The weights need to sum up to 1.
-  Default value without user specification: For each center, calculate
-  what percentage its sample size is of the total samples across all
-  facilities - this percentage serves as that center's weight.
+  for an (weighted) average center. The weights need to sum up to 1, and
+  must all be non-negative and finite. A weight of 0 is allowed and
+  excludes that center from the average. Default value without user
+  specification: For each center, calculate what percentage its sample
+  size is of the total samples across all facilities - this percentage
+  serves as that center's weight.
 
 - optimization_grid_search_step_size:
 

@@ -71,7 +71,8 @@ interventions based on an outcome goal and/or a power goal.</p>
 <span>  <span class="va">patients_per_center_in_next_stage</span>,</span>
 <span>  <span class="va">outcome_name</span>,</span>
 <span>  icc <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  power_goal_cluster_id <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  power_goal_cluster_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  aliased_coef_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -241,6 +242,17 @@ get_power_desired_outcome.</p></dd>
 <dd><p>A character string. The name of a column in the
 data identifying the stage-1 centers, used to compute the stage-1 design
 effect when icc is non-zero. Default NULL.</p></dd>
+
+
+<dt id="arg-aliased-coef-names">aliased_coef_names<a class="anchor" aria-label="anchor" href="#arg-aliased-coef-names"></a></dt>
+<dd><p>A character vector. The names of the outcome
+model's coefficients glm() could not estimate, which the caller reads off
+the fitted model. Empty (the default) means the model is of full rank. This
+function is given coefficient VECTORS rather than the model, so it cannot
+establish this for itself: an NA it sees has already been summed into the
+center-level effects and no longer names the term it came from. Used only to
+say which of the two causes stopped an optimization that could compute no
+outcome at all, since the two need opposite advice.</p></dd>
 
 </dl></div>
     <div class="section level2">

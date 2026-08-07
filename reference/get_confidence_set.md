@@ -49,7 +49,10 @@ get_confidence_set(
 
   A numeric vector. Specifies the weights that will be used for
   calculating recommended interventions that satisfy the outcome goal
-  for an (weighted) average center. The weights need to sum up to 1.
+  for an (weighted) average center. The weights need to sum up to 1, and
+  must all be non-negative and finite. A weight of 0 is allowed and
+  excludes that center from the average. Only used, and only checked,
+  when include_center_effects is TRUE.
 
 - include_time_effects:
 

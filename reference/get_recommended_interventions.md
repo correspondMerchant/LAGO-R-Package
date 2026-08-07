@@ -32,7 +32,8 @@ get_recommended_interventions(
   patients_per_center_in_next_stage,
   outcome_name,
   icc = NULL,
-  power_goal_cluster_id = NULL
+  power_goal_cluster_id = NULL,
+  aliased_coef_names = character(0)
 )
 ```
 
@@ -189,6 +190,17 @@ get_recommended_interventions(
   A character string. The name of a column in the data identifying the
   stage-1 centers, used to compute the stage-1 design effect when icc is
   non-zero. Default NULL.
+
+- aliased_coef_names:
+
+  A character vector. The names of the outcome model's coefficients
+  glm() could not estimate, which the caller reads off the fitted model.
+  Empty (the default) means the model is of full rank. This function is
+  given coefficient VECTORS rather than the model, so it cannot
+  establish this for itself: an NA it sees has already been summed into
+  the center-level effects and no longer names the term it came from.
+  Used only to say which of the two causes stopped an optimization that
+  could compute no outcome at all, since the two need opposite advice.
 
 ## Value
 
