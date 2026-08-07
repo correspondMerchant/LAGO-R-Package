@@ -243,6 +243,23 @@ test_that("the range warning does not round a barely-out value to look in range"
   expect_match(msg, "1.0000004", fixed = TRUE)
 })
 
+test_that("an estimate at exactly 0 or 1 is a probability and does not warn", {
+  # the boundary is closed: 0 and 1 are probabilities, so an estimate landing on
+  # either is in range and must be silent. The range test is strict (< 0, > 1),
+  # and loosening it to <= or >= would warn on a legitimate probability, which a
+  # saturated fit can report. Called directly, since landing the estimate
+  # exactly on a boundary through the optimizer is not controllable.
+  warn_fn <- getFromNamespace("warn_if_outcome_outside_range", "LAGO")
+  for (boundary in c(0, 1)) {
+    expect_no_warning(warn_fn(boundary, "binary", "identity"))
+    expect_no_warning(warn_fn(boundary, "binary", "logit"))
+  }
+  # just outside each boundary does warn, so the silence above is the closed
+  # boundary and not a dead check
+  expect_warning(warn_fn(-1e-6, "binary", "identity"), "outside")
+  expect_warning(warn_fn(1 + 1e-6, "binary", "identity"), "outside")
+})
+
 test_that("the range warning fires once per run, not once per grid point", {
   # the grid here is 10 x 3 = 30 interventions and the confidence set grid is
   # the same size, so a per-point warning would flood. Counting them is the

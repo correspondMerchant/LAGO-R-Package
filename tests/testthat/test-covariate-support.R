@@ -75,19 +75,28 @@ test_that("the warning fires exactly once, listing every offending covariate", {
   x <- bb$launch_duration
   bb$staff_count <- 20 + (x - min(x)) / (max(x) - min(x)) * 10
   expect_gt(min(bb$staff_count), 0)
+  # a THIRD numeric covariate observed spanning 0, which must NOT be named: it
+  # is not held off its support. Included so the test pins that the message
+  # lists the offenders and ONLY the offenders, not every covariate.
+  bb$balance <- (x - mean(x))
+  expect_lt(min(bb$balance), 0)
+  expect_gt(max(bb$balance), 0)
 
   model <- suppressWarnings(glm(
     pp3_oxytocin_mother ~ coaching_updt + launch_duration +
-      clinic_size + staff_count,
+      clinic_size + staff_count + balance,
     data = bb, family = binomial()
   ))
   run <- function() {
     get_confidence_set(
       predictors_data = bb[
-        , c("coaching_updt", "launch_duration", "clinic_size", "staff_count"),
+        , c(
+          "coaching_updt", "launch_duration", "clinic_size", "staff_count",
+          "balance"
+        ),
         drop = FALSE
       ],
-      additional_covariates = c("clinic_size", "staff_count"),
+      additional_covariates = c("clinic_size", "staff_count", "balance"),
       intervention_components = c("coaching_updt", "launch_duration"),
       outcome_data = bb$pp3_oxytocin_mother,
       fitted_model = model,
@@ -115,9 +124,12 @@ test_that("the warning fires exactly once, listing every offending covariate", {
     value = TRUE
   )
   expect_length(support_warnings, 1)
-  # and the single warning names both covariates
+  # and the single warning names both offenders and ONLY them: a message that
+  # listed every covariate would pass an offenders-are-named check while telling
+  # the user a covariate held on its support is off it.
   expect_match(support_warnings, "clinic_size")
   expect_match(support_warnings, "staff_count")
+  expect_no_match(support_warnings, "balance")
 })
 
 
