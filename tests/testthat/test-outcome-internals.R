@@ -1417,7 +1417,10 @@ test_that("an all-failed restart set is refused by one guard, for both loops", {
     "refuse_if_all_restarts_failed", "LAGO"
   )
 
-  # all failed: refused, and by the message that names the way out
+  # all failed on a FULL-RANK model: refused, and by the message that names the
+  # way out. That the model is of full rank is what makes recommending the other
+  # optimizer sensible, and it is stated by passing no aliased coefficient
+  # names -- see the test below for the other branch.
   expect_error(
     refuse_if_all_restarts_failed(rep(NA_real_, 11)),
     "Numerical optimization failed to find a solution"
@@ -1425,6 +1428,12 @@ test_that("an all-failed restart set is refused by one guard, for both loops", {
   expect_error(
     refuse_if_all_restarts_failed(rep(NA_real_, 11)),
     "'grid_search'"
+  )
+  # passing an EMPTY set of aliased names is the same as passing none, so the
+  # argument's default cannot drift away from what the callers rely on
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), character(0)),
+    "Numerical optimization failed to find a solution"
   )
   # a single restart, failed, is still every restart
   expect_error(
@@ -1456,6 +1465,254 @@ test_that("an all-failed restart set is refused by one guard, for both loops", {
   expect_identical(points[, max_position], c(9, 2))
   # not the NA-bearing first column, which an is.na()-blind max would take
   expect_false(identical(points[, 1], points[, max_position]))
+})
+
+
+test_that("a rank-deficient fit is not answered by recommending grid_search", {
+  # The refusal has one CONDITION and two CAUSES, and the causes want opposite
+  # advice. Recommending the other optimization method is only sensible when the
+  # model could be estimated: an aliased term's coefficient is NA, every outcome
+  # computed from it is NA, and no search over interventions can recover from
+  # that -- the grid search fails on the same fit, with its own unguarded
+  # comparison. So the message that names grid_search must NOT be what a
+  # rank-deficient fit gets, which is what a single message for both did.
+  refuse_if_all_restarts_failed <- getFromNamespace(
+    "refuse_if_all_restarts_failed", "LAGO"
+  )
+  refuse_if_no_grid_outcome <- getFromNamespace(
+    "refuse_if_no_grid_outcome", "LAGO"
+  )
+
+  aliased <- c("period2", "period3")
+
+  # ONE aliased term takes the rank-deficient branch too, which is the boundary
+  # the branch is chosen at. Asserting only the two-term case leaves a test that
+  # a condition of "more than one aliased term" would satisfy, and a single
+  # aliased coefficient is what the message's own example produces: two
+  # intervention components that are rescalings of one another alias exactly
+  # one. Getting the boundary wrong restores the whole defect for that case,
+  # grid search recommended and more than three components blamed.
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), "launch_duration"),
+    "rank-deficient"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), "launch_duration"),
+    "launch_duration"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), "launch_duration"),
+    "^(?!.*grid_search).*$",
+    perl = TRUE
+  )
+
+  # the rank-deficient branch: the cause, the terms, and what to do about them
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    "rank-deficient"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    "period2, period3"
+  )
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    "[Dd]rop or combine"
+  )
+  # ONLY the aliased terms. Every assertion here matches a substring, so a
+  # message that named every coefficient in the model would satisfy all of them
+  # while telling the caller to drop the intercept, both intervention components
+  # and every center. The estimable terms are asserted absent for that reason:
+  # naming a term the caller should keep is worse than naming none, since it is
+  # advice they can follow.
+  deficient_message <- tryCatch(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    error = conditionMessage
+  )
+  for (estimable in c(
+    "(Intercept)", "coaching_updt", "launch_duration", "center2"
+  )) {
+    expect_false(grepl(estimable, deficient_message, fixed = TRUE))
+  }
+  # and NOT the advice that cannot help. This is the assertion the shared
+  # message fails: it recommended grid_search whatever the cause.
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    "^(?!.*grid_search).*$",
+    perl = TRUE
+  )
+  # nor the cause it used to blame, which the aliased fit does not have: two
+  # intervention components, not more than three
+  expect_error(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    "^(?!.*more than\\s+three intervention components).*$",
+    perl = TRUE
+  )
+
+  # the branch is on the ALIASED NAMES and not on the restarts, so a full-rank
+  # all-failed set still gets the wording a caller in that position needs. Both
+  # branches from the same call, so neither can be reached by accident.
+  full_rank <- tryCatch(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11)),
+    error = conditionMessage
+  )
+  deficient <- tryCatch(
+    refuse_if_all_restarts_failed(rep(NA_real_, 11), aliased),
+    error = conditionMessage
+  )
+  expect_false(identical(full_rank, deficient))
+  expect_match(full_rank, "grid_search")
+  expect_no_match(deficient, "grid_search")
+
+  # a SOME-failed set still passes through, whatever the model: the branch must
+  # not turn the guard into one that fires on any NA. A restart is a starting
+  # point, and the survivors are a legitimate answer.
+  expect_silent(refuse_if_all_restarts_failed(c(NA_real_, 0.5), aliased))
+  expect_null(refuse_if_all_restarts_failed(c(NA_real_, 0.5), aliased))
+
+  # the grid search's own guard, which is the second half of the same defect:
+  # an NA grid outcome reached max() >= goal and failed with the base-R
+  # "missing value where TRUE/FALSE needed". It says the same thing about the
+  # same cause, since the cause is the model.
+  expect_error(refuse_if_no_grid_outcome(c(0.4, NA, 0.6), aliased),
+    "rank-deficient")
+  expect_error(refuse_if_no_grid_outcome(c(0.4, NA, 0.6), aliased),
+    "period2, period3")
+  expect_error(refuse_if_no_grid_outcome(c(NA_real_, NA_real_), aliased),
+    "rank-deficient")
+  # the same boundary as above: one aliased term takes this branch too
+  expect_error(refuse_if_no_grid_outcome(c(0.4, NA, 0.6), "launch_duration"),
+    "rank-deficient")
+  expect_error(refuse_if_no_grid_outcome(c(0.4, NA, 0.6), "launch_duration"),
+    "^(?!.*grid_search).*$", perl = TRUE)
+  expect_identical(
+    tryCatch(refuse_if_no_grid_outcome(rep(NA_real_, 3), aliased),
+      error = conditionMessage),
+    deficient
+  )
+  # and on a full-rank model it names the outcome rather than the model, and
+  # still does not recommend a method
+  full_rank_grid <- tryCatch(
+    refuse_if_no_grid_outcome(c(0.4, NA, 0.6)),
+    error = conditionMessage
+  )
+  expect_match(full_rank_grid, "could not be computed at every intervention")
+  expect_no_match(full_rank_grid, "rank-deficient")
+
+  # it fires on ANY NA, unlike the restart guard, and that is exactly the
+  # condition that already failed: max() of a vector holding one NA is NA, so
+  # "NA >= goal" was already the R error. Refusing here narrows nothing.
+  expect_true(is.na(max(c(0.4, NA, 0.6))))
+  expect_error(
+    if (max(c(0.4, NA, 0.6)) >= 0.5) TRUE else FALSE,
+    "missing value where TRUE/FALSE needed"
+  )
+  # a grid with every outcome a number passes through untouched
+  expect_silent(refuse_if_no_grid_outcome(c(0.4, 0.5, 0.6)))
+  expect_null(refuse_if_no_grid_outcome(c(0.4, 0.5, 0.6), aliased))
+  expect_silent(refuse_if_no_grid_outcome(numeric(0), aliased))
+})
+
+
+test_that("the optimizers are told which coefficients could not be estimated", {
+  # The guards above can only distinguish the two causes if something reads the
+  # aliased names off the FITTED MODEL and hands them over.
+  # get_recommended_interventions() is given coefficient vectors, not the model,
+  # and by then an NA has been summed into the center-level effects and carries
+  # THEIR names -- so the terms could not be named from there even though the
+  # NA is visible. rec_int_processor() has the model, which is why the read
+  # happens there.
+  bbp <- as.data.frame(BB_proportions)
+  bbp$center <- factor(rep_len(paste0("s", 1:6), nrow(bbp)))
+  bbp$period <- factor(rep_len(1:3, nrow(bbp)))
+  model <- suppressWarnings(glm(
+    EBP_proportions ~ center + period + coaching_updt + launch_duration,
+    data = bbp, family = quasibinomial(link = "logit")
+  ))
+  all_coefs <- coef(model)
+  # the precondition, asserted rather than assumed
+  expect_true(anyNA(all_coefs))
+  expect_identical(names(all_coefs)[is.na(all_coefs)], c("period2", "period3"))
+
+  # what the NA looks like one step downstream, which is why the read cannot be
+  # deferred: it is still there, but it now spells the center-level effects
+  coef_mapping <- getFromNamespace("term_coef_names", "LAGO")(model)
+  named_predictors <- getFromNamespace("claimed_coef_names", "LAGO")(
+    model, coef_mapping,
+    c("(Intercept)", "coaching_updt", "launch_duration")
+  )
+  fecn <- getFromNamespace("fixed_effect_coef_names", "LAGO")
+  center_coefs <- fecn("center", coef_mapping, names(all_coefs),
+    named_predictors)
+  period_coefs <- fecn("period", coef_mapping, names(all_coefs),
+    named_predictors)
+  intercept <- all_coefs["(Intercept)"]
+  center_level <- c(intercept, all_coefs[center_coefs] + intercept)
+  indicators <- getFromNamespace("time_effect_indicator", "LAGO")(
+    model, period_coefs, 1
+  )
+  center_level <- center_level + sum(indicators * all_coefs[period_coefs])
+  expect_true(anyNA(center_level))
+  # every entry is NA and each is named after a CENTER, so "period2, period3"
+  # is unrecoverable from here
+  expect_true(all(is.na(center_level)))
+  expect_false(any(c("period2", "period3") %in% names(center_level)))
+
+  # and the intervention coefficients, which is the other vector the optimizer
+  # gets, are not NA at all: nothing there says the fit is rank-deficient
+  expect_false(anyNA(all_coefs[c("(Intercept)", "coaching_updt",
+    "launch_duration")]))
+
+  # so the aliased names are passed in, and the refusal names them. Through the
+  # processor rather than the optimizer, which is the wiring under test.
+  err <- tryCatch(
+    suppressWarnings(suppressMessages(getFromNamespace(
+      "rec_int_processor", "LAGO"
+    )(
+      data = bbp,
+      model = model,
+      center_characteristics = NULL,
+      additional_covariates = NULL,
+      include_center_effects = TRUE,
+      include_time_effects = TRUE,
+      include_interaction_terms = FALSE,
+      main_components = NULL,
+      intervention_components = c("coaching_updt", "launch_duration"),
+      optimization_method = "numerical",
+      optimization_grid_search_step_size = NULL,
+      link = "logit",
+      center_weights_for_outcome_goal = rep(1 / 6, 6),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      outcome_goal = 0.85,
+      center_characteristics_optimization_values = NULL,
+      time_effect_optimization_value = 1,
+      lower_outcome_goal = FALSE,
+      prev_recommended_interventions = NULL,
+      shrinkage_threshold = 0.25,
+      power_goal = NULL,
+      power_goal_approach = "unconditional",
+      num_centers_in_next_stage = NULL,
+      patients_per_center_in_next_stage = NULL,
+      outcome_name = "EBP_proportions"
+    ))),
+    error = conditionMessage
+  )
+  expect_match(err, "rank-deficient")
+  expect_match(err, "period2, period3")
+  expect_no_match(err, "grid_search")
+  # and ONLY those terms. Every assertion above matches a substring, so a
+  # message listing every coefficient in the model would satisfy them all while
+  # telling the caller to drop the intercept, both intervention components and
+  # every center. Those are the terms glm() DID estimate, asserted absent here
+  # because this is the call site that decides which names are passed on, and so
+  # the only place the difference is visible.
+  for (estimable in c(
+    "(Intercept)", "coaching_updt", "launch_duration", "center2"
+  )) {
+    expect_false(grepl(estimable, err, fixed = TRUE))
+  }
 })
 
 

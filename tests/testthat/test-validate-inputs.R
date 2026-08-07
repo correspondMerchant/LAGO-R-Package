@@ -346,6 +346,16 @@ test_that("center_weights_for_outcome_goal must be non-negative and finite", {
   }
   expect_error(cw(c(NA_real_, 0.5, 0.5)), "not weights")
 
+  # A factor whose levels look like numbers reaches neither of those checks:
+  # is.finite() is TRUE for every level, so it passes, and the comparison that
+  # follows gives NA and produces the same opaque base-R error this guard
+  # exists to replace. It is refused for what it is instead.
+  expect_true(all(is.finite(factor(c("0.5", "0.5")))))
+  expect_error(
+    cw(factor(c("0.5", "0.25", "0.25"))), "must be a numeric vector"
+  )
+  expect_error(cw(c("0.5", "0.25", "0.25")), "must be a numeric vector")
+
   # all-zero weights are refused by the sum check, which is also what keeps the
   # renormalisation from dividing by zero: a vector summing to 0 is 1 away from
   # 1, not within the 0.001 tolerance of it.
@@ -357,6 +367,64 @@ test_that("center_weights_for_outcome_goal must be non-negative and finite", {
     cw(c(0.25, 0.25, 0.5))$center_weights_for_outcome_goal,
     c(0.25, 0.25, 0.5)
   )
+})
+
+test_that("the weight guard is one function, shared with the confidence set", {
+  # The finiteness and non-negativity checks are a helper both entry points
+  # call, not a copy in each. That matters because the exported
+  # get_confidence_set() does not go through validate_inputs() and had NO weight
+  # checks at all: a negative weight reached its interval and reported a
+  # "probability" above 1. Two copies would let the two doors drift apart, which
+  # is the failure mode this pins -- the same vector must be refused in the same
+  # words wherever it is passed.
+  refuse_invalid_center_weights <- getFromNamespace(
+    "refuse_invalid_center_weights", "LAGO"
+  )
+
+  # what it refuses, and what it deliberately does not
+  expect_error(refuse_invalid_center_weights(c(-10, 11, 0)),
+    "must be non-negative")
+  expect_error(refuse_invalid_center_weights(c(0.5, -0.01, 0.51)),
+    "must be non-negative")
+  expect_error(refuse_invalid_center_weights(c(0.5, -1e-9, 0.5)),
+    "must be non-negative")
+  expect_error(refuse_invalid_center_weights(c(NA_real_, 0.5, 0.5)),
+    "must all be finite")
+  expect_error(refuse_invalid_center_weights(c(Inf, -Inf, 1)),
+    "must all be finite")
+  expect_silent(refuse_invalid_center_weights(c(0.5, 0.5, 0)))
+  expect_null(refuse_invalid_center_weights(c(1, 0, 0)))
+  expect_silent(refuse_invalid_center_weights(c(0.5, -.Machine$double.eps / 2,
+    0.5)))
+
+  # the SUM check is NOT in the helper, deliberately: validate_inputs() both
+  # refuses a sum far from 1 and renormalises what it accepts, and the
+  # renormalisation is what makes that tolerance safe. get_confidence_set() has
+  # no such step, so requiring a unit sum of it would refuse the vector its own
+  # caller already normalised. All-zero weights are therefore accepted by the
+  # helper and refused by validate_inputs().
+  expect_silent(refuse_invalid_center_weights(c(0, 0, 0)))
+  expect_silent(refuse_invalid_center_weights(c(0.3, 0.3, 0.3)))
+
+  # and validate_inputs() really routes through it rather than carrying its own
+  # copy: the messages are identical strings, not merely both matching a regex.
+  cw <- function(w) {
+    a <- vi_args(include_center_effects = TRUE,
+      center_weights_for_outcome_goal = w)
+    a$data <- data.frame(
+      mpg = c(21, 22, 23, 24, 25, 26),
+      gear = c(3, 4, 3, 4, 3, 4),
+      qsec = c(16, 17, 18, 19, 20, 21),
+      center = factor(c(1, 1, 2, 2, 3, 3))
+    )
+    suppressMessages(do.call(LAGO:::validate_inputs, a))
+  }
+  for (bad in list(c(-10, 11, 0), c(NA_real_, 0.5, 0.5))) {
+    expect_identical(
+      tryCatch(cw(bad), error = conditionMessage),
+      tryCatch(refuse_invalid_center_weights(bad), error = conditionMessage)
+    )
+  }
 })
 
 test_that("the weight checks cover the DEFAULT weights, not just supplied", {
