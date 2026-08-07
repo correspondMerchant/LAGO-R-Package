@@ -610,11 +610,21 @@ get_confidence_set <- function(
     # the smaller change fixes exactly that and nothing else.
     #
     # Both bounds are clamped in ONE step so the pair cannot cross. Clamping
-    # only the upper bound would turn [1.02, 1.30] into [1.02, 1] -- an inverted
-    # interval, which findInterval() below rejects outright as unsorted rather
-    # than merely reporting oddly. pmin/pmax preserve the matrix's shape and
-    # leave an NA bound NA, so the complete.cases() filter below is unaffected.
-    ci_prob_all <- pmin(pmax(ci_prob_all, 0), 1)
+    # only the upper bound would turn [1.02, 1.30] into [1.02, 1], an inverted
+    # interval, and findInterval() does not reject that, it silently reports
+    # against a vector it was told is sorted. pmin/pmax preserve the matrix's
+    # shape and leave an NA bound NA, so the complete.cases() filter below is
+    # unaffected.
+    #
+    # Clamped SEPARATELY from the interval membership is decided on, which is
+    # the unclamped one. findInterval() treats the interval as right-open, so
+    # for an outcome goal of exactly 1 a bound clamped from 1.049 down to 1 puts
+    # the goal at the closed end and the row falls out of the set: an
+    # intervention whose delta-method interval covers the goal would stop
+    # qualifying because of how its bound is REPORTED. Clamping is a statement
+    # about the report, so it is applied to what is reported and to nothing
+    # else.
+    reported_ci_prob_all <- pmin(pmax(ci_prob_all, 0), 1)
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links().
@@ -961,12 +971,16 @@ get_confidence_set <- function(
       # property the note above describes, arrived at by construction.
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
+    # a continuous outcome has no range to confine a bound to, so what is
+    # reported is what was computed. See the note above.
+    reported_ci_prob_all <- ci_prob_all
   } else {
     # ci_prob_all is assigned in the two branches above and read by the shared
     # code below, so an unrecognised outcome type would reach that code with it
     # undefined and fail on "object 'ci_prob_all' not found" instead of saying
     # what is wrong. lago_optimization() validates outcome_type, so this is
-    # reachable only through a direct call.
+    # reachable only through a direct call. reported_ci_prob_all is defaulted
+    # below for the same reason: only the binary branch narrows what it reports.
     stop(paste0(
       "'outcome_type' must be either \"binary\" or \"continuous\", not \"",
       outcome_type, "\"."
@@ -995,8 +1009,8 @@ get_confidence_set <- function(
   # rec_int inside the confidence set. NULL when it could not be computed.
   rec_int_ci <- if (valid_rows[1]) {
     c(
-      lower = round(ci_prob_all[1, 1], 3),
-      upper = round(ci_prob_all[1, 2], 3)
+      lower = round(reported_ci_prob_all[1, 1], 3),
+      upper = round(reported_ci_prob_all[1, 2], 3)
     )
   } else {
     NULL
@@ -1068,8 +1082,8 @@ get_confidence_set <- function(
   # cs_row_indices are grid_x row numbers, and ci_prob_all is indexed by the
   # same row numbers, so the bounds line up with the cs rows they belong to.
   cs_output_names <- names(cs)
-  ci_lower_bound <- round(ci_prob_all[cs_row_indices, 1], 3)
-  ci_upper_bound <- round(ci_prob_all[cs_row_indices, 2], 3)
+  ci_lower_bound <- round(reported_ci_prob_all[cs_row_indices, 1], 3)
+  ci_upper_bound <- round(reported_ci_prob_all[cs_row_indices, 2], 3)
 
   cs <- cbind(
     cs,
