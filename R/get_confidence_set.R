@@ -624,7 +624,20 @@ get_confidence_set <- function(
     # qualifying because of how its bound is REPORTED. Clamping is a statement
     # about the report, so it is applied to what is reported and to nothing
     # else.
+    #
+    # An interval lying WHOLLY outside [0, 1] has no part inside it to report,
+    # and clamping it would report that empty intersection as a non-empty
+    # interval: [1.02, 1.30] becomes [1, 1], a 95% interval of zero width which
+    # excludes the point estimate reported beside it. That is reachable on an
+    # identity link, where the model is a linear probability model and its
+    # prediction is the linear predictor, unbounded. Those rows report no
+    # interval instead. NA is already what a bound that could not be computed
+    # carries here, and every consumer below already handles it: the row is
+    # excluded from the set by the same filter, and lago_optimization() reports
+    # no interval rather than an impossible one.
+    outside_range <- ci_prob_all[, 1] > 1 | ci_prob_all[, 2] < 0
     reported_ci_prob_all <- pmin(pmax(ci_prob_all, 0), 1)
+    reported_ci_prob_all[which(outside_range), ] <- NA_real_
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links().
