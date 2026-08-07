@@ -1360,6 +1360,27 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
       returned,
       paste(grid$a, grid$b)[covers_unclamped]
     )
+
+    # AT A GOAL OF EXACTLY 1, which is where confining a bound and deciding
+    # membership from it come apart. findInterval() treats the interval as
+    # [lower, upper), so a bound brought down from 1.049 to 1 puts the goal at
+    # the closed end and the row stops qualifying: an intervention whose
+    # computed interval covers the goal would drop out because of how its bound
+    # is reported. Membership therefore reads the interval as computed, and this
+    # is what fails if the two are ever recombined. The goal 0.5 case above
+    # cannot see it, since no bound is confined near an interior goal.
+    at_one <- call_cs(link, goal = 1)$res
+    covers_one <- vapply(seq_len(nrow(grid)), function(i) {
+      bounds <- unclamped(c(grid$a[i], grid$b[i]))
+      bounds[1] <= 1 && 1 <= bounds[2]
+    }, logical(1))
+    if (any(covers_one)) {
+      expect_false(is.null(at_one$cs))
+      expect_setequal(
+        paste(at_one$cs$a, at_one$cs$b),
+        paste(grid$a, grid$b)[covers_one]
+      )
+    }
   }
 })
 
