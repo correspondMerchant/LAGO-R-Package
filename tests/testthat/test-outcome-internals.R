@@ -1801,6 +1801,91 @@ test_that("a rank-deficient fit is refused at fitting, naming the terms", {
   )))
   expect_false(anyNA(coef(ok$model)))
   expect_s3_class(ok$model, "glm")
+
+  # 4) an aliased ADDITIONAL COVARIATE is NOT refused. The optimizer never reads
+  #    an additional covariate into any coefficient vector it works on -- they
+  #    appear only in the exclusion list rec_int_processor() holds back from the
+  #    fixed effects, never as a coefficient the recommendation is computed from
+  #    -- so glm() aliasing one does not make an outcome NA and the run still
+  #    produces a recommendation. Refusing on ANY NA coefficient turned that
+  #    usable run into an error, which is the regression this fixes. adj_dup is
+  #    exactly 2 * adj, so glm() aliases it, but neither is an intervention
+  #    component, a center characteristic or a fixed effect.
+  bbp$adj <- as.numeric(seq_len(nrow(bbp)) %% 7) + 0.3
+  bbp$adj_dup <- bbp$adj * 2
+  covariate_fit <- suppressWarnings(suppressMessages(omf(
+    data = bbp,
+    outcome_name = "EBP_proportions",
+    family_object = quasibinomial(link = "logit"),
+    intervention_components = c("coaching_updt", "launch_duration"),
+    weights = rep(1, nrow(bbp)),
+    center_characteristics = NULL,
+    additional_covariates = c("adj", "adj_dup")
+  )))
+  # it returned a model rather than refusing, and glm() did alias the duplicate,
+  # so this is the aliased case and not a full-rank one that never exercised it.
+  expect_s3_class(covariate_fit$model, "glm")
+  expect_true(anyNA(coef(covariate_fit$model)))
+  expect_true(is.na(coef(covariate_fit$model)[["adj_dup"]]))
+  # the coefficients the optimizer DOES read are all estimable, which is why the
+  # fit is kept: the intercept and both intervention components are not NA.
+  expect_false(anyNA(coef(covariate_fit$model)[
+    c("(Intercept)", "coaching_updt", "launch_duration")
+  ]))
+})
+
+
+test_that("an aliased additional covariate warns but is not refused", {
+  # The counterpart to the refusal above: the covariate case must not stop, but
+  # glm() dropping the covariate is worth telling the caller about, since the
+  # covariate then contributes nothing to the recommendation, which the caller
+  # may not have intended. Precedent on the branch's parent is to warn, not
+  # error, for a non-fatal fit diagnostic. The warning names the dropped
+  # covariate and says the recommendation is the drop-that-covariate one.
+  omf <- getFromNamespace("outcome_model_fitting", "LAGO")
+  bbp <- as.data.frame(BB_proportions)
+  bbp$adj <- as.numeric(seq_len(nrow(bbp)) %% 7) + 0.3
+  bbp$adj_dup <- bbp$adj * 2
+
+  expect_warning(
+    suppressMessages(omf(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      family_object = quasibinomial(link = "logit"),
+      intervention_components = c("coaching_updt", "launch_duration"),
+      weights = rep(1, nrow(bbp)),
+      center_characteristics = NULL,
+      additional_covariates = c("adj", "adj_dup")
+    )),
+    "adj_dup"
+  )
+  # and the message says the recommendation is the drop-that-covariate one, so
+  # the caller knows the run is usable and what its result stands for.
+  expect_warning(
+    suppressMessages(omf(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      family_object = quasibinomial(link = "logit"),
+      intervention_components = c("coaching_updt", "launch_duration"),
+      weights = rep(1, nrow(bbp)),
+      center_characteristics = NULL,
+      additional_covariates = c("adj", "adj_dup")
+    )),
+    "fit without them"
+  )
+
+  # a full-rank additional covariate does not warn at all, so the diagnostic is
+  # confined to the case where glm() actually dropped one. adj alone is
+  # estimable (adj_dup was its aliased rescaling), so it produces no warning.
+  expect_silent(suppressMessages(omf(
+    data = bbp,
+    outcome_name = "EBP_proportions",
+    family_object = quasibinomial(link = "logit"),
+    intervention_components = c("coaching_updt", "launch_duration"),
+    weights = rep(1, nrow(bbp)),
+    center_characteristics = NULL,
+    additional_covariates = "adj"
+  )))
 })
 
 
