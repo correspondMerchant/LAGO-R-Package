@@ -58,6 +58,19 @@ outcome_model_fitting <- function(
     ))
   }
 
+  # refuse a rank-deficient fit up front. glm() returns NA for a coefficient it
+  # could not estimate -- two predictors carrying the same information, or a
+  # saturated fit -- those NAs make every predicted outcome NA, and no
+  # optimization can then proceed. This is fatal, unlike the diagnostics below,
+  # so it is raised here rather than warned after the fact and then failing
+  # downstream. Named off the fitted coefficients, which is the only place the
+  # aliased TERMS can still be named: by the time an outcome is NA the NA has
+  # been summed into the center-level effects and carries their names instead.
+  aliased_coef_names <- names(coef(model))[is.na(coef(model))]
+  if (length(aliased_coef_names) > 0) {
+    stop(rank_deficient_outcome_message(aliased_coef_names))
+  }
+
   # run non-fatal fit diagnostics. These only warn; LAGO optimization always
   # continues so the user still gets a recommended intervention, but is told
   # when the outcome model fit is questionable and the recommendation should

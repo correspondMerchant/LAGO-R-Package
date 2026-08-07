@@ -64,8 +64,8 @@ unachievable_goal_message <- function(lower_outcome_goal) {
 #' @noRd
 rank_deficient_outcome_message <- function(aliased_coef_names) {
   paste(
-    "No outcome could be estimated at any of the interventions tried,",
-    "because the outcome model is rank-deficient: the coefficient(s)",
+    "No outcome can be estimated from the outcome model, because it is",
+    "rank-deficient: the coefficient(s)",
     paste(aliased_coef_names, collapse = ", "),
     "could not be estimated (glm() returned NA for them), which happens when",
     "those predictors are collinear with others in the model. An outcome",
