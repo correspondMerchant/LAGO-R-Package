@@ -52,7 +52,13 @@ get_confidence_set(
   for an (weighted) average center. The weights need to sum up to 1, and
   must all be non-negative and finite. A weight of 0 is allowed and
   excludes that center from the average. Only used, and only checked,
-  when include_center_effects is TRUE.
+  when include_center_effects is TRUE. A vector whose sum is not 1 is
+  refused here rather than renormalised: the interval is computed AT the
+  weights the optimization ran with, so rescaling them would report an
+  interval for a different weighting than the point estimate beside it.
+  lago_optimization() refuses the same vectors, and normalises within
+  the tolerance the ones it accepts, so weights arriving from it always
+  sum to 1.
 
 - include_time_effects:
 
@@ -168,11 +174,23 @@ interventions and the size of the grid count grid interventions only, so
 rec_int is excluded from each\>, rec_int_ci = \<named numeric c(lower,
 upper) rounded to 3 decimal places, the confidence interval at rec_int.
 Computed whether or not it covers the outcome goal, so callers never
-have to look for rec_int inside cs. NULL when that interval is not
-computable\>, cs = \<data.frame of the grid interventions whose
-confidence interval covers the outcome goal, with their interval bounds
-and cost. rec_int is never one of its rows, and need not be a grid
-intervention at all. NULL when no grid intervention qualifies\> )
+have to look for rec_int inside cs. For a binary outcome on the logit
+link both bounds are confined to \[0, 1\], where the estimate is a
+probability by construction and the interval around it therefore belongs
+in that range; the interval is still the delta-method one and a bound at
+exactly 0 or 1 is one that has been truncated to the range. Not confined
+on the identity link, where the estimate is the linear predictor and is
+itself unbounded, so confining the interval would report one that
+excludes its own estimate. That estimate leaving \[0, 1\] is a defect in
+its own right and not this one; lago_optimization() now warns when it
+does, so it is flagged rather than silent, and the interval is still
+reported as computed for the same reason as before. Not confined for a
+continuous outcome either, whose range is not knowable here. NULL when
+that interval is not computable\>, cs = \<data.frame of the grid
+interventions whose confidence interval covers the outcome goal, with
+their interval bounds and cost. rec_int is never one of its rows, and
+need not be a grid intervention at all. NULL when no grid intervention
+qualifies\> )
 
 ## Examples
 
