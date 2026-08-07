@@ -82,9 +82,12 @@
 #'     still the delta-method one and a bound at exactly 0 or 1 is one that has
 #'     been truncated to the range. Not confined on the identity link, where the
 #'     estimate is the linear predictor and is itself unbounded, so confining
-#'     the interval would report one that excludes its own estimate. Not
-#'     confined for a continuous outcome either, whose range is not knowable
-#'     here. NULL when that interval is not computable>,
+#'     the interval would report one that excludes its own estimate. That
+#'     estimate leaving [0, 1] is a defect in its own right and not this one;
+#'     lago_optimization() now warns when it does, so it is flagged rather than
+#'     silent, and the interval is still reported as computed for the same
+#'     reason as before. Not confined for a continuous outcome either, whose
+#'     range is not knowable here. NULL when that interval is not computable>,
 #'   cs = <data.frame of the grid interventions whose confidence interval
 #'     covers the outcome goal, with their interval bounds and cost. rec_int is
 #'     never one of its rows, and need not be a grid intervention at all.
@@ -391,6 +394,12 @@ get_confidence_set <- function(
   # add additional covariates (if specified) to the data that
   # will be used for predictions
   if (length(additional_covariates) > 0) {
+    # the covariates are held at 0 for the prediction (see below). A numeric
+    # covariate whose observed values never reach 0 is then predicted at a
+    # value that does not occur in the data, so the reported outcome and
+    # interval are an extrapolation. Warn about that, once, naming each such
+    # covariate and its range. Diagnostic only: no assembled value is changed.
+    warn_covariates_held_off_support(additional_covariates, predictors_data)
     # one column per coefficient a covariate expands into, not one column per
     # covariate: a factor or character covariate is one coefficient per
     # non-reference level, so it needs that many columns. Every column is 0,
@@ -606,6 +615,14 @@ get_confidence_set <- function(
     # is above 1 a zero-width one. The estimate leaving the range is a defect in
     # its own right and is not this one, so this branch reports what it computed
     # and leaves that alone rather than papering over half of it.
+    #
+    # That estimate is no longer silent about it: lago_optimization() warns
+    # when a binary outcome's estimate leaves [0, 1], naming the extrapolation
+    # that causes it, and counts these bounds in what it says is affected. The
+    # two decisions are the same statement from two sides -- neither alters a
+    # number, and the user is told the report is not a probability -- so this
+    # branch is unchanged by it. The warning triggers on the ESTIMATE and not on
+    # a bound, precisely so that it does not re-open the choice made here.
     #
     # This is a CLAMP: the interval is still the delta-method interval, and
     # clamping only bounds what is reported of it. It is not a different
@@ -1370,6 +1387,81 @@ center_characteristic_coef_names <- function(center_characteristics,
     ))
   }
   unlist(resolved, use.names = FALSE)
+}
+
+#' warn_covariates_held_off_support
+#'
+#' @description Internal diagnostic. The confidence set prediction holds every
+#' additional covariate at 0. Warns, once, when a NUMERIC additional covariate
+#' is held there outside the range it was observed over, since the reported
+#' outcome and interval are then an extrapolation to a covariate value that
+#' never occurs in the data.
+#'
+#' @details Only a numeric covariate can be held off its support this way. A
+#' factor, character or logical covariate held at 0 sits at its reference level
+#' (all dummies 0, or FALSE for a logical), which is an OBSERVED level and so
+#' not an extrapolation, so those are left alone. A numeric covariate whose
+#' observed range CONTAINS 0 -- lower <= 0 <= upper -- takes the value 0
+#' somewhere in the data and is likewise not extrapolated, so it does not warn
+#' either. Only a numeric covariate whose observed range excludes 0 warrants
+#' the warning.
+#'
+#' Fires once per call, listing every offending covariate with its observed
+#' range, rather than once per grid row. Changes no value the caller assembles:
+#' the covariates are still held at 0. A covariate name is matched to its
+#' column in predictors_data with backticks stripped, and a covariate with no
+#' such column is skipped, since its support cannot be read.
+#'
+#' @param additional_covariates A character vector, the names of the additional
+#' covariate columns held at 0 for the prediction.
+#' @param predictors_data A data.frame, the input data whose columns hold the
+#' observed values of those covariates.
+#'
+#' @return Invisibly NULL. Raises a warning as a side effect when at least one
+#' numeric covariate is held at 0 outside its observed range.
+#'
+#' @noRd
+warn_covariates_held_off_support <- function(additional_covariates,
+                                             predictors_data) {
+  offenders <- character(0)
+  for (cov in additional_covariates) {
+    column <- gsub("`", "", cov)
+    if (!column %in% names(predictors_data)) {
+      next
+    }
+    values <- predictors_data[[column]]
+    # a factor, character or logical covariate held at 0 is at its reference
+    # level, an observed level, so it is not an extrapolation
+    if (!is.numeric(values)) {
+      next
+    }
+    observed <- range(values, na.rm = TRUE)
+    if (!all(is.finite(observed))) {
+      next
+    }
+    # 0 inside the observed range is a value the covariate takes, so holding
+    # it there is not an extrapolation
+    if (observed[1] <= 0 && observed[2] >= 0) {
+      next
+    }
+    offenders <- c(offenders, paste0(
+      column, " (observed range [", signif(observed[1], 6), ", ",
+      signif(observed[2], 6), "])"
+    ))
+  }
+  if (length(offenders) == 0) {
+    return(invisible(NULL))
+  }
+  warning(paste0(
+    "The additional covariate(s) ", paste(offenders, collapse = ", "),
+    " are held at 0 to compute the confidence set, but 0 is outside their ",
+    "observed range, so the reported estimated outcome and its interval are ",
+    "an extrapolation to a covariate value that never occurs in the data. No ",
+    "reported value has been altered: the covariate is still held at 0. To ",
+    "report the outcome at an observed covariate value, center the covariate ",
+    "so that 0 falls within its range, or drop it from the outcome model."
+  ))
+  invisible(NULL)
 }
 
 # the levels of a column in the order glm() builds its dummies from, i.e. with

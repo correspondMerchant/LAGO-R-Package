@@ -553,6 +553,25 @@ lago_optimization <- function(
     NULL
   }
 
+  # a binary outcome's estimate is a probability, and this is the one place it
+  # exists as the value that will be REPORTED: on the caller's own outcome
+  # scale, with outcome_type in scope, once per run. Both matter. get_outcome()
+  # produces the estimate but is evaluated on the flipped scale under
+  # outcome_goal_intention = "minimize", where the identity-link flip is a
+  # negation, so a check there would fire on every value of a "minimize" run
+  # whose reported outcome is a perfectly good probability; and it is called
+  # once per grid point, so it could not warn once per run. outcome_type does
+  # not reach it either. Nothing here alters a value: the estimate is what the
+  # optimizers were driven by and what is reported, and clamping either would
+  # change which intervention is recommended or make the two disagree.
+  warn_if_outcome_outside_range(
+    est_outcome = est_outcome_goal,
+    outcome_type = outcome_type,
+    link = link,
+    reported_ci = est_outcome_ci,
+    cs_rows = if (include_confidence_set) cs$cs else NULL
+  )
+
   result <- if (!include_confidence_set) {
     c(
       list(

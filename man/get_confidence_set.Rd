@@ -133,9 +133,12 @@ List(
     still the delta-method one and a bound at exactly 0 or 1 is one that has
     been truncated to the range. Not confined on the identity link, where the
     estimate is the linear predictor and is itself unbounded, so confining
-    the interval would report one that excludes its own estimate. Not
-    confined for a continuous outcome either, whose range is not knowable
-    here. NULL when that interval is not computable>,
+    the interval would report one that excludes its own estimate. That
+    estimate leaving [0, 1] is a defect in its own right and not this one;
+    lago_optimization() now warns when it does, so it is flagged rather than
+    silent, and the interval is still reported as computed for the same
+    reason as before. Not confined for a continuous outcome either, whose
+    range is not knowable here. NULL when that interval is not computable>,
   cs = <data.frame of the grid interventions whose confidence interval
     covers the outcome goal, with their interval bounds and cost. rec_int is
     never one of its rows, and need not be a grid intervention at all.
