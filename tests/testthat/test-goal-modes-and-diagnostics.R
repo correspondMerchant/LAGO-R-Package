@@ -206,7 +206,11 @@ test_that("the range warning names the range, the cause and the bounds", {
   ws <- out_of_range_warnings()
   w <- ws[grepl("not a probability", ws)]
   expect_length(w, 1)
-  expect_match(w, "estimated outcome is 1\\.44073")
+  # the value is printed at full precision, not rounded: a value only just
+  # outside the range, say 1.0000004, would round to 1 and read "the estimated
+  # outcome is 1, which is outside [0, 1]", contradicting itself. So the printed
+  # value is asserted to begin with the true digits and not to be a rounded one.
+  expect_match(w, "estimated outcome is 1\\.4407272")
   expect_match(w, "outside \\[0, 1\\]")
   expect_match(w, "binary")
   expect_match(w, "linear probability model")
@@ -221,6 +225,22 @@ test_that("the range warning names the range, the cause and the bounds", {
   expect_match(w, "link = \"logit\"")
   # it counts the affected reported bounds rather than staying silent on them
   expect_match(w, "reported confidence interval bound\\(s\\) are outside")
+})
+
+test_that("the range warning does not round a barely-out value to look in range", {
+  # an estimate just past the boundary, 1 + 4e-7, must not print as "1", which
+  # would make the message say "the estimated outcome is 1, which is outside
+  # [0, 1]" -- a statement and its negation. The message builder is called
+  # directly, since driving the optimizer to land an estimate exactly there is
+  # not controllable.
+  warn_fn <- getFromNamespace("warn_if_outcome_outside_range", "LAGO")
+  msg <- tryCatch(
+    warn_fn(1.0000004, "binary", "identity"),
+    warning = conditionMessage
+  )
+  expect_true(is.character(msg))
+  expect_no_match(msg, "outcome is 1, which is outside")
+  expect_match(msg, "1.0000004", fixed = TRUE)
 })
 
 test_that("the range warning fires once per run, not once per grid point", {

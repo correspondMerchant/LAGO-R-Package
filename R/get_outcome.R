@@ -219,8 +219,14 @@ warn_if_outcome_outside_range <- function(est_outcome,
     )
   }
 
+  # format() to enough digits that the printed value cannot round to a number
+  # inside [0, 1]: signif(1.0000004, 6) is 1, which would read "the estimated
+  # outcome is 1, which is outside [0, 1]", contradicting itself. The value is
+  # only just outside the range in that case, but the message must not say a
+  # thing and its negation.
   warning(paste0(
-    "The estimated outcome is ", signif(est_outcome, 6), ", which is outside ",
+    "The estimated outcome is ", format(est_outcome, digits = 15),
+    ", which is outside ",
     "[0, 1] and so is not a probability, while the outcome is binary. ",
     mechanism,
     bounds_sentence,

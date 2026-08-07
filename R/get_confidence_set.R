@@ -1435,10 +1435,16 @@ warn_covariates_held_off_support <- function(additional_covariates,
     if (!is.numeric(values)) {
       next
     }
-    observed <- range(values, na.rm = TRUE)
-    if (!all(is.finite(observed))) {
+    # finite values only, and taken before range() rather than with na.rm: an
+    # all-NA column makes range(na.rm = TRUE) itself warn ("no non-missing
+    # arguments to min") before the is.finite check below could skip it, which
+    # would be a second, unrelated warning from a diagnostic that is meant to
+    # emit one clear one.
+    finite_values <- values[is.finite(values)]
+    if (length(finite_values) == 0) {
       next
     }
+    observed <- range(finite_values)
     # 0 inside the observed range is a value the covariate takes, so holding
     # it there is not an extrapolation
     if (observed[1] <= 0 && observed[2] >= 0) {
