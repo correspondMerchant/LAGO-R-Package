@@ -12,7 +12,12 @@
 #' satisfy the outcome goal for an (weighted) average center.
 #' The weights need to sum up to 1, and must all be non-negative and finite.
 #' A weight of 0 is allowed and excludes that center from the average. Only
-#' used, and only checked, when include_center_effects is TRUE.
+#' used, and only checked, when include_center_effects is TRUE. A vector whose
+#' sum is not 1 is refused here rather than renormalised: the interval is
+#' computed AT the weights the optimization ran with, so rescaling them would
+#' report an interval for a different weighting than the point estimate beside
+#' it. lago_optimization() refuses the same vectors, and normalises within the
+#' tolerance the ones it accepts, so weights arriving from it always sum to 1.
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model.
 #' @param time_effect_optimization_value The period the confidence set is
@@ -71,7 +76,18 @@
 #'   rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
 #'     the confidence interval at rec_int. Computed whether or not it covers
 #'     the outcome goal, so callers never have to look for rec_int inside cs.
-#'     NULL when that interval is not computable>,
+#'     For a binary outcome on the logit link both bounds are confined to
+#'     [0, 1], where the estimate is a probability by construction and the
+#'     interval around it therefore belongs in that range; the interval is
+#'     still the delta-method one and a bound at exactly 0 or 1 is one that has
+#'     been truncated to the range. Not confined on the identity link, where the
+#'     estimate is the linear predictor and is itself unbounded, so confining
+#'     the interval would report one that excludes its own estimate. That
+#'     estimate leaving [0, 1] is a defect in its own right and not this one;
+#'     lago_optimization() now warns when it does, so it is flagged rather than
+#'     silent, and the interval is still reported as computed for the same
+#'     reason as before. Not confined for a continuous outcome either, whose
+#'     range is not knowable here. NULL when that interval is not computable>,
 #'   cs = <data.frame of the grid interventions whose confidence interval
 #'     covers the outcome goal, with their interval bounds and cost. rec_int is
 #'     never one of its rows, and need not be a grid intervention at all.
@@ -197,8 +213,23 @@ get_confidence_set <- function(
   # would not otherwise cover a direct caller -- and the @param text saying the
   # weights must be non-negative and finite would be true of one entry point
   # and not the other. The same guard, so both name the same reason.
+  #
+  # The SUM is the other way to the same wrong number. Every weight
+  # can be non-negative and finite while the vector is still not a set of
+  # weights: the reported outcome is sum(weight_i * outcome_i), so it is a
+  # weighted MEAN only when the weights sum to 1, and 16 weights of 12/16 scale
+  # every reported outcome by 12 -- an interval of 1.406 to 2.147 for an outcome
+  # that is a proportion. Refused rather than renormalised, unlike
+  # validate_inputs(), which owns the weights and can normalise them once for
+  # every consumer; this function is handed the weights an optimization has
+  # already run with and reports the interval AT them, so rescaling them here
+  # would report an interval for a different weighting than the point estimate
+  # printed beside it. Both entry points refuse the same vectors in the same
+  # words, which is the property that matters. See
+  # refuse_non_unit_weight_sum().
   if (include_center_effects) {
     refuse_invalid_center_weights(center_weights_for_outcome_goal)
+    refuse_non_unit_weight_sum(center_weights_for_outcome_goal)
   }
   # Create a list to store sequences for each component
   sequences <- list()
@@ -363,6 +394,12 @@ get_confidence_set <- function(
   # add additional covariates (if specified) to the data that
   # will be used for predictions
   if (length(additional_covariates) > 0) {
+    # the covariates are held at 0 for the prediction (see below). A numeric
+    # covariate whose observed values never reach 0 is then predicted at a
+    # value that does not occur in the data, so the reported outcome and
+    # interval are an extrapolation. Warn about that, once, naming each such
+    # covariate and its range. Diagnostic only: no assembled value is changed.
+    warn_covariates_held_off_support(additional_covariates, predictors_data)
     # one column per coefficient a covariate expands into, not one column per
     # covariate: a factor or character covariate is one coefficient per
     # non-reference level, so it needs that many columns. Every column is 0,
@@ -561,6 +598,75 @@ get_confidence_set <- function(
     # the shared code below turns these bounds into the confidence set and
     # its size, for both outcome types
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
+    # a binary outcome fitted on the logit link is reported as a probability, so
+    # a REPORTED bound of -0.106 or 1.049 is not one and cannot be: the point
+    # estimate is expit(eta) and is inside [0, 1] by construction, while
+    # pred +- z*se is symmetric on the outcome scale and so is free to leave it.
+    # A small noisy logit fit reported CI_lower_bound -0.106 and CI_upper_bound
+    # 1.049 in the same returned set. Confining the bounds brings the interval
+    # into agreement with the estimate it belongs to.
+    #
+    # NOT done on the identity link, where the same operation would do the
+    # opposite. There the model is a linear probability model and the point
+    # estimate is the linear predictor itself, which extrapolates outside [0, 1]
+    # and is already reported that way: an estimated outcome of 1.0588 is
+    # printed as it stands. Confining only the interval around it would report
+    # an interval that excludes its own estimate, and where the whole interval
+    # is above 1 a zero-width one. The estimate leaving the range is a defect in
+    # its own right and is not this one, so this branch reports what it computed
+    # and leaves that alone rather than papering over half of it.
+    #
+    # That estimate is no longer silent about it: lago_optimization() warns
+    # when a binary outcome's estimate leaves [0, 1], naming the extrapolation
+    # that causes it, and counts these bounds in what it says is affected. The
+    # two decisions are the same statement from two sides -- neither alters a
+    # number, and the user is told the report is not a probability -- so this
+    # branch is unchanged by it. The warning triggers on the ESTIMATE and not on
+    # a bound, precisely so that it does not re-open the choice made here.
+    #
+    # This is a CLAMP: the interval is still the delta-method interval, and
+    # clamping only bounds what is reported of it. It is not a different
+    # interval and does not have that interval's coverage; a bound sitting at
+    # exactly 0 or 1 means the delta-method bound was outside the range and has
+    # been truncated to it, not that the interval ends there.
+    #
+    # The alternative was to build the interval on the logit scale and map it
+    # back through expit(), which cannot leave [0, 1] at all and is the textbook
+    # fix. Rejected here: it is a different interval, so it would move EVERY
+    # reported binary number, including every one that is already a probability
+    # and already right, and the binary branch reports the delta-method interval
+    # deliberately -- it is what glm()'s own binary machinery reports and what
+    # this package has always reported. The comment on the continuous branch
+    # below records that choice. Changing the interval is a larger decision than
+    # this defect, which is that a number reported as a probability is not one;
+    # the smaller change fixes exactly that and nothing else.
+    #
+    # Both bounds are clamped in ONE step so the pair cannot cross. Clamping
+    # only the upper bound would turn [1.02, 1.30] into [1.02, 1], an inverted
+    # interval, and findInterval() does not reject that, it silently reports
+    # against a vector it was told is sorted. pmin/pmax preserve the matrix's
+    # shape and leave an NA bound NA, so the complete.cases() filter below is
+    # unaffected.
+    #
+    # Clamped SEPARATELY from the interval membership is decided on, which is
+    # the unclamped one. findInterval() treats the interval as right-open, so
+    # for an outcome goal of exactly 1 a bound clamped from 1.049 down to 1 puts
+    # the goal at the closed end and the row falls out of the set: an
+    # intervention whose delta-method interval covers the goal would stop
+    # qualifying because of how its bound is REPORTED. Clamping is a statement
+    # about the report, so it is applied to what is reported and to nothing
+    # else.
+    #
+    # Gating on the link also removes the case of an interval lying WHOLLY
+    # outside the range, which has no part inside it to report and which
+    # clamping would report as the non-empty [1, 1]. On the logit link the
+    # estimate is inside [0, 1], so an interval centred on it always has a part
+    # inside too, and at most one of its bounds is ever confined.
+    reported_ci_prob_all <- if (link == "logit") {
+      pmin(pmax(ci_prob_all, 0), 1)
+    } else {
+      ci_prob_all
+    }
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links().
@@ -887,17 +993,36 @@ get_confidence_set <- function(
 
     if (link == "identity") {
       # For identity link, predictions are on the correct scale already.
+      #
+      # NOT clamped to [0, 1], unlike the binary branch above, because for a
+      # continuous outcome there is no range to clamp to. The outcome is a mean
+      # on whatever scale the caller's data is on, and nothing here knows what
+      # that scale is: "continuous" with a proportion in [0, 1] is supported and
+      # is what BB_proportions is, but so is a count, a duration or a
+      # difference, and the goal is only numeric. So an out-of-[0, 1] bound
+      # here is not knowably wrong -- for BB_proportions it would be, and for a
+      # blood pressure it plainly would not -- and clamping on the chance the
+      # outcome happens to be a proportion would corrupt every other continuous
+      # outcome. The binary branch can clamp precisely because "binary" fixes
+      # the range.
       ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
     } else {
       # For "logit" (or other logistic-like) link, apply expit.
+      # This one is already confined to [0, 1] without any clamp, since it
+      # transforms the BOUNDS and expit() maps onto (0, 1). That is the same
+      # property the note above describes, arrived at by construction.
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
+    # a continuous outcome has no range to confine a bound to, so what is
+    # reported is what was computed. See the note above.
+    reported_ci_prob_all <- ci_prob_all
   } else {
     # ci_prob_all is assigned in the two branches above and read by the shared
     # code below, so an unrecognised outcome type would reach that code with it
     # undefined and fail on "object 'ci_prob_all' not found" instead of saying
     # what is wrong. lago_optimization() validates outcome_type, so this is
-    # reachable only through a direct call.
+    # reachable only through a direct call. reported_ci_prob_all is defaulted
+    # below for the same reason: only the binary branch narrows what it reports.
     stop(paste0(
       "'outcome_type' must be either \"binary\" or \"continuous\", not \"",
       outcome_type, "\"."
@@ -926,8 +1051,8 @@ get_confidence_set <- function(
   # rec_int inside the confidence set. NULL when it could not be computed.
   rec_int_ci <- if (valid_rows[1]) {
     c(
-      lower = round(ci_prob_all[1, 1], 3),
-      upper = round(ci_prob_all[1, 2], 3)
+      lower = round(reported_ci_prob_all[1, 1], 3),
+      upper = round(reported_ci_prob_all[1, 2], 3)
     )
   } else {
     NULL
@@ -999,8 +1124,8 @@ get_confidence_set <- function(
   # cs_row_indices are grid_x row numbers, and ci_prob_all is indexed by the
   # same row numbers, so the bounds line up with the cs rows they belong to.
   cs_output_names <- names(cs)
-  ci_lower_bound <- round(ci_prob_all[cs_row_indices, 1], 3)
-  ci_upper_bound <- round(ci_prob_all[cs_row_indices, 2], 3)
+  ci_lower_bound <- round(reported_ci_prob_all[cs_row_indices, 1], 3)
+  ci_upper_bound <- round(reported_ci_prob_all[cs_row_indices, 2], 3)
 
   cs <- cbind(
     cs,
@@ -1262,6 +1387,87 @@ center_characteristic_coef_names <- function(center_characteristics,
     ))
   }
   unlist(resolved, use.names = FALSE)
+}
+
+#' warn_covariates_held_off_support
+#'
+#' @description Internal diagnostic. The confidence set prediction holds every
+#' additional covariate at 0. Warns, once, when a NUMERIC additional covariate
+#' is held there outside the range it was observed over, since the reported
+#' outcome and interval are then an extrapolation to a covariate value that
+#' never occurs in the data.
+#'
+#' @details Only a numeric covariate can be held off its support this way. A
+#' factor, character or logical covariate held at 0 sits at its reference level
+#' (all dummies 0, or FALSE for a logical), which is an OBSERVED level and so
+#' not an extrapolation, so those are left alone. A numeric covariate whose
+#' observed range CONTAINS 0 -- lower <= 0 <= upper -- takes the value 0
+#' somewhere in the data and is likewise not extrapolated, so it does not warn
+#' either. Only a numeric covariate whose observed range excludes 0 warrants
+#' the warning.
+#'
+#' Fires once per call, listing every offending covariate with its observed
+#' range, rather than once per grid row. Changes no value the caller assembles:
+#' the covariates are still held at 0. A covariate name is matched to its
+#' column in predictors_data with backticks stripped, and a covariate with no
+#' such column is skipped, since its support cannot be read.
+#'
+#' @param additional_covariates A character vector, the names of the additional
+#' covariate columns held at 0 for the prediction.
+#' @param predictors_data A data.frame, the input data whose columns hold the
+#' observed values of those covariates.
+#'
+#' @return Invisibly NULL. Raises a warning as a side effect when at least one
+#' numeric covariate is held at 0 outside its observed range.
+#'
+#' @noRd
+warn_covariates_held_off_support <- function(additional_covariates,
+                                             predictors_data) {
+  offenders <- character(0)
+  for (cov in additional_covariates) {
+    column <- gsub("`", "", cov)
+    if (!column %in% names(predictors_data)) {
+      next
+    }
+    values <- predictors_data[[column]]
+    # a factor, character or logical covariate held at 0 is at its reference
+    # level, an observed level, so it is not an extrapolation
+    if (!is.numeric(values)) {
+      next
+    }
+    # finite values only, and taken before range() rather than with na.rm: an
+    # all-NA column makes range(na.rm = TRUE) itself warn ("no non-missing
+    # arguments to min") before the is.finite check below could skip it, which
+    # would be a second, unrelated warning from a diagnostic that is meant to
+    # emit one clear one.
+    finite_values <- values[is.finite(values)]
+    if (length(finite_values) == 0) {
+      next
+    }
+    observed <- range(finite_values)
+    # 0 inside the observed range is a value the covariate takes, so holding
+    # it there is not an extrapolation
+    if (observed[1] <= 0 && observed[2] >= 0) {
+      next
+    }
+    offenders <- c(offenders, paste0(
+      column, " (observed range [", signif(observed[1], 6), ", ",
+      signif(observed[2], 6), "])"
+    ))
+  }
+  if (length(offenders) == 0) {
+    return(invisible(NULL))
+  }
+  warning(paste0(
+    "The additional covariate(s) ", paste(offenders, collapse = ", "),
+    " are held at 0 to compute the confidence set, but 0 is outside their ",
+    "observed range, so the reported estimated outcome and its interval are ",
+    "an extrapolation to a covariate value that never occurs in the data. No ",
+    "reported value has been altered: the covariate is still held at 0. To ",
+    "report the outcome at an observed covariate value, center the covariate ",
+    "so that 0 falls within its range, or drop it from the outcome model."
+  ))
+  invisible(NULL)
 }
 
 # the levels of a column in the order glm() builds its dummies from, i.e. with
