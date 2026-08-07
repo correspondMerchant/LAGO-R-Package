@@ -12,7 +12,12 @@
 #' satisfy the outcome goal for an (weighted) average center.
 #' The weights need to sum up to 1, and must all be non-negative and finite.
 #' A weight of 0 is allowed and excludes that center from the average. Only
-#' used, and only checked, when include_center_effects is TRUE.
+#' used, and only checked, when include_center_effects is TRUE. A vector whose
+#' sum is not 1 is refused here rather than renormalised: the interval is
+#' computed AT the weights the optimization ran with, so rescaling them would
+#' report an interval for a different weighting than the point estimate beside
+#' it. lago_optimization() refuses the same vectors, and normalises within the
+#' tolerance the ones it accepts, so weights arriving from it always sum to 1.
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model.
 #' @param time_effect_optimization_value The period the confidence set is
@@ -71,7 +76,11 @@
 #'   rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
 #'     the confidence interval at rec_int. Computed whether or not it covers
 #'     the outcome goal, so callers never have to look for rec_int inside cs.
-#'     NULL when that interval is not computable>,
+#'     For a binary outcome both bounds are confined to [0, 1], since the
+#'     outcome is a probability; the interval is still the delta-method one and
+#'     a bound at exactly 0 or 1 is one that has been truncated to the range.
+#'     No such confinement is applied for a continuous outcome, whose range is
+#'     not knowable here. NULL when that interval is not computable>,
 #'   cs = <data.frame of the grid interventions whose confidence interval
 #'     covers the outcome goal, with their interval bounds and cost. rec_int is
 #'     never one of its rows, and need not be a grid intervention at all.
@@ -197,8 +206,23 @@ get_confidence_set <- function(
   # would not otherwise cover a direct caller -- and the @param text saying the
   # weights must be non-negative and finite would be true of one entry point
   # and not the other. The same guard, so both name the same reason.
+  #
+  # The SUM is the other way to the same wrong number. Every weight
+  # can be non-negative and finite while the vector is still not a set of
+  # weights: the reported outcome is sum(weight_i * outcome_i), so it is a
+  # weighted MEAN only when the weights sum to 1, and 16 weights of 12/16 scale
+  # every reported outcome by 12 -- an interval of 1.406 to 2.147 for an outcome
+  # that is a proportion. Refused rather than renormalised, unlike
+  # validate_inputs(), which owns the weights and can normalise them once for
+  # every consumer; this function is handed the weights an optimization has
+  # already run with and reports the interval AT them, so rescaling them here
+  # would report an interval for a different weighting than the point estimate
+  # printed beside it. Both entry points refuse the same vectors in the same
+  # words, which is the property that matters. See
+  # refuse_non_unit_weight_sum().
   if (include_center_effects) {
     refuse_invalid_center_weights(center_weights_for_outcome_goal)
+    refuse_non_unit_weight_sum(center_weights_for_outcome_goal)
   }
   # Create a list to store sequences for each component
   sequences <- list()
@@ -561,6 +585,36 @@ get_confidence_set <- function(
     # the shared code below turns these bounds into the confidence set and
     # its size, for both outcome types
     ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
+    # a binary outcome is a probability, so a REPORTED bound of -0.106 or 1.049
+    # is not a probability and cannot be one. Both bounds are confined to
+    # [0, 1] here, on both links: pred +- z*se is symmetric on the outcome scale
+    # and so is free to leave the range on either side, and it did on both links
+    # -- a small noisy logit fit reported CI_lower_bound -0.106 and
+    # CI_upper_bound 1.049 in the same returned set.
+    #
+    # This is a CLAMP: the interval is still the delta-method interval, and
+    # clamping only bounds what is reported of it. It is not a different
+    # interval and does not have that interval's coverage; a bound sitting at
+    # exactly 0 or 1 means the delta-method bound was outside the range and has
+    # been truncated to it, not that the interval ends there.
+    #
+    # The alternative was to build the interval on the logit scale and map it
+    # back through expit(), which cannot leave [0, 1] at all and is the textbook
+    # fix. Rejected here: it is a different interval, so it would move EVERY
+    # reported binary number, including every one that is already a probability
+    # and already right, and the binary branch reports the delta-method interval
+    # deliberately -- it is what glm()'s own binary machinery reports and what
+    # this package has always reported. The comment on the continuous branch
+    # below records that choice. Changing the interval is a larger decision than
+    # this defect, which is that a number reported as a probability is not one;
+    # the smaller change fixes exactly that and nothing else.
+    #
+    # Both bounds are clamped in ONE step so the pair cannot cross. Clamping
+    # only the upper bound would turn [1.02, 1.30] into [1.02, 1] -- an inverted
+    # interval, which findInterval() below rejects outright as unsorted rather
+    # than merely reporting oddly. pmin/pmax preserve the matrix's shape and
+    # leave an NA bound NA, so the complete.cases() filter below is unaffected.
+    ci_prob_all <- pmin(pmax(ci_prob_all, 0), 1)
   } else if (outcome_type == "continuous") {
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links().
@@ -887,9 +941,24 @@ get_confidence_set <- function(
 
     if (link == "identity") {
       # For identity link, predictions are on the correct scale already.
+      #
+      # NOT clamped to [0, 1], unlike the binary branch above, because for a
+      # continuous outcome there is no range to clamp to. The outcome is a mean
+      # on whatever scale the caller's data is on, and nothing here knows what
+      # that scale is: "continuous" with a proportion in [0, 1] is supported and
+      # is what BB_proportions is, but so is a count, a duration or a
+      # difference, and the goal is only numeric. So an out-of-[0, 1] bound
+      # here is not knowably wrong -- for BB_proportions it would be, and for a
+      # blood pressure it plainly would not -- and clamping on the chance the
+      # outcome happens to be a proportion would corrupt every other continuous
+      # outcome. The binary branch can clamp precisely because "binary" fixes
+      # the range.
       ci_prob_all <- cbind(lb_prob_all, ub_prob_all)
     } else {
       # For "logit" (or other logistic-like) link, apply expit.
+      # This one is already confined to [0, 1] without any clamp, since it
+      # transforms the BOUNDS and expit() maps onto (0, 1). That is the same
+      # property the note above describes, arrived at by construction.
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
   } else {

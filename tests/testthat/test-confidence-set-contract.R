@@ -999,3 +999,320 @@ test_that("a binary outcome's interval is built on the link it was fitted on", {
     )
   )
 })
+
+
+test_that("the exported get_confidence_set() refuses a non-unit weight sum", {
+  # The companion to the negative-weight refusal above, reaching the same wrong
+  # number by the other door. Every weight here is non-negative and finite, so
+  # refuse_invalid_center_weights() does not apply, but the vector is still not
+  # a set of weights TAKEN TOGETHER: the reported outcome is
+  # sum(weight_i * outcome_i), a weighted mean only when the weights sum to 1,
+  # so a set summing to 12 scales the intervention contribution of every
+  # reported outcome by 12. On a proportion outcome that reported a confidence
+  # interval of 1.406 to 2.147.
+  #
+  # get_confidence_set() is EXPORTED and does not go through validate_inputs(),
+  # which is where the sum check lived, so a direct caller had none at all.
+  # It is REFUSED here rather than renormalised, unlike validate_inputs():
+  # this function is handed the weights an optimization has already run with and
+  # reports the interval AT them, so rescaling them would report an interval for
+  # a different weighting than the point estimate printed beside it.
+  pulesa <- as.data.frame(main_pulesa_data)
+  pulesa$center <- pulesa$Clinic
+  components <- c("AccessMedicines", "AccessBPMachines")
+  model <- glm(
+    Proportions ~ center + AccessMedicines + AccessBPMachines,
+    data = pulesa, family = gaussian(link = "identity")
+  )
+  n_centers <- length(levels(pulesa$Clinic))
+  expect_equal(n_centers, 16)
+
+  call_cs <- function(w) {
+    suppressWarnings(get_confidence_set(
+      predictors_data = pulesa[, c("center", components), drop = FALSE],
+      include_center_effects = TRUE,
+      center_weights_for_outcome_goal = w,
+      intervention_components = components,
+      outcome_data = pulesa$Proportions,
+      fitted_model = model,
+      link = "identity",
+      outcome_goal = 0.5,
+      outcome_type = "continuous",
+      intervention_lower_bounds = c(1, 0.5),
+      intervention_upper_bounds = c(5, 1),
+      confidence_set_grid_step_size = c(1, 0.25),
+      cluster_id = list(pulesa$center),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(3, 0.75)
+    ))
+  }
+
+  # the fixture's own precondition: these weights pass every check the function
+  # made before, so the sum is the only thing that refuses them
+  over <- rep(12 / n_centers, n_centers)
+  expect_true(all(over >= 0 & is.finite(over)))
+  expect_equal(sum(over), 12)
+
+  # a sum far from 1 is refused, in the words validate_inputs() uses
+  expect_error(call_cs(over), "sum up to 1")
+  expect_error(call_cs(rep(200 / n_centers, n_centers)), "sum up to 1")
+  expect_error(call_cs(rep(0.5 / n_centers, n_centers)), "sum up to 1")
+  # all-zero weights are a sum of 0, so they are refused here too
+  expect_error(call_cs(rep(0, n_centers)), "sum up to 1")
+
+  # compliant weights are UNCHANGED, so the guard only removed the refused
+  # cases. This is the number the scaled vectors were a multiple of.
+  unit <- call_cs(rep(1 / n_centers, n_centers))
+  expect_false(is.null(unit$rec_int_ci))
+  expect_identical(
+    unname(unit$rec_int_ci),
+    c(0.557, 0.628)
+  )
+
+  # the tolerance is validate_inputs()' own 0.001 and is not narrowed: a
+  # residual sum a hair off 1, which is what renormalised weights can be, is
+  # still accepted, and so is rounded input the documentation invites
+  expect_error(call_cs(rep(1 / n_centers, n_centers)), NA)
+  nudged <- rep(1 / n_centers, n_centers)
+  nudged[1] <- nudged[1] + 0.0005
+  expect_lt(abs(sum(nudged) - 1), 0.001)
+  expect_error(call_cs(nudged), NA)
+
+  # and the two entry points refuse the same vector in the SAME words, which is
+  # the property that makes refusing here consistent rather than divergent
+  primary <- function() {
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = pulesa,
+      outcome_name = "Proportions",
+      outcome_type = "continuous",
+      intervention_components = components,
+      intervention_lower_bounds = c(1, 0.5),
+      intervention_upper_bounds = c(5, 1),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      outcome_goal = 0.5,
+      include_center_effects = TRUE,
+      center_weights_for_outcome_goal = over,
+      include_confidence_set = FALSE,
+      quiet = TRUE
+    )))
+  }
+  expect_error(primary(), "sum up to 1")
+  expect_identical(
+    tryCatch(primary(), error = conditionMessage),
+    tryCatch(call_cs(over), error = conditionMessage)
+  )
+
+  # the weights are only USED when the fixed center effects are included, so a
+  # caller who is not asking for them passes the scalar default 1 and must not
+  # be refused for a vector nobody reads. That default sums to 1 anyway, so the
+  # gate is asserted with a vector that does NOT.
+  expect_error(
+    suppressWarnings(get_confidence_set(
+      predictors_data = pulesa[, components, drop = FALSE],
+      include_center_effects = FALSE,
+      center_weights_for_outcome_goal = c(6, 6),
+      intervention_components = components,
+      outcome_data = pulesa$Proportions,
+      fitted_model = glm(
+        Proportions ~ AccessMedicines + AccessBPMachines,
+        data = pulesa, family = gaussian(link = "identity")
+      ),
+      link = "identity",
+      outcome_goal = 0.5,
+      outcome_type = "continuous",
+      intervention_lower_bounds = c(1, 0.5),
+      intervention_upper_bounds = c(5, 1),
+      confidence_set_grid_step_size = c(1, 0.25),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(3, 0.75)
+    )),
+    NA
+  )
+})
+
+
+test_that("a binary outcome's reported interval is confined to [0, 1]", {
+  # A binary outcome is a probability, so a reported bound of -0.106 or 1.049 is
+  # not one. The binary branch builds pred +- z*se on the probability scale,
+  # which is symmetric there and so free to leave [0, 1] on either side, and it
+  # did on BOTH links: this fixture reported CI_lower_bound -0.106 and
+  # CI_upper_bound 1.049 in the same returned set.
+  #
+  # The fix is a CLAMP, so the assertions below are written against the clamped
+  # DELTA-METHOD interval and not against a logit-scale one: the interval is
+  # still the delta-method interval this package has always reported, and
+  # clamping only bounds what is reported of it.
+  set.seed(11)
+  d <- data.frame(a = rep(1:3, each = 6), b = rep_len(c(1, 2), 18))
+  d$y <- rbinom(18, 1, 0.5)
+  components <- c("a", "b")
+
+  call_cs <- function(link, goal = 0.5) {
+    model <- glm(
+      y ~ a + b, data = d, family = binomial(link = link)
+    )
+    list(model = model, res = suppressWarnings(get_confidence_set(
+      predictors_data = d[, components, drop = FALSE],
+      intervention_components = components,
+      outcome_data = d$y,
+      fitted_model = model,
+      link = link,
+      outcome_goal = goal,
+      outcome_type = "binary",
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(3, 2),
+      confidence_set_grid_step_size = c(1, 1),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(2, 1.5)
+    )))
+  }
+
+  critical_value <- qnorm(0.975)
+  # the hand oracle: the delta-method interval from glm() directly, then
+  # clamped. It does not go through the package.
+  hand <- function(model, x, link) {
+    row <- c(1, x)
+    eta <- as.numeric(row %*% coef(model))
+    se_eta <- sqrt(as.numeric(t(row) %*% vcov(model) %*% row))
+    if (link == "identity") {
+      point <- eta
+      se_point <- se_eta
+    } else {
+      point <- rje::expit(eta)
+      se_point <- se_eta * point * (1 - point)
+    }
+    bounds <- c(point - critical_value * se_point,
+      point + critical_value * se_point)
+    round(pmin(pmax(bounds, 0), 1), 3)
+  }
+
+  for (link in c("logit", "identity")) {
+    fit <- call_cs(link)
+    model <- fit$model
+    res <- fit$res
+
+    # THE assertion: no reported bound is outside [0, 1], on either link
+    expect_gt(nrow(res$cs), 0)
+    expect_true(all(res$cs$CI_lower_bound >= 0))
+    expect_true(all(res$cs$CI_upper_bound <= 1))
+    expect_true(all(res$rec_int_ci >= 0 & res$rec_int_ci <= 1))
+
+    # the fixture's own precondition: the UNCLAMPED delta-method interval really
+    # does leave [0, 1] here, on both sides, so the assertion above has
+    # something to bite on rather than passing vacuously
+    unclamped <- function(x) {
+      row <- c(1, x)
+      eta <- as.numeric(row %*% coef(model))
+      se_eta <- sqrt(as.numeric(t(row) %*% vcov(model) %*% row))
+      if (link == "identity") {
+        point <- eta
+        se_point <- se_eta
+      } else {
+        point <- rje::expit(eta)
+        se_point <- se_eta * point * (1 - point)
+      }
+      round(c(point - critical_value * se_point,
+        point + critical_value * se_point), 3)
+    }
+    raw <- vapply(
+      seq_len(nrow(res$cs)),
+      function(i) unclamped(c(res$cs$a[i], res$cs$b[i])),
+      numeric(2)
+    )
+    expect_true(any(raw[1, ] < 0))
+    expect_true(any(raw[2, ] > 1))
+
+    # every row agrees with the hand oracle, at its OWN coordinates, so the
+    # bounds are the clamped delta-method interval and not some other interval
+    for (i in seq_len(nrow(res$cs))) {
+      expect_identical(
+        unname(c(res$cs$CI_lower_bound[i], res$cs$CI_upper_bound[i])),
+        hand(model, c(res$cs$a[i], res$cs$b[i]), link)
+      )
+    }
+    expect_identical(
+      unname(res$rec_int_ci), hand(model, c(2, 1.5), link)
+    )
+
+    # the interval is NOT the logit-scale one transformed back, which is the
+    # other way to bound it and would have moved every binary number. Asserted
+    # so the test says which interval is reported, not merely that it is in
+    # range.
+    logit_scale <- function(x) {
+      row <- c(1, x)
+      eta <- as.numeric(row %*% coef(model))
+      se_eta <- sqrt(as.numeric(t(row) %*% vcov(model) %*% row))
+      round(rje::expit(c(eta - critical_value * se_eta,
+        eta + critical_value * se_eta)), 3)
+    }
+    expect_false(identical(
+      unname(res$rec_int_ci), logit_scale(c(2, 1.5))
+    ))
+
+    # a clamped bound sits at exactly the boundary, which is what distinguishes
+    # truncation from an interval that happens to end there
+    expect_true(any(
+      res$cs$CI_lower_bound == 0 | res$cs$CI_upper_bound == 1
+    ))
+
+    # MEMBERSHIP is unchanged. The goal is a probability, so it lies in the
+    # range the bounds are clamped to, and clamping a bound to the range it is
+    # compared against cannot move it across the goal. Asserted directly:
+    # every returned row still brackets the goal, and every row NOT returned
+    # still fails to, judged on the UNCLAMPED bounds.
+    expect_true(all(
+      res$cs$CI_lower_bound <= 0.5 & res$cs$CI_upper_bound >= 0.5
+    ))
+    grid <- expand.grid(a = 1:3, b = 1:2)
+    covers_unclamped <- vapply(seq_len(nrow(grid)), function(i) {
+      bounds <- unclamped(c(grid$a[i], grid$b[i]))
+      bounds[1] <= 0.5 && 0.5 <= bounds[2]
+    }, logical(1))
+    returned <- paste(res$cs$a, res$cs$b)
+    expect_setequal(
+      returned,
+      paste(grid$a, grid$b)[covers_unclamped]
+    )
+  }
+})
+
+
+test_that("a continuous outcome's interval is NOT clamped to [0, 1]", {
+  # The counterpart to the test above, pinning the deliberate asymmetry. The
+  # binary branch can confine its bounds because "binary" fixes the range at
+  # [0, 1]; a continuous outcome is a mean on whatever scale the caller's data
+  # is on, and nothing here knows what that is. "continuous" with a proportion
+  # is supported, and so is a count or a duration, and the outcome goal is only
+  # required to be numeric -- so an out-of-[0, 1] bound is not knowably wrong
+  # for a continuous outcome and clamping it would corrupt every outcome that is
+  # not a proportion.
+  #
+  # This asserts the range is left alone on a fixture whose outcome is far
+  # outside [0, 1], which a clamp would silently destroy.
+  set.seed(5)
+  d <- data.frame(x1 = rep(1:6, each = 4), x2 = rep_len(c(1, 2), 24))
+  d$y <- 40 + 3 * d$x1 + 2 * d$x2 + rnorm(24, 0, 1.5)
+  expect_true(all(d$y > 1))
+
+  res <- suppressWarnings(suppressMessages(lago_optimization(
+    data = d,
+    outcome_name = "y",
+    outcome_type = "continuous",
+    intervention_components = c("x1", "x2"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(6, 2),
+    cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+    outcome_goal = 55,
+    confidence_set_grid_step_size = c(1, 1),
+    quiet = TRUE
+  )))
+
+  # the bounds are on the outcome's own scale, well outside [0, 1], and are
+  # reported as they are
+  expect_gt(nrow(res$cs), 0)
+  expect_true(all(res$cs$CI_lower_bound > 1))
+  expect_true(all(res$cs$CI_upper_bound > 1))
+  expect_true(all(res$est_outcome_ci > 1))
+  # a clamp would have collapsed every one of them to exactly 1
+  expect_false(any(res$cs$CI_upper_bound == 1))
+})

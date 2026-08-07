@@ -42,7 +42,12 @@ weights that will be used for calculating recommended interventions that
 satisfy the outcome goal for an (weighted) average center.
 The weights need to sum up to 1, and must all be non-negative and finite.
 A weight of 0 is allowed and excludes that center from the average. Only
-used, and only checked, when include_center_effects is TRUE.}
+used, and only checked, when include_center_effects is TRUE. A vector whose
+sum is not 1 is refused here rather than renormalised: the interval is
+computed AT the weights the optimization ran with, so rescaling them would
+report an interval for a different weighting than the point estimate beside
+it. lago_optimization() refuses the same vectors, and normalises within the
+tolerance the ones it accepts, so weights arriving from it always sum to 1.}
 
 \item{include_time_effects}{A boolean. Specifies whether the fixed time
 effects should be included in the outcome model.}
@@ -122,7 +127,11 @@ List(
   rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
     the confidence interval at rec_int. Computed whether or not it covers
     the outcome goal, so callers never have to look for rec_int inside cs.
-    NULL when that interval is not computable>,
+    For a binary outcome both bounds are confined to [0, 1], since the
+    outcome is a probability; the interval is still the delta-method one and
+    a bound at exactly 0 or 1 is one that has been truncated to the range.
+    No such confinement is applied for a continuous outcome, whose range is
+    not knowable here. NULL when that interval is not computable>,
   cs = <data.frame of the grid interventions whose confidence interval
     covers the outcome goal, with their interval bounds and cost. rec_int is
     never one of its rows, and need not be a grid intervention at all.

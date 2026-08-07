@@ -359,13 +359,11 @@ validate_inputs <- function(
     # different things: see refuse_invalid_center_weights() for why each check
     # is there.
     refuse_invalid_center_weights(center_weights_for_outcome_goal)
+    # and whether the vector is a set of weights at all as a SET, i.e. sums to
+    # 1. Shared with the exported get_confidence_set() for the same reason the
+    # checks above are: see refuse_non_unit_weight_sum().
+    refuse_non_unit_weight_sum(center_weights_for_outcome_goal)
     weights_sum <- sum(center_weights_for_outcome_goal)
-    if (abs(weights_sum - 1) >= 0.001) {
-      stop(paste(
-        "values in center_weights_for_outcome_goal must",
-        "sum up to 1."
-      ))
-    }
     # The tolerance above says the input was MEANT to be a set of weights. It
     # does not make it one: the weights multiply the per-center outcomes and are
     # then summed, so a set summing to 0.999 scales every reported outcome by
@@ -1220,6 +1218,84 @@ refuse_invalid_center_weights <- function(center_weights_for_outcome_goal) {
       "makes the reported outcome fall outside the range of the outcomes it",
       "averages, and for a binary outcome outside [0, 1]. A weight of 0 is",
       "allowed and excludes that center from the average."
+    ))
+  }
+  invisible(NULL)
+}
+
+
+#' refuse_non_unit_weight_sum
+#'
+#' @description Internal guard for the center weights as a SET: refuses a
+#' vector whose sum is not 1, within the tolerance validate_inputs() has always
+#' used.
+#'
+#' @details This is the other way to the wrong number
+#' refuse_invalid_center_weights() refuses. That guard rules out a vector no
+#' single element of which is a weight; this one rules out a vector every
+#' element of which could be, but which is not a set of weights taken together.
+#' The reported outcome is sum(weight_i * outcome_i) over the center-level
+#' effects, so it is a weighted mean only when the weights sum to 1: a set
+#' summing to 12 scales the intervention and center-characteristic contribution
+#' of every reported outcome by 12, and 16 weights of 12/16 gave a
+#' confidence interval of 1.406 to 2.147 for an outcome that is a proportion.
+#' Every weight there is non-negative and finite, so neither of the checks in
+#' refuse_invalid_center_weights() applies, and the symptom is the same one it
+#' exists to prevent.
+#'
+#' Shared with the exported get_confidence_set() rather than left at
+#' validate_inputs(), which is the same reason the checks in
+#' refuse_invalid_center_weights() are shared: get_confidence_set() does not go
+#' through validate_inputs(), so a caller reaching it directly had no sum check
+#' at all, and the @param text saying the weights must sum to 1 was true of one
+#' entry point and not the other.
+#'
+#' REFUSED rather than renormalised at get_confidence_set(), while
+#' validate_inputs() both refuses this and renormalises what it accepts. The two
+#' are not inconsistent: both entry points refuse exactly the same vectors, in
+#' the same words. What differs is what happens to a vector inside the
+#' tolerance, and there validate_inputs() can do more because it OWNS the
+#' weights -- it is where they are derived, and every consumer is handed the
+#' value it returns. get_confidence_set() is handed weights an optimization has
+#' already run with, and is documented as computing the interval at those
+#' weights, so renormalising them there would report an interval for a
+#' different weighting than the point estimate it is printed beside. That is the
+#' same class of defect as reporting the interval of one period beside the
+#' estimate of another.
+#'
+#' Renormalising there would also not be a no-op on correct input, which is what
+#' settles it. validate_inputs() stores center_sizes / total_sample_size, and
+#' about one such vector in six hundred does not sum to exactly 1 in floating
+#' point; dividing by that sum again perturbs every weight by up to one unit in
+#' the last place and moves the interval. So renormalising in the name of
+#' matching the other entry point would change the numbers of runs that are
+#' already correct, and refusing changes none of them: every internal path
+#' arrives with a sum of exactly 1, because validate_inputs() has already
+#' normalised it.
+#'
+#' The tolerance is validate_inputs()' own 0.001 rather than a tighter one.
+#' It is documented, callers rely on it, and it is what says the input was MEANT
+#' to be a set of weights; tightening it here would turn input the package has
+#' always accepted into a hard error, and the residual scaling it admits is at
+#' most 0.1%, which is the tolerance's own documented meaning. What this closes
+#' is the unbounded case.
+#'
+#' A vector summing to 0, including one that is all zeros, is refused here: it
+#' is 1 away from 1. That is also what keeps validate_inputs()'
+#' renormalisation from dividing by zero.
+#'
+#' @param center_weights_for_outcome_goal A numeric vector of center weights,
+#' already known to be finite and non-negative.
+#'
+#' @return Invisibly NULL when the weights sum to 1 within the tolerance.
+#' Raises otherwise.
+#'
+#' @noRd
+refuse_non_unit_weight_sum <- function(center_weights_for_outcome_goal) {
+  if (abs(sum(center_weights_for_outcome_goal) - 1) >= 0.001) {
+    stop(paste(
+      "values in center_weights_for_outcome_goal must",
+      "sum up to 1."
     ))
   }
   invisible(NULL)

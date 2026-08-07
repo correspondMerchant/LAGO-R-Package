@@ -490,7 +490,7 @@
       dose: 1.6476
       Cost: 1.6476
       Estimated outcome: 0.6
-      95% CI for the estimated outcome: 0.195 - 1.005
+      95% CI for the estimated outcome: 0.195 - 1
       Outcome goal: 0.6
       
       -- Confidence set 
@@ -499,7 +499,7 @@
       First rows of the confidence set (use $cs for all):
     Output
         dose CI_lower_bound CI_upper_bound cost
-      4    2          0.464          1.132    2
+      4    2          0.464              1    2
 
 ---
 
@@ -555,7 +555,7 @@
       dose: 1.6476
       Cost: 1.6476
       Estimated outcome: 0.6
-      95% CI for the estimated outcome: 0.195 - 1.005
+      95% CI for the estimated outcome: 0.195 - 1
       Outcome goal: 0.6
       
       -- Confidence set 
@@ -564,7 +564,7 @@
       First rows of the confidence set (use $cs for all):
     Output
         dose CI_lower_bound CI_upper_bound cost
-      4    2          0.464          1.132    2
+      4    2          0.464              1    2
 
 # print/summary snapshot: object without a confidence set
 
