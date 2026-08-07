@@ -1212,7 +1212,14 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
       expect_true(all(res$rec_int_ci >= 0 & res$rec_int_ci <= 1))
     } else {
       # every reported interval contains the estimate it belongs to, which is
-      # the property confining them on this link would break
+      # the property confining them on this link would break.
+      #
+      # On THIS fixture no estimate leaves [0, 1] -- the largest is 0.594 -- so
+      # these hold whether or not the interval is confined, and are not what
+      # pins the choice. The hand oracle below is: it follows the link, so a
+      # confined bound disagrees with it. These are kept because they state the
+      # property the choice exists to protect, and they bite on a fixture that
+      # extrapolates far enough for the estimate itself to leave the range.
       for (i in seq_len(nrow(res$cs))) {
         point <- as.numeric(
           c(1, res$cs$a[i], res$cs$b[i]) %*% coef(model)
