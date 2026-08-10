@@ -1716,6 +1716,179 @@ test_that("the optimizers are told which coefficients could not be estimated", {
 })
 
 
+test_that("a rank-deficient fit is refused at fitting, naming the terms", {
+  # A rank-deficient design makes glm() return NA for one or more coefficients.
+  # Those NAs used to flow into the optimizer, where every predicted outcome
+  # became NA and the run failed downstream with the past-tense message. The
+  # refusal is now made UP FRONT, at the fit, before diagnose_model_fit() and
+  # before any intervention is tried, so the caller is stopped as soon as the
+  # model cannot support an outcome rather than after a search over it fails.
+  #
+  # This is a behavioural change from db9cfc4: there outcome_model_fitting()
+  # RETURNED the rank-deficient model, so this whole test failed with "did not
+  # throw the expected error". Asserted on the fit directly, which is the site
+  # the refusal moved to.
+  omf <- getFromNamespace("outcome_model_fitting", "LAGO")
+  bbp <- as.data.frame(BB_proportions)
+
+  # 1) a rescaled duplicate of an intervention component: launch_dup is exactly
+  #    2 * launch_duration, so the two carry the same information and glm()
+  #    aliases the second. Exactly one coefficient is NA, which is the boundary
+  #    the refusal fires at.
+  bbp$launch_dup <- bbp$launch_duration * 2
+  dup_err <- tryCatch(
+    suppressWarnings(suppressMessages(omf(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      family_object = quasibinomial(link = "logit"),
+      intervention_components = c("launch_duration", "launch_dup"),
+      weights = rep(1, nrow(bbp)),
+      center_characteristics = NULL,
+      additional_covariates = NULL
+    ))),
+    error = conditionMessage
+  )
+  expect_match(dup_err, "rank-deficient")
+  expect_match(dup_err, "launch_dup")
+  expect_match(dup_err, "[Dd]rop or combine")
+  # the estimable terms are not named as something to drop: naming a term the
+  # caller should keep is worse than naming none. launch_duration is the term
+  # glm() DID estimate here (launch_dup is the aliased rescaling of it), so it
+  # must not appear in the list of coefficients to drop.
+  expect_false(grepl("(Intercept)", dup_err, fixed = TRUE))
+  expect_false(grepl("launch_duration", dup_err, fixed = TRUE))
+
+  # 2) a saturated center-level fit: one row per center with fixed center
+  #    effects leaves no residual degrees of freedom, so glm() cannot estimate
+  #    the intervention coefficients and aliases them. This is the saturated
+  #    cause the message describes, distinct from the collinear one above.
+  cl <- data.frame(
+    center = factor(paste0("c", 1:6)),
+    coaching_updt = c(0, 5, 10, 15, 20, 25),
+    launch_duration = c(1, 2, 3, 4, 5, 6),
+    proportion = c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7),
+    center_sample_size = rep(10, 6)
+  )
+  sat_err <- tryCatch(
+    suppressWarnings(suppressMessages(omf(
+      data = cl,
+      input_data_structure = "center_level",
+      outcome_name = "proportion",
+      family_object = quasibinomial(link = "logit"),
+      intervention_components = c("coaching_updt", "launch_duration"),
+      weights = NULL,
+      center_characteristics = NULL,
+      additional_covariates = NULL,
+      include_center_effects = TRUE
+    ))),
+    error = conditionMessage
+  )
+  expect_match(sat_err, "rank-deficient")
+  expect_match(sat_err, "coaching_updt, launch_duration")
+  expect_match(sat_err, "saturated")
+
+  # 3) a full-rank fit is unaffected: it returns the model, and nothing about it
+  #    is refused. This is what confines the refusal to rank deficiency rather
+  #    than to fixed effects or center-level data in general.
+  ok <- suppressWarnings(suppressMessages(omf(
+    data = bbp,
+    outcome_name = "EBP_proportions",
+    family_object = quasibinomial(link = "logit"),
+    intervention_components = c("coaching_updt", "launch_duration"),
+    weights = rep(1, nrow(bbp)),
+    center_characteristics = NULL,
+    additional_covariates = NULL
+  )))
+  expect_false(anyNA(coef(ok$model)))
+  expect_s3_class(ok$model, "glm")
+
+  # 4) an aliased ADDITIONAL COVARIATE is NOT refused. The optimizer never reads
+  #    an additional covariate into any coefficient vector it works on -- they
+  #    appear only in the exclusion list rec_int_processor() holds back from the
+  #    fixed effects, never as a coefficient the recommendation is computed from
+  #    -- so glm() aliasing one does not make an outcome NA and the run still
+  #    produces a recommendation. Refusing on ANY NA coefficient turned that
+  #    usable run into an error, which is the regression this fixes. adj_dup is
+  #    exactly 2 * adj, so glm() aliases it, but neither is an intervention
+  #    component, a center characteristic or a fixed effect.
+  bbp$adj <- as.numeric(seq_len(nrow(bbp)) %% 7) + 0.3
+  bbp$adj_dup <- bbp$adj * 2
+  covariate_fit <- suppressWarnings(suppressMessages(omf(
+    data = bbp,
+    outcome_name = "EBP_proportions",
+    family_object = quasibinomial(link = "logit"),
+    intervention_components = c("coaching_updt", "launch_duration"),
+    weights = rep(1, nrow(bbp)),
+    center_characteristics = NULL,
+    additional_covariates = c("adj", "adj_dup")
+  )))
+  # it returned a model rather than refusing, and glm() did alias the duplicate,
+  # so this is the aliased case and not a full-rank one that never exercised it.
+  expect_s3_class(covariate_fit$model, "glm")
+  expect_true(anyNA(coef(covariate_fit$model)))
+  expect_true(is.na(coef(covariate_fit$model)[["adj_dup"]]))
+  # the coefficients the optimizer DOES read are all estimable, which is why the
+  # fit is kept: the intercept and both intervention components are not NA.
+  expect_false(anyNA(coef(covariate_fit$model)[
+    c("(Intercept)", "coaching_updt", "launch_duration")
+  ]))
+})
+
+
+test_that("an aliased additional covariate warns but is not refused", {
+  # The counterpart to the refusal above: the covariate case must not stop, but
+  # glm() dropping the covariate is worth telling the caller about, since the
+  # covariate then contributes nothing to the recommendation, which the caller
+  # may not have intended. Precedent on the branch's parent is to warn, not
+  # error, for a non-fatal fit diagnostic. The warning names the dropped
+  # covariate and says the recommendation is the drop-that-covariate one.
+  omf <- getFromNamespace("outcome_model_fitting", "LAGO")
+  bbp <- as.data.frame(BB_proportions)
+  bbp$adj <- as.numeric(seq_len(nrow(bbp)) %% 7) + 0.3
+  bbp$adj_dup <- bbp$adj * 2
+
+  expect_warning(
+    suppressMessages(omf(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      family_object = quasibinomial(link = "logit"),
+      intervention_components = c("coaching_updt", "launch_duration"),
+      weights = rep(1, nrow(bbp)),
+      center_characteristics = NULL,
+      additional_covariates = c("adj", "adj_dup")
+    )),
+    "adj_dup"
+  )
+  # and the message says the recommendation is the drop-that-covariate one, so
+  # the caller knows the run is usable and what its result stands for.
+  expect_warning(
+    suppressMessages(omf(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      family_object = quasibinomial(link = "logit"),
+      intervention_components = c("coaching_updt", "launch_duration"),
+      weights = rep(1, nrow(bbp)),
+      center_characteristics = NULL,
+      additional_covariates = c("adj", "adj_dup")
+    )),
+    "fit without them"
+  )
+
+  # a full-rank additional covariate does not warn at all, so the diagnostic is
+  # confined to the case where glm() actually dropped one. adj alone is
+  # estimable (adj_dup was its aliased rescaling), so it produces no warning.
+  expect_silent(suppressMessages(omf(
+    data = bbp,
+    outcome_name = "EBP_proportions",
+    family_object = quasibinomial(link = "logit"),
+    intervention_components = c("coaching_updt", "launch_duration"),
+    weights = rep(1, nrow(bbp)),
+    center_characteristics = NULL,
+    additional_covariates = "adj"
+  )))
+})
+
+
 test_that("with no restart in the box the winner is projected and recosted", {
   # THE POINT OF THE EXTRACTION. Both the projection and the cost recomputation
   # are only reachable when every restart left the box, which from the outside

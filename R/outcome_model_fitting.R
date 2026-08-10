@@ -58,6 +58,81 @@ outcome_model_fitting <- function(
     ))
   }
 
+  # refuse a rank-deficient fit up front, but only when the aliasing lands on a
+  # coefficient the optimization actually reads. glm() returns NA for a
+  # coefficient it could not estimate -- two predictors carrying the same
+  # information, or a saturated fit. An NA in a coefficient the optimizer uses
+  # makes every predicted outcome NA and no optimization can then proceed, so
+  # it is fatal and raised here rather than left to fail downstream. But an NA
+  # in an ADDITIONAL COVARIATE is not fatal: rec_int_processor() never reads
+  # those into any coefficient vector the optimizer sees, so the recommendation
+  # is exactly the one the drop-that-covariate fit gives. Refusing on any NA
+  # turned that usable run into an error, so the set below is exactly the
+  # coefficients the optimizer will read: the intercept and intervention
+  # components (interaction terms included, since they are part of
+  # intervention_components), the fixed center effects, the fixed time effects,
+  # and the center characteristics. It is built with the same
+  # term-to-coefficient machinery rec_int_processor() uses to read them, so the
+  # two cannot drift: a factor's coefficient is named after its level, not its
+  # column, and is resolved through the model's term mapping rather than by
+  # matching names. The names are also the only place the aliased TERMS can
+  # still be named -- by the time an outcome is NA the NA has been summed into
+  # the center-level effects and carries their names instead.
+  all_coefs <- coef(model)
+  coef_mapping <- term_coef_names(model)
+  named_predictors <- claimed_coef_names(model, coef_mapping, c(
+    "(Intercept)", intervention_components, additional_covariates,
+    center_characteristics
+  ))
+  optimizer_coef_names <- c(
+    "(Intercept)",
+    intervention_components,
+    if (include_center_effects) {
+      fixed_effect_coef_names(
+        "center", coef_mapping, names(all_coefs), named_predictors
+      )
+    },
+    if (include_time_effects) {
+      fixed_effect_coef_names(
+        "period", coef_mapping, names(all_coefs), named_predictors
+      )
+    },
+    if (!is.null(center_characteristics)) {
+      unlist(
+        lapply(center_characteristics, predictor_coef_names, coef_mapping),
+        use.names = FALSE
+      )
+    }
+  )
+  optimizer_coefs <- all_coefs[optimizer_coef_names]
+  aliased_coef_names <- names(optimizer_coefs)[is.na(optimizer_coefs)]
+  if (length(aliased_coef_names) > 0) {
+    stop(rank_deficient_outcome_message(aliased_coef_names))
+  }
+
+  # an aliased ADDITIONAL COVARIATE is not fatal -- the optimizer never reads
+  # it, so the recommendation is unchanged from the fit without it -- but glm()
+  # dropping it means it contributed nothing, which the caller may not have
+  # intended. Warn, naming the covariate, and let the optimization continue, in
+  # keeping with the other non-fatal fit diagnostics below.
+  if (!is.null(additional_covariates)) {
+    dropped_covariates <- Filter(function(covariate) {
+      covariate_coefs <- predictor_coef_names(covariate, coef_mapping)
+      any(is.na(all_coefs[covariate_coefs]))
+    }, additional_covariates)
+    if (length(dropped_covariates) > 0) {
+      warning(paste0(
+        "The additional covariate(s) ",
+        paste(dropped_covariates, collapse = ", "),
+        " could not be estimated by glm() (their coefficient(s) are NA), so ",
+        "they were dropped from the fit and contribute nothing to the ",
+        "recommended intervention. This usually means they are collinear with ",
+        "other predictors. The recommendation is the one the fit without them ",
+        "gives. If that is not intended, drop or combine the covariate(s)."
+      ))
+    }
+  }
+
   # run non-fatal fit diagnostics. These only warn; LAGO optimization always
   # continues so the user still gets a recommended intervention, but is told
   # when the outcome model fit is questionable and the recommendation should
