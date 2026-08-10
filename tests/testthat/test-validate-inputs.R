@@ -585,6 +585,108 @@ test_that("additional_covariates must all be columns in the data", {
     "All elements in additional_covariates")
 })
 
+# An additional covariate whose column is entirely NA cannot enter the model:
+# glm()'s internal na.omit drops every row and the fit dies with an opaque
+# error that never names the column. This is always a mistake -- unlike a
+# collinear covariate, which glm() can drop and still fit -- so it is refused
+# up front here, naming the offender(s). The tests below pin that the refusal
+# fires and names the covariate, catches an all-NA column of any type, and
+# stays silent on a partially-observed or fully-observed covariate.
+
+test_that("an all-NA additional covariate is refused, naming it", {
+  di <- mtcars
+  di$allna <- NA_real_
+  # precondition: the column really is entirely NA, so the test is not vacuous
+  expect_true(all(is.na(di$allna)))
+  expect_error(call_vi(data = di, additional_covariates = "allna"),
+    "allna")
+  expect_error(call_vi(data = di, additional_covariates = "allna"),
+    "entirely NA")
+})
+
+test_that("two all-NA additional covariates are both named in one error", {
+  di <- mtcars
+  di$allna1 <- NA_real_
+  di$allna2 <- NA_real_
+  # precondition: both columns are entirely NA
+  expect_true(all(is.na(di$allna1)) && all(is.na(di$allna2)))
+  # one stop() listing both offenders together, alongside a valid covariate
+  err <- tryCatch(
+    call_vi(data = di, additional_covariates = c("allna1", "cyl", "allna2")),
+    error = conditionMessage)
+  expect_match(err, "allna1")
+  expect_match(err, "allna2")
+})
+
+test_that("an all-NA factor or character additional covariate is refused", {
+  # is.na() works on factor and character columns too, so the check catches an
+  # all-NA column of any type and does not itself error on the non-numeric one
+  di <- mtcars
+  di$allna_fac <- factor(rep(NA_character_, nrow(di)), levels = c("a", "b"))
+  expect_true(all(is.na(di$allna_fac)))
+  expect_error(call_vi(data = di, additional_covariates = "allna_fac"),
+    "allna_fac")
+
+  di2 <- mtcars
+  di2$allna_chr <- NA_character_
+  expect_true(all(is.na(di2$allna_chr)))
+  expect_error(call_vi(data = di2, additional_covariates = "allna_chr"),
+    "allna_chr")
+})
+
+test_that("a covariate with some but not all NA does not trip the refusal", {
+  # negative control: the refusal is narrow. A covariate with SOME NAs is a
+  # legitimate input glm() can still fit, so this must pass the validator.
+  di <- mtcars
+  di$some_na <- di$cyl
+  di$some_na[1] <- NA
+  # precondition: some NA, but not all
+  expect_true(anyNA(di$some_na) && !all(is.na(di$some_na)))
+  expect_no_error(call_vi(data = di, additional_covariates = "some_na"))
+})
+
+test_that("a fully-observed additional covariate does not trip the refusal", {
+  # negative control: a covariate with no NA at all passes untouched
+  expect_false(anyNA(mtcars$cyl))
+  expect_no_error(call_vi(data = mtcars, additional_covariates = "cyl"))
+})
+
+test_that("lago_optimization refuses an all-NA covariate with a clear message", {
+  # END-TO-END: the same all-NA covariate that dies with an opaque
+  # "nonempty numeric vector" error deep in model fitting on the unfixed
+  # source is now refused up front by the input validator, so the caller sees
+  # a message that names the covariate and says why. Fails on the unfixed
+  # source, where the run reaches glm() and returns the cryptic error instead.
+  bbp <- as.data.frame(BB_proportions)
+  bbp$allna <- NA_real_
+  # precondition: the covariate really is entirely NA
+  expect_true(all(is.na(bbp$allna)))
+  run <- function() {
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      outcome_type = "continuous",
+      glm_family = "quasibinomial",
+      link = "logit",
+      intervention_components = c("coaching_updt", "launch_duration"),
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      outcome_goal = 0.85,
+      additional_covariates = "allna",
+      include_confidence_set = FALSE,
+      quiet = TRUE
+    )))
+  }
+  # the new message: names the covariate and says why it cannot enter the model
+  expect_error(run(), "allna")
+  expect_error(run(), "entirely NA")
+  # and NOT the opaque model-fitting errors the missing guard produced. Both
+  # assertions fail on the unfixed source, where run() returns exactly these.
+  expect_error(run(), "^(?!.*nonempty numeric).*$", perl = TRUE)
+  expect_error(run(), "^(?!.*model fitting step).*$", perl = TRUE)
+})
+
 
 # --- Group 4: bounds, costs, optimization method, grid step -----------------
 
