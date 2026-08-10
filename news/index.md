@@ -1,6 +1,6 @@
 # Changelog
 
-## LAGO 1.0.12
+## LAGO 1.1.0
 
 - Fixed `outcome_goal_intention = "minimize"` ignoring the outcome goal.
   The minimize direction is implemented by negating the fitted
@@ -166,6 +166,126 @@
 - Fixed passing more than one center characteristic, which either failed
   or silently added a single recycled column of values to the confidence
   set instead of one column per characteristic.
+- Fixed the estimated-outcome confidence interval and confidence set
+  being computed on the logit scale for a binomial outcome model fitted
+  with `link = "identity"`. The interval branch applied `expit()` and
+  the logit delta-method factor from the outcome type alone, ignoring
+  the link, so an identity-link binomial fit was reported on the wrong
+  scale, with bounds that could exclude the point estimate and wrongly
+  discard or populate the confidence set. The bounds are now built on
+  the link the model was fitted on. Binary logit results are unchanged.
+  ([\#74](https://github.com/correspondMerchant/LAGO-R-Package/issues/74))
+- Fixed the confidence interval bounds for a binary outcome on the logit
+  link being reported outside `[0, 1]`. The point estimate is `expit()`
+  of the linear predictor and is a probability by construction, but the
+  delta-method bounds are symmetric on the probability scale and could
+  fall below 0 or above 1, so a set reported a lower bound of -0.106 or
+  an upper bound of 1.049 for a probability. The bounds in `rec_int_ci`
+  and in the confidence set are now confined to `[0, 1]`, while
+  confidence-set membership is still decided from the unconfined
+  interval, so an outcome goal of exactly 1 does not drop a qualifying
+  intervention.
+  ([\#75](https://github.com/correspondMerchant/LAGO-R-Package/issues/75))
+- Fixed the numerical optimizer failing with the base-R error “argument
+  is of length zero” when every restart of its
+  maximum-achievable-outcome search failed. Only the cost search guarded
+  against this, so an all-failed outcome search reached
+  [`which.max()`](https://rdrr.io/r/base/which.min.html) over all-`NA`
+  results and died before the package’s own message advising the
+  `grid_search` method could appear. Both searches now raise that
+  actionable message when no restart succeeds.
+  ([\#73](https://github.com/correspondMerchant/LAGO-R-Package/issues/73))
+- Fixed a rank-deficient outcome model being detected only after a full
+  search over every intervention. When
+  [`glm()`](https://rdrr.io/r/stats/glm.html) returns `NA` for a
+  coefficient the optimization reads (the intercept, an intervention
+  component or interaction term, a fixed center or time effect, or a
+  center characteristic), the fit is now refused up front with an error
+  naming the aliased terms, before any intervention is tried. Where such
+  a fit is still reached, both the numerical and the grid-search paths
+  raise that same error, instead of the numerical one advising
+  `grid_search`, which fails on the same fit, and the grid one failing
+  with “missing value where TRUE/FALSE needed”.
+  ([\#74](https://github.com/correspondMerchant/LAGO-R-Package/issues/74),
+  [\#76](https://github.com/correspondMerchant/LAGO-R-Package/issues/76))
+- Fixed a factor, logical or ordered additional covariate or center
+  characteristic whose name begins with “center” or “period” still being
+  counted as a fixed center or time effect on the path a model passed
+  directly to
+  [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  can take, where the fitted model’s term-to-coefficient mapping is
+  unavailable. The names held back from the fallback name search were
+  column names, but a contrast-coded column’s coefficient is named after
+  the level, so `center_grp` never held back `center_grpb`, which was
+  then taken for a center dummy and recycled the center weights into a
+  silently wrong outcome. The held-back names now come from the coding
+  the model recorded, and a covariate named exactly “center” or
+  “period”, whose dummies cannot be told from the genuine fixed-effect
+  dummies, raises an error reporting the collision.
+  ([\#73](https://github.com/correspondMerchant/LAGO-R-Package/issues/73))
+- `center_weights_for_outcome_goal` must now be numeric, finite and
+  non-negative at both entry points. Only their type, length and sum
+  were checked before, so weights of -10 and 11 summed to 1 and were
+  accepted, reporting an outcome of 10.95 for a binary outcome, and a
+  missing weight surfaced as an opaque “missing value where TRUE/FALSE
+  needed” error. A weight of exactly 0, which excludes that center from
+  the average, is still allowed. The exported
+  [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
+  which does not pass through `validate_inputs()`, previously ran none
+  of these checks and could report a confidence bound above 1 for a
+  binary outcome.
+  ([\#73](https://github.com/correspondMerchant/LAGO-R-Package/issues/73),
+  [\#74](https://github.com/correspondMerchant/LAGO-R-Package/issues/74))
+- Fixed the estimated outcome being scaled by center weights that did
+  not sum to 1. Weights whose sum was within a thousandth of 1 passed
+  validation and were multiplied into the per-center outcomes as
+  supplied, so a set summing to 0.999 scaled every reported outcome,
+  including the goal comparison the recommendation is chosen against.
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  now renormalises the weights it accepts to sum to 1, so the estimated
+  outcome and the recommendation shift for accepted weights that did not
+  already sum to exactly 1, and are unchanged for weights that did. The
+  exported
+  [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  instead refuses weights that do not sum to 1, since it is handed the
+  weights an optimization ran with and renormalising them would move the
+  interval away from the value it was computed at.
+  ([\#72](https://github.com/correspondMerchant/LAGO-R-Package/issues/72),
+  [\#75](https://github.com/correspondMerchant/LAGO-R-Package/issues/75))
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  now refuses an additional covariate whose column is entirely `NA`, in
+  `validate_inputs()`, with an error naming the offending covariate(s).
+  Such a column made [`glm()`](https://rdrr.io/r/stats/glm.html)’s
+  internal `na.omit` drop every row, so the fit died with an opaque
+  “nonempty numeric vector” error deep in model fitting that never named
+  the covariate. The check catches all-`NA` numeric, factor and
+  character columns, while a partially or fully observed covariate is
+  untouched.
+  ([\#77](https://github.com/correspondMerchant/LAGO-R-Package/issues/77))
+- Added a warning when an additional covariate is dropped by
+  [`glm()`](https://rdrr.io/r/stats/glm.html) as collinear. Its
+  coefficient is `NA` but the optimization never reads it, so the run no
+  longer stops or drops it silently: it warns naming the covariate and
+  continues, returning the recommendation the fit without that covariate
+  gives.
+  ([\#76](https://github.com/correspondMerchant/LAGO-R-Package/issues/76))
+- Added a warning from
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  when a binary outcome’s estimated outcome is reported outside
+  `[0, 1]`, which happens when an identity-link linear probability model
+  is extrapolated to an intervention beyond the range its components
+  were fitted over. The estimate is not clamped, because it drives the
+  optimizer and the recommendation, so the warning names the
+  extrapolation and reports how many interval bounds are affected while
+  every returned value is unchanged.
+  ([\#75](https://github.com/correspondMerchant/LAGO-R-Package/issues/75))
+- Added a warning when a numeric additional covariate whose observed
+  range excludes 0 is held at 0 to compute the confidence set, naming
+  each such covariate and its observed range, since the reported outcome
+  and interval are then an extrapolation to a covariate value that never
+  occurs in the data. The covariate is still held at 0, so no returned
+  value changes.
+  ([\#75](https://github.com/correspondMerchant/LAGO-R-Package/issues/75))
 - Added runnable `@examples` to every exported function that lacked
   them:
   [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
