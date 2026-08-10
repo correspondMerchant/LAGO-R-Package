@@ -1431,3 +1431,378 @@ test_that("a continuous outcome's interval is NOT clamped to [0, 1]", {
   # a clamp would have collapsed every one of them to exactly 1
   expect_false(any(res$cs$CI_upper_bound == 1))
 })
+
+# --- the LOGIT sandwich variance is now accumulated in a compiled kernel ------
+# The per-observation loops that build the "bread" (J) and "meat" (V) matrices
+# of the robust/clustered logit sandwich moved from R into src/sandwich_vcov.cpp
+# (get_single_cluster_vcov and the non-clustered HC0 branch of get_vcov). Only
+# the accumulation moved: solve() and bread %*% V %*% t(bread) are still R, so
+# the inversion is byte-for-byte R's. These tests pin the result of that path
+# against a sandwich formula written out from scratch here, so they check the
+# kernel against an independent hand computation and not against itself. The
+# logit sandwich is reached with outcome_type = "continuous" and link = "logit"
+# (the "binary" branch takes vcov(fitted_model) directly and never enters it).
+
+# design matrix of numeric predictors, built here so the reference shares no
+# code with prepare_design_matrix() inside get_vcov()
+ref_logit_design <- function(data, predictors) {
+  x <- matrix(1, nrow = nrow(data), ncol = 1)
+  colnames(x) <- "(Intercept)"
+  for (col in predictors) {
+    x <- cbind(x, data[[col]])
+    colnames(x)[ncol(x)] <- col
+  }
+  x
+}
+
+# clustered logit sandwich: per cluster c, hessian H_c = sum_i ddb_i ddb_i' and
+# score s_c = sum_i ddb_i (y_i - p_i) with ddb_i = p_i(1-p_i) x_i; then
+# J = sum_c H_c / n_clusters, V = sum_c s_c s_c' / n_clusters, and the returned
+# variance is J^-1 V J^-1 / n_clusters. Written from the formula, not the code.
+ref_logit_cluster_vcov <- function(x, cluster, fitted, outcome) {
+  np <- ncol(x)
+  matrix_j <- matrix(0, np, np)
+  matrix_v <- matrix(0, np, np)
+  clusters <- unique(cluster)
+  n_clusters <- length(clusters)
+  for (cl in clusters) {
+    idx <- which(cluster == cl)
+    hess <- matrix(0, np, np)
+    score <- matrix(0, np, 1)
+    for (i in idx) {
+      x_i <- as.matrix(x[i, ])
+      p_i <- fitted[i]
+      ddb <- (p_i * (1 - p_i)) * x_i
+      hess <- hess + ddb %*% t(ddb)
+      score <- score + ddb * (outcome[i] - p_i)
+    }
+    matrix_j <- matrix_j + hess / n_clusters
+    matrix_v <- matrix_v + (score %*% t(score)) / n_clusters
+  }
+  bread <- solve(matrix_j)
+  bread %*% matrix_v %*% t(bread) / n_clusters
+}
+
+# non-clustered HC0 logit sandwich: J = sum_i ddb_i ddb_i' / n and the meat is
+# the per-observation form V = sum_i ddb_i (y_i - p_i)^2 ddb_i' / n (NOT a
+# clustered score), with the returned variance J^-1 V J^-1 / n.
+ref_logit_hc0_vcov <- function(x, fitted, outcome) {
+  n <- nrow(x)
+  np <- ncol(x)
+  matrix_j <- matrix(0, np, np)
+  matrix_v <- matrix(0, np, np)
+  for (i in 1:n) {
+    x_i <- as.matrix(x[i, ])
+    p_i <- fitted[i]
+    ddb <- (p_i * (1 - p_i)) * x_i
+    matrix_j <- matrix_j + (ddb %*% t(ddb)) / n
+    matrix_v <- matrix_v + (ddb %*% ((outcome[i] - p_i)^2) %*% t(ddb)) / n
+  }
+  bread <- solve(matrix_j)
+  (bread %*% matrix_v %*% t(bread)) / n
+}
+
+# the interval the continuous + logit branch reports at one prediction row: the
+# bounds are formed on the linear-predictor scale (eta +/- z*se), expit()ed, and
+# rounded to 3 decimals. se uses the sandwich vcov built above.
+ref_logit_ci_at <- function(vcov, coefs, row, alpha = 0.05) {
+  row <- row[names(coefs)]
+  v <- vcov[names(coefs), names(coefs)]
+  eta <- sum(row * coefs)
+  se <- sqrt(as.numeric(t(row) %*% v %*% row))
+  z <- qnorm(1 - alpha / 2)
+  round(rje::expit(c(lower = eta - z * se, upper = eta + z * se)), 3)
+}
+
+# the prediction row of the logit-sandwich fixture at one intervention, named
+# with the coefficients it multiplies (intercept, the two components, and the
+# center characteristic z held at its optimization value 1.75)
+bb_pred_row_z <- function(x1, x2) {
+  c("(Intercept)" = 1, x1 = x1, x2 = x2, z = 1.75)
+}
+
+# a binary fixture with enough rows, clusters and periods that the clustered
+# path is genuinely exercised (see the vacuity guards in the tests below). Built
+# from a fixed seed so the reference and the package see identical input.
+logit_sandwich_fixture <- function() {
+  set.seed(424242)
+  n <- 300
+  d <- data.frame(
+    x1 = runif(n, 1, 40), x2 = runif(n, 1, 5), z = rnorm(n, 1.75, 0.5)
+  )
+  eta <- -2 + 0.03 * d$x1 + 0.1 * d$x2 + 0.2 * d$z
+  d$y <- rbinom(n, 1, 1 / (1 + exp(-eta)))
+  d$center <- factor(paste0("c", (seq_len(n) %% 12) + 1))
+  d$period <- factor((seq_len(n) %% 5) + 1)
+  d
+}
+
+# a direct get_confidence_set() call on that fixture at a fixed clustering mode
+logit_sandwich_gcs <- function(d, model, cluster_id) {
+  suppressWarnings(get_confidence_set(
+    predictors_data = d[, c("x1", "x2", "z"), drop = FALSE],
+    intervention_components = c("x1", "x2"),
+    outcome_data = d$y,
+    fitted_model = model,
+    link = "logit",
+    outcome_goal = 0.5,
+    outcome_type = "continuous",
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    confidence_set_grid_step_size = c(10, 2),
+    center_characteristics = "z",
+    center_characteristics_optimization_values = 1.75,
+    cluster_id = cluster_id,
+    cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+    rec_int = c(20, 3)
+  ))
+}
+
+test_that("the non-clustered logit HC0 vcov matches an independent recomputation", {
+  d <- logit_sandwich_fixture()
+  model <- glm(y ~ x1 + x2 + z, data = d, family = binomial())
+  res <- logit_sandwich_gcs(d, model, NULL)
+
+  x <- ref_logit_design(d, c("x1", "x2", "z"))
+  vcov_ref <- ref_logit_hc0_vcov(x, model$fitted.values, d$y)
+  ci_ref <- ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(20, 3))
+
+  # the recommendation's interval, from the compiled HC0 accumulation, equals
+  # the interval from the hand-written HC0 sandwich
+  expect_equal(unname(res$rec_int_ci), unname(ci_ref), tolerance = 1e-6)
+})
+
+test_that("one-way clustered logit vcov matches an independent recomputation", {
+  d <- logit_sandwich_fixture()
+  model <- glm(y ~ x1 + x2 + z, data = d, family = binomial())
+
+  # vacuity guard: the clustered path must really see MORE THAN ONE cluster,
+  # otherwise it collapses to a single-cluster degenerate case
+  expect_gt(length(unique(d$center)), 1)
+
+  res <- logit_sandwich_gcs(d, model, list(d$center))
+  x <- ref_logit_design(d, c("x1", "x2", "z"))
+  vcov_ref <- ref_logit_cluster_vcov(x, d$center, model$fitted.values, d$y)
+  ci_ref <- ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(20, 3))
+
+  expect_equal(unname(res$rec_int_ci), unname(ci_ref), tolerance = 1e-6)
+
+  # and the whole reported set carries bounds from the same clustered vcov, at
+  # each grid point's own coordinates
+  grid <- expand.grid(x1 = seq(1, 40, by = 10), x2 = seq(1, 5, by = 2))
+  reference <- t(apply(grid, 1, function(r) {
+    ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(r[["x1"]], r[["x2"]]))
+  }))
+  qualifies <- reference[, "lower"] <= 0.5 & 0.5 <= reference[, "upper"]
+  expect_gt(sum(qualifies), 0)
+  expect_equal(nrow(res$cs), sum(qualifies))
+  expect_equal(res$cs$CI_lower_bound, unname(reference[qualifies, "lower"]),
+    tolerance = 1e-6
+  )
+  expect_equal(res$cs$CI_upper_bound, unname(reference[qualifies, "upper"]),
+    tolerance = 1e-6
+  )
+})
+
+test_that("two-way clustered logit vcov matches an independent CGM recomputation", {
+  d <- logit_sandwich_fixture()
+  model <- glm(y ~ x1 + x2 + z, data = d, family = binomial())
+
+  # vacuity guard: BOTH clustering dimensions are non-degenerate, so the
+  # Cameron-Gelbach-Miller assembly V1 + V2 - V12 exercises all three terms
+  expect_gt(length(unique(d$center)), 1)
+  expect_gt(length(unique(d$period)), 1)
+
+  res <- logit_sandwich_gcs(d, model, list(d$center, d$period))
+  x <- ref_logit_design(d, c("x1", "x2", "z"))
+  fv <- model$fitted.values
+  # V1 + V2 - V12, each an independently recomputed clustered sandwich
+  vcov_ref <- ref_logit_cluster_vcov(x, d$center, fv, d$y) +
+    ref_logit_cluster_vcov(x, d$period, fv, d$y) -
+    ref_logit_cluster_vcov(x, paste(d$center, d$period, sep = "_"), fv, d$y)
+  ci_ref <- ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(20, 3))
+
+  expect_equal(unname(res$rec_int_ci), unname(ci_ref), tolerance = 1e-6)
+
+  # the two-way set and its bounds also come from the CGM vcov, per grid point
+  grid <- expand.grid(x1 = seq(1, 40, by = 10), x2 = seq(1, 5, by = 2))
+  reference <- t(apply(grid, 1, function(r) {
+    ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(r[["x1"]], r[["x2"]]))
+  }))
+  qualifies <- reference[, "lower"] <= 0.5 & 0.5 <= reference[, "upper"]
+  expect_gt(sum(qualifies), 0)
+  expect_equal(nrow(res$cs), sum(qualifies))
+  expect_equal(res$cs$CI_lower_bound, unname(reference[qualifies, "lower"]),
+    tolerance = 1e-6
+  )
+  expect_equal(res$cs$CI_upper_bound, unname(reference[qualifies, "upper"]),
+    tolerance = 1e-6
+  )
+})
+
+# --- the compiled kernels and the R side refuse malformed input LOUDLY --------
+# The two kernels index fitted_values[i], outcome[i] and (clustered)
+# cluster_index[i] over i in [0, nrow(X)) with no bounds check, and the
+# clustered one uses cluster_index[i] to index its accumulators, so a length
+# mismatch is an out-of-bounds READ and an out-of-range cluster index an
+# out-of-bounds WRITE -- undefined behavior that used to produce a warning and
+# a NaN rather than an error. A length mismatch is reachable in practice: a
+# predictor column with sporadic NAs makes glm() na.omit those rows, so
+# model$fitted.values comes back shorter than the design matrix. These pin that
+# the guards now error, and that a well-formed call in the same test still
+# succeeds so the guard is not simply erroring on everything.
+
+test_that("the logit kernels refuse fitted_values/outcome shorter than nrow(X)", {
+  set.seed(101)
+  n <- 24
+  x <- cbind(1, matrix(rnorm(n * 2), n, 2))
+  fitted <- runif(n, 0.1, 0.9)
+  outcome <- rbinom(n, 1, 0.5)
+  cluster_index <- as.integer(rep_len(0:3, n))
+  n_clusters <- 4L
+
+  # the precondition the guard exists for: the vectors really are shorter than
+  # the design matrix, which used to warn + return NaN instead of erroring
+  short_fitted <- fitted[seq_len(n - 3)]
+  short_outcome <- outcome[seq_len(n - 3)]
+  expect_length(short_fitted, n - 3)
+  expect_false(length(short_fitted) == nrow(x))
+
+  # HC0 (non-clustered) kernel
+  expect_error(
+    LAGO:::sandwich_hc0_logit_accumulate(x, short_fitted, short_outcome),
+    "must have length nrow\\(X\\)"
+  )
+  # clustered kernel, short fitted/outcome
+  expect_error(
+    LAGO:::sandwich_cluster_logit_accumulate(
+      x, cluster_index, n_clusters, short_fitted, short_outcome
+    ),
+    "must have length nrow\\(X\\)"
+  )
+  # clustered kernel, short cluster_index
+  short_index <- cluster_index[seq_len(n - 2)]
+  expect_false(length(short_index) == nrow(x))
+  expect_error(
+    LAGO:::sandwich_cluster_logit_accumulate(
+      x, short_index, n_clusters, fitted, outcome
+    ),
+    "cluster_index must have length nrow\\(X\\)"
+  )
+
+  # NON-VACUOUS: the same well-formed inputs succeed and return the J/V pair, so
+  # the guard is firing on the malformation and not on the call shape
+  ok_hc0 <- LAGO:::sandwich_hc0_logit_accumulate(x, fitted, outcome)
+  expect_named(ok_hc0, c("J", "V"))
+  expect_equal(dim(ok_hc0$J), c(3, 3))
+  ok_cl <- LAGO:::sandwich_cluster_logit_accumulate(
+    x, cluster_index, n_clusters, fitted, outcome
+  )
+  expect_named(ok_cl, c("J", "V"))
+  expect_equal(dim(ok_cl$V), c(3, 3))
+})
+
+test_that("the clustered kernel refuses an out-of-range cluster index", {
+  set.seed(202)
+  n <- 20
+  x <- cbind(1, matrix(rnorm(n * 2), n, 2))
+  fitted <- runif(n, 0.1, 0.9)
+  outcome <- rbinom(n, 1, 0.5)
+  cluster_index <- as.integer(rep_len(0:3, n))
+  n_clusters <- 4L
+
+  # an index == n_clusters is one past the last accumulator slot: an
+  # out-of-bounds WRITE, not a legal cluster
+  bad_high <- cluster_index
+  bad_high[5] <- n_clusters
+  expect_true(any(bad_high >= n_clusters))
+  expect_error(
+    LAGO:::sandwich_cluster_logit_accumulate(
+      x, bad_high, n_clusters, fitted, outcome
+    ),
+    "out of range"
+  )
+
+  # a negative index is likewise out of [0, n_clusters)
+  bad_neg <- cluster_index
+  bad_neg[7] <- -1L
+  expect_true(any(bad_neg < 0))
+  expect_error(
+    LAGO:::sandwich_cluster_logit_accumulate(
+      x, bad_neg, n_clusters, fitted, outcome
+    ),
+    "out of range"
+  )
+
+  # n_clusters < 1 sizes the accumulators empty
+  expect_error(
+    LAGO:::sandwich_cluster_logit_accumulate(
+      x, cluster_index, 0L, fitted, outcome
+    ),
+    "n_clusters must be >= 1"
+  )
+
+  # NON-VACUOUS: the same setup with every index in range succeeds
+  ok <- LAGO:::sandwich_cluster_logit_accumulate(
+    x, cluster_index, n_clusters, fitted, outcome
+  )
+  expect_named(ok, c("J", "V"))
+})
+
+test_that("a clustered confidence set refuses an NA cluster id", {
+  # An NA cluster id has no defined cluster to fold its rows into. The logit
+  # path builds match(cluster_id, unique(cluster_id)) - 1L, and unique() makes
+  # NA its OWN level, so an NA-cluster row would be folded into a real cluster
+  # of the compiled kernel -- a wrong number -- rather than dropped. It is
+  # refused up front, on the ORIGINAL cluster vectors, so the two-way case
+  # (whose intersection is built by paste(), and paste(NA, x) is the STRING
+  # "NA_x", not NA) is caught before the missingness is hidden.
+  set.seed(303)
+  n <- 90
+  d <- data.frame(
+    x1 = runif(n, 1, 40), x2 = runif(n, 1, 5), z = rnorm(n, 1.75, 0.5)
+  )
+  eta <- -2 + 0.03 * d$x1 + 0.1 * d$x2 + 0.2 * d$z
+  d$y <- rbinom(n, 1, 1 / (1 + exp(-eta)))
+  d$center <- factor(paste0("c", (seq_len(n) %% 8) + 1))
+  d$period <- factor((seq_len(n) %% 4) + 1)
+  model <- glm(y ~ x1 + x2 + z, data = d, family = binomial())
+
+  gcs <- function(cluster_id) {
+    suppressWarnings(get_confidence_set(
+      predictors_data = d[, c("x1", "x2", "z"), drop = FALSE],
+      intervention_components = c("x1", "x2"), outcome_data = d$y,
+      fitted_model = model, link = "logit", outcome_goal = 0.5,
+      outcome_type = "continuous", intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      confidence_set_grid_step_size = c(10, 2),
+      center_characteristics = "z",
+      center_characteristics_optimization_values = 1.75,
+      cluster_id = cluster_id, cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+      rec_int = c(20, 3)
+    ))
+  }
+
+  # one-way: an NA in the single cluster vector
+  cid_na <- as.character(d$center)
+  cid_na[3] <- NA
+  expect_true(anyNA(cid_na))
+  expect_error(gcs(list(cid_na)), "cluster_id contains NA")
+
+  # two-way: the NA is in the SECOND dimension, where paste(cluster_id1,
+  # cluster_id2) would hide it as the string "NA_x". The guard reads the
+  # original vectors, so it still fires.
+  cid1 <- as.character(d$center)
+  cid2 <- as.character(d$period)
+  cid2[10] <- NA
+  expect_true(anyNA(cid2))
+  expect_identical(paste(NA, "x", sep = "_"), "NA_x") # the paste() hides it
+  expect_error(gcs(list(cid1, cid2)), "cluster_id contains NA")
+
+  # NON-VACUOUS: the same well-formed clustered runs, with no NA, still succeed
+  # (one-way and two-way), so the guard is not erroring on every clustered call
+  ok_one <- gcs(list(as.character(d$center)))
+  expect_false(is.null(ok_one$rec_int_ci))
+  ok_two <- gcs(list(as.character(d$center), as.character(d$period)))
+  expect_false(is.null(ok_two$rec_int_ci))
+})

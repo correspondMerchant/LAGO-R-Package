@@ -744,36 +744,28 @@ get_confidence_set <- function(
                                           n_params,
                                           fitted_values,
                                           outcome) {
-        matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
-        matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
-
         clusters <- unique(cluster_id)
         n_clusters <- length(clusters)
 
-        for (c in clusters) {
-          cluster_idx <- which(cluster_id == c)
+        # 0-based cluster index in unique()/first-appearance order, so the C++
+        # kernel sums clusters in exactly the order the old R loop did. Within a
+        # cluster it visits observations in increasing index order, matching
+        # which(cluster_id == c), so the floating-point accumulation order is
+        # preserved and the result is numerically identical to the R original.
+        cluster_index <- match(cluster_id, clusters) - 1L
 
-          cluster_score <- matrix(0, nrow = n_params, ncol = 1)
-          cluster_hessian <- matrix(0, nrow = n_params, ncol = n_params)
+        # The compiled kernel does ONLY the per-observation accumulation into the
+        # bread matrix J = sum_c (sum_i ddb_i ddb_i^T)/n_clusters and the meat
+        # matrix V = sum_c (s_c s_c^T)/n_clusters. solve() and the final
+        # bread %*% V %*% t(bread) stay in R, so the inversion is byte-for-byte
+        # identical and a singular J still errors here exactly as before (no
+        # silent regularization).
+        acc <- sandwich_cluster_logit_accumulate(
+          X, cluster_index, n_clusters, fitted_values, outcome
+        )
 
-          for (i in cluster_idx) {
-            x_i <- as.matrix(X[i, ])
-            p_i <- fitted_values[i]
-            ddbeta_i <- (p_i * (1 - p_i)) * x_i
-
-            j_i <- ddbeta_i %*% t(ddbeta_i)
-            cluster_hessian <- cluster_hessian + j_i
-
-            score_i <- ddbeta_i * (outcome[i] - p_i)
-            cluster_score <- cluster_score + score_i
-          }
-
-          matrix_j <- matrix_j + cluster_hessian / n_clusters
-          matrix_v <- matrix_v + (cluster_score %*% t(cluster_score)) / n_clusters
-        }
-
-        bread <- solve(matrix_j)
-        return(bread %*% matrix_v %*% t(bread) / n_clusters)
+        bread <- solve(acc$J)
+        return(bread %*% acc$V %*% t(bread) / n_clusters)
       }
 
       # Identity link single cluster vcov helper function
@@ -810,6 +802,38 @@ get_confidence_set <- function(
       n_params <- ncol(X)
       fitted_values <- model$fitted.values
 
+      # An NA cluster id has no defined cluster to fold its rows into, so it is
+      # refused here rather than silently mishandled. The logit path builds
+      # cluster_index <- match(cluster_id, unique(cluster_id)) - 1L, and
+      # unique() makes NA its OWN level, so an NA-cluster row would be folded
+      # into a real cluster of the compiled kernel (a wrong number), whereas the
+      # old which(cluster_id == c) loop dropped those rows, itself ill-defined.
+      # In the two-way case the intersection is built by paste(cluster_id1,
+      # cluster_id2), and paste(NA, x) yields the STRING "NA_x", not NA, so a
+      # check made after the paste would not see the missingness at all. The
+      # ORIGINAL cluster vectors are therefore checked here, before any match()
+      # or paste(), and for both links -- this is the single point both the
+      # one-way and the two-way paths pass through. The non-clustered path has
+      # no cluster_id and is not reached (cluster_ids is NULL there).
+      if (!is.null(cluster_ids)) {
+        cluster_vectors <- if (is.list(cluster_ids)) {
+          cluster_ids
+        } else {
+          list(cluster_ids)
+        }
+        for (cid in cluster_vectors) {
+          if (anyNA(cid)) {
+            stop(paste0(
+              "cluster_id contains NA. Every observation must belong to a ",
+              "known cluster for the clustered variance, since a missing ",
+              "cluster id has no cluster to fold its rows into. Drop the rows ",
+              "with a missing cluster id, or assign them a cluster, before ",
+              "computing the confidence set."
+            ))
+          }
+        }
+      }
+
       if (is.null(cluster_ids)) {
         # Non-clustered case
         # no fixed center effects or fixed time effects
@@ -822,24 +846,17 @@ get_confidence_set <- function(
           vcov_matrix <- bread * sigma2
         } else {
           # logistic-like approach
-          # no fixed center effects or fixed time effects
-          matrix_j <- matrix(0, nrow = n_params, ncol = n_params)
-          matrix_v <- matrix(0, nrow = n_params, ncol = n_params)
+          # no fixed center effects or fixed time effects.
+          # The compiled kernel does ONLY the per-observation accumulation of
+          # the HC0 form: J = sum_i (ddb_i ddb_i^T)/n and
+          # V = sum_i (ddb_i (y_i - p_i)^2 ddb_i^T)/n. As in the clustered path,
+          # solve() and the final bread %*% V %*% t(bread) stay in R so the
+          # inversion is byte-for-byte identical and a singular J errors here
+          # exactly as it did before.
+          acc <- sandwich_hc0_logit_accumulate(X, fitted_values, outcome_data)
 
-          for (i in 1:n) {
-            x_i <- as.matrix(X[i, ])
-            p_i <- fitted_values[i]
-            ddbeta_i <- (p_i * (1 - p_i)) * x_i
-
-            j_i <- ddbeta_i %*% t(ddbeta_i)
-            matrix_j <- matrix_j + j_i / n
-
-            v_i <- (ddbeta_i) %*% ((outcome_data[i] - p_i)^2) %*% t(ddbeta_i)
-            matrix_v <- matrix_v + v_i / n
-          }
-
-          bread <- solve(matrix_j)
-          vcov_matrix <- (bread %*% matrix_v %*% t(bread)) / n
+          bread <- solve(acc$J)
+          vcov_matrix <- (bread %*% acc$V %*% t(bread)) / n
         }
       } else if (length(cluster_ids) == 1) {
         # Single clustering
