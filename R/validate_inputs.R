@@ -541,6 +541,27 @@ validate_inputs <- function(
         "must be columns in the data frame."
       ))
     }
+    # refuse any additional covariate whose column is entirely NA. glm()'s
+    # internal na.omit drops every row in that case, and the fit dies with an
+    # opaque error that never names the column. This runs after the
+    # column-existence check above so data[[covariate]] is always a real
+    # column. all(is.na(col)) treats numeric, factor and character columns
+    # alike, so an all-NA covariate of any type is caught here rather than
+    # left to fail cryptically inside model fitting.
+    all_na_covariates <- additional_covariates[vapply(
+      additional_covariates,
+      function(covariate) all(is.na(data[[covariate]])),
+      logical(1)
+    )]
+    if (length(all_na_covariates) > 0) {
+      stop(paste0(
+        "The additional covariate(s) ",
+        paste(all_na_covariates, collapse = ", "),
+        " are entirely NA, so glm() would drop every row and they ",
+        "cannot enter the model. Remove them from additional_covariates ",
+        "or supply observed values."
+      ))
+    }
   }
 
   # check if intervention_lower_bounds and intervention_upper_bounds are both
