@@ -1,4 +1,4 @@
-# LAGO 1.0.12
+# LAGO 1.1
 
 * Fixed `outcome_goal_intention = "minimize"` ignoring the outcome goal. The
   minimize direction is implemented by negating the fitted coefficients and
