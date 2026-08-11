@@ -1,6 +1,7 @@
 
 <p align="center">
   <a href="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml"><img src="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a>
+  <a href="https://app.codecov.io/gh/correspondMerchant/LAGO-R-Package"><img src="https://codecov.io/gh/correspondMerchant/LAGO-R-Package/branch/main/graph/badge.svg" alt="Codecov test coverage"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg" alt="License: GPL v3"></a>
   <img src="https://img.shields.io/badge/R-%3E%3D%202.10-blue.svg" alt="R >= 2.10">
 </p>
