@@ -8,6 +8,10 @@ Description: Calculates LAGO recommended interventions for the next stage.
     The recommended interventions will be calculated based on the outcome goal
     and/or the power goal.
 License: GPL-3
+Copyright: This package bundles the D3 v7 library (inst/js/d3.v7.min.js),
+    which is ISC-licensed and Copyright 2010-2023 Mike Bostock. See
+    inst/COPYRIGHTS and inst/js/d3-LICENSE. All other code is Copyright the
+    LAGO authors under GPL-3.
 URL: https://correspondmerchant.github.io/LAGO-R-Package/, https://github.com/correspondMerchant/LAGO-R-Package
 BugReports: https://github.com/correspondMerchant/LAGO-R-Package/issues
 Encoding: UTF-8
