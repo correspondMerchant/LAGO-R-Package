@@ -69,6 +69,7 @@
 <li><a href="#basic-use-case">Basic use case</a></li>
 <li><a href="#more-advanced-use-case">More advanced use case</a></li>
 <li><a href="#how-to-run-additional-examples">How to run additional examples</a></li>
+<li><a href="#using-lago-from-python">Using LAGO from Python</a></li>
 <li><a href="#relevant-lago-papers">Relevant LAGO papers</a></li>
 <li><a href="#how-to-get-help">How to get help</a></li>
 </ol>
@@ -367,6 +368,37 @@ First rows of the confidence set (use $cs for all):
 <p>Cost functions: - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_default_cost_function.Rmd" class="external-link">test_default_cost_function</a> — default cost function derived from unit costs and bounds. - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_higher_order_costs.Rmd" class="external-link">test_higher_order_costs</a> — higher-order (for example, cubic) cost functions. - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_visualize_cost.Rmd" class="external-link">test_visualize_cost</a> — <code><a href="reference/visualize_cost.html">visualize_cost()</a></code> Shiny app for choosing cost-function coefficients.</p>
 <p>Confidence set and the optimization algorithm: - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_confidence_set.Rmd" class="external-link">test_confidence_set</a> — 95% confidence set, and how to read its size and cost range. - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_shrinking_method.Rmd" class="external-link">test_shrinking_method</a> — shrinking method, used when the outcome goal is not reachable. - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_shrinking_with_power_goal.Rmd" class="external-link">test_shrinking_with_power_goal</a> — shrinking method under a power goal.</p>
 <p>Outcome model and testing: - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_fit_diagnostics.Rmd" class="external-link">test_fit_diagnostics</a> — fit diagnostics that warn about a questionable outcome model (glm warnings, near-singular estimates, non-significant components) while the optimization continues. - <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_overall_intervention.Rmd" class="external-link">test_overall_intervention</a> — overall intervention-effect test, reported when a <code>group</code> column is supplied.</p>
+</div>
+<div class="section level2">
+<h2 id="using-lago-from-python">Using LAGO from Python<a class="anchor" aria-label="anchor" href="#using-lago-from-python"></a>
+</h2>
+<p>A Python wrapper lives in <a href="https://github.com/correspondMerchant/LAGO-R-Package/tree/main/python" class="external-link"><code>python/</code></a> (importable as <code>lago</code>) for people who work in Python. It calls the real R functions through <a href="https://rpy2.github.io/" class="external-link"><code>rpy2</code></a>, so the results are exactly the ones the R package produces. Because it embeds R, you need R and the installed LAGO R package as well as the Python package.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="im">import</span> lago</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>res <span class="op">=</span> lago.optimize(</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>    data<span class="op">=</span>df,                                  <span class="co"># a pandas DataFrame</span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>    outcome_name<span class="op">=</span><span class="st">"Y"</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>    outcome_type<span class="op">=</span><span class="st">"binary"</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>    intervention_components<span class="op">=</span>[<span class="st">"comp1"</span>, <span class="st">"comp2"</span>],</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>    cost_list<span class="op">=</span>[[<span class="dv">0</span>, <span class="fl">1.7</span>], [<span class="dv">0</span>, <span class="dv">8</span>]],</span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>    outcome_goal<span class="op">=</span><span class="fl">0.85</span>,</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>)</span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>res[<span class="st">"rec_int"</span>]           <span class="co"># recommended intervention, a Python list</span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a>res[<span class="st">"est_outcome_goal"</span>]  <span class="co"># estimated outcome, a float</span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a><span class="co"># visualize_cost() launches the same interactive R app in your browser and</span></span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a><span class="co"># returns the cost list to Python when you close it:</span></span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>cost_list <span class="op">=</span> lago.visualize_cost(</span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>    component_names<span class="op">=</span>[<span class="st">"comp1"</span>, <span class="st">"comp2"</span>],</span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a>    unit_costs<span class="op">=</span>[<span class="fl">0.5</span>, <span class="dv">1</span>],</span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>    default_cost_fxn_type<span class="op">=</span><span class="st">"cubic"</span>,</span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>)</span></code></pre></div>
+<p>See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for installation and the full API.</p>
 </div>
 <div class="section level2">
 <h2 id="relevant-lago-papers">Relevant LAGO papers<a class="anchor" aria-label="anchor" href="#relevant-lago-papers"></a>
