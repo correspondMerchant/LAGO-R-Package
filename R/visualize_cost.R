@@ -26,7 +26,7 @@
 #' each intervention component.
 #'
 #' @export
-#' @import bslib shiny ggplot2
+#' @import bslib shiny
 #' @importFrom shinyjs useShinyjs show hide runjs
 #'
 #' @examples
@@ -131,9 +131,26 @@ visualize_cost <- function(
     }
   )
 
+  # Serve the vendored client-side assets (D3 v7 + the cost-curve binding) from
+  # the installed package's inst/js directory under a URL prefix. This keeps the
+  # curves client-side and offline (no CDN), as required for CRAN. Using
+  # addResourcePath + tags$script avoids a new hard dependency on htmltools
+  # (htmlDependency is not re-exported by shiny); addResourcePath and tags are
+  # both provided by shiny, which is already imported.
+  js_dir <- system.file("js", package = "LAGO")
+  addResourcePath("lago_cost_assets", js_dir)
+
   ui <- navbarPage(
     title = "Cost Functions Visualization",
     theme = bs_theme(version = 5, bootswatch = "flatly"),
+
+    # Load the vendored D3 first, then the cost-curve binding. Placed in the
+    # document head via header = tags$head(...); tags$head content is hoisted to
+    # <head> regardless of where it appears in the UI.
+    header = tags$head(
+      tags$script(src = "lago_cost_assets/d3.v7.min.js"),
+      tags$script(src = "lago_cost_assets/cost-curves.js")
+    ),
 
     # Include shinyjs
     useShinyjs(),
@@ -275,8 +292,24 @@ visualize_cost <- function(
                   style = "color: red; margin-bottom: 10px; display: none;",
                   "Warning: Marginal cost function should always be positive!"
                 ),
-                plotOutput(paste0("costPlot_", component_idx)),
-                plotOutput(paste0("derivativePlot_", component_idx)),
+                # Client-side D3 (v7) target. cost-curves.js reads the coefs
+                # straight from this component's sliders and the bounds / unit
+                # cost from these data-* attributes, then renders both SVGs and
+                # redraws instantly as the sliders move (no server round-trip).
+                # The right endpoint of the total-cost curve is draggable; the
+                # drag writes rescaled coefficients back via
+                # input$dragged_coefs_<component> (see the observeEvent below).
+                div(
+                  id = paste0("cost_curves_", component_idx),
+                  class = "lago-cost-curves",
+                  `data-component` = component_idx,
+                  `data-ncoef` =
+                    length(initial_coefficients_list[[component_idx]]),
+                  `data-lb` = intervention_lower_bounds[component_idx],
+                  `data-ub` = intervention_upper_bounds[component_idx],
+                  `data-unit-cost` = unit_costs[component_idx],
+                  `data-name` = component_names[component_idx]
+                ),
                 hr(),
                 # Key numeric values over the intervention range, so the user
                 # can target a known cost rather than only eyeballing the curve.
@@ -310,6 +343,11 @@ visualize_cost <- function(
   }
 
   server <- function(input, output, session) {
+    # Remove the resource-path prefix registered above when the app stops, so
+    # relaunching does not leak "lago_cost_assets" process-globally across
+    # launches. The addResourcePath above re-runs on the next launch.
+    onStop(function() removeResourcePath("lago_cost_assets"))
+
     # Add function to check if cost function is non-decreasing
     is_non_decreasing <- function(x_vals, y_vals) {
       all(diff(y_vals) >= -1e-10) # Using small tolerance for numerical stability
@@ -516,81 +554,77 @@ visualize_cost <- function(
         }
       })
 
-      output[[paste0("costPlot_", component_idx)]] <- renderPlot({
-        current_coefs <- sapply(
-          seq_along(initial_coefficients_list[[component_idx]]),
-          function(i) {
-            input[[paste0("coef_", component_idx, "_", i - 1)]]
+      # The total-cost and marginal-cost curves are now drawn client-side by
+      # inst/js/cost-curves.js (D3 v7 SVG), which reads this component's
+      # coefficients directly from its sliders and redraws instantly on every
+      # slider tick with no server round-trip. The former renderPlot() ->
+      # PNG round-trip has been removed. The server still owns the
+      # authoritative validation (the observe() above) and the numeric summary
+      # below, and it handles the drag writeback (the observeEvent below).
+
+      # Drag writeback. When the user drags the right endpoint of the total-cost
+      # curve, cost-curves.js rescales all coefficients and sends the new vector
+      # here as an event. We update each slider to the rescaled value, first
+      # widening its min/max if the new value would fall outside the current
+      # slider range (a slider silently clamps out-of-range values, which would
+      # otherwise break the round-trip and the copy snippet).
+      #
+      # No feedback oscillation: this is the ONLY path that reacts to the drag
+      # input, and updating the sliders here does NOT call Shiny.setInputValue.
+      # The slider updates fire the sliders' change events, which the JS turns
+      # into a normal client-side redraw (never a new drag event). ignoreInit
+      # keeps it from firing on app start, and priority:"event" on the JS side
+      # means a repeated target still registers as a fresh, single event.
+      observeEvent(input[[paste0("dragged_coefs_", component_idx)]],
+        {
+          msg <- input[[paste0("dragged_coefs_", component_idx)]]
+          new_coefs <- as.numeric(unlist(msg$coefs))
+          if (length(new_coefs) !=
+            length(initial_coefficients_list[[component_idx]]) ||
+            any(!is.finite(new_coefs))) {
+            return()
           }
-        )
-        x_vals <- seq(
-          intervention_lower_bounds[component_idx],
-          intervention_upper_bounds[component_idx],
-          length.out = 2000
-        )
-        y_vals <- calculate_cost(current_coefs, x_vals)
-
-        ggplot(data.frame(x = x_vals, y = y_vals), aes(x = x, y = y)) +
-          geom_line(color = "#0066cc", linewidth = 1) +
-          # Fix the x-axis to the full intervention range so this plot and the
-          # marginal-cost plot below share an identical, aligned x-axis.
-          scale_x_continuous(limits = c(
-            intervention_lower_bounds[component_idx],
-            intervention_upper_bounds[component_idx]
-          )) +
-          theme_minimal() +
-          labs(
-            title = paste("Total Cost Function -", component_names[component_idx]),
-            x = component_names[component_idx],
-            y = "Total Cost"
-          ) +
-          theme(text = element_text(size = 14))
-      })
-
-      output[[paste0("derivativePlot_", component_idx)]] <- renderPlot({
-        current_coefs <- sapply(
-          seq_along(initial_coefficients_list[[component_idx]]),
-          function(i) {
-            input[[paste0("coef_", component_idx, "_", i - 1)]]
-          }
-        )
-        x_vals <- seq(
-          intervention_lower_bounds[component_idx],
-          intervention_upper_bounds[component_idx],
-          length.out = 2000
-        )
-        y_vals <- calculate_derivative(current_coefs, x_vals)
-
-        ggplot(data.frame(x = x_vals, y = y_vals), aes(x = x, y = y)) +
-          geom_line(color = "#cc3300", linewidth = 1) +
-          # Add horizontal reference line for unit cost
-          geom_hline(
-            yintercept = unit_costs[component_idx],
-            linetype = "dashed",
-            color = "black",
-            linewidth = 0.8
-          ) +
-          # Match the total-cost plot's x-axis so the two are aligned.
-          scale_x_continuous(limits = c(
-            intervention_lower_bounds[component_idx],
-            intervention_upper_bounds[component_idx]
-          )) +
-          theme_minimal() +
-          labs(
-            title = paste("Derivative of the Total Cost Function (Marginal Cost) -", component_names[component_idx]),
-            x = component_names[component_idx],
-            y = "Marginal Cost"
-          ) +
-          # Add annotation for the reference line
-          annotate("text",
-            x = max(x_vals),
-            y = unit_costs[component_idx],
-            label = sprintf("Unit Cost: %.2f", unit_costs[component_idx]),
-            hjust = 1,
-            vjust = -0.5
-          ) +
-          theme(text = element_text(size = 14))
-      })
+          lapply(seq_along(new_coefs), function(i) {
+            val <- new_coefs[i]
+            cur_min <- input[[paste0("range_min_", component_idx, "_", i - 1)]]
+            cur_max <- input[[paste0("range_max_", component_idx, "_", i - 1)]]
+            # Expand the range symmetrically with a small margin if the new
+            # value would be clamped. Reuse the range-input mechanism so the
+            # displayed Range min / Range max stay consistent with the slider.
+            new_min <- cur_min
+            new_max <- cur_max
+            if (is.null(new_min) || !is.finite(new_min) || val < new_min) {
+              new_min <- floor((val - abs(val) * 0.5 - 1) * 1000) / 1000
+            }
+            if (is.null(new_max) || !is.finite(new_max) || val > new_max) {
+              new_max <- ceiling((val + abs(val) * 0.5 + 1) * 1000) / 1000
+            }
+            if (!identical(new_min, cur_min)) {
+              updateNumericInput(
+                session,
+                inputId = paste0("range_min_", component_idx, "_", i - 1),
+                value = new_min
+              )
+            }
+            if (!identical(new_max, cur_max)) {
+              updateNumericInput(
+                session,
+                inputId = paste0("range_max_", component_idx, "_", i - 1),
+                value = new_max
+              )
+            }
+            updateSliderInput(
+              session,
+              inputId = paste0("coef_", component_idx, "_", i - 1),
+              value = val,
+              min = new_min,
+              max = new_max,
+              step = min((new_max - new_min) / 1000, 0.00001)
+            )
+          })
+        },
+        ignoreInit = TRUE
+      )
 
       # Numeric summary of the current cost function over the intervention
       # range: total cost at the lower and upper bounds, and the average

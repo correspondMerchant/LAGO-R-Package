@@ -1,0 +1,10 @@
+The LAGO package bundles third-party code:
+
+D3 (v7)
+  Files:     inst/js/d3.v7.min.js
+  License:   ISC
+  Copyright: 2010-2023 Mike Bostock
+  Full license text: inst/js/d3-LICENSE
+
+All other files are part of LAGO and are covered by the package license
+(GPL-3), see the LICENSE / DESCRIPTION file.

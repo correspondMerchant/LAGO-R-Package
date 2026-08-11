@@ -231,6 +231,7 @@ summary.lago <- function(object, ...) {
 #' # intervention marked.
 #' plot(result)
 #'
+#' @import ggplot2
 #' @importFrom ggplot2 .data
 #' @exportS3Method plot lago
 plot.lago <- function(x, ...) {
