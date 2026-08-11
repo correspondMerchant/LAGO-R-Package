@@ -12,3 +12,4 @@
 ^DESIGN_.*\.md$
 ^ISSUE_.*\.md$
 ^tests/js$
+^python$
