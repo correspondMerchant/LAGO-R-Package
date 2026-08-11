@@ -2,7 +2,14 @@
 
 ## Authors
 
-- **Ante Bing**. Maintainer.
+- **Ante Bing**. Author, maintainer.
+
+- **Minh Bui**. Author.
+
+- **Jingyu Cui**. Author.
+
+- **Mike Bostock**. Copyright holder.  
+  Author of the bundled D3 v7 library, inst/js/d3.v7.min.js
 
 ## Citation
 

@@ -213,8 +213,13 @@ First rows of the confidence set (use $cs for all):
 <span>  intervention_lower_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
 <span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">10</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre>
-<p>The GIF below shows the Shiny app in action</p>
-<p><strong>(please wait a few seconds for the GIF to load)</strong> <img src="reference/figures/shiny_2_14_2025.gif" alt="the visualize_cost Shiny app"></p>
+<p>The cost curves are drawn client-side with D3, so they redraw instantly as you move the sliders (no server round-trip). Hovering a curve shows a read-out at that intervention level, the marginal-cost chart draws a dashed unit-cost reference line, and the right endpoint of the total-cost curve is draggable to rescale all of a component’s coefficients at once. When a setting makes the total cost decrease or go negative, the chart is tinted red to flag the invalid state.</p>
+<p>The GIF below cycles through several coefficient settings to show these interactions: the curves redrawing live, an endpoint drag, and the red invalid-state tint.</p>
+<p><strong>(please wait a few seconds for the GIF to load)</strong> <img src="reference/figures/visualize_cost_d3.gif" alt="the visualize_cost Shiny app showing the interactive D3 cost curves"></p>
+<p>A static view of a valid state:</p>
+<div class="float">
+<img src="reference/figures/visualize_cost_d3.png" alt="the visualize_cost Shiny app UI"><div class="figcaption">the visualize_cost Shiny app UI</div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="more-advanced-use-case">More advanced use case<a class="anchor" aria-label="anchor" href="#more-advanced-use-case"></a>
@@ -408,7 +413,10 @@ First rows of the confidence set (use $cs for all):
 <div class="developers">
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li>Ante Bing <br><small class="roles"> Maintainer </small>   </li>
+<li>Ante Bing <br><small class="roles"> Author, maintainer </small>   </li>
+<li>Minh Bui <br><small class="roles"> Author </small>   </li>
+<li>Jingyu Cui <br><small class="roles"> Author </small>   </li>
+<li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
 
@@ -425,7 +433,7 @@ First rows of the confidence set (use $cs for all):
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Ante Bing.</p>
+  <p>Developed by Ante Bing, Minh Bui, Jingyu Cui.</p>
 </div>
 
 <div class="pkgdown-footer-right">

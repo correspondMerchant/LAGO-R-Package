@@ -266,10 +266,28 @@ vector for each component. The user can copy the final coefficient list
       intervention_upper_bounds = c(10, 10)
     )
 
-The GIF below shows the Shiny app in action
+The cost curves are drawn client-side with D3, so they redraw instantly
+as you move the sliders (no server round-trip). Hovering a curve shows a
+read-out at that intervention level, the marginal-cost chart draws a
+dashed unit-cost reference line, and the right endpoint of the
+total-cost curve is draggable to rescale all of a component’s
+coefficients at once. When a setting makes the total cost decrease or go
+negative, the chart is tinted red to flag the invalid state.
+
+The GIF below cycles through several coefficient settings to show these
+interactions: the curves redrawing live, an endpoint drag, and the red
+invalid-state tint.
 
 **(please wait a few seconds for the GIF to load)** ![the visualize_cost
-Shiny app](reference/figures/shiny_2_14_2025.gif)
+Shiny app showing the interactive D3 cost
+curves](reference/figures/visualize_cost_d3.gif)
+
+A static view of a valid state:
+
+![the visualize_cost Shiny app
+UI](reference/figures/visualize_cost_d3.png)
+
+the visualize_cost Shiny app UI
 
 ## More advanced use case
 
