@@ -233,6 +233,26 @@
   covariate and its observed range, since the reported outcome and interval are
   then an extrapolation to a covariate value that never occurs in the data. The
   covariate is still held at 0, so no returned value changes. (#75)
+* The robust and clustered variance estimator for a logit outcome model is now
+  computed by a compiled Rcpp kernel instead of two per-observation R loops.
+  Only the accumulation of the bread and meat matrices moves to C++, so the
+  matrix inversion stays in R and the returned variance is numerically
+  identical to before, while the clustered confidence set is far faster on
+  larger data. This is the package's first compiled code, so `Rcpp` is now a
+  dependency. (#79)
+* `visualize_cost()` now draws its total-cost and marginal-cost curves
+  client-side with D3 instead of as server-rendered images, so they redraw
+  instantly as the sliders move. Each curve gains a hover read-out, the right
+  endpoint of the total-cost curve is draggable to rescale all of a component's
+  coefficients at once (the sliders follow the drag), and the curves are tinted
+  red when the coefficients are invalid. D3 is bundled with its license, so the
+  app works offline. (#80)
+* Added a Python wrapper (in `python/`, importable as `lago`) that lets Python
+  users call LAGO through `rpy2`. It wraps `lago_optimization()`,
+  `get_confidence_set()`, `visualize_cost()` and `lago_report()`, converting a
+  pandas data frame and Python lists to and from R, and calls the real R
+  functions rather than reimplementing anything, so the results are exactly R's.
+  It embeds R, so R and the installed LAGO package are required.
 * Added runnable `@examples` to every exported function that lacked them:
   `get_confidence_set()` and the `print()`, `summary()`, and `plot()` methods
   for `"lago"` objects. Every exported function now ships an example.

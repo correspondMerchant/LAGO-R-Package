@@ -19,8 +19,9 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 3. [Basic use case](#basic-use-case)
 4. [More advanced use case](#more-advanced-use-case)
 5. [How to run additional examples](#how-to-run-additional-examples)
-6. [Relevant LAGO papers](#relevant-lago-papers)
-7. [How to get help](#how-to-get-help)
+6. [Using LAGO from Python](#using-lago-from-python)
+7. [Relevant LAGO papers](#relevant-lago-papers)
+8. [How to get help](#how-to-get-help)
 
 
 ## How to install the R package
@@ -369,6 +370,40 @@ Confidence set and the optimization algorithm:
 Outcome model and testing:
 - [test_fit_diagnostics](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_fit_diagnostics.Rmd) — fit diagnostics that warn about a questionable outcome model (glm warnings, near-singular estimates, non-significant components) while the optimization continues.
 - [test_overall_intervention](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/tests/manual_tests/test_overall_intervention.Rmd) — overall intervention-effect test, reported when a `group` column is supplied.
+
+## Using LAGO from Python
+
+A Python wrapper lives in [`python/`](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/python) (importable as `lago`) for people who work in Python. It calls the real R functions through [`rpy2`](https://rpy2.github.io/), so the results are exactly the ones the R package produces. Because it embeds R, you need R and the installed LAGO R package as well as the Python package.
+
+```python
+import pandas as pd
+import lago
+
+res = lago.optimize(
+    data=df,                                  # a pandas DataFrame
+    outcome_name="Y",
+    outcome_type="binary",
+    intervention_components=["comp1", "comp2"],
+    intervention_lower_bounds=[0, 0],
+    intervention_upper_bounds=[10, 10],
+    cost_list=[[0, 1.7], [0, 8]],
+    outcome_goal=0.85,
+)
+res["rec_int"]           # recommended intervention, a Python list
+res["est_outcome_goal"]  # estimated outcome, a float
+
+# visualize_cost() launches the same interactive R app in your browser and
+# returns the cost list to Python when you close it:
+cost_list = lago.visualize_cost(
+    component_names=["comp1", "comp2"],
+    unit_costs=[0.5, 1],
+    default_cost_fxn_type="cubic",
+    intervention_lower_bounds=[0, 0],
+    intervention_upper_bounds=[10, 10],
+)
+```
+
+See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for installation and the full API.
 
 ## Relevant LAGO papers
 1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)
