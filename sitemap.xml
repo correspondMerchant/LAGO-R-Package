@@ -1,6 +1,9 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/404.html</loc></url>
+<url><loc>https://correspondmerchant.github.io/LAGO-R-Package/CODE_OF_CONDUCT.html</loc></url>
+<url><loc>https://correspondmerchant.github.io/LAGO-R-Package/CONTRIBUTING.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/LICENSE.html</loc></url>
+<url><loc>https://correspondmerchant.github.io/LAGO-R-Package/PULL_REQUEST_TEMPLATE.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/articles/index.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/articles/lago-optimization.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/authors.html</loc></url>
