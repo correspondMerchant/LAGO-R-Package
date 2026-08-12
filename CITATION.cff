@@ -1,0 +1,52 @@
+cff-version: 1.2.0
+message: "If you use LAGO, please cite both the software and the methods paper below."
+title: "LAGO: Learn-As-you-GO Adaptive Trial Optimization"
+type: software
+version: 1.1.0
+license: GPL-3.0-only
+repository-code: "https://github.com/correspondMerchant/LAGO-R-Package"
+url: "https://correspondmerchant.github.io/LAGO-R-Package/"
+authors:
+  - family-names: Bing
+    given-names: Ante
+    email: abing@bu.edu
+  - family-names: Bui
+    given-names: Minh
+  - family-names: Cui
+    given-names: Jingyu
+# The methods paper to cite for the LAGO methodology the package implements.
+# Update this to the package's own software paper once it is published.
+preferred-citation:
+  type: article
+  title: "Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning"
+  authors:
+    - family-names: Bing
+      given-names: Ante
+    - family-names: Spiegelman
+      given-names: Donna
+    - family-names: Nevo
+      given-names: Daniel
+    - family-names: Lok
+      given-names: Judith J.
+  journal: "Biometrics"
+  year: 2025
+  volume: 81
+  issue: 2
+  doi: "10.1093/biomtc/ujaf061"
+references:
+  - type: article
+    title: "Analysis of \"Learn-As-you-GO\" (LAGO) Studies"
+    authors:
+      - family-names: Nevo
+        given-names: Daniel
+      - family-names: Lok
+        given-names: Judith J.
+      - family-names: Spiegelman
+        given-names: Donna
+    journal: "Annals of Statistics"
+    year: 2021
+    volume: 49
+    issue: 2
+    start: 793
+    end: 819
+    doi: "10.1214/20-aos1978"
