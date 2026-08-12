@@ -1,5 +1,7 @@
 
 <p align="center">
+  <a href="https://www.repostatus.org/#active"><img src="https://www.repostatus.org/badges/latest/active.svg" alt="Project Status: Active"></a>
+  <a href="https://lifecycle.r-lib.org/articles/stages.html#stable"><img src="https://img.shields.io/badge/lifecycle-stable-brightgreen.svg" alt="Lifecycle: stable"></a>
   <a href="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml"><img src="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a>
   <a href="https://app.codecov.io/gh/correspondMerchant/LAGO-R-Package"><img src="https://codecov.io/gh/correspondMerchant/LAGO-R-Package/branch/main/graph/badge.svg" alt="Codecov test coverage"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg" alt="License: GPL v3"></a>

@@ -13,3 +13,4 @@
 ^ISSUE_.*\.md$
 ^tests/js$
 ^python$
+^CITATION\.cff$
