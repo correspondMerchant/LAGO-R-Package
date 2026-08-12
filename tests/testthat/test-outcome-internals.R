@@ -2016,7 +2016,11 @@ test_that("center weights are renormalised exactly when they need it", {
   expect_lt(abs(sum(raw) - 1), 0.001)
   corrected <- vi(raw)
   expect_identical(corrected, raw / sum(raw))
-  expect_identical(sum(corrected), 1)
+  # sum is 1 only up to floating point: x / sum(x) does not guarantee the parts
+  # re-add to exactly 1, and they do not on every platform's math library (this
+  # sum is 1 on Linux but 1 + 2.2e-16 on macOS), so this is a tolerant check.
+  # The exact-renormalisation contract is pinned by the identical() check above.
+  expect_equal(sum(corrected), 1)
   expect_false(identical(corrected, raw))
 
   # the bias this removes, on the estimated outcome, computed by hand. The
@@ -2075,6 +2079,9 @@ test_that("center weights are renormalised exactly when they need it", {
   # sizes rather than taking from the caller, already sum to 1 and so are also
   # unaffected. The renormalisation sits after every branch that can produce
   # them, so it covers the caller's weights, the sample-size default and the
-  # single-named-center indicator alike.
-  expect_identical(sum(vi(NULL)), 1)
+  # single-named-center indicator alike. Tolerant on the sum for the same
+  # reason as the renormalised case above: the default weights are the center
+  # sample sizes over their total, and that division need not re-add to exactly
+  # 1 on every platform's math library.
+  expect_equal(sum(vi(NULL)), 1)
 })
