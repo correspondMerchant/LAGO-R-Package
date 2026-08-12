@@ -38,29 +38,8 @@ test_that("cost-curves.js exposes the pure math contract used by the app", {
   expect_match(txt, "dragged_coefs_")
 })
 
-test_that("node JS math test passes (R<->JS numeric parity)", {
-  # Run the standalone node test (tests/js/test-cost-math.js) so the R<->JS
-  # curve-math parity is exercised in automation. Skipped cleanly where node is
-  # absent (e.g. CRAN) or where the JS test file is not present (it is excluded
-  # from the built tarball via .Rbuildignore, so this only runs against the
-  # source tree, e.g. devtools::test()).
-  #
-  # Resolve node with Sys.which so a full path is used: the interpreter may live
-  # outside the minimal PATH that system2() would otherwise see (e.g. a mise /
-  # conda install), and Sys.which honours the PATH R was launched with.
-  node <- Sys.which("node")
-  skip_if(nchar(node) == 0, "node not available")
-
-  # Locate the JS test relative to the testthat working directory (tests/testthat
-  # during devtools::test() / R CMD check).
-  js_test <- testthat::test_path("..", "js", "test-cost-math.js")
-  skip_if(!file.exists(js_test), "tests/js/test-cost-math.js not present")
-
-  status <- suppressWarnings(system2(
-    node,
-    args = shQuote(normalizePath(js_test)),
-    stdout = FALSE,
-    stderr = FALSE
-  ))
-  expect_equal(status, 0L)
-})
+# The JS math itself (tests/js/test-cost-math.js) is run by its own GitHub
+# Actions job (js-test.yaml), not from here: driving a node subprocess out of
+# the R suite is fragile across environments (node's require() resolves
+# tests/js -> ../../inst/js, which does not hold in the copied tree R CMD check
+# and covr build), and the R suite should not depend on a node interpreter.

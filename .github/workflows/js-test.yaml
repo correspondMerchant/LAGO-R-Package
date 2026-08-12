@@ -1,0 +1,27 @@
+# Runs the standalone JavaScript math test for the client-side cost curves
+# (tests/js/test-cost-math.js), which checks that the D3 curve/drag math in
+# inst/js/cost-curves.js matches the R reference values. Kept out of the R test
+# suite so R CMD check does not depend on a node interpreter.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+name: js-test
+
+permissions: read-all
+
+jobs:
+  js-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run cost-curve math test
+        run: node tests/js/test-cost-math.js
