@@ -1,5 +1,6 @@
 # LAGO 1.1.0
 
+* `visualize_cost()` now stores the returned cost list in the `lago_cost_list` option instead of assigning it to the global environment; retrieve it with `getOption("lago_cost_list")`.
 * Added tests for the interaction-terms optimization path and the outcome-model fit warnings, and excluded the interactive `visualize_cost()` app from the coverage figure so it reflects the testable R code.
 * Added a `CITATION.cff` so the repository can be cited, plus contributing guidelines, a code of conduct and issue/pull-request templates. (#86)
 * Added test-coverage reporting, cross-platform (macOS, Windows, Linux) continuous integration, project-status and coverage badges, and a social-preview card. (#83, #84, #85)
