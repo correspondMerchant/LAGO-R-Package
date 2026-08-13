@@ -266,7 +266,7 @@ lago_optimization(
 - additional_covariates:
 
   A character vector. The names of the columns in the dataset that
-  represent additional covaraites that need to be included in the
+  represent additional covariates that need to be included in the
   outcome model. This includes interaction terms or any other additional
   covariates. For example: c("component2xcomponent4").
 
@@ -329,7 +329,7 @@ lago_optimization(
 - include_interaction_terms:
 
   A boolean. Specifies whether there are interaction terms in the
-  intervention components. Please make sure the interaciton terms are
+  intervention components. Please make sure the interaction terms are
   included in "intervention_components", and they follow the correct
   naming scheme: "component1:component3". Default value without user
   specification: FALSE.

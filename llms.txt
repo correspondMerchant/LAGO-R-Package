@@ -324,7 +324,7 @@ optimal intervention package for center “5” in time period “10”.
 
     # The BetterBirth data has been open sourced so a version of
     # the BetterBirth data is included in the LAGO R package
-    bb_data <- LAGO::BB_data
+    bb_data <- LAGOtrials::BB_data
     head(bb_data)
 
     set.seed(123)

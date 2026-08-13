@@ -2,7 +2,7 @@
 
 ``` r
 
-library(LAGO)
+library(LAGOtrials)
 ```
 
 Learn-As-you-GO (LAGO) trials adapt a multi-component intervention as
