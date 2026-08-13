@@ -2,6 +2,20 @@
 
 ## LAGO 1.1.0
 
+- Added tests for the interaction-terms optimization path and the
+  outcome-model fit warnings, and excluded the interactive
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  app from the coverage figure so it reflects the testable R code.
+- Added a `CITATION.cff` so the repository can be cited, plus
+  contributing guidelines, a code of conduct and issue/pull-request
+  templates.
+  ([\#86](https://github.com/correspondMerchant/LAGO-R-Package/issues/86))
+- Added test-coverage reporting, cross-platform (macOS, Windows, Linux)
+  continuous integration, project-status and coverage badges, and a
+  social-preview card.
+  ([\#83](https://github.com/correspondMerchant/LAGO-R-Package/issues/83),
+  [\#84](https://github.com/correspondMerchant/LAGO-R-Package/issues/84),
+  [\#85](https://github.com/correspondMerchant/LAGO-R-Package/issues/85))
 - Added a Python wrapper (in `python/`, importable as `lago`) that calls
   LAGO through `rpy2`.
   ([\#81](https://github.com/correspondMerchant/LAGO-R-Package/issues/81))
