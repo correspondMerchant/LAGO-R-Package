@@ -45,8 +45,8 @@ test_that("get_outcome() and flip_outcome_scale() refuse an unimplemented link (
   # through to the identity branch instead reports the linear predictor as the
   # probability: for the arguments below get_outcome() would return 0.9, which
   # is what a caller asking for a probability gets handed.
-  get_outcome <- getFromNamespace("get_outcome", "LAGO")
-  flip_outcome_scale <- getFromNamespace("flip_outcome_scale", "LAGO")
+  get_outcome <- getFromNamespace("get_outcome", "LAGOtrials")
+  flip_outcome_scale <- getFromNamespace("flip_outcome_scale", "LAGOtrials")
 
   # "cloglog" and "sqrt" are here alongside the two links #70 removed because
   # the guard is about the SET, not about those two names: any future link
@@ -101,7 +101,7 @@ test_that("get_outcome() SUMS the weighted inverse link over center-level effect
   # Only visible with MORE THAN ONE center-level effect, which is why the
   # single-center fixtures elsewhere cannot see it. This is the same defect one
   # line down from the center-characteristic product that #70 fixed.
-  get_outcome <- getFromNamespace("get_outcome", "LAGO")
+  get_outcome <- getFromNamespace("get_outcome", "LAGOtrials")
 
   weights <- c(0.5, 0.3, 0.2)
   center_effects <- c(0.1, 0.4, -0.2)
@@ -152,7 +152,7 @@ test_that("a period dummy is matched exactly, so period 1 is not period 10", {
   # "period10" and of nothing else, so a prefix search returns two hits, the
   # length(hits) == 1 guard rejects, and requesting period 1 fails outright on
   # a study that is perfectly well specified.
-  time_effect_indicator <- getFromNamespace("time_effect_indicator", "LAGO")
+  time_effect_indicator <- getFromNamespace("time_effect_indicator", "LAGOtrials")
 
   d <- data.frame(
     y = rep(0:1, 110),
@@ -204,7 +204,7 @@ test_that("the fixed-effect fallback is anchored and skips the named predictors"
   # that recommended an intervention whose true outcome was 0.428 while
   # reporting 0.6.
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
 
   # center_size and period_flag are named predictors: the assembly supplies
@@ -273,9 +273,9 @@ test_that("both callers pass the names they have already claimed", {
   # real center and period dummies alongside a center_size covariate and a
   # period_flag covariate.
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
 
   bb <- as.data.frame(BB_data)
   bb$center <- factor(rep_len(paste0("c", 1:3), nrow(bb)))
@@ -396,7 +396,7 @@ test_that("a covariate named exactly like a fixed effect keeps the term's dummie
   # back. Only an exact match is dropped, so both assertions are made here: an
   # earlier attempt at this fix filtered on startsWith() and reintroduced the
   # defect the prefixed fixtures cover.
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   pulesa <- as.data.frame(main_pulesa_data)
   pulesa$center <- pulesa$Clinic
@@ -445,8 +445,8 @@ test_that("rec_int_processor() itself excludes the covariates it names", {
   # exclusion list emptied the center_size covariate is claimed as a 16th dummy,
   # all_center_lvl_effects becomes 17 long, the weights recycle against it and
   # the estimated outcome changes. That difference is what this asserts.
-  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGOtrials")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
 
   pulesa <- as.data.frame(main_pulesa_data)
   pulesa$center <- pulesa$Clinic
@@ -569,12 +569,12 @@ test_that("a FACTOR covariate's coefficient is excluded, not just its column", {
   # by 5% with nothing said. The exclusion list is therefore built from the
   # coefficient names the predictors account for, which claimed_coef_names()
   # resolves from the model.
-  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGOtrials")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   pulesa <- as.data.frame(main_pulesa_data)
   pulesa$center <- pulesa$Clinic
@@ -694,7 +694,7 @@ test_that("a FACTOR covariate's coefficient is excluded, not just its column", {
   columns <- c(
     "(Intercept)", "AccessMedicines", "AccessBPMachines", "center_grp"
   )
-  claimed <- getFromNamespace("claimed_coef_names", "LAGO")(
+  claimed <- getFromNamespace("claimed_coef_names", "LAGOtrials")(
     no_mapping, NULL, columns
   )
   expect_true("center_grpb" %in% claimed)
@@ -797,11 +797,11 @@ test_that("a LOGICAL covariate's coefficient is excluded (it has no xlevels)", {
   # type the fix was meant to cover. The expansion is driven off $contrasts
   # instead, which does list the column.
   fx <- contrast_fixture(function(k) rep_len(c(TRUE, FALSE), k))
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   # the fixture's own preconditions: this is the asymmetry that is the defect
   model_coef_names <- names(coef(fx$model))
@@ -844,11 +844,11 @@ test_that("an ORDERED covariate's coefficients are excluded (contr.poly)", {
       levels = c("lo", "mid", "hi"), ordered = TRUE
     )
   })
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   # the coefficients really are polynomial, and the level-named strings the old
   # expansion built really are absent: without both halves there is no defect
@@ -886,11 +886,11 @@ test_that("a NON-DEFAULT contrast's coefficients are excluded", {
   fx <- contrast_fixture(
     function(k) factor(rep_len(c("a", "b", "c"), k)), "contr.helmert"
   )
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   model_coef_names <- names(coef(fx$model))
   expect_true(all(c("center_cov1", "center_cov2") %in% model_coef_names))
@@ -946,11 +946,11 @@ test_that("the fallback equals the mapping for every column type it handles", {
   # coded differently and a fix for one need not fix another -- which is how a
   # logical column and an ordered factor stayed broken while the two-level
   # factor case was fixed.
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   unnamed_matrix <- contr.treatment(3)
   colnames(unnamed_matrix) <- NULL
@@ -1045,11 +1045,11 @@ test_that("the fallback equals the mapping on a fit with no model frame", {
   # model = FALSE alone is not enough -- model.matrix() re-derives the frame
   # from the data, which is still reachable -- so the term labels are cleared
   # too, which is what makes term_coef_names() return NULL.
-  term_coef_names <- getFromNamespace("term_coef_names", "LAGO")
+  term_coef_names <- getFromNamespace("term_coef_names", "LAGOtrials")
   fixed_effect_coef_names <- getFromNamespace(
-    "fixed_effect_coef_names", "LAGO"
+    "fixed_effect_coef_names", "LAGOtrials"
   )
-  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGO")
+  claimed_coef_names <- getFromNamespace("claimed_coef_names", "LAGOtrials")
 
   pulesa <- as.data.frame(main_pulesa_data)
   pulesa$center <- pulesa$Clinic
@@ -1117,7 +1117,7 @@ test_that("the fallback equals the mapping on a fit with no model frame", {
   # effects entered all_center_lvl_effects, the weights recycled against it, and
   # the reported outcome was off by 10.5% with nothing said. Held back, the
   # fallback reports what the mapping does.
-  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGO")
+  rec_int_processor <- getFromNamespace("rec_int_processor", "LAGOtrials")
   run <- function(fitted) {
     suppressWarnings(suppressMessages(rec_int_processor(
       data = pulesa,
@@ -1170,7 +1170,7 @@ test_that("lago_optimization() passes additional_covariates on to the processor"
   # itself: rec_int_processor() is replaced for the duration of one call and
   # asked what it received.
   seen <- new.env(parent = emptyenv())
-  real <- getFromNamespace("rec_int_processor", "LAGO")
+  real <- getFromNamespace("rec_int_processor", "LAGOtrials")
   spy <- function(...) {
     args <- list(...)
     seen$additional_covariates <- args$additional_covariates
@@ -1195,7 +1195,7 @@ test_that("lago_optimization() passes additional_covariates on to the processor"
       )))
     },
     rec_int_processor = spy,
-    .package = "LAGO"
+    .package = "LAGOtrials"
   )
 
   expect_identical(seen$additional_covariates, "birth_volume_100")
@@ -1247,7 +1247,7 @@ test_that("out-of-box restarts are dropped and the cheapest is taken", {
   # chooses the violation. That is why the in-box filter runs FIRST and the
   # comparison is only over the survivors.
   select_restart_within_bounds <- getFromNamespace(
-    "select_restart_within_bounds", "LAGO"
+    "select_restart_within_bounds", "LAGOtrials"
   )
 
   # ALL in box. The filter keeps everything, so the answer is just the cheapest,
@@ -1303,7 +1303,7 @@ test_that("a tie in restart cost resolves to the first such restart", {
   # return. Pinning it is what makes a future change of reduction (e.g. to
   # which() plus sample(), or to the LAST minimum) visible.
   select_restart_within_bounds <- getFromNamespace(
-    "select_restart_within_bounds", "LAGO"
+    "select_restart_within_bounds", "LAGOtrials"
   )
 
   # c(3, 1) and c(1, 1.8) both cost 11, exactly, and both are in the box
@@ -1336,7 +1336,7 @@ test_that("a restart whose optimization failed is not selected", {
   # the all-zeros column from being read as a legitimate in-box point of unknown
   # cost.
   select_restart_within_bounds <- getFromNamespace(
-    "select_restart_within_bounds", "LAGO"
+    "select_restart_within_bounds", "LAGOtrials"
   )
 
   # column 1 is the zeros a failed restart leaves behind. It is OUT of the box
@@ -1414,7 +1414,7 @@ test_that("an all-failed restart set is refused by one guard, for both loops", {
   # The condition and the wording are now one function both loops call, so this
   # tests the guard itself rather than one loop's copy of it.
   refuse_if_all_restarts_failed <- getFromNamespace(
-    "refuse_if_all_restarts_failed", "LAGO"
+    "refuse_if_all_restarts_failed", "LAGOtrials"
   )
 
   # all failed on a FULL-RANK model: refused, and by the message that names the
@@ -1477,10 +1477,10 @@ test_that("a rank-deficient fit is not answered by recommending grid_search", {
   # comparison. So the message that names grid_search must NOT be what a
   # rank-deficient fit gets, which is what a single message for both did.
   refuse_if_all_restarts_failed <- getFromNamespace(
-    "refuse_if_all_restarts_failed", "LAGO"
+    "refuse_if_all_restarts_failed", "LAGOtrials"
   )
   refuse_if_no_grid_outcome <- getFromNamespace(
-    "refuse_if_no_grid_outcome", "LAGO"
+    "refuse_if_no_grid_outcome", "LAGOtrials"
   )
 
   aliased <- c("period2", "period3")
@@ -1636,19 +1636,19 @@ test_that("the optimizers are told which coefficients could not be estimated", {
 
   # what the NA looks like one step downstream, which is why the read cannot be
   # deferred: it is still there, but it now spells the center-level effects
-  coef_mapping <- getFromNamespace("term_coef_names", "LAGO")(model)
-  named_predictors <- getFromNamespace("claimed_coef_names", "LAGO")(
+  coef_mapping <- getFromNamespace("term_coef_names", "LAGOtrials")(model)
+  named_predictors <- getFromNamespace("claimed_coef_names", "LAGOtrials")(
     model, coef_mapping,
     c("(Intercept)", "coaching_updt", "launch_duration")
   )
-  fecn <- getFromNamespace("fixed_effect_coef_names", "LAGO")
+  fecn <- getFromNamespace("fixed_effect_coef_names", "LAGOtrials")
   center_coefs <- fecn("center", coef_mapping, names(all_coefs),
     named_predictors)
   period_coefs <- fecn("period", coef_mapping, names(all_coefs),
     named_predictors)
   intercept <- all_coefs["(Intercept)"]
   center_level <- c(intercept, all_coefs[center_coefs] + intercept)
-  indicators <- getFromNamespace("time_effect_indicator", "LAGO")(
+  indicators <- getFromNamespace("time_effect_indicator", "LAGOtrials")(
     model, period_coefs, 1
   )
   center_level <- center_level + sum(indicators * all_coefs[period_coefs])
@@ -1667,7 +1667,7 @@ test_that("the optimizers are told which coefficients could not be estimated", {
   # processor rather than the optimizer, which is the wiring under test.
   err <- tryCatch(
     suppressWarnings(suppressMessages(getFromNamespace(
-      "rec_int_processor", "LAGO"
+      "rec_int_processor", "LAGOtrials"
     )(
       data = bbp,
       model = model,
@@ -1728,7 +1728,7 @@ test_that("a rank-deficient fit is refused at fitting, naming the terms", {
   # RETURNED the rank-deficient model, so this whole test failed with "did not
   # throw the expected error". Asserted on the fit directly, which is the site
   # the refusal moved to.
-  omf <- getFromNamespace("outcome_model_fitting", "LAGO")
+  omf <- getFromNamespace("outcome_model_fitting", "LAGOtrials")
   bbp <- as.data.frame(BB_proportions)
 
   # 1) a rescaled duplicate of an intervention component: launch_dup is exactly
@@ -1842,7 +1842,7 @@ test_that("an aliased additional covariate warns but is not refused", {
   # may not have intended. Precedent on the branch's parent is to warn, not
   # error, for a non-fatal fit diagnostic. The warning names the dropped
   # covariate and says the recommendation is the drop-that-covariate one.
-  omf <- getFromNamespace("outcome_model_fitting", "LAGO")
+  omf <- getFromNamespace("outcome_model_fitting", "LAGOtrials")
   bbp <- as.data.frame(BB_proportions)
   bbp$adj <- as.numeric(seq_len(nrow(bbp)) %% 7) + 0.3
   bbp$adj_dup <- bbp$adj * 2
@@ -1902,7 +1902,7 @@ test_that("with no restart in the box the winner is projected and recosted", {
   # number is not usable as an estimate of it: the test below projects a
   # component down to an upper bound and the cost falls, from 35.5 to 27.
   select_restart_within_bounds <- getFromNamespace(
-    "select_restart_within_bounds", "LAGO"
+    "select_restart_within_bounds", "LAGOtrials"
   )
 
   # none of the three is in the box: column 1 is below the first lower bound,
@@ -1978,8 +1978,8 @@ test_that("center weights are renormalised exactly when they need it", {
   # Renormalising here rather than tightening the tolerance keeps documented
   # input accepted. The requirement is two-sided: a no-op for a compliant
   # caller, and unbiased for everyone else.
-  validate_inputs <- getFromNamespace("validate_inputs", "LAGO")
-  get_outcome <- getFromNamespace("get_outcome", "LAGO")
+  validate_inputs <- getFromNamespace("validate_inputs", "LAGOtrials")
+  get_outcome <- getFromNamespace("get_outcome", "LAGOtrials")
 
   pulesa <- as.data.frame(main_pulesa_data)
   pulesa$center <- pulesa$Clinic

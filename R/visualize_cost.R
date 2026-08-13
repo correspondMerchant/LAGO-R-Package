@@ -148,7 +148,7 @@ visualize_cost <- function(
   # addResourcePath + tags$script avoids a new hard dependency on htmltools
   # (htmlDependency is not re-exported by shiny); addResourcePath and tags are
   # both provided by shiny, which is already imported.
-  js_dir <- system.file("js", package = "LAGO")
+  js_dir <- system.file("js", package = "LAGOtrials")
   addResourcePath("lago_cost_assets", js_dir)
 
   ui <- navbarPage(

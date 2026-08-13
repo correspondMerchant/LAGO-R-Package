@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(LAGO)
+library(LAGOtrials)
 
-test_check("LAGO")
+test_check("LAGOtrials")

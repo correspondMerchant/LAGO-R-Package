@@ -1,7 +1,7 @@
 # Unit tests for the internal pure helper functions.
 
 test_that("cost_fxn_calculator builds linear cost coefficients", {
-  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGO")
+  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   res <- cost_fxn_calculator(
     intervention_lower_bounds = c(0),
     intervention_upper_bounds = c(10),
@@ -13,7 +13,7 @@ test_that("cost_fxn_calculator builds linear cost coefficients", {
 })
 
 test_that("cost_fxn_calculator cubic cost is non-negative and non-decreasing", {
-  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGO")
+  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   res <- cost_fxn_calculator(
     intervention_lower_bounds = c(0),
     intervention_upper_bounds = c(10),
@@ -29,7 +29,7 @@ test_that("cost_fxn_calculator cubic cost is non-negative and non-decreasing", {
 })
 
 test_that("compute_slider_range centers on init and stays finite/positive", {
-  csr <- getFromNamespace("compute_slider_range", "LAGO")
+  csr <- getFromNamespace("compute_slider_range", "LAGOtrials")
   # large coefficient
   r <- csr(2.716, 2)
   expect_true(r$min < 2.716 && 2.716 < r$max)
@@ -46,7 +46,7 @@ test_that("compute_slider_range centers on init and stays finite/positive", {
 })
 
 test_that("format_coef uses 3 decimals, more for small values, drops zeros", {
-  fmt <- getFromNamespace("format_coef", "LAGO")
+  fmt <- getFromNamespace("format_coef", "LAGOtrials")
   expect_equal(fmt(11.95743), "11.957")
   expect_equal(fmt(-10.8629818), "-10.863")
   expect_equal(fmt(0), "0")
@@ -55,7 +55,7 @@ test_that("format_coef uses 3 decimals, more for small values, drops zeros", {
 })
 
 test_that("get_int_vector prepends 1 and expands interaction products", {
-  giv <- getFromNamespace("get_int_vector", "LAGO")
+  giv <- getFromNamespace("get_int_vector", "LAGOtrials")
   # no interaction: c(1, x)
   expect_equal(
     giv(FALSE, c("a", "b"), NULL, c(3, 4)),

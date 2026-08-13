@@ -1670,12 +1670,12 @@ test_that("the logit kernels refuse fitted_values/outcome shorter than nrow(X)",
 
   # HC0 (non-clustered) kernel
   expect_error(
-    LAGO:::sandwich_hc0_logit_accumulate(x, short_fitted, short_outcome),
+    LAGOtrials:::sandwich_hc0_logit_accumulate(x, short_fitted, short_outcome),
     "must have length nrow\\(X\\)"
   )
   # clustered kernel, short fitted/outcome
   expect_error(
-    LAGO:::sandwich_cluster_logit_accumulate(
+    LAGOtrials:::sandwich_cluster_logit_accumulate(
       x, cluster_index, n_clusters, short_fitted, short_outcome
     ),
     "must have length nrow\\(X\\)"
@@ -1684,7 +1684,7 @@ test_that("the logit kernels refuse fitted_values/outcome shorter than nrow(X)",
   short_index <- cluster_index[seq_len(n - 2)]
   expect_false(length(short_index) == nrow(x))
   expect_error(
-    LAGO:::sandwich_cluster_logit_accumulate(
+    LAGOtrials:::sandwich_cluster_logit_accumulate(
       x, short_index, n_clusters, fitted, outcome
     ),
     "cluster_index must have length nrow\\(X\\)"
@@ -1692,10 +1692,10 @@ test_that("the logit kernels refuse fitted_values/outcome shorter than nrow(X)",
 
   # NON-VACUOUS: the same well-formed inputs succeed and return the J/V pair, so
   # the guard is firing on the malformation and not on the call shape
-  ok_hc0 <- LAGO:::sandwich_hc0_logit_accumulate(x, fitted, outcome)
+  ok_hc0 <- LAGOtrials:::sandwich_hc0_logit_accumulate(x, fitted, outcome)
   expect_named(ok_hc0, c("J", "V"))
   expect_equal(dim(ok_hc0$J), c(3, 3))
-  ok_cl <- LAGO:::sandwich_cluster_logit_accumulate(
+  ok_cl <- LAGOtrials:::sandwich_cluster_logit_accumulate(
     x, cluster_index, n_clusters, fitted, outcome
   )
   expect_named(ok_cl, c("J", "V"))
@@ -1717,7 +1717,7 @@ test_that("the clustered kernel refuses an out-of-range cluster index", {
   bad_high[5] <- n_clusters
   expect_true(any(bad_high >= n_clusters))
   expect_error(
-    LAGO:::sandwich_cluster_logit_accumulate(
+    LAGOtrials:::sandwich_cluster_logit_accumulate(
       x, bad_high, n_clusters, fitted, outcome
     ),
     "out of range"
@@ -1728,7 +1728,7 @@ test_that("the clustered kernel refuses an out-of-range cluster index", {
   bad_neg[7] <- -1L
   expect_true(any(bad_neg < 0))
   expect_error(
-    LAGO:::sandwich_cluster_logit_accumulate(
+    LAGOtrials:::sandwich_cluster_logit_accumulate(
       x, bad_neg, n_clusters, fitted, outcome
     ),
     "out of range"
@@ -1736,14 +1736,14 @@ test_that("the clustered kernel refuses an out-of-range cluster index", {
 
   # n_clusters < 1 sizes the accumulators empty
   expect_error(
-    LAGO:::sandwich_cluster_logit_accumulate(
+    LAGOtrials:::sandwich_cluster_logit_accumulate(
       x, cluster_index, 0L, fitted, outcome
     ),
     "n_clusters must be >= 1"
   )
 
   # NON-VACUOUS: the same setup with every index in range succeeds
-  ok <- LAGO:::sandwich_cluster_logit_accumulate(
+  ok <- LAGOtrials:::sandwich_cluster_logit_accumulate(
     x, cluster_index, n_clusters, fitted, outcome
   )
   expect_named(ok, c("J", "V"))

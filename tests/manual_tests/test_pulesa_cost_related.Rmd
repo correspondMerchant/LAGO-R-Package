@@ -15,7 +15,7 @@ editor_options:
 ## install and Load the LAGO pacakge 
 ```{r}
 # install the LAGO package using the tar.gz file
-# library(LAGO)
+# library(LAGOtrials)
 
 # use the following to load the LAGO library while developing the r package:
 devtools::load_all()
@@ -356,7 +356,7 @@ fit.res <- glm(
 ```{r}
 # cost function works with the current implementation.
 #
-# ported to the current LAGO API and to the bundled LAGO::main_pulesa_data
+# ported to the current LAGO API and to the bundled LAGOtrials::main_pulesa_data
 # (the confidential pulesa_test_data is no longer required).
 # main effect model (same fitting results as in Jingyu's code)
 # consider: old cost function, only the overall goal > 0.8, hyper_train="current"
@@ -368,7 +368,7 @@ fit.res <- glm(
 # [5,]  0.000
 # [6,]  0.000
 # [7,]  1.000
-main_pulesa_data <- LAGO::main_pulesa_data
+main_pulesa_data <- LAGOtrials::main_pulesa_data
 main_pulesa_data$proportion <- main_pulesa_data$Success /
   main_pulesa_data$Total_visit
 main_pulesa_data$period <- main_pulesa_data$Period

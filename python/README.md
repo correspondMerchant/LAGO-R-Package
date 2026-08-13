@@ -1,19 +1,20 @@
 # lago-python
 
-A Python wrapper for the [LAGO](https://github.com/correspondMerchant/LAGO-R-Package) R package.
+A Python wrapper for the [LAGOtrials](https://github.com/correspondMerchant/LAGO-R-Package) R package.
 
 ## Honest note (read this first)
 
 **This wrapper EMBEDS R via [rpy2](https://rpy2.github.io/). R and the installed
-`LAGO` R package are REQUIRED at runtime.** It does not reimplement any LAGO
-math. Every function calls the corresponding exported R function in `LAGO` and
-converts inputs/outputs between Python-native types and R objects.
+`LAGOtrials` R package are REQUIRED at runtime.** It does not reimplement any
+LAGO math. Every function calls the corresponding exported R function in
+`LAGOtrials` and converts inputs/outputs between Python-native types and R
+objects.
 
 In other words: this gives Python users LAGO's API in Python syntax. It is
 **not** an R-free install of LAGO. You must have:
 
 - a working R installation (rpy2 must be able to reach it, i.e. `R_HOME` set),
-- the `LAGO` R package installed in that R,
+- the `LAGOtrials` R package installed in that R,
 - `rpy2` and `pandas` installed for Python.
 
 `visualize_cost()` **opens a browser and BLOCKS** until you close the app (it
@@ -129,8 +130,8 @@ cost_list = lago.visualize_cost(
 cd python && pytest
 ```
 
-The tests embed R and require the `LAGO` R package to be installed; if R/rpy2/
-LAGO cannot be reached the suite skips itself. `visualize_cost()` is **not**
+The tests embed R and require the `LAGOtrials` R package to be installed; if
+R/rpy2/LAGOtrials cannot be reached the suite skips itself. `visualize_cost()` is **not**
 auto-tested because it launches a blocking browser app; only its R-call
 construction is checked. Test it interactively by hand.
 

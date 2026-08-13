@@ -16,7 +16,7 @@ devtools::load_all()
 ## Load the BetterBirth data
 ```{r}
 # BB data has been open sourced, so I pre-loaded the BB data in the LAGO package
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 head(bb_data)
 ```
 

@@ -31,7 +31,7 @@ fit_with_captured_warnings <- function(d) {
 }
 
 test_that("diagnose_model_fit surfaces glm fit warnings and flags large standard errors under separation", {
-  diagnose <- getFromNamespace("diagnose_model_fit", "LAGO")
+  diagnose <- getFromNamespace("diagnose_model_fit", "LAGOtrials")
   d <- separation_fixture()
   fit <- fit_with_captured_warnings(d)
 

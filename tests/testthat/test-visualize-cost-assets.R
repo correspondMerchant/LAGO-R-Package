@@ -4,9 +4,9 @@
 # the app render blank curves, so guard the asset paths here.
 
 test_that("vendored JS assets are installed and resolvable via system.file", {
-  js <- system.file("js/cost-curves.js", package = "LAGO")
-  d3 <- system.file("js/d3.v7.min.js", package = "LAGO")
-  lic <- system.file("js/d3-LICENSE", package = "LAGO")
+  js <- system.file("js/cost-curves.js", package = "LAGOtrials")
+  d3 <- system.file("js/d3.v7.min.js", package = "LAGOtrials")
+  lic <- system.file("js/d3-LICENSE", package = "LAGOtrials")
 
   expect_true(nzchar(js) && file.exists(js))
   expect_true(nzchar(d3) && file.exists(d3))
@@ -14,8 +14,8 @@ test_that("vendored JS assets are installed and resolvable via system.file", {
 })
 
 test_that("vendored D3 is v7 and its license carries the copyright", {
-  d3 <- system.file("js/d3.v7.min.js", package = "LAGO")
-  lic <- system.file("js/d3-LICENSE", package = "LAGO")
+  d3 <- system.file("js/d3.v7.min.js", package = "LAGOtrials")
+  lic <- system.file("js/d3-LICENSE", package = "LAGOtrials")
   skip_if(!nzchar(d3) || !nzchar(lic), "assets not installed")
 
   head_line <- readLines(d3, n = 1L, warn = FALSE)
@@ -27,7 +27,7 @@ test_that("vendored D3 is v7 and its license carries the copyright", {
 })
 
 test_that("cost-curves.js exposes the pure math contract used by the app", {
-  js <- system.file("js/cost-curves.js", package = "LAGO")
+  js <- system.file("js/cost-curves.js", package = "LAGOtrials")
   skip_if(!nzchar(js), "asset not installed")
   txt <- paste(readLines(js, warn = FALSE), collapse = "\n")
   # the functions the binding + node test rely on

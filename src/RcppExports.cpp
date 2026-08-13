@@ -12,7 +12,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // sandwich_cluster_logit_accumulate
 List sandwich_cluster_logit_accumulate(NumericMatrix X, IntegerVector cluster_index, int n_clusters, NumericVector fitted_values, NumericVector outcome);
-RcppExport SEXP _LAGO_sandwich_cluster_logit_accumulate(SEXP XSEXP, SEXP cluster_indexSEXP, SEXP n_clustersSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP) {
+RcppExport SEXP _LAGOtrials_sandwich_cluster_logit_accumulate(SEXP XSEXP, SEXP cluster_indexSEXP, SEXP n_clustersSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -27,7 +27,7 @@ END_RCPP
 }
 // sandwich_hc0_logit_accumulate
 List sandwich_hc0_logit_accumulate(NumericMatrix X, NumericVector fitted_values, NumericVector outcome);
-RcppExport SEXP _LAGO_sandwich_hc0_logit_accumulate(SEXP XSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP) {
+RcppExport SEXP _LAGOtrials_sandwich_hc0_logit_accumulate(SEXP XSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -40,12 +40,12 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_LAGO_sandwich_cluster_logit_accumulate", (DL_FUNC) &_LAGO_sandwich_cluster_logit_accumulate, 5},
-    {"_LAGO_sandwich_hc0_logit_accumulate", (DL_FUNC) &_LAGO_sandwich_hc0_logit_accumulate, 3},
+    {"_LAGOtrials_sandwich_cluster_logit_accumulate", (DL_FUNC) &_LAGOtrials_sandwich_cluster_logit_accumulate, 5},
+    {"_LAGOtrials_sandwich_hc0_logit_accumulate", (DL_FUNC) &_LAGOtrials_sandwich_hc0_logit_accumulate, 3},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_LAGO(DllInfo *dll) {
+RcppExport void R_init_LAGOtrials(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

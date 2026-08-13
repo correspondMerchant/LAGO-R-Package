@@ -24,7 +24,7 @@ devtools::load_all()
 # The BetterBirth example (with the birth_volume_100 center characteristic)
 # is a clean fit: both coaching_updt and launch_duration are significant, so
 # no fit-diagnostic warning should be produced.
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 res_clean <- lago_optimization(
   data = bb_data,
   outcome_name = "pp3_oxytocin_mother",

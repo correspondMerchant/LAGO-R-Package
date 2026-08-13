@@ -233,7 +233,7 @@ test_that("the range warning does not round a barely-out value to look in range"
   # [0, 1]" -- a statement and its negation. The message builder is called
   # directly, since driving the optimizer to land an estimate exactly there is
   # not controllable.
-  warn_fn <- getFromNamespace("warn_if_outcome_outside_range", "LAGO")
+  warn_fn <- getFromNamespace("warn_if_outcome_outside_range", "LAGOtrials")
   msg <- tryCatch(
     warn_fn(1.0000004, "binary", "identity"),
     warning = conditionMessage
@@ -249,7 +249,7 @@ test_that("an estimate at exactly 0 or 1 is a probability and does not warn", {
   # and loosening it to <= or >= would warn on a legitimate probability, which a
   # saturated fit can report. Called directly, since landing the estimate
   # exactly on a boundary through the optimizer is not controllable.
-  warn_fn <- getFromNamespace("warn_if_outcome_outside_range", "LAGO")
+  warn_fn <- getFromNamespace("warn_if_outcome_outside_range", "LAGOtrials")
   for (boundary in c(0, 1)) {
     expect_no_warning(warn_fn(boundary, "binary", "identity"))
     expect_no_warning(warn_fn(boundary, "binary", "logit"))

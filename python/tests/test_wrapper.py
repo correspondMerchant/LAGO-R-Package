@@ -83,7 +83,7 @@ def test_result_matches_R(ro, infert):
     )
     ro.r(
         """
-        res_r <- LAGO::lago_optimization(
+        res_r <- LAGOtrials::lago_optimization(
           data = infert,
           outcome_name = "case",
           outcome_type = "binary",
@@ -190,7 +190,7 @@ def test_multi_component_rec_int_unchanged(ro, bb_data):
     ro.globalenv["bb_data_r"] = _bridge.py_to_r(bb_data)
     ro.r(
         """
-        res_r <- LAGO::lago_optimization(
+        res_r <- LAGOtrials::lago_optimization(
           data = bb_data_r,
           outcome_name = "pp3_oxytocin_mother",
           outcome_type = "binary",

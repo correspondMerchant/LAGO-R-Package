@@ -210,7 +210,7 @@ Instead of an overall optimal intervention package, we target the optimal interv
 ```
 # The BetterBirth data has been open sourced so a version of
 # the BetterBirth data is included in the LAGO R package
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 head(bb_data)
 
 set.seed(123)

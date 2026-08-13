@@ -27,7 +27,7 @@ vi_args <- function(...) {
 # call the validator with the merged args, silencing the informational
 # messages (individual message/warning tests call it directly instead).
 call_vi <- function(...) {
-  suppressMessages(do.call(LAGO:::validate_inputs, vi_args(...)))
+  suppressMessages(do.call(LAGOtrials:::validate_inputs, vi_args(...)))
 }
 
 
@@ -36,7 +36,7 @@ call_vi <- function(...) {
 test_that("NULL data is rejected", {
   args <- vi_args()
   args["data"] <- list(NULL)
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, args)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, args)),
                "The argument 'data' is NULL")
 })
 
@@ -47,7 +47,7 @@ test_that("non-data.frame data is rejected", {
 test_that("empty data (0 rows/cols) is rejected", {
   args <- vi_args()
   args$data <- data.frame()
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, args)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, args)),
                "The argument 'data' is empty")
 })
 
@@ -96,7 +96,7 @@ test_that("center_level missing required columns is rejected", {
     y = c(0, 1, 1, 0), gear = c(3, 4, 3, 5), qsec = c(16, 17, 18, 19)
   )
   expect_error(
-    suppressMessages(do.call(LAGO:::validate_inputs, a)),
+    suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "The following required columns are missing"
   )
 })
@@ -178,7 +178,7 @@ test_that("non-factor 'center' column triggers a conversion message", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = c(1, 1, 2, 2, 3, 3)
   )
-  expect_message(do.call(LAGO:::validate_inputs, a),
+  expect_message(do.call(LAGOtrials:::validate_inputs, a),
     "'center' column is not a factor type")
 })
 
@@ -197,7 +197,7 @@ test_that("center_weights_for_outcome_goal must be numeric", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "center_weights_for_outcome_goal must be a numeric vector")
 })
 
@@ -210,7 +210,7 @@ test_that("center_weights_for_outcome_goal length must match facility count", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "center_weights_for_outcome_goal must match")
 })
 
@@ -223,7 +223,7 @@ test_that("center_effects_optimization_values must be a character", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "center_effects_optimization_values")
 })
 
@@ -236,7 +236,7 @@ test_that("center_effects_optimization_values must be a single value", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "must be a single value")
 })
 
@@ -249,7 +249,7 @@ test_that("center_effects_optimization_values must be an existing center", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "must be one of the centers")
 })
 
@@ -262,7 +262,7 @@ test_that("center_weights_for_outcome_goal must sum to 1", {
     qsec = c(16, 17, 18, 19, 20, 21),
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "sum up to 1")
 })
 
@@ -282,7 +282,7 @@ test_that("center_weights_for_outcome_goal must be non-negative and finite", {
       qsec = c(16, 17, 18, 19, 20, 21),
       center = factor(c(1, 1, 2, 2, 3, 3))
     )
-    suppressMessages(do.call(LAGO:::validate_inputs, a))
+    suppressMessages(do.call(LAGOtrials:::validate_inputs, a))
   }
 
   # the wild case, summing to EXACTLY 1 so the sum check cannot catch it
@@ -378,7 +378,7 @@ test_that("the weight guard is one function, shared with the confidence set", {
   # is the failure mode this pins -- the same vector must be refused in the same
   # words wherever it is passed.
   refuse_invalid_center_weights <- getFromNamespace(
-    "refuse_invalid_center_weights", "LAGO"
+    "refuse_invalid_center_weights", "LAGOtrials"
   )
 
   # what it refuses, and what it deliberately does not
@@ -417,7 +417,7 @@ test_that("the weight guard is one function, shared with the confidence set", {
       qsec = c(16, 17, 18, 19, 20, 21),
       center = factor(c(1, 1, 2, 2, 3, 3))
     )
-    suppressMessages(do.call(LAGO:::validate_inputs, a))
+    suppressMessages(do.call(LAGOtrials:::validate_inputs, a))
   }
   for (bad in list(c(-10, 11, 0), c(NA_real_, 0.5, 0.5))) {
     expect_identical(
@@ -445,11 +445,11 @@ test_that("the weight checks cover the DEFAULT weights, not just supplied", {
     center = factor(c("a", "b", "c", "d")),
     x1 = c(1, 2, 3, 4), x2 = c(2, 3, 4, 5)
   )
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "must all be finite")
   # and the message says where an unsupplied set of weights came from, since the
   # caller passed none and would otherwise have nothing to go on
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "center_sample_size")
 
   # with real sample sizes the same call is accepted and the default weights are
@@ -459,7 +459,7 @@ test_that("the weight checks cover the DEFAULT weights, not just supplied", {
   # not what this test is about.
   a$data$center_sample_size <- c(10, 20, 30, 40)
   expect_identical(
-    as.numeric(suppressMessages(do.call(LAGO:::validate_inputs,
+    as.numeric(suppressMessages(do.call(LAGOtrials:::validate_inputs,
       a))$center_weights_for_outcome_goal),
     c(0.1, 0.2, 0.3, 0.4)
   )
@@ -504,7 +504,7 @@ test_that("non-factor 'period' column triggers a conversion message", {
   dt <- mtcars
   dt$period <- rep(1:2, length.out = nrow(mtcars))
   expect_message(
-    do.call(LAGO:::validate_inputs, vi_args(
+    do.call(LAGOtrials:::validate_inputs, vi_args(
       data = dt, include_time_effects = TRUE,
       time_effect_optimization_value = 1)),
     "'period' column is not a factor type")
@@ -830,7 +830,7 @@ test_that("upper bound must be >= lower bound", {
 
 test_that("lower bound above data minimum warns", {
   expect_warning(
-    do.call(LAGO:::validate_inputs, vi_args(glm_family = "gaussian", quiet = TRUE,
+    do.call(LAGOtrials:::validate_inputs, vi_args(glm_family = "gaussian", quiet = TRUE,
       intervention_lower_bounds = c(4, 0),
       intervention_upper_bounds = c(10, 350))),
     "greater than the minimum value in the data")
@@ -838,7 +838,7 @@ test_that("lower bound above data minimum warns", {
 
 test_that("upper bound below data maximum warns", {
   expect_warning(
-    do.call(LAGO:::validate_inputs, vi_args(glm_family = "gaussian", quiet = TRUE,
+    do.call(LAGOtrials:::validate_inputs, vi_args(glm_family = "gaussian", quiet = TRUE,
       intervention_lower_bounds = c(0, 0),
       intervention_upper_bounds = c(10, 20))),
     "less than the maximum value in the data")
@@ -872,14 +872,14 @@ test_that("cost_list_of_vectors must be a list", {
 test_that("cost_list_of_vectors sublists must all be numeric", {
   args <- vi_args()
   args$cost_list_of_vectors <- list(c(0, 4), c("a", "b"))
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, args)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, args)),
     "sublists of cost_list_of_vectors")
 })
 
 test_that("cost_list_of_vectors length must match number of components", {
   args <- vi_args()
   args$cost_list_of_vectors <- list(c(0, 4))
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, args)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, args)),
     "lengths of 'cost_list_of_vectors' and")
 })
 
@@ -910,7 +910,7 @@ test_that("grid search step sizes must be finite and positive", {
 
 test_that("providing step size switches numerical to grid_search", {
   expect_message(
-    do.call(LAGO:::validate_inputs, vi_args(glm_family = "gaussian", quiet = TRUE,
+    do.call(LAGOtrials:::validate_inputs, vi_args(glm_family = "gaussian", quiet = TRUE,
       optimization_grid_search_step_size = c(1, 1))),
     "has been switched to 'grid_search'")
 })
@@ -922,7 +922,7 @@ test_that("grid_search with more than 3 components warns via message", {
                   intervention_lower_bounds = c(0, 0, 0, 0),
                   intervention_upper_bounds = c(10, 350, 10, 400))
   args$cost_list_of_vectors <- list(c(0, 4), c(4, 6), c(0, 4), c(4, 6))
-  expect_message(do.call(LAGO:::validate_inputs, args),
+  expect_message(do.call(LAGOtrials:::validate_inputs, args),
     "more than 3 intervention components")
 })
 
@@ -956,7 +956,7 @@ g5_pwr_call <- function(...) {
     cost_list_of_vectors = list(c(0, 4), c(4, 6)),
     num_centers_in_next_stage = 10, patients_per_center_in_next_stage = 20),
     overrides)
-  suppressMessages(do.call(LAGO:::validate_inputs, args))
+  suppressMessages(do.call(LAGOtrials:::validate_inputs, args))
 }
 
 test_that("outcome_goal must be numeric", {
@@ -1141,7 +1141,7 @@ test_that("each arm needs at least two distinct centers", {
 })
 
 test_that("icc without a power_goal emits an ignored message", {
-  expect_message(do.call(LAGO:::validate_inputs, vi_args(icc = 0.1)),
+  expect_message(do.call(LAGOtrials:::validate_inputs, vi_args(icc = 0.1)),
     "icc is ignored")
 })
 
@@ -1172,7 +1172,7 @@ test_that("both unit_costs and cost_list_of_vectors NULL is rejected", {
   a <- vi_args()
   a["cost_list_of_vectors"] <- list(NULL)
   a["unit_costs"] <- list(NULL)
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "Both 'unit_costs' and 'cost_list_of_vectors' are NULL")
 })
 
@@ -1180,6 +1180,6 @@ test_that("both outcome_goal and power_goal NULL is rejected", {
   a <- vi_args()
   a["outcome_goal"] <- list(NULL)
   a["power_goal"] <- list(NULL)
-  expect_error(suppressMessages(do.call(LAGO:::validate_inputs, a)),
+  expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
     "Both 'outcome_goal' and 'power_goal' are NULL")
 })
