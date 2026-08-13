@@ -14,7 +14,7 @@ def ro():
     ro = pytest.importorskip("rpy2.robjects")
     try:
         from rpy2.robjects.packages import importr
-        importr("LAGO")
+        importr("LAGOtrials")
     except Exception as exc:  # pragma: no cover - environment guard
         pytest.skip(f"LAGO R package not importable via rpy2: {exc}")
     return ro
@@ -27,7 +27,7 @@ def bb_data(ro):
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
 
-    lagor = importr("LAGO")
+    lagor = importr("LAGOtrials")
     bb_r = data(lagor).fetch("BB_data")["BB_data"]
     with localconverter(ro.default_converter + pandas2ri.converter):
         return ro.conversion.get_conversion().rpy2py(bb_r)

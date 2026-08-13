@@ -13,7 +13,7 @@ devtools::load_all()
 
 # success cases 
 ```{r}
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
 
 # uncondtional power approach

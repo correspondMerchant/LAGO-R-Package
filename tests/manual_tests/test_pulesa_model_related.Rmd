@@ -16,7 +16,7 @@ devtools::load_all()
 ```{r}
 # throws error when columns are missing from input data
 # for input_data_structure = "center_level"
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 
 optimization_results <- lago_optimization(
     data = bb_data,
@@ -80,7 +80,7 @@ optimization_results <- lago_optimization(
 
 ```{r}
 # test the "main" PULESA model with the main_pulesa_data
-main_pulesa_data <- LAGO::main_pulesa_data
+main_pulesa_data <- LAGOtrials::main_pulesa_data
 head(main_pulesa_data)
 main_pulesa_data$proportion <- main_pulesa_data$Success /
     main_pulesa_data$Total_visit
@@ -195,7 +195,7 @@ devtools::load_all()
 
 ```{r}
 # test the "new" PULESA model with the new_pulesa_data
-new_pulesa_data <- LAGO::new_pulesa_data
+new_pulesa_data <- LAGOtrials::new_pulesa_data
 head(new_pulesa_data)
 new_pulesa_data$proportion <- new_pulesa_data$Success /
     new_pulesa_data$Total_visit

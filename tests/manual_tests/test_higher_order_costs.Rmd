@@ -13,7 +13,7 @@ devtools::load_all()
 ```
 
 ```{r}
-bb_proportions <- LAGO::BB_proportions
+bb_proportions <- LAGOtrials::BB_proportions
 head(bb_proportions)
 ```
 

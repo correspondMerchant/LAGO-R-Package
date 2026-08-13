@@ -36,7 +36,7 @@ On BB_data the control-rate floor binds before the non-centrality constraint, so
 turning `icc` on with value 0 leaves the result identical to `icc = NULL`.
 
 ```{r}
-bb <- LAGO::BB_data
+bb <- LAGOtrials::BB_data
 bb$group <- ifelse(bb$pre_post == 0, "control", "treatment")
 
 common <- list(

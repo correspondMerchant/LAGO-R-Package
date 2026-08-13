@@ -173,7 +173,7 @@ results <- lago_optimization(
 
 ## section 4.4 - replicate results from Nevo et al.
 ```{r}
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 head(bb_data)
 
 results <- lago_optimization(
@@ -199,7 +199,7 @@ devtools::clean_dll()
 devtools::load_all()
 ```
 ```{r}
-bb_proportions <- LAGO::BB_proportions
+bb_proportions <- LAGOtrials::BB_proportions
 head(bb_proportions)
 
 optimization_results <- lago_optimization(

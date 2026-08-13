@@ -75,7 +75,7 @@ def _ensure() -> dict:
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
 
-    lago = importr("LAGO")
+    lago = importr("LAGOtrials")
 
     _state.update(
         ro=ro,
@@ -245,13 +245,13 @@ def r_to_py(obj):
 def _get_rfunc(name: str):
     """Fetch (and cache) an exported LAGO R function object.
 
-    Uses a plain robjects Function via ``LAGO::name`` so that keyword argument
+    Uses a plain robjects Function via ``LAGOtrials::name`` so that keyword argument
     names are passed to R verbatim (no underscore/dot signature translation).
     """
     s = _ensure()
     cache = s["rfuncs"]
     if name not in cache:
-        cache[name] = s["ro"].r("LAGO::" + name)
+        cache[name] = s["ro"].r("LAGOtrials::" + name)
     return cache[name]
 
 

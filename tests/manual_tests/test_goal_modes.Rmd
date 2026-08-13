@@ -20,7 +20,7 @@ devtools::load_all()
 
 ```{r}
 # BetterBirth data, with a 'group' column so that a power goal can be used.
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
 head(bb_data)
 ```

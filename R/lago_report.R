@@ -88,7 +88,7 @@ lago_report <- function(x,
 
   template <- system.file(
     "rmarkdown", "lago_report.Rmd",
-    package = "LAGO"
+    package = "LAGOtrials"
   )
   if (!nzchar(template) || !file.exists(template)) {
     cli::cli_abort(

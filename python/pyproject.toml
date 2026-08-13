@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lago-python"
 version = "0.1.0"
-description = "Python wrapper for the LAGO R package (calls the real R functions via rpy2)."
+description = "Python wrapper for the LAGOtrials R package (calls the real R functions via rpy2)."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-3.0-only" }

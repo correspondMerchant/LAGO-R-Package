@@ -17,7 +17,7 @@ devtools::load_all()
 ## Load the BetterBirth data with EBP proportions
 ```{r}
 # BB data has been open sourced, so it has been preloaded
-bb_proportions <- LAGO::BB_proportions
+bb_proportions <- LAGOtrials::BB_proportions
 head(bb_proportions)
 ```
 

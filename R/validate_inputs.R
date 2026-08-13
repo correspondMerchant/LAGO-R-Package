@@ -474,7 +474,7 @@ validate_inputs <- function(
     if (!any(grepl(":", intervention_components, fixed = TRUE))) {
       stop(paste(
         "Please make sure the interaction terms are included",
-        "as part of the 'intervention_components', and the interaciton terms",
+        "as part of the 'intervention_components', and the interaction terms",
         "need to have the format of 'X1:X5' "
       ))
     }
@@ -790,7 +790,7 @@ validate_inputs <- function(
         "algorithm must be the same as the number of intervention",
         "components. Please check the length of",
         "'optimization_grid_search_step_size'.",
-        "With interaciton terms,",
+        "With interaction terms,",
         "The number of step sizes provided for the grid search",
         "algorithm must be the same as the length of 'main_components'."
       ))

@@ -13,7 +13,7 @@ devtools::load_all()
 
 # success cases 
 ```{r}
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
 
 optimization_results <- lago_optimization(
@@ -34,7 +34,7 @@ optimization_results <- lago_optimization(
 # failure cases
 ```{r}
 # continuous outcome, not supported for now
-bb_proportions <- LAGO::BB_proportions
+bb_proportions <- LAGOtrials::BB_proportions
 bb_proportions$group <- sample(
     c("control", "treatment"),
     size = nrow(bb_proportions),
@@ -62,7 +62,7 @@ optimization_results <- lago_optimization(
 
 ```{r}
 # binary outcome, but missing 'group' column
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 
 optimization_results <- lago_optimization(
     data = bb_data,
@@ -82,7 +82,7 @@ optimization_results <- lago_optimization(
 ```{r}
 # binary outcome, but 'group' column is invalid
 # not categorical
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 bb_data$group <- bb_data$pre_post
 
 optimization_results <- lago_optimization(
@@ -103,7 +103,7 @@ optimization_results <- lago_optimization(
 ```{r}
 # invalid 'group' column
 # categorical, but not 'treatment' and 'control'
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 bb_data$group <- ifelse(bb_data$pre_post == 0, "c", "t")
 
 optimization_results <- lago_optimization(

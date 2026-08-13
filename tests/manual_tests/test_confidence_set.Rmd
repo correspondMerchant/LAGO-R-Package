@@ -14,7 +14,7 @@ devtools::load_all()
 
 ## binary outcome
 ```{r}
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 head(bb_data)
 ```
 
@@ -49,7 +49,7 @@ optimization_results$confidence_set_size_percentage
 
 ## continuous outcome
 ```{r}
-BB_proportions <- LAGO::BB_proportions
+BB_proportions <- LAGOtrials::BB_proportions
 head(BB_proportions)
 ```
 

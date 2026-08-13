@@ -75,7 +75,7 @@ results <- lago_optimization(
 
 ```{r}
 # group column is missing
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 optimization_results <- lago_optimization(
   data = bb_data,
   outcome_name = "pp3_oxytocin_mother",
@@ -93,7 +93,7 @@ optimization_results <- lago_optimization(
 ```
 
 ```{r}
-bb_data <- LAGO::BB_data
+bb_data <- LAGOtrials::BB_data
 bb_data$group <- ifelse(bb_data$pre_post == 0, "control", "treatment")
 
 

@@ -18,7 +18,7 @@ x <- params$x
 # lago_blocks() is the shared presentation formatter; the report renders from
 # the same blocks as print.lago()/summary.lago() so the two can never drift.
 # It is an internal helper, hence the triple-colon access.
-blocks <- LAGO:::lago_blocks(x)
+blocks <- LAGOtrials:::lago_blocks(x)
 # plot.lago() only draws a figure for 1- or 2-component interventions; for 3+
 # components it emits no plot. Gate the plot heading and figure on the same
 # capability so a 3+ component result does not get a dangling, empty

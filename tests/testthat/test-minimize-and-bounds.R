@@ -509,7 +509,7 @@ test_that("an empty shrink bracket falls back to stage 1, not to the upper corne
   # NEGATIVE, so beta_min = beta_max / 2 sits ABOVE beta_max and the bracket is
   # INVERTED rather than merely zero-width. Both modes have to reach the
   # stage-1 fallback, and only the "<= 0" comparison covers both.
-  shrinking_method <- getFromNamespace("shrinking_method", "LAGO")
+  shrinking_method <- getFromNamespace("shrinking_method", "LAGOtrials")
   shrink <- function(beta, goal = 0.85, stage_1 = c(8.365, 0.81)) {
     shrinking_method(
       lo = c(1, 1), up = c(40, 5), beta = beta, outcome_goal = goal,
@@ -608,7 +608,7 @@ test_that("the numerical optimizer picks the cheapest in-box restart", {
   # genuinely different places, and the spread is large: the cheapest restart
   # costs 20.05 and the most expensive 39.16. Selecting the wrong end is then
   # unmistakable.
-  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGO")
+  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(40, 5),
@@ -661,7 +661,7 @@ test_that("rec_int_cost is the cost of the returned rec_int", {
   # Recomputing the cost polynomial in the test is what makes the filter
   # checkable from the outside: the reported cost has to agree with the
   # returned intervention.
-  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGO")
+  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(40, 5),
@@ -721,7 +721,7 @@ test_that("unit_costs and the equivalent cost_list_of_vectors agree", {
   # documented way to get a cubic cost, and it goes through the same restart
   # selection. Pinning the two forms to the same answer is what stops the
   # regression above from being an artefact of hand-written coefficients.
-  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGO")
+  cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(40, 5),

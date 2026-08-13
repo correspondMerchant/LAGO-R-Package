@@ -1,5 +1,6 @@
 # LAGO 1.1.0
 
+* The package is now installed and loaded as `LAGOtrials` (call `library(LAGOtrials)`); the previous `LAGO` identifier clashed with an archived CRAN package. Function names, the `lago` result class, and the LAGO method name are unchanged.
 * `visualize_cost()` now stores the returned cost list in the `lago_cost_list` option instead of assigning it to the global environment; retrieve it with `getOption("lago_cost_list")`.
 * Added tests for the interaction-terms optimization path and the outcome-model fit warnings, and excluded the interactive `visualize_cost()` app from the coverage figure so it reflects the testable R code.
 * Added a `CITATION.cff` so the repository can be cited, plus contributing guidelines, a code of conduct and issue/pull-request templates. (#86)
