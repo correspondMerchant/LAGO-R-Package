@@ -318,7 +318,8 @@ This is the main entry point of the package.
 }
 \examples{
 # Basic case showing how to carry out the optimization with
-# a built-in data set.
+# a built-in data set. The confidence set is skipped here to keep this
+# example fast; the \donttest examples below show a full run with one.
 lago_optimization(
   data = infert,
   outcome_name = "case",
@@ -330,9 +331,13 @@ lago_optimization(
   cost_list_of_vectors = list(c(0, 4), c(0, 1)),
   outcome_goal = 0.5,
   outcome_goal_intention = "maximize",
-  confidence_set_grid_step_size = c(1, 1)
+  include_confidence_set = FALSE
 )
 
+# Fuller examples, including the confidence-set grid search, which is
+# inherently slower. Wrapped in \donttest{} so they are still checkable
+# but do not run on every automated check.
+\donttest{
 lago_optimization(
   data = BB_data,
   outcome_name = "pp3_oxytocin_mother",
@@ -365,5 +370,6 @@ lago_optimization(
   outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 1)
 )
+}
 
 }

@@ -688,6 +688,112 @@ test_that("lago_optimization refuses an all-NA covariate with a clear message", 
 })
 
 
+# An intervention component whose column is entirely NA has the same problem as
+# an all-NA additional covariate: glm()'s internal na.omit drops every row and
+# the fit dies with the opaque "Argument mu must be a nonempty numeric vector"
+# error that never names the component. It is refused up front here, naming the
+# offender(s), by the same mechanism as the covariate refusal above. The tests
+# below pin that the refusal fires and names the component, catches an all-NA
+# column of any type, and stays silent on a partially-observed component.
+
+test_that("an all-NA intervention component is refused, naming it", {
+  di <- mtcars
+  di$allna <- NA_real_
+  # precondition: the column really is entirely NA, so the test is not vacuous
+  expect_true(all(is.na(di$allna)))
+  expect_error(
+    call_vi(data = di, intervention_components = c("gear", "allna")),
+    "allna")
+  expect_error(
+    call_vi(data = di, intervention_components = c("gear", "allna")),
+    "entirely NA")
+})
+
+test_that("two all-NA intervention components are both named in one error", {
+  di <- mtcars
+  di$allna1 <- NA_real_
+  di$allna2 <- NA_real_
+  # precondition: both columns are entirely NA
+  expect_true(all(is.na(di$allna1)) && all(is.na(di$allna2)))
+  # one stop() listing both offenders together, alongside a valid component
+  err <- tryCatch(
+    call_vi(data = di,
+            intervention_components = c("allna1", "gear", "allna2"),
+            intervention_lower_bounds = c(0, 0, 0),
+            intervention_upper_bounds = c(10, 10, 10),
+            cost_list_of_vectors = list(c(0, 4), c(4, 6), c(0, 1))),
+    error = conditionMessage)
+  expect_match(err, "allna1")
+  expect_match(err, "allna2")
+})
+
+test_that("an all-NA factor or character intervention component is refused", {
+  # is.na() works on factor and character columns too, so the check catches an
+  # all-NA column of any type and does not itself error on the non-numeric one
+  di <- mtcars
+  di$allna_fac <- factor(rep(NA_character_, nrow(di)), levels = c("a", "b"))
+  expect_true(all(is.na(di$allna_fac)))
+  expect_error(
+    call_vi(data = di, intervention_components = c("gear", "allna_fac")),
+    "allna_fac")
+
+  di2 <- mtcars
+  di2$allna_chr <- NA_character_
+  expect_true(all(is.na(di2$allna_chr)))
+  expect_error(
+    call_vi(data = di2, intervention_components = c("gear", "allna_chr")),
+    "allna_chr")
+})
+
+test_that("an intervention component with some but not all NA is not refused", {
+  # negative control: the refusal is narrow. A component with SOME NAs is a
+  # legitimate input glm() can still fit, so this must pass the validator.
+  di <- mtcars
+  di$some_na <- di$gear
+  di$some_na[1] <- NA
+  # precondition: some NA, but not all
+  expect_true(anyNA(di$some_na) && !all(is.na(di$some_na)))
+  expect_no_error(
+    call_vi(data = di, intervention_components = c("gear", "some_na")))
+})
+
+test_that("lago_optimization refuses an all-NA intervention component clearly", {
+  # END-TO-END: the same all-NA intervention component that dies with an opaque
+  # "Argument mu must be a nonempty numeric vector" error deep in model fitting
+  # on the unfixed source is now refused up front by the input validator, so
+  # the caller sees a message that names the component and says why. Fails on
+  # the unfixed source, where the run reaches glm() and returns the cryptic
+  # error instead.
+  bbp <- as.data.frame(BB_proportions)
+  bbp$allna <- NA_real_
+  # precondition: the component really is entirely NA
+  expect_true(all(is.na(bbp$allna)))
+  run <- function() {
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = bbp,
+      outcome_name = "EBP_proportions",
+      outcome_type = "continuous",
+      glm_family = "quasibinomial",
+      link = "logit",
+      intervention_components = c("coaching_updt", "allna"),
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      outcome_goal = 0.85,
+      include_confidence_set = FALSE,
+      quiet = TRUE
+    )))
+  }
+  # the new message: names the component and says why it cannot enter the model
+  expect_error(run(), "allna")
+  expect_error(run(), "entirely NA")
+  # and NOT the opaque model-fitting errors the missing guard produced. Both
+  # assertions fail on the unfixed source, where run() returns exactly these.
+  expect_error(run(), "^(?!.*nonempty numeric).*$", perl = TRUE)
+  expect_error(run(), "^(?!.*model fitting step).*$", perl = TRUE)
+})
+
+
 # --- Group 4: bounds, costs, optimization method, grid step -----------------
 
 test_that("intervention_lower_bounds must be numeric", {

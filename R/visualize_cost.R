@@ -46,12 +46,13 @@
 #' copied from within the app.
 #'
 #' @details When the app is closed with the "Return list to R & close" button,
-#' the coefficient list is also assigned to \code{lago_cost_list} in the global
-#' environment (overwriting any existing object of that name) and a message
-#' reports this, so the list is available even when the app was launched with a
-#' bare \code{visualize_cost(...)} call rather than \code{cost_list <-
-#' visualize_cost(...)}. Closing the browser tab instead of using the button
-#' does not save the list.
+#' the coefficient list is also stored in the \code{lago_cost_list} option
+#' (overwriting any existing value) and a message reports this, so the list is
+#' available even when the app was launched with a bare
+#' \code{visualize_cost(...)} call rather than \code{cost_list <-
+#' visualize_cost(...)}. Retrieve it with
+#' \code{getOption("lago_cost_list")}. Closing the browser tab instead of using
+#' the button does not save the list.
 #'
 # nocov start
 # The body of visualize_cost() is an interactive Shiny app (UI definition plus
@@ -95,19 +96,20 @@ visualize_cost <- function(
   )
 
   # When the user closes the app with the "Return list to R & close" button, the
-  # quit observer saves the current cost list to `lago_cost_list` in the global
-  # environment and sets `saved` to TRUE. This on.exit then tells the user where
-  # it is. The flag (initialized locally here) is required so the message only
+  # quit observer saves the current cost list to the `lago_cost_list` option and
+  # sets `saved` to TRUE. This on.exit then tells the user where it is. The flag
+  # (initialized locally here) is required so the message only
   # prints on that button-close path: it must NOT fire on an early error or on a
   # browser tab-close / Esc, where no cost list was produced.
   saved <- FALSE
   on.exit(
     if (saved) {
       message(
-        "Your cost list has been saved to `lago_cost_list` in your global ",
-        "environment.\n",
+        "Your cost list has been saved to the `lago_cost_list` option.\n",
+        "Retrieve it with: cost_list <- getOption(\"lago_cost_list\")\n",
         "Use it with: ",
-        "lago_optimization(..., cost_list_of_vectors = lago_cost_list)"
+        "lago_optimization(..., cost_list_of_vectors = ",
+        "getOption(\"lago_cost_list\"))"
       )
     },
     add = TRUE
@@ -666,11 +668,15 @@ visualize_cost <- function(
     # captured (e.g. cost_list <- visualize_cost(...)) instead of only copied.
     observeEvent(input$quit_button, {
       cl <- current_cost_list()
-      # save into the global environment so the list is available even when the
-      # app was launched with a bare visualize_cost(...) call (no assignment).
-      # This overwrites any existing `lago_cost_list`; the on.exit message
-      # announces it. `saved` gates that message (see the on.exit near the top).
-      assign("lago_cost_list", cl, envir = globalenv())
+      # Store the list in the `lago_cost_list` option so it is available even
+      # when the app was launched with a bare visualize_cost(...) call (no
+      # assignment). Using options() rather than assigning into the global
+      # environment keeps this CRAN-clean (package code may not write to
+      # globalenv()) while preserving the convenience: the caller can retrieve
+      # it with getOption("lago_cost_list"). This overwrites any existing value;
+      # the on.exit message announces it. `saved` gates that message (see the
+      # on.exit near the top).
+      options(lago_cost_list = cl)
       saved <<- TRUE
       stopApp(cl)
     })

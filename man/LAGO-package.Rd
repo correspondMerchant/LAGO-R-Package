@@ -19,4 +19,20 @@ Useful links:
 }
 
 }
+\author{
+\strong{Maintainer}: Ante Bing \email{abing@bu.edu}
+
+Authors:
+\itemize{
+  \item Ante Bing \email{abing@bu.edu}
+  \item Minh Bui
+  \item Jingyu Cui
+}
+
+Other contributors:
+\itemize{
+  \item Mike Bostock (Author of the bundled D3 v7 library, inst/js/d3.v7.min.js) [copyright holder]
+}
+
+}
 \keyword{internal}

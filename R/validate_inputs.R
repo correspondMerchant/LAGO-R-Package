@@ -189,6 +189,29 @@ validate_inputs <- function(
       "must be columns in the data frame."
     ))
   }
+  # refuse any intervention component whose column is entirely NA. glm()'s
+  # internal na.omit drops every row in that case, and the fit dies with an
+  # opaque error ("Argument mu must be a nonempty numeric vector") that never
+  # names the component. This runs after the column-existence check above so
+  # data[[component]] is always a real column, and before the interaction-term
+  # backticks are added below so the names still match the data columns.
+  # all(is.na(col)) treats numeric, factor and character columns alike, so an
+  # all-NA component of any type is caught here rather than left to fail
+  # cryptically inside model fitting.
+  all_na_components <- intervention_components[vapply(
+    intervention_components,
+    function(component) all(is.na(data[[component]])),
+    logical(1)
+  )]
+  if (length(all_na_components) > 0) {
+    stop(paste0(
+      "The intervention component(s) ",
+      paste(all_na_components, collapse = ", "),
+      " are entirely NA, so glm() would drop every row and they ",
+      "cannot enter the model. Remove them from intervention_components ",
+      "or supply observed values."
+    ))
+  }
 
   # check if center_characteristics is a character vector type
   if (length(center_characteristics) > 0) {
