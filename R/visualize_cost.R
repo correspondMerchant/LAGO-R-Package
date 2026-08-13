@@ -53,6 +53,15 @@
 #' visualize_cost(...)}. Closing the browser tab instead of using the button
 #' does not save the list.
 #'
+# nocov start
+# The body of visualize_cost() is an interactive Shiny app (UI definition plus
+# the server function and its nested plot helpers). It only runs inside a live
+# browser session, which the coverage instrumentation cannot drive, so counting
+# its lines only depresses the coverage figure without measuring anything. The
+# curve/drag math it relies on is tested separately by the standalone JavaScript
+# test (tests/js/test-cost-math.js, run in its own CI job), and the pure R
+# helpers below (compute_slider_range, format_coef) are outside this block and
+# are covered by tests/testthat/test-helpers.R.
 visualize_cost <- function(
     component_names,
     unit_costs,
@@ -674,6 +683,7 @@ visualize_cost <- function(
   # auto-printing the whole list to the console on close.
   invisible(shiny::runApp(shinyApp(ui, server)))
 }
+# nocov end
 
 # Compute a default slider range for a single cost-function coefficient.
 # The cost-function coefficients span very different scales (for a cubic cost
