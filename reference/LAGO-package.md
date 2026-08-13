@@ -14,3 +14,20 @@ Useful links:
 
 - Report bugs at
   <https://github.com/correspondMerchant/LAGO-R-Package/issues>
+
+## Author
+
+**Maintainer**: Ante Bing <abing@bu.edu>
+
+Authors:
+
+- Ante Bing <abing@bu.edu>
+
+- Minh Bui
+
+- Jingyu Cui
+
+Other contributors:
+
+- Mike Bostock (Author of the bundled D3 v7 library,
+  inst/js/d3.v7.min.js) \[copyright holder\]

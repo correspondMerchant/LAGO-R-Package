@@ -37,7 +37,9 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.1.0" id="lago-110">LAGO 1.1.0<a class="anchor" aria-label="anchor" href="#lago-110"></a></h2>
-<ul><li>Added tests for the interaction-terms optimization path and the outcome-model fit warnings, and excluded the interactive <code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> app from the coverage figure so it reflects the testable R code.</li>
+<ul><li>
+<code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> now stores the returned cost list in the <code>lago_cost_list</code> option instead of assigning it to the global environment; retrieve it with <code>getOption("lago_cost_list")</code>.</li>
+<li>Added tests for the interaction-terms optimization path and the outcome-model fit warnings, and excluded the interactive <code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> app from the coverage figure so it reflects the testable R code.</li>
 <li>Added a <code>CITATION.cff</code> so the repository can be cited, plus contributing guidelines, a code of conduct and issue/pull-request templates. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/86" class="external-link">#86</a>)</li>
 <li>Added test-coverage reporting, cross-platform (macOS, Windows, Linux) continuous integration, project-status and coverage badges, and a social-preview card. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/83" class="external-link">#83</a>, <a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/84" class="external-link">#84</a>, <a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/85" class="external-link">#85</a>)</li>
 <li>Added a Python wrapper (in <code>python/</code>, importable as <code>lago</code>) that calls LAGO through <code>rpy2</code>. (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/81" class="external-link">#81</a>)</li>

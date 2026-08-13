@@ -99,7 +99,7 @@ A data frame with 6124 rows and 21 variables:
 
 ## Source
 
-<https://pubmed.ncbi.nlm.nih.gov/26271331/>
+[doi:10.1186/s13012-015-0309-y](https://doi.org/10.1186/s13012-015-0309-y)
 
 <https://www.nejm.org/doi/full/10.1056/NEJMoa1701075>
 

@@ -127,12 +127,13 @@ copied from within the app.</p>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>When the app is closed with the "Return list to R &amp; close" button,
-the coefficient list is also assigned to <code>lago_cost_list</code> in the global
-environment (overwriting any existing object of that name) and a message
-reports this, so the list is available even when the app was launched with a
-bare <code>visualize_cost(...)</code> call rather than <code>cost_list &lt;-
-visualize_cost(...)</code>. Closing the browser tab instead of using the button
-does not save the list.</p>
+the coefficient list is also stored in the <code>lago_cost_list</code> option
+(overwriting any existing value) and a message reports this, so the list is
+available even when the app was launched with a bare
+<code>visualize_cost(...)</code> call rather than <code>cost_list &lt;-
+visualize_cost(...)</code>. Retrieve it with
+<code>getOption("lago_cost_list")</code>. Closing the browser tab instead of using
+the button does not save the list.</p>
     </div>
 
     <div class="section level2">

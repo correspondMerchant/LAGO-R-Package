@@ -60,12 +60,13 @@ copied from within the app.
 ## Details
 
 When the app is closed with the "Return list to R & close" button, the
-coefficient list is also assigned to `lago_cost_list` in the global
-environment (overwriting any existing object of that name) and a message
-reports this, so the list is available even when the app was launched
-with a bare `visualize_cost(...)` call rather than
-`cost_list <- visualize_cost(...)`. Closing the browser tab instead of
-using the button does not save the list.
+coefficient list is also stored in the `lago_cost_list` option
+(overwriting any existing value) and a message reports this, so the list
+is available even when the app was launched with a bare
+`visualize_cost(...)` call rather than
+`cost_list <- visualize_cost(...)`. Retrieve it with
+`getOption("lago_cost_list")`. Closing the browser tab instead of using
+the button does not save the list.
 
 ## Examples
 

@@ -2,6 +2,10 @@
 
 ## LAGO 1.1.0
 
+- [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  now stores the returned cost list in the `lago_cost_list` option
+  instead of assigning it to the global environment; retrieve it with
+  `getOption("lago_cost_list")`.
 - Added tests for the interaction-terms optimization path and the
   outcome-model fit warnings, and excluded the interactive
   [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
