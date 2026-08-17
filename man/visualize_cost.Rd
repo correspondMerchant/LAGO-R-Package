@@ -71,3 +71,12 @@ visualize_cost(
 )
 }
 }
+\seealso{
+[lago_optimization()]
+
+Other LAGO functions:
+\code{\link[=get_confidence_set]{get_confidence_set()}},
+\code{\link[=lago_optimization]{lago_optimization()}},
+\code{\link[=lago_report]{lago_report()}}
+}
+\concept{LAGO functions}

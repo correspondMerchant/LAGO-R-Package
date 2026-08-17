@@ -286,6 +286,8 @@
 #' )
 #' }
 #'
+#' @family LAGO functions
+#' @seealso [get_confidence_set()], [visualize_cost()], [lago_report()]
 #' @export
 #' @importFrom utils head
 #' @import cli

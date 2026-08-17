@@ -166,6 +166,8 @@
 #' head(cs$cs)
 #'
 #' @keywords internal
+#' @family LAGO functions
+#' @seealso [lago_optimization()]
 #' @export
 #'
 get_confidence_set <- function(

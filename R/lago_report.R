@@ -49,6 +49,8 @@
 #' report_path <- lago_report(result)
 #' }
 #'
+#' @family LAGO functions
+#' @seealso [lago_optimization()]
 #' @export
 lago_report <- function(x,
                         output_file = NULL,

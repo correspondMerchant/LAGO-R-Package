@@ -3,6 +3,19 @@ url: https://correspondmerchant.github.io/LAGO-R-Package/
 template:
   bootstrap: 5
 
+authors:
+  Ante Bing:
+    href: mailto:abing@bu.edu
+
+navbar:
+  structure:
+    right: [search, github]
+
+news:
+  releases:
+  - text: "Version 1.1.0"
+    href: news/index.html
+
 reference:
 - title: Optimization
   desc: Main user-facing functions.
