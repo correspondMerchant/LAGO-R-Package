@@ -218,4 +218,13 @@ opt$rec_int
 head(cs$cs)
 
 }
+\seealso{
+[lago_optimization()]
+
+Other LAGO functions:
+\code{\link[=lago_optimization]{lago_optimization()}},
+\code{\link[=lago_report]{lago_report()}},
+\code{\link[=visualize_cost]{visualize_cost()}}
+}
+\concept{LAGO functions}
 \keyword{internal}

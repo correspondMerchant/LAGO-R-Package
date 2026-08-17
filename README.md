@@ -414,6 +414,19 @@ See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/bl
 3. [Bing A, Spiegelman D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Trials for Effectiveness and Power to Prevent Failed Trials. arXiv:2509.11479](https://arxiv.org/pdf/2509.11479)
 4. [Bui, M. T., Longenecker, C. T., Bing, A., Spiegelman, D., Webel, A. R., Bosworth, H. B., & Lok, J. J. (2026). Addressing Confounding by Indication Through (Un) Measured Centre Characteristics in Learn-As-you-GO (LAGO) Trials. arXiv preprint arXiv:2604.13276.](https://arxiv.org/abs/2604.13276)
 
+## Citation
+If you use this package, please cite both the software and the LAGO methodology.
+
+To get the software citation in R:
+```r
+citation("LAGOtrials")
+```
+
+For the methodology, please cite Bing et al. (2025):
+> Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. Biometrics, 81(2), ujaf061. <https://doi.org/10.1093/biomtc/ujaf061>
+
+A machine-readable citation is also provided in [CITATION.cff](CITATION.cff), which powers the "Cite this repository" button on GitHub.
+
 ## How to get help
 Before reaching out for help, please carefully review this README, examine the descriptions of the arguments in the R help files, run the `.Rmd` files in the [manual tests](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/tests/manual_tests) folder, and read the relevant LAGO papers.
 

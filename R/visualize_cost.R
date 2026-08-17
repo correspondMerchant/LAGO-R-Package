@@ -25,6 +25,8 @@
 #' @param intervention_upper_bounds A numeric vector of the upper bounds for
 #' each intervention component.
 #'
+#' @family LAGO functions
+#' @seealso [lago_optimization()]
 #' @export
 #' @import bslib shiny
 #' @importFrom shinyjs useShinyjs show hide runjs

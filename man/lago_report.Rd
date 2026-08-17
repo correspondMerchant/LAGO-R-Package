@@ -69,3 +69,12 @@ report_path <- lago_report(result)
 }
 
 }
+\seealso{
+[lago_optimization()]
+
+Other LAGO functions:
+\code{\link[=get_confidence_set]{get_confidence_set()}},
+\code{\link[=lago_optimization]{lago_optimization()}},
+\code{\link[=visualize_cost]{visualize_cost()}}
+}
+\concept{LAGO functions}
