@@ -598,6 +598,27 @@ for installation and the full API.
     Learn-As-you-GO (LAGO) Trials. arXiv preprint
     arXiv:2604.13276.](https://arxiv.org/abs/2604.13276)
 
+## Citation
+
+If you use this package, please cite both the software and the LAGO
+methodology.
+
+To get the software citation in R:
+
+``` r
+
+citation("LAGOtrials")
+```
+
+For the methodology, please cite Bing et al. (2025): \> Bing A,
+Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing
+Treatments and Preventing Trial Failure Through Ongoing Learning.
+Biometrics, 81(2), ujaf061. <https://doi.org/10.1093/biomtc/ujaf061>
+
+A machine-readable citation is also provided in
+[CITATION.cff](https://correspondmerchant.github.io/LAGO-R-Package/CITATION.cff),
+which powers the “Cite this repository” button on GitHub.
+
 ## How to get help
 
 Before reaching out for help, please carefully review this README,

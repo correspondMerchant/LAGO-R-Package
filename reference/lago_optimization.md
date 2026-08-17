@@ -372,6 +372,15 @@ results (test_results), a list with the test statistic and p-value; NULL
 unless a valid 'group' column is supplied. The confidence set fields are
 only present when include_confidence_set = TRUE.)
 
+## See also
+
+\[get_confidence_set()\], \[visualize_cost()\], \[lago_report()\]
+
+Other LAGO functions:
+[`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
+[`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
+[`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+
 ## Examples
 
 ``` r

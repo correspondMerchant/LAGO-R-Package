@@ -2,7 +2,7 @@
 
 ## Authors
 
-- **Ante Bing**. Author, maintainer.
+- **[Ante Bing](mailto:abing@bu.edu)**. Author, maintainer.
 
 - **Minh Bui**. Author.
 

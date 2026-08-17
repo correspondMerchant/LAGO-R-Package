@@ -62,6 +62,15 @@ lago_report(
 
 The path to the rendered HTML file, invisibly.
 
+## See also
+
+\[lago_optimization()\]
+
+Other LAGO functions:
+[`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+[`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+
 ## Examples
 
 ``` r

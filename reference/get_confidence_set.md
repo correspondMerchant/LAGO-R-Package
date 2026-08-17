@@ -192,6 +192,15 @@ their interval bounds and cost. rec_int is never one of its rows, and
 need not be a grid intervention at all. NULL when no grid intervention
 qualifies\> )
 
+## See also
+
+\[lago_optimization()\]
+
+Other LAGO functions:
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+[`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
+[`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+
 ## Examples
 
 ``` r
