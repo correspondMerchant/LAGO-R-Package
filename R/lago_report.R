@@ -29,7 +29,10 @@
 #' @return The path to the rendered HTML file, invisibly.
 #'
 #' @examples
-#' \donttest{
+#' # lago_report() renders an HTML file with rmarkdown, so it is wrapped in
+#' # \dontrun: it writes to disk and invokes pandoc, and running a document
+#' # render inside an in-process documentation build (e.g. pkgdown) can deadlock.
+#' \dontrun{
 #' result <- lago_optimization(
 #'   data = BB_data,
 #'   outcome_name = "pp3_oxytocin_mother",
