@@ -74,7 +74,10 @@ Other LAGO functions:
 ## Examples
 
 ``` r
-# \donttest{
+# lago_report() renders an HTML file with rmarkdown, so it is wrapped in
+# \dontrun: it writes to disk and invokes pandoc, and running a document
+# render inside an in-process documentation build (e.g. pkgdown) can deadlock.
+if (FALSE) { # \dontrun{
 result <- lago_optimization(
   data = BB_data,
   outcome_name = "pp3_oxytocin_mother",
@@ -91,8 +94,6 @@ result <- lago_optimization(
   confidence_set_grid_step_size = c(1, 1),
   quiet = TRUE
 )
-#> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
-#> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
 report_path <- lago_report(result)
-# }
+} # }
 ```
