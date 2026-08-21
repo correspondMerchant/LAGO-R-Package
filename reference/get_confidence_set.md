@@ -199,6 +199,7 @@ qualifies\> )
 Other LAGO functions:
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
 
 ## Examples

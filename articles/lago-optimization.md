@@ -305,3 +305,82 @@ power_result$est_outcome_goal
 When both an outcome goal and a power goal are supplied, the
 optimization targets the higher of the two: the outcome goal itself, or
 the outcome level implied by the power goal.
+
+## How sensitive is the recommendation?
+
+The recommendation depends on inputs you may be unsure about, above all
+the outcome goal and the assumed costs.
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+re-runs the optimization across a sweep of one input and reports how the
+recommendation, its cost, and the estimated outcome move. The easiest
+way is to hand it the fitted `result` from above: it reuses that call,
+so you only add `parameter` (what to vary) and `values` (the sweep).
+
+Here we ask how the recommended cost changes as the target probability
+tightens from 0.75 to 0.90. The confidence set is not needed for this,
+so
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+skips it and the sweep is fast.
+
+``` r
+
+sens <- lago_sensitivity(
+  result,
+  parameter = "outcome_goal",
+  values = c(0.75, 0.80, 0.85, 0.90)
+)
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component launch_duration
+#> is greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component launch_duration
+#> is greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component launch_duration
+#> is greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> greater than the minimum value in the data.
+#> Warning in (function (data, input_data_structure = "individual_level",
+#> outcome_name, : The lower bound for the intervention component launch_duration
+#> is greater than the minimum value in the data.
+
+sens
+#> 
+#> ── LAGO sensitivity analysis ──
+#> 
+#> Varied outcome_goal across 4 runs; 0 failed.
+#>   value coaching_updt launch_duration rec_int_cost est_outcome_goal status
+#> 1  0.75             1        2.157674     18.96139             0.75     ok
+#> 2  0.80             1        2.438484     21.20788             0.80     ok
+#> 3  0.85             1        2.778472     23.92777             0.85     ok
+#> 4  0.90             1        3.230045     27.54036             0.90     ok
+#> rec_int_cost ranges from 18.96139 to 27.54036 as outcome_goal goes from 0.75 to
+#> 0.9.
+```
+
+The result is a tidy data frame with one row per swept value: the value,
+the recommended value of each component, the recommended cost, the
+estimated outcome, and a `status` column (a run that fails is recorded
+as `NA` rather than stopping the sweep).
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html) draws the
+recommended cost as a function of the swept value:
+
+``` r
+
+plot(sens)
+```
+
+![](lago-optimization_files/figure-html/unnamed-chunk-10-1.png)
+
+To vary the costs instead, use `parameter = "cost_multiplier"` with,
+say, `values = c(0.8, 1, 1.2)` to scale every cost by plus or minus 20%.

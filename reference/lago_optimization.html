@@ -444,7 +444,10 @@ estimated outcome mean/probability for the intervention group,
 95% confidence set,
 overall intervention test results (test_results), a list with the test
 statistic and p-value; NULL unless a valid 'group' column is supplied.
-The confidence set fields are only present when include_confidence_set = TRUE.)</p>
+The confidence set fields are only present when include_confidence_set = TRUE.)
+The result also carries its own call arguments in the attribute
+`"lago_call_args"` (not a `$`-accessible field), so it can be passed directly
+to [lago_sensitivity()] to sweep one input without retyping the call.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -452,6 +455,7 @@ The confidence set fields are only present when include_confidence_set = TRUE.)<
 <p>Other LAGO functions:
 <code><a href="get_confidence_set.html">get_confidence_set()</a></code>,
 <code><a href="lago_report.html">lago_report()</a></code>,
+<code><a href="lago_sensitivity.html">lago_sensitivity()</a></code>,
 <code><a href="visualize_cost.html">visualize_cost()</a></code></p></div>
     </div>
 

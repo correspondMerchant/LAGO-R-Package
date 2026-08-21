@@ -18,10 +18,13 @@
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/index.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.html</loc></url>
+<url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/main_pulesa_data.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/new_pulesa_data.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago.html</loc></url>
+<url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago_sensitivity.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago.html</loc></url>
+<url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago_sensitivity.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/select_restart_within_bounds.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.html</loc></url>
 <url><loc>https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.html</loc></url>

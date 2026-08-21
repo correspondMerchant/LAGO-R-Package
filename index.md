@@ -17,10 +17,11 @@ interventions.
 2.  [The main functions](#the-main-functions)
 3.  [Basic use case](#basic-use-case)
 4.  [More advanced use case](#more-advanced-use-case)
-5.  [How to run additional examples](#how-to-run-additional-examples)
-6.  [Using LAGO from Python](#using-lago-from-python)
-7.  [Relevant LAGO papers](#relevant-lago-papers)
-8.  [How to get help](#how-to-get-help)
+5.  [Sensitivity analysis](#sensitivity-analysis)
+6.  [How to run additional examples](#how-to-run-additional-examples)
+7.  [Using LAGO from Python](#using-lago-from-python)
+8.  [Relevant LAGO papers](#relevant-lago-papers)
+9.  [How to get help](#how-to-get-help)
 
 ## How to install the R package
 
@@ -35,14 +36,17 @@ interventions.
 
 ## The main functions
 
-The LAGO R package has three user-facing functions
+The LAGO R package has four user-facing functions
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md),
 and
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md).
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 carries out the LAGO optimizations,
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+checks how robust the recommendation is to your assumptions,
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
 helps you choose cost functions for the intervention components, and
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
@@ -456,6 +460,57 @@ inspect `optimization_results$cs` for the full confidence set or
 `optimization_results$model` for the fitted model, or run
 `lago_report(optimization_results)` for a shareable HTML report of the
 result.
+
+## Sensitivity analysis
+
+A recommended intervention depends on inputs you may be unsure about,
+chiefly the outcome goal and the assumed costs.
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+re-runs the optimization across a sweep of one input and reports how the
+recommendation, its cost, and the estimated outcome move, so you can see
+how robust the recommendation is.
+
+The simplest way is to fit once and then hand the result to
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
+which reuses that call, so you only add `parameter` (what to vary) and
+`values` (the sweep). For example, how does the recommended cost change
+as the outcome goal tightens?
+
+    result <- lago_optimization(
+      data = mtcars,
+      outcome_name = "mpg",
+      outcome_type = "continuous",
+      glm_family = "gaussian",
+      link = "identity",
+      intervention_components = c("gear", "qsec"),
+      intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 350),
+      cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+      outcome_goal = 40,
+      optimization_method = "grid_search",
+      optimization_grid_search_step_size = c(1, 1)
+    )
+
+    sens <- lago_sensitivity(
+      result,
+      parameter = "outcome_goal",
+      values = c(25, 30, 35, 40)
+    )
+
+    sens          # a tidy data.frame: value, the recommended value of each component, rec_int_cost, est_outcome_goal
+    plot(sens)    # the recommended cost as a function of the swept value
+
+You can also call
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+without a fitted result by passing the
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+arguments directly (the same arguments, plus `parameter` and `values`);
+passing the result just saves retyping them.
+
+Use `parameter = "cost_multiplier"` to scale every cost at once (for
+example `values = c(0.8, 1, 1.2)` for plus or minus 20%). Runs that fail
+are recorded as `NA` with a `status` note rather than stopping the
+sweep, and the confidence set is skipped for speed.
 
 ## How to run additional examples
 

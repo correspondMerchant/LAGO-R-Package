@@ -356,6 +356,78 @@ alone.</p>
 optimization targets the higher of the two: the outcome goal itself, or
 the outcome level implied by the power goal.</p>
 </div>
+<div class="section level2">
+<h2 id="how-sensitive-is-the-recommendation">How sensitive is the recommendation?<a class="anchor" aria-label="anchor" href="#how-sensitive-is-the-recommendation"></a>
+</h2>
+<p>The recommendation depends on inputs you may be unsure about, above
+all the outcome goal and the assumed costs.
+<code><a href="../reference/lago_sensitivity.html">lago_sensitivity()</a></code> re-runs the optimization across a sweep
+of one input and reports how the recommendation, its cost, and the
+estimated outcome move. The easiest way is to hand it the fitted
+<code>result</code> from above: it reuses that call, so you only add
+<code>parameter</code> (what to vary) and <code>values</code> (the
+sweep).</p>
+<p>Here we ask how the recommended cost changes as the target
+probability tightens from 0.75 to 0.90. The confidence set is not needed
+for this, so <code><a href="../reference/lago_sensitivity.html">lago_sensitivity()</a></code> skips it and the sweep is
+fast.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lago_sensitivity.html">lago_sensitivity</a></span><span class="op">(</span></span>
+<span>  <span class="va">result</span>,</span>
+<span>  parameter <span class="op">=</span> <span class="st">"outcome_goal"</span>,</span>
+<span>  values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.75</span>, <span class="fl">0.80</span>, <span class="fl">0.85</span>, <span class="fl">0.90</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
+<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
+<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
+<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
+<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
+<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
+<span></span>
+<span><span class="va">sens</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ── <span style="font-weight: bold;">LAGO sensitivity analysis</span> ──</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Varied <span style="color: #00BB00;">outcome_goal</span> across 4 runs; 0 failed.</span></span>
+<span><span class="co">#&gt;   value coaching_updt launch_duration rec_int_cost est_outcome_goal status</span></span>
+<span><span class="co">#&gt; 1  0.75             1        2.157674     18.96139             0.75     ok</span></span>
+<span><span class="co">#&gt; 2  0.80             1        2.438484     21.20788             0.80     ok</span></span>
+<span><span class="co">#&gt; 3  0.85             1        2.778472     23.92777             0.85     ok</span></span>
+<span><span class="co">#&gt; 4  0.90             1        3.230045     27.54036             0.90     ok</span></span>
+<span><span class="co">#&gt; rec_int_cost ranges from 18.96139 to 27.54036 as outcome_goal goes from 0.75 to</span></span>
+<span><span class="co">#&gt; 0.9.</span></span></code></pre></div>
+<p>The result is a tidy data frame with one row per swept value: the
+value, the recommended value of each component, the recommended cost,
+the estimated outcome, and a <code>status</code> column (a run that
+fails is recorded as <code>NA</code> rather than stopping the sweep).
+<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> draws the recommended cost as a function of the
+swept value:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sens</span><span class="op">)</span></span></code></pre></div>
+<p><img src="lago-optimization_files/figure-html/unnamed-chunk-10-1.png" class="r-plt" alt="" width="576"></p>
+<p>To vary the costs instead, use
+<code>parameter = "cost_multiplier"</code> with, say,
+<code>values = c(0.8, 1, 1.2)</code> to scale every cost by plus or
+minus 20%.</p>
+</div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
