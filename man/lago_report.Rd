@@ -78,6 +78,7 @@ report_path <- lago_report(result)
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},
 \code{\link[=lago_optimization]{lago_optimization()}},
+\code{\link[=lago_sensitivity]{lago_sensitivity()}},
 \code{\link[=visualize_cost]{visualize_cost()}}
 }
 \concept{LAGO functions}

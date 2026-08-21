@@ -1,5 +1,6 @@
 # LAGO 1.1.0
 
+* Added `lago_sensitivity()`, which re-runs an optimization across a sweep of one input (an outcome or power goal, or a `"cost_multiplier"` that scales all costs) and reports how the recommended intervention, its cost, and the estimated outcome move, with `print()` and `plot()` methods.
 * The package is now installed and loaded as `LAGOtrials` (call `library(LAGOtrials)`); the previous `LAGO` identifier clashed with an archived CRAN package. Function names, the `lago` result class, and the LAGO method name are unchanged.
 * `visualize_cost()` now stores the returned cost list in the `lago_cost_list` option instead of assigning it to the global environment; retrieve it with `getOption("lago_cost_list")`.
 * Added tests for the interaction-terms optimization path and the outcome-model fit warnings, and excluded the interactive `visualize_cost()` app from the coverage figure so it reflects the testable R code.

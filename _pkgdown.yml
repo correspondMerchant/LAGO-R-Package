@@ -21,17 +21,20 @@ reference:
   desc: Main user-facing functions.
   contents:
   - lago_optimization
+  - lago_sensitivity
   - visualize_cost
 - title: Reporting
   desc: Generate a shareable report from an optimization result.
   contents:
   - lago_report
 - title: Methods
-  desc: Methods for the object returned by lago_optimization().
+  desc: Methods for the objects returned by the functions above.
   contents:
   - print.lago
   - summary.lago
   - plot.lago
+  - print.lago_sensitivity
+  - plot.lago_sensitivity
 - title: Datasets
   desc: Datasets included with the package.
   contents:

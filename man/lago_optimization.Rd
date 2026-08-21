@@ -309,6 +309,9 @@ estimated outcome mean/probability for the intervention group,
 overall intervention test results (test_results), a list with the test
 statistic and p-value; NULL unless a valid 'group' column is supplied.
 The confidence set fields are only present when include_confidence_set = TRUE.)
+The result also carries its own call arguments in the attribute
+`"lago_call_args"` (not a `$`-accessible field), so it can be passed directly
+to [lago_sensitivity()] to sweep one input without retyping the call.
 }
 \description{
 Fits the outcome model, calculates the recommended
@@ -379,6 +382,7 @@ lago_optimization(
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},
 \code{\link[=lago_report]{lago_report()}},
+\code{\link[=lago_sensitivity]{lago_sensitivity()}},
 \code{\link[=visualize_cost]{visualize_cost()}}
 }
 \concept{LAGO functions}
