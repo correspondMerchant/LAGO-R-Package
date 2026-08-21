@@ -21,10 +21,11 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 2. [The main functions](#the-main-functions)
 3. [Basic use case](#basic-use-case)
 4. [More advanced use case](#more-advanced-use-case)
-5. [How to run additional examples](#how-to-run-additional-examples)
-6. [Using LAGO from Python](#using-lago-from-python)
-7. [Relevant LAGO papers](#relevant-lago-papers)
-8. [How to get help](#how-to-get-help)
+5. [Sensitivity analysis](#sensitivity-analysis)
+6. [How to run additional examples](#how-to-run-additional-examples)
+7. [Using LAGO from Python](#using-lago-from-python)
+8. [Relevant LAGO papers](#relevant-lago-papers)
+9. [How to get help](#how-to-get-help)
 
 
 ## How to install the R package
@@ -36,9 +37,9 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
 ## The main functions
-The LAGO R package has three user-facing functions `lago_optimization()`, `visualize_cost()`, and `lago_report()`.
+The LAGO R package has four user-facing functions `lago_optimization()`, `lago_sensitivity()`, `visualize_cost()`, and `lago_report()`.
 
-`lago_optimization()` carries out the LAGO optimizations, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained HTML report of an optimization result.
+`lago_optimization()` carries out the LAGO optimizations, `lago_sensitivity()` checks how robust the recommendation is to your assumptions, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained HTML report of an optimization result.
 
 `lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` (and the identical `summary()`) shows the full result on the console, including an inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set; `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus the confidence-set plot and a session-info footer, to a shareable HTML file.
 
@@ -337,6 +338,35 @@ First rows of the confidence set (use $cs for all):
 ```
 The outcome model here includes many more coefficients, one per center and per time period, than the previous example, and the console output shows them all. `summary(optimization_results)` prints the same output; inspect `optimization_results$cs` for the full confidence set or `optimization_results$model` for the fitted model, or run `lago_report(optimization_results)` for a shareable HTML report of the result.
 
+
+## Sensitivity analysis
+A recommended intervention depends on inputs you may be unsure about, chiefly the outcome goal and the assumed costs. `lago_sensitivity()` re-runs the optimization across a sweep of one input and reports how the recommendation, its cost, and the estimated outcome move, so you can see how robust the recommendation is.
+
+Pass the same arguments you would give `lago_optimization()`, plus `parameter` (what to vary) and `values` (the sweep). For example, how does the recommended cost change as the outcome goal tightens?
+
+```
+sens <- lago_sensitivity(
+  data = mtcars,
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(0, 0),
+  intervention_upper_bounds = c(10, 350),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 40,
+  optimization_method = "grid_search",
+  optimization_grid_search_step_size = c(1, 1),
+  parameter = "outcome_goal",
+  values = c(25, 30, 35, 40)
+)
+
+sens          # a tidy data.frame: value, the recommended value of each component, rec_int_cost, est_outcome_goal
+plot(sens)    # the recommended cost as a function of the swept value
+```
+
+Use `parameter = "cost_multiplier"` to scale every cost at once (for example `values = c(0.8, 1, 1.2)` for plus or minus 20%). Runs that fail are recorded as `NA` with a `status` note rather than stopping the sweep, and the confidence set is skipped for speed.
 
 ## How to run additional examples
 This README does not document every input argument, every component of the outcome model, or the optimization algorithm behind the recommended interventions.

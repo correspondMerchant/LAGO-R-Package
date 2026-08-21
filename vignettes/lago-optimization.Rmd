@@ -139,3 +139,46 @@ power_result$est_outcome_goal
 When both an outcome goal and a power goal are supplied, the optimization
 targets the higher of the two: the outcome goal itself, or the outcome level
 implied by the power goal.
+
+## How sensitive is the recommendation?
+
+The recommendation depends on inputs you may be unsure about, above all the
+outcome goal and the assumed costs. `lago_sensitivity()` re-runs the
+optimization across a sweep of one input and reports how the recommendation, its
+cost, and the estimated outcome move. Pass the same arguments as
+`lago_optimization()`, plus `parameter` (what to vary) and `values` (the sweep).
+
+Here we ask how the recommended cost changes as the target probability tightens
+from 0.75 to 0.90. The confidence set is not needed for this, so
+`lago_sensitivity()` skips it and the sweep is fast.
+
+```{r}
+sens <- lago_sensitivity(
+  data = bb_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  center_characteristics = "birth_volume_100",
+  center_characteristics_optimization_values = 1.75,
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  parameter = "outcome_goal",
+  values = c(0.75, 0.80, 0.85, 0.90)
+)
+
+sens
+```
+
+The result is a tidy data frame with one row per swept value: the value, the
+recommended value of each component, the recommended cost, the estimated
+outcome, and a `status` column (a run that fails is recorded as `NA` rather than
+stopping the sweep). `plot()` draws the recommended cost as a function of the
+swept value:
+
+```{r, fig.width = 6, fig.height = 4}
+plot(sens)
+```
+
+To vary the costs instead, use `parameter = "cost_multiplier"` with, say,
+`values = c(0.8, 1, 1.2)` to scale every cost by plus or minus 20%.

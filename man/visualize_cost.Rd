@@ -77,6 +77,7 @@ visualize_cost(
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},
 \code{\link[=lago_optimization]{lago_optimization()}},
-\code{\link[=lago_report]{lago_report()}}
+\code{\link[=lago_report]{lago_report()}},
+\code{\link[=lago_sensitivity]{lago_sensitivity()}}
 }
 \concept{LAGO functions}
