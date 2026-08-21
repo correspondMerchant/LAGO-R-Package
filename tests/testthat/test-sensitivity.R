@@ -205,6 +205,134 @@ test_that("input validation rejects bad parameter / values", {
   )
 })
 
+# Baseline lago_optimization() call used by the object-form tests below. The
+# confidence set is off and quiet is on so the initial fit is fast; the sweep
+# forces both regardless. outcome_goal is supplied so the fit is valid.
+mtcars_opt_args <- c(
+  mtcars_base,
+  list(outcome_goal = 30, include_confidence_set = FALSE, quiet = TRUE)
+)
+
+test_that("lago result carries its call arguments as an attribute", {
+  opt <- suppressWarnings(suppressMessages(
+    do.call(lago_optimization, mtcars_opt_args)
+  ))
+  ca <- attr(opt, "lago_call_args")
+
+  # named list of the evaluated formals, with defaults filled in
+  expect_type(ca, "list")
+  expect_false(is.null(names(ca)))
+  expect_true(all(
+    c(
+      "data", "outcome_name", "intervention_components",
+      "cost_list_of_vectors", "outcome_goal"
+    ) %in% names(ca)
+  ))
+  # the values are the ones the user effectively called with
+  expect_s3_class(ca$data, "data.frame")
+  expect_identical(ca$outcome_name, "mpg")
+  expect_identical(ca$intervention_components, c("gear", "qsec"))
+  expect_identical(ca$cost_list_of_vectors, list(c(0, 4), c(4, 6)))
+  expect_identical(ca$outcome_goal, 30)
+
+  # the attribute does not leak into the documented $-accessible fields or the
+  # printed list membership.
+  expect_false("lago_call_args" %in% names(opt))
+})
+
+test_that("object form and args form produce the same sweep", {
+  vals <- c(30, 35, 40)
+  opt <- suppressWarnings(suppressMessages(
+    do.call(lago_optimization, mtcars_opt_args)
+  ))
+
+  s_obj <- suppressWarnings(suppressMessages(
+    lago_sensitivity(opt, parameter = "outcome_goal", values = vals)
+  ))
+  s_args <- suppressWarnings(suppressMessages(do.call(
+    lago_sensitivity,
+    c(mtcars_base, list(
+      outcome_goal = 30, parameter = "outcome_goal", values = vals
+    ))
+  )))
+
+  # the two calling conventions must agree column for column
+  cols <- c(
+    "value", "gear", "qsec", "rec_int_cost", "est_outcome_goal", "status"
+  )
+  for (cn in cols) {
+    expect_equal(s_obj[[cn]], s_args[[cn]])
+  }
+  # comparing as data.frames (dropping the class) also matches
+  expect_equal(as.data.frame(s_obj), as.data.frame(s_args))
+
+  # non-vacuous: the sweep actually moved the cost, so an equal comparison is
+  # not trivially satisfied by a flat curve.
+  expect_true(all(s_obj$status == "ok"))
+  expect_true(max(s_obj$rec_int_cost) > min(s_obj$rec_int_cost))
+})
+
+test_that("... overrides the arguments stored on the object", {
+  vals <- c(30, 35, 40)
+  opt <- suppressWarnings(suppressMessages(
+    do.call(lago_optimization, mtcars_opt_args)
+  ))
+
+  s_noover <- suppressWarnings(suppressMessages(
+    lago_sensitivity(opt, parameter = "outcome_goal", values = vals)
+  ))
+  # a very different cost function must change the reported cost.
+  s_over <- suppressWarnings(suppressMessages(lago_sensitivity(
+    opt,
+    cost_list_of_vectors = list(c(0, 40), c(4, 6)),
+    parameter = "outcome_goal", values = vals
+  )))
+
+  expect_true(all(s_over$status == "ok"))
+  # the override took effect: the costs differ from the un-overridden sweep.
+  expect_false(isTRUE(all.equal(
+    s_over$rec_int_cost, s_noover$rec_int_cost
+  )))
+})
+
+test_that("an object without stored call args is a clear error", {
+  opt <- suppressWarnings(suppressMessages(
+    do.call(lago_optimization, mtcars_opt_args)
+  ))
+  attr(opt, "lago_call_args") <- NULL
+  expect_error(
+    lago_sensitivity(opt, parameter = "outcome_goal", values = c(30, 35)),
+    "does not carry"
+  )
+})
+
+test_that("object dispatch does not swallow a by-name data argument", {
+  # a non-lago object passed positionally as `object` is rejected, not treated
+  # as an argument.
+  expect_error(
+    lago_sensitivity(mtcars, parameter = "outcome_goal", values = c(30, 35)),
+    "must be a `lago` result"
+  )
+
+  # data passed by name lands in `...`, so `object` stays NULL and the direct
+  # (no-object) form still works exactly as before.
+  s_direct <- suppressWarnings(suppressMessages(lago_sensitivity(
+    data = mtcars,
+    outcome_name = "mpg",
+    outcome_type = "continuous",
+    glm_family = "gaussian",
+    link = "identity",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal_intention = "maximize",
+    parameter = "outcome_goal", values = c(30, 35)
+  )))
+  expect_s3_class(s_direct, "lago_sensitivity")
+  expect_equal(nrow(s_direct), 2L)
+})
+
 test_that("print() and plot() methods work on a result", {
   sens <- suppressWarnings(suppressMessages(do.call(
     lago_sensitivity,

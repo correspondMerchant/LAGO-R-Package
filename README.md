@@ -342,10 +342,10 @@ The outcome model here includes many more coefficients, one per center and per t
 ## Sensitivity analysis
 A recommended intervention depends on inputs you may be unsure about, chiefly the outcome goal and the assumed costs. `lago_sensitivity()` re-runs the optimization across a sweep of one input and reports how the recommendation, its cost, and the estimated outcome move, so you can see how robust the recommendation is.
 
-Pass the same arguments you would give `lago_optimization()`, plus `parameter` (what to vary) and `values` (the sweep). For example, how does the recommended cost change as the outcome goal tightens?
+The simplest way is to fit once and then hand the result to `lago_sensitivity()`, which reuses that call, so you only add `parameter` (what to vary) and `values` (the sweep). For example, how does the recommended cost change as the outcome goal tightens?
 
 ```
-sens <- lago_sensitivity(
+result <- lago_optimization(
   data = mtcars,
   outcome_name = "mpg",
   outcome_type = "continuous",
@@ -357,7 +357,11 @@ sens <- lago_sensitivity(
   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
   outcome_goal = 40,
   optimization_method = "grid_search",
-  optimization_grid_search_step_size = c(1, 1),
+  optimization_grid_search_step_size = c(1, 1)
+)
+
+sens <- lago_sensitivity(
+  result,
   parameter = "outcome_goal",
   values = c(25, 30, 35, 40)
 )
@@ -365,6 +369,8 @@ sens <- lago_sensitivity(
 sens          # a tidy data.frame: value, the recommended value of each component, rec_int_cost, est_outcome_goal
 plot(sens)    # the recommended cost as a function of the swept value
 ```
+
+You can also call `lago_sensitivity()` without a fitted result by passing the `lago_optimization()` arguments directly (the same arguments, plus `parameter` and `values`); passing the result just saves retyping them.
 
 Use `parameter = "cost_multiplier"` to scale every cost at once (for example `values = c(0.8, 1, 1.2)` for plus or minus 20%). Runs that fail are recorded as `NA` with a `status` note rather than stopping the sweep, and the confidence set is skipped for speed.
 

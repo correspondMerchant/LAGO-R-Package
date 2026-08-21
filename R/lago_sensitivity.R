@@ -51,11 +51,20 @@
 #' abort the sweep: its outputs are recorded as `NA` and a single warning names
 #' the failed values afterwards.
 #'
+#' @param object An optional `lago` result from [lago_optimization()]. When
+#' supplied, the baseline optimization arguments are taken from the call it
+#' carries (so the whole call need not be retyped), and any arguments in `...`
+#' override those stored values. When `NULL` (the default), the baseline
+#' arguments come from `...`. Passing an object that is not a `lago` result is
+#' an error, as is passing a `lago` result from an older version of the package
+#' that did not record its call arguments.
 #' @param ... The baseline [lago_optimization()] arguments (the user's own
-#' optimization call). They are forwarded unchanged to every run. Typically the
-#' user copies their `lago_optimization(...)` call in and simply adds
-#' `parameter` and `values`. `include_confidence_set` and `quiet` supplied here
-#' are overridden (see Details).
+#' optimization call). They are forwarded unchanged to every run. When `object`
+#' is not supplied, these are the baseline arguments and the user typically
+#' copies their `lago_optimization(...)` call in and simply adds `parameter` and
+#' `values`. When `object` is supplied, anything here overrides the arguments
+#' stored on the object. `include_confidence_set` and `quiet` supplied here are
+#' overridden (see Details).
 #' @param parameter A single character string naming what to vary. Two modes:
 #' \enumerate{
 #'   \item The name of a scalar numeric argument of [lago_optimization()] that
@@ -100,10 +109,37 @@
 #'
 #' @examples
 #' \donttest{
-#' # How sensitive is the recommendation to the outcome goal? Each run is a
-#' # separate optimization, so this is wrapped in \donttest to keep automated
-#' # checks fast; the confidence set is off internally so it still runs quickly.
+#' # Recommended flow: fit once, then sweep the fitted result. Passing the
+#' # `lago` result reuses its call, so there is no need to retype the
+#' # arguments. Each run is a separate optimization, so this is wrapped in
+#' # \donttest to keep automated checks fast; the confidence set is off
+#' # internally so the sweep still runs quickly.
+#' opt <- lago_optimization(
+#'   data = mtcars,
+#'   outcome_name = "mpg",
+#'   outcome_type = "continuous",
+#'   glm_family = "gaussian",
+#'   link = "identity",
+#'   intervention_components = c("gear", "qsec"),
+#'   intervention_lower_bounds = c(0, 0),
+#'   intervention_upper_bounds = c(10, 350),
+#'   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+#'   outcome_goal = 30,
+#'   outcome_goal_intention = "maximize",
+#'   include_confidence_set = FALSE,
+#'   quiet = TRUE
+#' )
 #' sens <- lago_sensitivity(
+#'   opt,
+#'   parameter = "outcome_goal",
+#'   values = c(30, 35, 40)
+#' )
+#' sens
+#' plot(sens)
+#'
+#' # The same sweep spelled out directly (no fitted object). This is the
+#' # equivalent long form and gives the same result.
+#' sens2 <- lago_sensitivity(
 #'   data = mtcars,
 #'   outcome_name = "mpg",
 #'   outcome_type = "continuous",
@@ -117,24 +153,13 @@
 #'   parameter = "outcome_goal",
 #'   values = c(30, 35, 40)
 #' )
-#' sens
-#' plot(sens)
 #'
 #' # How sensitive is it to the assumed costs? A uniform rescaling never changes
 #' # which intervention is cheapest, so the recommendation is unchanged and the
-#' # cost scales linearly with the multiplier.
+#' # cost scales linearly with the multiplier. `...` overrides on top of the
+#' # fitted object are used here to switch the swept parameter.
 #' cost_sens <- lago_sensitivity(
-#'   data = mtcars,
-#'   outcome_name = "mpg",
-#'   outcome_type = "continuous",
-#'   glm_family = "gaussian",
-#'   link = "identity",
-#'   intervention_components = c("gear", "qsec"),
-#'   intervention_lower_bounds = c(0, 0),
-#'   intervention_upper_bounds = c(10, 350),
-#'   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
-#'   outcome_goal = 40,
-#'   outcome_goal_intention = "maximize",
+#'   opt,
 #'   parameter = "cost_multiplier",
 #'   values = c(0.8, 1, 1.2)
 #' )
@@ -144,8 +169,36 @@
 #' @family LAGO functions
 #' @seealso [lago_optimization()]
 #' @export
-lago_sensitivity <- function(..., parameter, values, quiet = TRUE) {
-  dots <- list(...)
+lago_sensitivity <- function(object = NULL, ..., parameter, values,
+                             quiet = TRUE) {
+  # The baseline lago_optimization() arguments come from one of two sources. If
+  # a fitted `lago` result is supplied, they are read from the call arguments it
+  # carries (attr(object, "lago_call_args")) and anything in `...` overrides
+  # them, so the user can tweak on top without retyping the whole call.
+  # Otherwise they come straight from `...` (the original behavior). Either way
+  # `dots` ends up holding the baseline arguments and the sweep below is
+  # identical.
+  if (!is.null(object)) {
+    if (!inherits(object, "lago")) {
+      stop(paste(
+        "`object` must be a `lago` result from lago_optimization(). Pass the",
+        "lago_optimization() arguments directly if you do not have one."
+      ))
+    }
+    stored <- attr(object, "lago_call_args")
+    if (is.null(stored)) {
+      stop(paste(
+        "`object` does not carry its call arguments (it was created by an",
+        "older version of lago_optimization()). Refit with the current version",
+        "of the package, or pass the lago_optimization() arguments directly."
+      ))
+    }
+    overrides <- list(...)
+    dots <- stored
+    for (nm in names(overrides)) dots[[nm]] <- overrides[[nm]]
+  } else {
+    dots <- list(...)
+  }
 
   # --- validate `parameter` -------------------------------------------------
   if (missing(parameter) || !is.character(parameter) ||

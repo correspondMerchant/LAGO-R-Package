@@ -229,6 +229,9 @@
 #' overall intervention test results (test_results), a list with the test
 #' statistic and p-value; NULL unless a valid 'group' column is supplied.
 #' The confidence set fields are only present when include_confidence_set = TRUE.)
+#' The result also carries its own call arguments in the attribute
+#' `"lago_call_args"` (not a `$`-accessible field), so it can be passed directly
+#' to [lago_sensitivity()] to sweep one input without retyping the call.
 #'
 #' @examples
 #' # Basic case showing how to carry out the optimization with
@@ -332,13 +335,26 @@ lago_optimization <- function(
     prev_recommended_interventions = NULL,
     shrinkage_threshold = 0.25,
     quiet = FALSE) {
+  # Capture the evaluated arguments the user effectively called with, before any
+  # of them are reassigned below (e.g. the glm_family/link "default" resolution
+  # inside validate_inputs, unpacked by list2env). There is no `...`, so this
+  # records every formal, with defaults filled in. It is attached to the result
+  # as an attribute at the end (see the return) rather than a list element, so
+  # it does not disturb the printed output, the documented $-accessible fields,
+  # or the list's named-element set, and lets lago_sensitivity() reuse the call.
+  captured_args <- mget(names(formals()))
+
   if (!quiet) cli::cli_alert_info("Starting LAGO Optimization")
 
   if (!quiet) cli::cli_alert_info("Validating inputs...")
-  # validate and preapre inputs
+  # validate and preapre inputs. captured_args is a local we added above for the
+  # returned attribute, not a validate_inputs() formal, so drop it from the
+  # environment snapshot; otherwise it is passed as an unused argument and errors.
+  validation_args <- as.list(environment())
+  validation_args$captured_args <- NULL
   inputs <- do.call(
     validate_inputs,
-    as.list(environment())
+    validation_args
   )
   if (!quiet) Sys.sleep(0.25)
   if (!quiet) cli::cli_alert_success("Done")
@@ -612,6 +628,11 @@ lago_optimization <- function(
   # S3 class so print()/summary()/plot() dispatch. The object is still a plain
   # list, so existing $/[[/names access is unchanged.
   class(result) <- "lago"
+
+  # Carry the captured call arguments so the result can be passed straight to
+  # lago_sensitivity() without retyping the call. An attribute keeps them off
+  # the printed output and out of the documented $-accessible fields.
+  attr(result, "lago_call_args") <- captured_args
 
   # Non-quiet in-run summary renders through the SAME formatter as print.lago,
   # so the in-run output and an explicit print(result) are byte-identical. The
