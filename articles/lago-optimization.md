@@ -8,10 +8,10 @@ library(LAGOtrials)
 Learn-As-you-GO (LAGO) trials adapt a multi-component intervention as
 the trial proceeds. At each stage the intervention is refined using the
 data collected so far, so that the next stage moves toward an
-intervention that is effective and affordable. The `LAGO` package fits
-the outcome model, recommends the lowest-cost intervention package that
-is expected to meet an outcome goal (and, optionally, a power goal), and
-computes a confidence set for that recommendation.
+intervention that is effective and affordable. The `LAGOtrials` package
+fits the outcome model, recommends the lowest-cost intervention package
+that is expected to meet an outcome goal (and, optionally, a power
+goal), and computes a confidence set for that recommendation.
 
 This vignette walks through a single optimization on the BetterBirth
 data that ships with the package. For the full argument reference see
