@@ -1,5 +1,6 @@
 # LAGO 1.1.0
 
+* Added an MCP (Model Context Protocol) server to the Python package (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity` as tools any MCP-aware AI agent can call, plus a `sensitivity()` function in the Python wrapper.
 * Added `lago_sensitivity()`, which re-runs an optimization across a sweep of one input (an outcome or power goal, or a `"cost_multiplier"` that scales all costs) and reports how the recommended intervention, its cost, and the estimated outcome move, with `print()` and `plot()` methods.
 * The package is now installed and loaded as `LAGOtrials` (call `library(LAGOtrials)`); the previous `LAGO` identifier clashed with an archived CRAN package. Function names, the `lago` result class, and the LAGO method name are unchanged.
 * `visualize_cost()` now stores the returned cost list in the `lago_cost_list` option instead of assigning it to the global environment; retrieve it with `getOption("lago_cost_list")`.
