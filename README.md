@@ -24,8 +24,10 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 5. [Sensitivity analysis](#sensitivity-analysis)
 6. [How to run additional examples](#how-to-run-additional-examples)
 7. [Using LAGO from Python](#using-lago-from-python)
-8. [Relevant LAGO papers](#relevant-lago-papers)
-9. [How to get help](#how-to-get-help)
+8. [Using LAGO with AI agents](#using-lago-with-ai-agents)
+9. [Relevant LAGO papers](#relevant-lago-papers)
+10. [Citation](#citation)
+11. [How to get help](#how-to-get-help)
 
 
 ## How to install the R package
@@ -443,6 +445,16 @@ cost_list = lago.visualize_cost(
 ```
 
 The Python package also ships an [MCP](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity` as tools any MCP-aware AI agent can call. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for installation, the MCP server, and the full API.
+
+## Using LAGO with AI agents
+
+LAGO ships two ways to drive it from AI coding agents.
+
+**Agent skill.** [`skills/lagotrials`](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills/lagotrials) is an [agent skill](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills) (a `SKILL.md` of curated instructions and triggers) that teaches an agent how to use the package: the `lago_optimization()` workflow, goal modes, cost functions, confidence sets, common errors, and the result object. Copy the skill directory into your agent's skills path (for example `.claude/skills/` for Claude Code) and it loads automatically when a task matches. This teaches the agent; it does not run anything.
+
+**MCP server.** The Python package ships a [Model Context Protocol](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity` as tools an MCP-aware agent can call to actually run LAGO. It reuses the Python wrapper, so R and the installed LAGO R package are required. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for the client configuration.
+
+In short: the skill tells an agent how to use LAGO, the MCP server lets it execute LAGO.
 
 ## Relevant LAGO papers
 1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)
