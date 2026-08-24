@@ -84,7 +84,9 @@
 <li><a href="#sensitivity-analysis">Sensitivity analysis</a></li>
 <li><a href="#how-to-run-additional-examples">How to run additional examples</a></li>
 <li><a href="#using-lago-from-python">Using LAGO from Python</a></li>
+<li><a href="#using-lago-with-ai-agents">Using LAGO with AI agents</a></li>
 <li><a href="#relevant-lago-papers">Relevant LAGO papers</a></li>
+<li><a href="#citation">Citation</a></li>
 <li><a href="#how-to-get-help">How to get help</a></li>
 </ol>
 </div>
@@ -444,6 +446,14 @@ First rows of the confidence set (use $cs for all):
 <span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
 <span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a>)</span></code></pre></div>
 <p>The Python package also ships an <a href="https://modelcontextprotocol.io/" class="external-link">MCP</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>optimize</code> and <code>sensitivity</code> as tools any MCP-aware AI agent can call. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for installation, the MCP server, and the full API.</p>
+</div>
+<div class="section level2">
+<h2 id="using-lago-with-ai-agents">Using LAGO with AI agents<a class="anchor" aria-label="anchor" href="#using-lago-with-ai-agents"></a>
+</h2>
+<p>LAGO ships two ways to drive it from AI coding agents.</p>
+<p><strong>Agent skill.</strong> <a href="https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills/lagotrials" class="external-link"><code>skills/lagotrials</code></a> is an <a href="https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills" class="external-link">agent skill</a> (a <code>SKILL.md</code> of curated instructions and triggers) that teaches an agent how to use the package: the <code><a href="reference/lago_optimization.html">lago_optimization()</a></code> workflow, goal modes, cost functions, confidence sets, common errors, and the result object. Copy the skill directory into your agent’s skills path (for example <code>.claude/skills/</code> for Claude Code) and it loads automatically when a task matches. This teaches the agent; it does not run anything.</p>
+<p><strong>MCP server.</strong> The Python package ships a <a href="https://modelcontextprotocol.io/" class="external-link">Model Context Protocol</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>optimize</code> and <code>sensitivity</code> as tools an MCP-aware agent can call to actually run LAGO. It reuses the Python wrapper, so R and the installed LAGO R package are required. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for the client configuration.</p>
+<p>In short: the skill tells an agent how to use LAGO, the MCP server lets it execute LAGO.</p>
 </div>
 <div class="section level2">
 <h2 id="relevant-lago-papers">Relevant LAGO papers<a class="anchor" aria-label="anchor" href="#relevant-lago-papers"></a>
