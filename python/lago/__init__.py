@@ -9,8 +9,9 @@ Requirements at runtime: a working R installation, the ``LAGO`` R package
 installed in R, plus rpy2 and pandas on the Python side. This is NOT an R-free
 install; it gives Python users LAGO's API in Python syntax.
 
-Exposed functions (mirroring the 4 exported R functions):
+Exposed functions (mirroring the exported R functions):
     optimize()           -> lago_optimization()
+    sensitivity()        -> lago_sensitivity()
     get_confidence_set() -> get_confidence_set()
     visualize_cost()     -> visualize_cost()   (opens a browser, BLOCKS)
     lago_report()        -> lago_report()
@@ -22,6 +23,7 @@ from . import _bridge
 
 __all__ = [
     "optimize",
+    "sensitivity",
     "get_confidence_set",
     "visualize_cost",
     "lago_report",
@@ -103,6 +105,104 @@ def optimize(
 
     result = _bridge.call_lago("lago_optimization", call_kwargs)
     return _bridge.lago_result_to_dict(result)
+
+
+def sensitivity(
+    data,
+    outcome_name,
+    outcome_type,
+    intervention_components,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
+    parameter,
+    values,
+    outcome_goal=None,
+    cost_list=None,
+    quiet=True,
+    **kwargs,
+):
+    """Run a LAGO sensitivity sweep by calling R's ``lago_sensitivity()``.
+
+    This mirrors :func:`optimize`'s argument handling (same baseline
+    optimization arguments, same ``cost_list`` -> ``cost_list_of_vectors``
+    mapping, same ``**kwargs`` pass-through) and adds the two arguments that
+    describe the sweep: ``parameter`` and ``values``. Each swept value triggers
+    one full ``lago_optimization()`` run (with the confidence set forced off on
+    the R side for speed), and the recommendation, its cost, and the estimated
+    outcome are reported per run.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        The input dataset. Converted to an R ``data.frame``.
+    outcome_name : str
+        Name of the outcome column.
+    outcome_type : str
+        ``"binary"`` or ``"continuous"``.
+    intervention_components : list[str]
+        Names of the intervention component columns.
+    intervention_lower_bounds, intervention_upper_bounds : list[float]
+        Per-component bounds.
+    parameter : str
+        What to vary. Either the name of a scalar numeric argument of
+        ``lago_optimization()`` that affects the recommendation (for example
+        ``"outcome_goal"``, ``"power_goal"``, ``"shrinkage_threshold"``) or the
+        special string ``"cost_multiplier"`` (each run multiplies every cost
+        coefficient by one element of ``values``; requires ``cost_list`` and all
+        ``values`` positive).
+    values : list[float]
+        A non-empty list of finite numbers. One run per element.
+    outcome_goal : float, optional
+        The desired outcome level, forwarded as the baseline for every run.
+        When sweeping ``parameter="outcome_goal"`` it is overridden per run, so
+        it need not be supplied in that case.
+    cost_list : list[list[float]], optional
+        The cost-function coefficients per component, as a Python list of
+        lists. Maps to R's ``cost_list_of_vectors``. Required when
+        ``parameter="cost_multiplier"``.
+    quiet : bool, default True
+        Suppress R's paced console output. Forwarded to each run.
+    **kwargs
+        Any other argument of ``lago_optimization()`` is passed through
+        verbatim as a baseline argument (e.g. ``glm_family``, ``link``,
+        ``center_characteristics``, ``power_goal``,
+        ``outcome_goal_intention``, ...).
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per element of ``values``, matching R's ``lago_sensitivity()``
+        ``data.frame``: a ``value`` column, one numeric column per intervention
+        component (named by the component) holding its recommended value, a
+        ``rec_int_cost`` column, an ``est_outcome_goal`` column, and a
+        ``status`` column (``"ok"`` for a successful run, ``"error"``
+        otherwise). Returning a ``pandas.DataFrame`` is consistent with how
+        :func:`optimize` surfaces R ``data.frame`` fields (e.g. the confidence
+        set ``cs``) via :func:`_bridge.r_to_py`.
+    """
+    call_kwargs = dict(
+        data=data,
+        outcome_name=outcome_name,
+        outcome_type=outcome_type,
+        intervention_components=intervention_components,
+        intervention_lower_bounds=intervention_lower_bounds,
+        intervention_upper_bounds=intervention_upper_bounds,
+        quiet=quiet,
+    )
+    if outcome_goal is not None:
+        call_kwargs["outcome_goal"] = outcome_goal
+    if cost_list is not None:
+        call_kwargs["cost_list_of_vectors"] = cost_list
+    call_kwargs.update(kwargs)
+    # parameter/values name the sweep. They match lago_sensitivity()'s named
+    # formals (they follow `...` in the R signature but are supplied by exact
+    # name, so R binds them to the formals rather than swallowing them into the
+    # forwarded baseline `...`).
+    call_kwargs["parameter"] = parameter
+    call_kwargs["values"] = values
+
+    result = _bridge.call_lago("lago_sensitivity", call_kwargs)
+    return _bridge.r_sensitivity_to_df(result)
 
 
 def get_confidence_set(

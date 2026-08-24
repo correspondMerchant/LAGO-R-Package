@@ -442,7 +442,7 @@ cost_list = lago.visualize_cost(
 )
 ```
 
-See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for installation and the full API.
+The Python package also ships an [MCP](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity` as tools any MCP-aware AI agent can call. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for installation, the MCP server, and the full API.
 
 ## Relevant LAGO papers
 1. [Nevo D, Lok JJ, Spiegelman D. ANALYSIS OF "LEARN-AS-YOU-GO" (LAGO) STUDIES. Ann Stat. 2021 Apr;49(2):793-819. doi: 10.1214/20-aos1978. Epub 2021 Apr 2. PMID: 35510045; PMCID: PMC9067111.](https://pmc.ncbi.nlm.nih.gov/articles/PMC9067111/pdf/nihms-1761299.pdf)

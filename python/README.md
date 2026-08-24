@@ -116,6 +116,84 @@ cost_list = lago.visualize_cost(
 # Closing the browser tab instead returns nothing.
 ```
 
+## MCP server
+
+An optional [Model Context Protocol](https://modelcontextprotocol.io/) server
+(`lago.mcp_server`) exposes LAGO as callable tools so any MCP-aware agent (Claude
+Desktop, Claude Code, ...) can run optimizations. It is a thin front end over the
+`lago` wrapper, so it adds ZERO impact to the R package and does no LAGO math of
+its own.
+
+**Honest caveat:** because it reuses the `lago` wrapper, the MCP server EMBEDS R
+via rpy2. A working R installation and the `LAGOtrials` R package are REQUIRED at
+runtime, exactly as for the wrapper. It is **not** an R-free install.
+
+### Tools exposed
+
+- **`optimize`** — runs one LAGO optimization. Pass the data as EXACTLY ONE of
+  `data_csv` (a path to a CSV file) or `data_records` (a list of row dicts), plus
+  the typed optimization args (`outcome_name`, `outcome_type`,
+  `intervention_components`, `intervention_lower_bounds`,
+  `intervention_upper_bounds`, `cost_list_of_vectors`, `outcome_goal` /
+  `power_goal`, ...). Returns `rec_int`, `rec_int_cost`, `est_outcome_goal`, and,
+  when a confidence set is computed, `est_outcome_ci`,
+  `confidence_set_size_percentage`, and `confidence_set`.
+- **`sensitivity`** — sweeps one input (`parameter` + `values`) and returns one
+  record per swept value (`value`, the recommended value per component,
+  `rec_int_cost`, `est_outcome_goal`, `status`). `parameter` is a scalar numeric
+  optimization argument (e.g. `"outcome_goal"`) or the special
+  `"cost_multiplier"`.
+
+`visualize_cost` (opens a blocking browser app) and `lago_report` (writes an HTML
+file) are intentionally **not** exposed: neither maps cleanly onto a
+request/response tool call.
+
+### Install
+
+```bash
+# base install + the mcp extra (from the repo root)
+pip install -e "python[mcp]"
+# or, inside python/: pip install -e ".[mcp]"
+```
+
+R and the `LAGOtrials` R package must be installed (rpy2 embeds R). Point rpy2 at
+your R as in the environment note above (`R_HOME`, `R_LIBS`, `LD_LIBRARY_PATH`).
+
+### Run
+
+```bash
+python -m lago.mcp_server      # or the console script: lago-mcp
+```
+
+The server speaks the stdio transport (FastMCP's default), so an MCP client
+launches it as a subprocess and talks JSON-RPC over stdin/stdout.
+
+### Client config
+
+Add a stanza like this to your MCP client's config (for example Claude Desktop's
+`claude_desktop_config.json`, or a Claude Code `.mcp.json`). Set the `env` so
+rpy2 can find your R (adjust the paths to your R install):
+
+```json
+{
+  "mcpServers": {
+    "lago": {
+      "command": "python",
+      "args": ["-m", "lago.mcp_server"],
+      "env": {
+        "R_HOME": "/path/to/R/lib/R",
+        "R_LIBS": "/path/to/R/lib/R/library",
+        "LD_LIBRARY_PATH": "/path/to/R/lib"
+      }
+    }
+  }
+}
+```
+
+Point `command` at the Python interpreter that has `lago-python[mcp]` installed
+(use its absolute path, e.g. a venv/conda `python`, if it is not on the client's
+`PATH`).
+
 ## What does not convert cleanly
 
 - The fitted outcome `model` (an R `glm` object) is returned as the raw rpy2

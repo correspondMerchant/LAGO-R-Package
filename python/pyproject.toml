@@ -23,6 +23,12 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
+# The MCP server is optional: the base install does NOT require mcp. FastMCP
+# lives in the 1.x line (2.x dropped it), so pin below 2.
+mcp = ["mcp>=1.9,<2"]
+
+[project.scripts]
+lago-mcp = "lago.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/correspondMerchant/LAGO-R-Package"
