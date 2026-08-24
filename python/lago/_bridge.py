@@ -267,6 +267,33 @@ def call_lago(name: str, kwargs: dict):
     return rfunc(**r_kwargs)
 
 
+def r_sensitivity_to_df(result):
+    """Convert an R ``lago_sensitivity`` result to a pandas ``DataFrame``.
+
+    ``lago_sensitivity()`` returns a ``data.frame`` that carries an extra S3
+    class (``"lago_sensitivity"``). :func:`r_to_py` already maps an R
+    ``data.frame`` to a ``pandas.DataFrame``; this thin, well-named wrapper
+    reuses it and additionally tolerates the case where the extra class keeps
+    rpy2 from tagging the object as a ``DataFrame`` (then :func:`r_to_py`
+    yields a column dict, which is rebuilt into a ``DataFrame`` with the column
+    order preserved).
+    """
+    import pandas as pd
+
+    out = r_to_py(result)
+    if isinstance(out, pd.DataFrame):
+        return out
+    if isinstance(out, dict):
+        # A named R list converts to {column_name: list}; the dict preserves
+        # the R column order, so the DataFrame keeps value / <components> /
+        # rec_int_cost / est_outcome_goal / status in order.
+        return pd.DataFrame({k: v for k, v in out.items()})
+    raise TypeError(
+        "lago_sensitivity() result did not convert to a data.frame; got "
+        "{}".format(type(out).__name__)
+    )
+
+
 def lago_result_to_dict(result) -> dict:
     """Convert a "lago" result object into a Python dict.
 

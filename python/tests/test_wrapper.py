@@ -324,6 +324,73 @@ def test_optimize_confidence_set_is_dataframe(bb_data):
 
 
 # --------------------------------------------------------------------------
+# sensitivity(): mirrors optimize()'s arg handling and calls lago_sensitivity()
+# --------------------------------------------------------------------------
+def _bb_sensitivity_kwargs():
+    """Baseline BB_data optimization args for a sensitivity sweep (the
+    confidence-set-only args are dropped: the sweep forces it off)."""
+    kw = _bb_kwargs()
+    cost = kw.pop("cost_list")
+    kw.pop("confidence_set_grid_step_size", None)
+    return kw, cost
+
+
+def test_sensitivity_outcome_goal_sweep(bb_data):
+    """The sweep returns a DataFrame with one row per value, holding
+    value / <component> / rec_int_cost / est_outcome_goal / status."""
+    kw, cost = _bb_sensitivity_kwargs()
+    values = [0.8, 0.85, 0.9]
+    res = lago.sensitivity(
+        data=bb_data,
+        parameter="outcome_goal",
+        values=values,
+        cost_list=cost,
+        **kw,
+    )
+    assert isinstance(res, pd.DataFrame)
+    assert len(res) == len(values)
+    for col in ("value", "rec_int_cost", "est_outcome_goal", "status"):
+        assert col in res.columns
+    # one recommended-value column per intervention component
+    assert "coaching_updt" in res.columns
+    assert "launch_duration" in res.columns
+    assert np.allclose(res["value"].to_numpy(dtype=float), values)
+    assert (res["status"] == "ok").all()
+    # non-vacuous: costs are real, finite numbers
+    assert res["rec_int_cost"].notna().all()
+    assert np.isfinite(res["rec_int_cost"].to_numpy(dtype=float)).all()
+
+
+def test_sensitivity_cost_multiplier_argmin_invariant(bb_data):
+    """A uniform cost rescaling never changes which intervention is cheapest,
+    so the recommendation per component is unchanged across the sweep and the
+    cost scales linearly with the multiplier (same invariance as the R test)."""
+    kw, cost = _bb_sensitivity_kwargs()
+    mult = [0.8, 1.0, 1.2]
+    res = lago.sensitivity(
+        data=bb_data,
+        parameter="cost_multiplier",
+        values=mult,
+        cost_list=cost,
+        **kw,
+    )
+    assert isinstance(res, pd.DataFrame)
+    assert len(res) == len(mult)
+    assert (res["status"] == "ok").all()
+
+    comps = ["coaching_updt", "launch_duration"]
+    recs = res[comps].to_numpy(dtype=float)
+    # recommendation per component is invariant to the uniform rescaling
+    assert np.allclose(recs[0], recs[1], atol=1e-4)
+    assert np.allclose(recs[1], recs[2], atol=1e-4)
+    # cost scales linearly off the baseline (multiplier 1.0)
+    costs = res["rec_int_cost"].to_numpy(dtype=float)
+    base = costs[1]
+    assert np.isclose(costs[0], base * 0.8, rtol=1e-4)
+    assert np.isclose(costs[2], base * 1.2, rtol=1e-4)
+
+
+# --------------------------------------------------------------------------
 # 5. visualize_cost: NOT launched (blocking browser app). We verify the
 #    wrapper builds the correct R call / converts args to the right R types.
 # --------------------------------------------------------------------------
