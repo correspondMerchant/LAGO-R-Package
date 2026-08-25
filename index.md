@@ -52,7 +52,8 @@ checks how robust the recommendation is to your assumptions,
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
 helps you choose cost functions for the intervention components, and
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
-renders a self-contained HTML report of an optimization result.
+renders a self-contained, interactive HTML report of an optimization
+result.
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 returns an object of class `"lago"` with
@@ -66,9 +67,9 @@ outcome-model coefficient table, the overall intervention-effect test,
 the recommended intervention with its cost and estimated-outcome
 confidence interval, and the confidence set;
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) visualizes the
-confidence set. `lago_report(result)` writes those same sections, plus
-the confidence-set plot and a session-info footer, to a shareable HTML
-file.
+confidence set. `lago_report(result)` writes those same sections, plus a
+session-info footer, to a shareable HTML file, with the confidence set
+and the cost functions drawn as interactive D3 charts.
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 supports three goal modes: an **outcome goal alone**, a **power goal
@@ -240,7 +241,11 @@ result, run:
     lago_report(results)
 
 This writes a self-contained HTML report with the recommended
-intervention, the confidence set, and the confidence-set plot:
+intervention, the confidence set, and interactive D3 charts: a
+hover-enabled confidence-set plot and, for each intervention component,
+its total-cost and marginal-cost curves. The report is a single offline
+file (D3 is inlined, no CDN or server), so it opens in any browser and
+is easy to share:
 
 ![an example lago_report HTML
 report](reference/figures/lago_report_example.png)
