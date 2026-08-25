@@ -7,6 +7,7 @@ date: "`r format(Sys.time(), '%Y-%m-%d %H:%M')`"
 output:
   html_document:
     self_contained: true
+    mathjax: null
     theme: cosmo
     toc: true
     toc_float: true
@@ -19,17 +20,88 @@ x <- params$x
 # the same blocks as print.lago()/summary.lago() so the two can never drift.
 # It is an internal helper, hence the triple-colon access.
 blocks <- LAGOtrials:::lago_blocks(x)
-# plot.lago() only draws a figure for 1- or 2-component interventions; for 3+
-# components it emits no plot. Gate the plot heading and figure on the same
-# capability so a 3+ component result does not get a dangling, empty
-# "Confidence set plot" section. Mirror plot.lago()'s own component count,
-# which comes from the stored labels (not ncol(cs)).
+
+# The interactive plots are drawn client-side by the vendored D3 v7 library and
+# inst/js/lago-report.js, both inlined below, and are fed a JSON payload built
+# with jsonlite. jsonlite is a Suggests-only dependency; lago_report() guards
+# it, but gate on it here too so rendering the template directly degrades to the
+# static plot rather than erroring when jsonlite is absent.
+have_jsonlite <- requireNamespace("jsonlite", quietly = TRUE)
+
+# The labels that line up with rec_int and the confidence-set component columns:
+# with interaction terms these are the main components (rec_int / cs hold main
+# effects only), otherwise the intervention components. Mirrors plot.lago().
 plot_components <- if (!is.null(x$display_components)) {
   x$display_components
 } else {
   x$intervention_components
 }
-plottable_cs <- !is.null(x$cs) && length(plot_components) %in% 1:2
+n_plot_comp <- length(plot_components)
+cs_present <- !is.null(x$cs)
+
+# Render the confidence set interactively (D3) for a 1- or 2-component
+# intervention when jsonlite is available. When it is not, fall back to the
+# static plot.lago() figure for the same 1-/2-component case. For 3+ components
+# plot.lago() draws nothing, so neither section appears (matching the static
+# report's prior behaviour) and rendering never errors.
+interactive_cs <- have_jsonlite && cs_present && n_plot_comp %in% 1:2
+static_cs <- cs_present && !interactive_cs && n_plot_comp %in% 1:2
+
+# Cost curves are always drawable (cost_list_of_vectors and the bounds are
+# always carried), so the cost section shows whenever jsonlite is available.
+interactive_cost <- have_jsonlite &&
+  !is.null(x$cost_list_of_vectors) &&
+  !is.null(x$intervention_lower_bounds) &&
+  !is.null(x$intervention_upper_bounds)
+
+# Build the single JSON payload the client-side D3 code consumes. I() forces
+# length-1 vectors (a single-component result) to stay JSON arrays under
+# auto_unbox, and digits = NA keeps full numeric precision. cs is emitted
+# row-wise as an array of point objects.
+report_json <- NULL
+if (have_jsonlite) {
+  report_data <- list(
+    components = I(as.character(plot_components)),
+    rec_int = I(as.numeric(x$rec_int)),
+    rec_int_cost = as.numeric(x$rec_int_cost),
+    cs = x$cs,
+    cost = list(
+      # Label the cost curves with the same components the cost vectors are
+      # indexed by: cost_list_of_vectors and the bounds are per MAIN component,
+      # so with interaction terms plot_components (= display_components =
+      # main_components) is the aligned, backtick-free label set, not
+      # x$intervention_components (which is longer and carries the backticked
+      # interaction terms). Identical to intervention_components without them.
+      components = I(as.character(plot_components)),
+      coefs = lapply(x$cost_list_of_vectors, function(v) I(as.numeric(v))),
+      lb = I(as.numeric(x$intervention_lower_bounds)),
+      ub = I(as.numeric(x$intervention_upper_bounds))
+    )
+  )
+  report_json <- jsonlite::toJSON(
+    report_data,
+    auto_unbox = TRUE,
+    dataframe = "rows",
+    na = "null",
+    digits = NA
+  )
+}
+```
+
+```{r assets, results='asis', eval=have_jsonlite}
+# Inline the vendored D3 v7 library and the report's D3 code directly into the
+# HTML (their file CONTENTS inside <script> tags, NOT a <script src=...> link)
+# so the output is a single self-contained file with no external asset
+# references. The JSON payload is stored once in a global the render calls read.
+d3_path <- system.file("js", "d3.v7.min.js", package = "LAGOtrials")
+rpt_path <- system.file("js", "lago-report.js", package = "LAGOtrials")
+cat("<script>\n")
+cat(readLines(d3_path, warn = FALSE), sep = "\n")
+cat("\n</script>\n")
+cat("<script>\n")
+cat(readLines(rpt_path, warn = FALSE), sep = "\n")
+cat("\n</script>\n")
+cat("<script>\nvar LAGO_REPORT_DATA = ", report_json, ";\n</script>\n", sep = "")
 ```
 
 ```{r inputs, results='asis', eval=!is.null(blocks$inputs)}
@@ -103,12 +175,43 @@ knitr::kable(
 )
 ```
 
-```{r plot-heading, results='asis', eval=plottable_cs}
-cat("## Confidence set plot\n")
+```{r cs-plot-interactive, results='asis', eval=interactive_cs}
+# Interactive D3 confidence-set plot (2-component scatter or 1-component strip).
+# The recommended intervention is highlighted and each grid point has a hover
+# read-out of its component values, cost, and CI bounds.
+cat("## Confidence set plot\n\n")
+cat(
+  '<div id="lago-cs-plot" style="width:100%;max-width:760px;"></div>\n',
+  '<script>LAGOReport.renderConfidenceSet("lago-cs-plot",',
+  " LAGO_REPORT_DATA);</script>\n",
+  sep = ""
+)
 ```
 
-```{r plot, eval=plottable_cs, fig.width=7, fig.height=5}
+```{r cs-plot-static, eval=static_cs, fig.width=7, fig.height=5, results='asis'}
+# Static fallback used only when jsonlite is unavailable: the same
+# 1-/2-component confidence-set figure that plot.lago() draws.
+cat("## Confidence set plot\n\n")
 plot(x)
+```
+
+```{r cost-curves, results='asis', eval=interactive_cost}
+# Interactive D3 cost curves: for each intervention component, the total-cost
+# curve and its derivative (marginal cost), each with a hover read-out. The
+# curves use the cost functions the optimization actually ran with.
+cat("## Cost functions\n\n")
+cat(
+  "The total-cost curve and its marginal (per-unit) cost for each ",
+  "intervention component, over the component's optimization range. ",
+  "Hover a curve to read its value.\n\n",
+  sep = ""
+)
+cat(
+  '<div id="lago-cost-curves" style="width:100%;"></div>\n',
+  '<script>LAGOReport.renderCostCurves("lago-cost-curves",',
+  " LAGO_REPORT_DATA);</script>\n",
+  sep = ""
+)
 ```
 
 ## Session info

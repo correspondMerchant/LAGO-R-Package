@@ -41,9 +41,9 @@ The LAGO R package bridges the gap between theoretical advances in Learn-As-you-
 ## The main functions
 The LAGO R package has four user-facing functions `lago_optimization()`, `lago_sensitivity()`, `visualize_cost()`, and `lago_report()`.
 
-`lago_optimization()` carries out the LAGO optimizations, `lago_sensitivity()` checks how robust the recommendation is to your assumptions, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained HTML report of an optimization result.
+`lago_optimization()` carries out the LAGO optimizations, `lago_sensitivity()` checks how robust the recommendation is to your assumptions, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained, interactive HTML report of an optimization result.
 
-`lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` (and the identical `summary()`) shows the full result on the console, including an inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set; `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus the confidence-set plot and a session-info footer, to a shareable HTML file.
+`lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` (and the identical `summary()`) shows the full result on the console, including an inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set; `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus a session-info footer, to a shareable HTML file, with the confidence set and the cost functions drawn as interactive D3 charts.
 
 `lago_optimization()` supports three goal modes: an **outcome goal alone**, a **power goal alone**, or **both together**. At least one of `outcome_goal` or `power_goal` must be provided. When both are provided, the effective outcome goal used for the optimization is the higher of the outcome goal and the outcome level implied by the power goal (the "whichever is higher" rule). A power goal is only supported for binary outcomes and requires a `group` column plus `num_centers_in_next_stage` and `patients_per_center_in_next_stage`; it cannot be combined with `outcome_goal_intention = "minimize"`. When participants are clustered within centers, pass the intra-cluster correlation to `icc` (a single value, or `c(control, treatment)`) and identify the clustering column with `power_goal_cluster_id`. The power calculation then inflates the variance of the test statistic by the design effect, so meeting the same power goal requires a stronger intervention. Without `icc`, the power calculation treats participants as independent.
 
@@ -166,7 +166,7 @@ The recommended intervention is 'gear' = 10 and 'qsec' = 11.96. The console outp
 ```
 lago_report(results)
 ```
-This writes a self-contained HTML report with the recommended intervention, the confidence set, and the confidence-set plot:
+This writes a self-contained HTML report with the recommended intervention, the confidence set, and interactive D3 charts: a hover-enabled confidence-set plot and, for each intervention component, its total-cost and marginal-cost curves. The report is a single offline file (D3 is inlined, no CDN or server), so it opens in any browser and is easy to share:
 
 ![an example lago_report HTML report](man/figures/lago_report_example.png)
 

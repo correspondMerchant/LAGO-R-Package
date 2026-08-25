@@ -1,7 +1,9 @@
-# Runs the standalone JavaScript math test for the client-side cost curves
-# (tests/js/test-cost-math.js), which checks that the D3 curve/drag math in
-# inst/js/cost-curves.js matches the R reference values. Kept out of the R test
-# suite so R CMD check does not depend on a node interpreter.
+# Runs the standalone JavaScript math tests for the client-side D3 code:
+# tests/js/test-cost-math.js checks the curve/drag math in inst/js/cost-curves.js
+# (the visualize_cost() Shiny binding), and tests/js/test-report-math.js checks
+# the cost math copied into inst/js/lago-report.js (the interactive lago_report()
+# renderer). Both match their output against the R reference values. Kept out of
+# the R test suite so R CMD check does not depend on a node interpreter.
 on:
   push:
     branches: [main, master]
@@ -25,3 +27,6 @@ jobs:
 
       - name: Run cost-curve math test
         run: node tests/js/test-cost-math.js
+
+      - name: Run report math test
+        run: node tests/js/test-report-math.js

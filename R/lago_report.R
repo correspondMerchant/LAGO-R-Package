@@ -1,21 +1,39 @@
 #' Generate an HTML report for a LAGO optimization result
 #'
-#' @description Renders a self-contained HTML report for the object returned by
-#' [lago_optimization()]. The report knits a bundled parameterized R Markdown
-#' template and lays out the same sections, in the same order and with the same
-#' labels, as the console methods ([print.lago()] / [summary.lago()]): the
-#' recommended intervention, its cost, the estimated outcome (with its 95\% CI)
-#' and goal, the power goal (when present), the confidence set (size, cost IQR,
-#' and first rows), the overall intervention-effect test (when present), the
-#' fitted outcome-model coefficient table, and the confidence-set plot from
-#' [plot.lago()] (when a confidence set is available). A `sessionInfo()` footer
-#' records the environment the report was produced in.
+#' @description Renders a self-contained, interactive HTML report for the object
+#' returned by [lago_optimization()]. The report knits a bundled parameterized R
+#' Markdown template and lays out the same sections, in the same order and with
+#' the same labels, as the console methods ([print.lago()] / [summary.lago()]):
+#' the recommended intervention, its cost, the estimated outcome (with its 95\%
+#' CI) and goal, the power goal (when present), the confidence set (size, cost
+#' IQR, and first rows), the overall intervention-effect test (when present), and
+#' the fitted outcome-model coefficient table. A `sessionInfo()` footer records
+#' the environment the report was produced in.
 #'
 #' No new statistics are computed; every value is taken verbatim from an
 #' existing field on `x` and formatted exactly as the console output formats it.
 #'
-#' Rendering requires the \pkg{rmarkdown} and \pkg{knitr} packages (listed under
-#' Suggests). If they are not installed, an informative error is raised.
+#' @details The report is interactive and drawn entirely client-side with the
+#' bundled D3 v7 library (`inst/js/d3.v7.min.js`) plus `inst/js/lago-report.js`,
+#' both inlined into the HTML so the output is a single self-contained,
+#' offline file with no external asset references (no CDN, no Shiny, no
+#' additional widget frameworks). It adds two interactive views:
+#'
+#' \itemize{
+#'   \item an interactive confidence-set plot: a hover-enabled scatter for a
+#'     two-component intervention (with the recommended intervention
+#'     highlighted) or a one-dimensional strip for a single component. For 3+
+#'     components, or when the interactive view is not applicable, it falls back
+#'     to the static [plot.lago()] figure; when no confidence set is available
+#'     the section is omitted.
+#'   \item interactive cost curves: for each intervention component, its
+#'     total-cost curve and marginal (per-unit) cost curve, each with a hover
+#'     read-out, drawn from the result's cost functions and bounds.
+#' }
+#'
+#' Rendering requires the \pkg{rmarkdown}, \pkg{knitr}, and \pkg{jsonlite}
+#' packages (all listed under Suggests). If they are not installed, an
+#' informative error is raised.
 #'
 #' @param x A "lago" object returned by [lago_optimization()].
 #' @param output_file A character string. The path to write the HTML report to.
@@ -67,10 +85,13 @@ lago_report <- function(x,
     ))
   }
 
-  # rmarkdown + knitr are Suggests-only, so guard before touching them.
-  missing_pkgs <- c("rmarkdown", "knitr")[
+  # rmarkdown + knitr render the template; jsonlite serializes the data the
+  # interactive D3 plots read. All three are Suggests-only, so guard before
+  # touching them.
+  needed_pkgs <- c("rmarkdown", "knitr", "jsonlite")
+  missing_pkgs <- needed_pkgs[
     !vapply(
-      c("rmarkdown", "knitr"),
+      needed_pkgs,
       requireNamespace,
       logical(1),
       quietly = TRUE
