@@ -198,8 +198,16 @@ plot(result)
       outEl.textContent = "";
       plotsEl.innerHTML = "";
       try {
+        // captureConditions: false is important. The lago print/summary methods
+        // write their sections with the cli package, which emits them as R
+        // conditions. With the default (captureConditions: true) webR returns
+        // those as condition objects that this page would drop, so the
+        // recommendation, cost and confidence-set summary would go missing and
+        // only the plain-printed model and table would show. Turning it off
+        // routes cli and message() output to the text stream we display.
         const capture = await shelter.captureR(codeEl.value, {
           withAutoprint: true,
+          captureConditions: false,
           captureGraphics: { width: 800, height: 500 },
         });
         try {
