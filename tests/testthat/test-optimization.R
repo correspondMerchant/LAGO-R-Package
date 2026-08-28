@@ -13,7 +13,7 @@ test_that("BB_data binary reproduces the Nevo et al. recommendation", {
     center_characteristics_optimization_values = 1.75,
     intervention_lower_bounds = c(1, 1),
     intervention_upper_bounds = c(40, 5),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
     outcome_goal = 0.85,
     outcome_goal_intention = "maximize",
     confidence_set_grid_step_size = c(1, 0.5)
@@ -22,7 +22,7 @@ test_that("BB_data binary reproduces the Nevo et al. recommendation", {
   expect_equal(res$rec_int[1], 1, tolerance = 1e-3)
   expect_equal(res$rec_int[2], 2.77847, tolerance = 1e-3)
   expect_equal(res$est_outcome_goal, 0.85, tolerance = 1e-3)
-  expect_equal(res$rec_int_cost, 23.9278, tolerance = 1e-2)
+  expect_equal(res$rec_int_cost, 23927.8, tolerance = 1e-2)
   # confidence set size (regression pin from current output; ~10.5% is
   # consistent with the ~10.5% reported in Nevo et al.)
   expect_equal(res$confidence_set_size_percentage, 0.10556, tolerance = 1e-3)
@@ -119,7 +119,7 @@ test_that("the overall test result is returned (not just printed) when a group c
     center_characteristics = "birth_volume_100",
     center_characteristics_optimization_values = 1.75,
     intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
     outcome_goal = 0.85, outcome_goal_intention = "maximize"
   )
   # returned both when the confidence set is skipped ...
@@ -278,7 +278,7 @@ test_that("a rank-deficient fit is named as such, not sent to grid_search", {
       intervention_components = c("coaching_updt", "launch_duration"),
       intervention_lower_bounds = c(1, 1),
       intervention_upper_bounds = c(40, 5),
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       outcome_goal = 0.85,
       include_center_effects = TRUE,
       include_time_effects = TRUE,
@@ -321,7 +321,7 @@ test_that("a rank-deficient fit is named as such, not sent to grid_search", {
       intervention_components = c("coaching_updt", "launch_duration"),
       intervention_lower_bounds = c(1, 1),
       intervention_upper_bounds = c(40, 5),
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       outcome_goal = 0.85,
       include_center_effects = TRUE,
       include_time_effects = TRUE,
@@ -362,7 +362,7 @@ test_that("a rank-deficient fit is named as such, not sent to grid_search", {
     intervention_components = c("coaching_updt", "launch_duration"),
     intervention_lower_bounds = c(1, 1),
     intervention_upper_bounds = c(40, 5),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
     outcome_goal = 0.85,
     include_center_effects = TRUE,
     include_time_effects = TRUE,
@@ -387,7 +387,7 @@ test_that("a rank-deficient fit is named as such, not sent to grid_search", {
     intervention_components = c("coaching_updt", "launch_duration"),
     intervention_lower_bounds = c(1, 1),
     intervention_upper_bounds = c(40, 5),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
     outcome_goal = 0.85,
     optimization_method = "grid_search",
     optimization_grid_search_step_size = c(10, 2),

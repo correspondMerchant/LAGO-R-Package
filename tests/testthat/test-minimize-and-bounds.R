@@ -40,7 +40,7 @@ bb_config <- function(outcome_goal,
                       outcome_goal_intention,
                       intervention_lower_bounds = c(1, 1),
                       intervention_upper_bounds = c(40, 5),
-                      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+                      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
                       optimization_method = "numerical",
                       optimization_grid_search_step_size = NULL,
                       include_confidence_set = FALSE,
@@ -128,7 +128,7 @@ bb_three_component_config <- function() {
     ),
     intervention_lower_bounds = c(1, 1, 1),
     intervention_upper_bounds = c(41, 6, 11),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8), c(0, 2)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000), c(0, 2000)),
     outcome_goal = 0.95,
     outcome_goal_intention = "maximize",
     optimization_method = "numerical",
@@ -492,13 +492,13 @@ test_that("an empty shrink bracket falls back to stage 1, not to the upper corne
       tolerance = 1e-12, info = method
     )
     # and NOT the corner. Stated separately because it is the actual failure
-    # mode and it is worth naming: c(40, 5) costs 108, nearly 5x the 22.22 the
+    # mode and it is worth naming: c(40, 5) costs 108000, nearly 5x the 22220 the
     # stage-1 fallback costs, and both are inside the bounds.
     expect_false(
       isTRUE(all.equal(as.numeric(res$rec_int), c(40, 5), tolerance = 1e-6)),
       info = method
     )
-    expect_lt(res$rec_int_cost, 30)
+    expect_lt(res$rec_int_cost, 30000)
   }
 
   # The same guard at the unit level, where the three cases are pure and cheap
@@ -606,13 +606,13 @@ test_that("the numerical optimizer picks the cheapest in-box restart", {
   # the existing tests never saw this. A cubic cost (the package's own default
   # cost shape, built by cost_fxn_calculator()) makes the restarts land in
   # genuinely different places, and the spread is large: the cheapest restart
-  # costs 20.05 and the most expensive 39.16. Selecting the wrong end is then
+  # costs 22422 and the most expensive 50291. Selecting the wrong end is then
   # unmistakable.
   cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(40, 5),
-    unit_costs = c(1.7, 8),
+    unit_costs = c(1700, 8000),
     default_cost_fxn_type = "cubic"
   )
 
@@ -625,9 +625,9 @@ test_that("the numerical optimizer picks the cheapest in-box restart", {
   # the goal is still met, so this is a comparison among feasible candidates.
   expect_equal(res$est_outcome_goal, 0.85, tolerance = 1e-6)
   # the cheap solution, not the expensive one. which.max returned
-  # c(18.597, 2.347) at cost 39.157 for this exact configuration.
+  # c(18.597, 2.347) at cost 50291 for this exact configuration.
   expect_equal(res$rec_int, c(0, 2.803008), tolerance = 1e-5)
-  expect_equal(res$rec_int_cost, 20.047258, tolerance = 1e-5)
+  expect_equal(res$rec_int_cost, 22421.687427, tolerance = 1e-5)
 
   # a grid search over the same problem cannot beat the numerical optimum by
   # more than one grid step's worth of cost. This is the optimizer-independent
@@ -665,7 +665,7 @@ test_that("rec_int_cost is the cost of the returned rec_int", {
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(40, 5),
-    unit_costs = c(1.7, 8),
+    unit_costs = c(1700, 8000),
     default_cost_fxn_type = "cubic"
   )
 
@@ -725,7 +725,7 @@ test_that("unit_costs and the equivalent cost_list_of_vectors agree", {
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
     intervention_upper_bounds = c(40, 5),
-    unit_costs = c(1.7, 8),
+    unit_costs = c(1700, 8000),
     default_cost_fxn_type = "cubic"
   )
 
@@ -738,7 +738,7 @@ test_that("unit_costs and the equivalent cost_list_of_vectors agree", {
     intervention_lower_bounds = c(0, 0)
   )
   from_unit_costs_args$cost_list_of_vectors <- NULL
-  from_unit_costs_args$unit_costs <- c(1.7, 8)
+  from_unit_costs_args$unit_costs <- c(1700, 8000)
   from_unit_costs_args$default_cost_fxn_type <- "cubic"
   from_unit_costs <- run_lago(from_unit_costs_args)
 
@@ -747,5 +747,5 @@ test_that("unit_costs and the equivalent cost_list_of_vectors agree", {
     tolerance = 1e-8
   )
   # and the cheap end, not the expensive end, on this path as well.
-  expect_equal(from_unit_costs$rec_int_cost, 20.047258, tolerance = 1e-5)
+  expect_equal(from_unit_costs$rec_int_cost, 22421.687427, tolerance = 1e-5)
 })

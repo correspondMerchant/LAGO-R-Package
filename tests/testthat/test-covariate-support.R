@@ -48,7 +48,7 @@ covariate_confidence_set <- function(bb, covariate) {
     intervention_lower_bounds = c(1, 1),
     intervention_upper_bounds = c(40, 5),
     confidence_set_grid_step_size = c(10, 2),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
     rec_int = c(1, 2.77847)
   )
 }
@@ -106,7 +106,7 @@ test_that("the warning fires exactly once, listing every offending covariate", {
       intervention_lower_bounds = c(1, 1),
       intervention_upper_bounds = c(40, 5),
       confidence_set_grid_step_size = c(10, 2),
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       rec_int = c(1, 2.77847)
     )
   }
@@ -198,7 +198,7 @@ test_that("no additional covariates means no warning", {
       intervention_lower_bounds = c(1, 1),
       intervention_upper_bounds = c(40, 5),
       confidence_set_grid_step_size = c(10, 2),
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       rec_int = c(1, 2.77847)
     )
   }
@@ -232,7 +232,7 @@ test_that("the warning changes no returned value (it is diagnostic only)", {
       intervention_lower_bounds = c(1, 1),
       intervention_upper_bounds = c(40, 5),
       confidence_set_grid_step_size = c(10, 2),
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       rec_int = c(1, 2.77847)
     )
   }
