@@ -33,6 +33,40 @@ test_that("BB_data binary reproduces the Nevo et al. recommendation", {
   ))
 })
 
+test_that("the recommendation is invariant to the scale of the costs", {
+  # The recommended intervention minimizes cost, so multiplying every cost by a
+  # positive constant (e.g. quoting costs in thousands rather than in ones) must
+  # not change it. The numerical optimizer NlcOptim::solnl() is not scale-
+  # invariant on its own -- the un-normalized x1000 objective converged to a
+  # different, costlier point on some platforms -- so get_recommended_
+  # interventions() normalizes the objective. This pins that behaviour: the
+  # recommendation and confidence set are identical at 1x and 1000x costs, and
+  # only the cost is 1000x apart.
+  run <- function(cost_list) {
+    suppressWarnings(suppressMessages(lago_optimization(
+      data = BB_data,
+      outcome_name = "pp3_oxytocin_mother",
+      outcome_type = "binary",
+      intervention_components = c("coaching_updt", "launch_duration"),
+      intervention_lower_bounds = c(1, 1),
+      intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = cost_list,
+      outcome_goal = 0.85,
+      outcome_goal_intention = "maximize",
+      confidence_set_grid_step_size = c(1, 1),
+      quiet = TRUE
+    )))
+  }
+  base <- run(list(c(0, 1.7), c(0, 8)))
+  scaled <- run(list(c(0, 1700), c(0, 8000)))
+
+  expect_equal(scaled$rec_int, base$rec_int, tolerance = 1e-6)
+  expect_equal(scaled$rec_int_cost, 1000 * base$rec_int_cost, tolerance = 1e-6)
+  # confidence-set membership (the component columns) is unchanged
+  comps <- c("coaching_updt", "launch_duration")
+  expect_equal(scaled$cs[comps], base$cs[comps])
+})
+
 test_that("mtcars continuous (identity link) is stable", {
   res <- suppressWarnings(suppressMessages(lago_optimization(
     data = mtcars,
