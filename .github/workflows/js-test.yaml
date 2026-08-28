@@ -30,3 +30,6 @@ jobs:
 
       - name: Run report math test
         run: node tests/js/test-report-math.js
+
+      - name: Run webR demo wiring test
+        run: node tests/js/test-webr-demo.js

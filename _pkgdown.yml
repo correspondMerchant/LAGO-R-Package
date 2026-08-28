@@ -9,7 +9,12 @@ authors:
 
 navbar:
   structure:
+    left: [reference, articles, news, demo]
     right: [search, github]
+  components:
+    demo:
+      text: Live demo
+      href: live-demo.html
 
 news:
   releases:
