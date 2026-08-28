@@ -8,7 +8,7 @@ editor_options:
 ---
 ## We manually test the calculations of the recommended interventions with the BetterBirth data.
 
-## install and Load the LAGO pacakge 
+## install and Load the LAGOtrials package 
 ```{r}
 devtools::clean_dll()
 devtools::load_all()
@@ -21,7 +21,7 @@ bb_proportions <- LAGOtrials::BB_proportions
 head(bb_proportions)
 ```
 
-## Calculate the recommended interventions using the LAGO package 
+## Calculate the recommended interventions using the LAGOtrials package 
 ```{r}
 # using a linear cost function
 optimization_results <- lago_optimization(

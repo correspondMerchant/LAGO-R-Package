@@ -1,7 +1,7 @@
 """End-to-end tests for the lago-python wrapper.
 
-Every test drives the REAL LAGO R functions through rpy2. There is no mocked
-LAGO math: the wrapper's job is only to convert inputs/outputs, so the tests
+Every test drives the REAL LAGOtrials R functions through rpy2. There is no mocked
+LAGOtrials math: the wrapper's job is only to convert inputs/outputs, so the tests
 prove the round trip and that the wrapper does not corrupt the call.
 
 visualize_cost() is intentionally NOT launched here: it opens a blocking Shiny
@@ -117,7 +117,7 @@ def test_cost_list_roundtrip(bb_data):
     res = lago.optimize(data=bb_data, cost_list=cost_list, **{
         k: v for k, v in _bb_kwargs().items() if k != "cost_list"
     })
-    # The run succeeded with the supplied cost_list, and LAGO echoes it back on
+    # The run succeeded with the supplied cost_list, and LAGOtrials echoes it back on
     # the result as cost_list_of_vectors (converted to a python list-of-lists).
     echoed = res["cost_list_of_vectors"]
     assert isinstance(echoed, list)

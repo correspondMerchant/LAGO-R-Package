@@ -34,4 +34,4 @@ What you expected to happen instead.
 
 </details>
 
-- LAGO version:
+- LAGOtrials version:

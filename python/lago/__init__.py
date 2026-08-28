@@ -1,13 +1,13 @@
-"""lago-python: a Python wrapper around the LAGO R package.
+"""lago-python: a Python wrapper around the LAGOtrials R package.
 
-This package EMBEDS R via rpy2. It does not reimplement any LAGO math; every
+This package EMBEDS R via rpy2. It does not reimplement any LAGOtrials math; every
 function here calls the corresponding exported R function in the installed
-``LAGO`` R package and converts inputs/outputs between Python-native types and
+``LAGOtrials`` R package and converts inputs/outputs between Python-native types and
 R objects.
 
-Requirements at runtime: a working R installation, the ``LAGO`` R package
+Requirements at runtime: a working R installation, the ``LAGOtrials`` R package
 installed in R, plus rpy2 and pandas on the Python side. This is NOT an R-free
-install; it gives Python users LAGO's API in Python syntax.
+install; it gives Python users LAGOtrials's API in Python syntax.
 
 Exposed functions (mirroring the exported R functions):
     optimize()           -> lago_optimization()

@@ -1,4 +1,4 @@
-# LAGO 1.1.0
+# LAGOtrials 1.1.0
 
 * Added a live in-browser demo to the documentation site (`live-demo.html`) that runs the real package client-side with webR (R compiled to WebAssembly), so anyone can try `lago_optimization()` with no installation. A GitHub Actions workflow builds the package to WebAssembly with the rwasm toolchain and publishes it as a small CRAN-like repository alongside the site.
 * `lago_report()` now renders an interactive HTML dashboard: the confidence set is a hover-enabled D3 plot (a scatter for two components, a strip for one) with the recommended intervention highlighted, and each intervention component gets interactive total-cost and marginal-cost curves. The report stays a single self-contained offline file (D3 is inlined, no CDN or server) and its API is unchanged; rendering now also uses `jsonlite` (a new Suggests).
@@ -9,7 +9,7 @@
 * Added tests for the interaction-terms optimization path and the outcome-model fit warnings, and excluded the interactive `visualize_cost()` app from the coverage figure so it reflects the testable R code.
 * Added a `CITATION.cff` so the repository can be cited, plus contributing guidelines, a code of conduct and issue/pull-request templates. (#86)
 * Added test-coverage reporting, cross-platform (macOS, Windows, Linux) continuous integration, project-status and coverage badges, and a social-preview card. (#83, #84, #85)
-* Added a Python wrapper (in `python/`, importable as `lago`) that calls LAGO through `rpy2`. (#81)
+* Added a Python wrapper (in `python/`, importable as `lago`) that calls LAGOtrials through `rpy2`. (#81)
 * `visualize_cost()` now draws its cost curves client-side with D3, with hover read-outs, a draggable curve endpoint, and invalid-state highlighting. (#80)
 * The clustered variance estimator for logit outcomes is now computed by a compiled Rcpp kernel, so `Rcpp` is a new dependency. (#79)
 * `lago_optimization()` now refuses an additional covariate whose column is entirely `NA`, naming it. (#77)

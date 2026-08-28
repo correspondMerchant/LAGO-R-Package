@@ -1,11 +1,11 @@
-"""Internal rpy2 bridge for the LAGO Python wrapper.
+"""Internal rpy2 bridge for the LAGOtrials Python wrapper.
 
-This module embeds R through rpy2 and calls the real ``LAGO`` R functions. It
-performs NO LAGO math of its own; it only converts Python-native inputs to R
+This module embeds R through rpy2 and calls the real ``LAGOtrials`` R functions. It
+performs NO LAGOtrials math of its own; it only converts Python-native inputs to R
 objects, invokes the exported R functions, and converts their results back to
 Python-native types.
 
-R and the installed ``LAGO`` R package are required at runtime. rpy2 must be
+R and the installed ``LAGOtrials`` R package are required at runtime. rpy2 must be
 able to reach R (``R_HOME`` set to the R installation). See the package README.
 """
 
@@ -65,7 +65,7 @@ def scalarize_dict(d: dict) -> dict:
 
 
 def _ensure() -> dict:
-    """Initialize rpy2, import the LAGO R package, and cache the handles."""
+    """Initialize rpy2, import the LAGOtrials R package, and cache the handles."""
     if _state:
         return _state
 
@@ -243,7 +243,7 @@ def r_to_py(obj):
 
 
 def _get_rfunc(name: str):
-    """Fetch (and cache) an exported LAGO R function object.
+    """Fetch (and cache) an exported LAGOtrials R function object.
 
     Uses a plain robjects Function via ``LAGOtrials::name`` so that keyword argument
     names are passed to R verbatim (no underscore/dot signature translation).
@@ -261,7 +261,7 @@ def build_r_kwargs(kwargs: dict) -> dict:
 
 
 def call_lago(name: str, kwargs: dict):
-    """Convert kwargs, call the exported LAGO R function, return the R result."""
+    """Convert kwargs, call the exported LAGOtrials R function, return the R result."""
     rfunc = _get_rfunc(name)
     r_kwargs = build_r_kwargs(kwargs)
     return rfunc(**r_kwargs)

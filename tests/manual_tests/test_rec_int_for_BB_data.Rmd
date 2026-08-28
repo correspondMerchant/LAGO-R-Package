@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 ## We manually test the calculations of the recommended interventions with the BetterBirth data.
-## install and Load the LAGO pacakge 
+## install and Load the LAGOtrials package 
 ```{r}
 devtools::clean_dll()
 devtools::load_all()
@@ -15,12 +15,12 @@ devtools::load_all()
 
 ## Load the BetterBirth data
 ```{r}
-# BB data has been open sourced, so I pre-loaded the BB data in the LAGO package
+# BB data has been open sourced, so I pre-loaded the BB data in the LAGOtrials package
 bb_data <- LAGOtrials::BB_data
 head(bb_data)
 ```
 
-## Calculate the recommended interventions using the LAGO package 
+## Calculate the recommended interventions using the LAGOtrials package 
 ```{r}
 optimization_results <- lago_optimization(
   data = bb_data,

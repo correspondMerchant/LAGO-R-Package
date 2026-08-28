@@ -12,7 +12,7 @@ license = { text = "GPL-3.0-only" }
 authors = [
     { name = "Ante Bing", email = "abing@bu.edu" },
 ]
-keywords = ["LAGO", "optimization", "rpy2", "R", "intervention"]
+keywords = ["LAGOtrials", "LAGO", "optimization", "rpy2", "R", "intervention"]
 classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]

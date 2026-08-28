@@ -1,7 +1,7 @@
 """Shared pytest fixtures for the lago-python wrapper tests.
 
-These tests EMBED R via rpy2 and require the LAGO R package to be installed.
-If R / rpy2 / LAGO cannot be reached, the whole test module is skipped with a
+These tests EMBED R via rpy2 and require the LAGOtrials R package to be installed.
+If R / rpy2 / LAGOtrials cannot be reached, the whole test module is skipped with a
 clear reason rather than erroring.
 """
 import warnings
@@ -16,13 +16,13 @@ def ro():
         from rpy2.robjects.packages import importr
         importr("LAGOtrials")
     except Exception as exc:  # pragma: no cover - environment guard
-        pytest.skip(f"LAGO R package not importable via rpy2: {exc}")
+        pytest.skip(f"LAGOtrials R package not importable via rpy2: {exc}")
     return ro
 
 
 @pytest.fixture(scope="session")
 def bb_data(ro):
-    """R's built-in LAGO BB_data as a pandas DataFrame."""
+    """R's built-in LAGOtrials BB_data as a pandas DataFrame."""
     from rpy2.robjects.packages import importr, data
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
@@ -46,7 +46,7 @@ def infert(ro):
 
 @pytest.fixture(autouse=True)
 def _silence_r_warnings():
-    """LAGO emits expected data/model-fit warnings; keep test output clean."""
+    """LAGOtrials emits expected data/model-fit warnings; keep test output clean."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         yield
