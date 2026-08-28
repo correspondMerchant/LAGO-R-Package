@@ -43,6 +43,11 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: JamesIves/github-pages-deploy-action@v4.5.0
         with:
+          # This branch is also written by the webr-repo workflow. force: false
+          # makes the action fetch and rebase instead of force-pushing, so two
+          # deploys landing at once merge (they touch disjoint folders with
+          # clean: false) rather than one clobbering the other.
+          force: false
           clean: false
           branch: gh-pages
           folder: docs

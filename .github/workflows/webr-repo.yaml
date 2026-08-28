@@ -1,0 +1,62 @@
+# Builds LAGOtrials (and its dependencies) as WebAssembly binaries with the
+# rwasm toolchain and publishes them as a small CRAN-like repository under
+# webr-repo/ on the GitHub Pages site. The live demo page (live-demo.html,
+# shipped via pkgdown/assets/) installs the package from there so it runs in the
+# browser with webR, no server or local R install needed.
+#
+# The webR version is PINNED (v0.6.0) here and in live-demo.html, and the two
+# MUST match: a wasm binary built against one webR ABI will not load in a
+# different webR runtime. tests/js/test-webr-demo.js guards that they stay in
+# sync.
+#
+# On a pull request the repository is built but NOT deployed, so the build
+# recipe is verified without touching the published site. On a push to the
+# default branch it is built and deployed into the webr-repo/ subfolder of the
+# gh-pages branch. The deploy uses clean: false and a distinct target-folder so
+# it coexists with the pkgdown site that the pkgdown workflow deploys to the
+# same branch.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+name: webr-repo.yaml
+
+permissions: read-all
+
+jobs:
+  webr-repo:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: webr-repo-${{ github.event_name != 'pull_request' || github.run_id }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the WebAssembly package repository
+        uses: r-wasm/actions/build-rwasm@v3
+        with:
+          # Build the package in this checkout (and its hard dependencies).
+          packages: "local::."
+          repo-path: "webr-repo"
+          # The filesystem image is a side output we do not publish.
+          image-path: "_webr-fs-image"
+          # Keep the ABI in lock-step with the runtime the demo page loads.
+          webr-image: "ghcr.io/r-wasm/webr:v0.6.0"
+
+      - name: Deploy the repository to GitHub pages 🚀
+        if: github.event_name != 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        with:
+          # This branch is also written by the pkgdown workflow. force: false
+          # makes the action fetch and rebase instead of force-pushing, so two
+          # deploys landing at once merge (they touch disjoint folders with
+          # clean: false) rather than one clobbering the other.
+          force: false
+          clean: false
+          branch: gh-pages
+          folder: webr-repo
+          target-folder: webr-repo
