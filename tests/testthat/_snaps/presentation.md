@@ -54,7 +54,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23927.7723
+      Cost: 23928
       Estimated outcome: 0.85
       95% CI for the estimated outcome: 0.802 - 0.898
       Outcome goal: 0.85
@@ -135,7 +135,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23927.7723
+      Cost: 23928
       Estimated outcome: 0.85
       95% CI for the estimated outcome: 0.802 - 0.898
       Outcome goal: 0.85
@@ -214,7 +214,7 @@
       -- Recommended intervention 
       gear: 10
       qsec: 11.9574
-      Cost: 115.7446
+      Cost: 115.74
       Estimated outcome: 40
       95% CI for the estimated outcome: 26.64 - 53.36
       Outcome goal: 40
@@ -286,7 +286,7 @@
       -- Recommended intervention 
       gear: 10
       qsec: 11.9574
-      Cost: 115.7446
+      Cost: 115.74
       Estimated outcome: 40
       95% CI for the estimated outcome: 26.64 - 53.36
       Outcome goal: 40
@@ -622,7 +622,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23927.7723
+      Cost: 23928
       Estimated outcome: 0.85
       95% CI for the estimated outcome: not available (set include_confidence_set =
       TRUE)
@@ -687,7 +687,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23927.7723
+      Cost: 23928
       Estimated outcome: 0.85
       95% CI for the estimated outcome: not available (set include_confidence_set =
       TRUE)

@@ -796,6 +796,22 @@ get_recommended_interventions <- function(
         return(sum(mapply(function(f, x) f(x), cost_functions, x)))
       }
 
+      # NlcOptim::solnl() is not invariant to the SCALE of its objective:
+      # multiplying every cost by a constant (for example, supplying costs in
+      # thousands rather than in ones) leaves the true minimizer unchanged, but
+      # it changes solnl()'s step sizes and stopping behaviour, which on some
+      # platforms (observed on Windows) drove the restarts into a costlier local
+      # optimum and made the recommendation depend on the cost units. So solnl()
+      # is handed a normalized objective, cost(x) / cost(upper bound), which is
+      # an O(1) quantity that is identical for any positive rescaling of the
+      # costs; the true cost is recomputed from the returned point below.
+      # Dividing by a positive constant does not move the minimizer.
+      cost_scale <- cost_obj_fun(up)
+      if (!is.finite(cost_scale) || cost_scale <= 0) {
+        cost_scale <- 1
+      }
+      cost_obj_fun_scaled <- function(x) cost_obj_fun(x) / cost_scale
+
       # 1) if the max achievable outcome is larger than the new outcome goal
       if (max_achievable_outcome >= new_outcome_goal) {
         # If the goal is achievable, get the recommended intervention that
@@ -838,7 +854,7 @@ get_recommended_interventions <- function(
             {
               NlcOptim::solnl(
                 X = start_points, # Use start_points instead of a fixed midpoint
-                objfun = cost_obj_fun,
+                objfun = cost_obj_fun_scaled,
                 confun = constraint_fun,
                 lb = lo,
                 ub = up
@@ -850,7 +866,9 @@ get_recommended_interventions <- function(
           )
 
           if (!is.null(result)) {
-            cost_results[i] <- result$fn
+            # result$fn is the NORMALIZED objective; record the true cost so the
+            # cheapest-restart selection and the reported cost stay in real units.
+            cost_results[i] <- cost_obj_fun(result$par)
             results_int_components[, i] <- result$par
           } else {
             cost_results[i] <- NA # Assign NA if the optimization failed

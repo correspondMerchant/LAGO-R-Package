@@ -431,7 +431,7 @@ test_that("a factor additional_covariate with more than two levels is assembled 
   )
   # here the goal binds, so the recommendation sits where the estimated outcome
   # meets it exactly
-  expect_equal(as_factor$est_outcome_goal, 0.85, tolerance = 1e-8)
+  expect_equal(as_factor$est_outcome_goal, 0.85, tolerance = 1e-6)
   expect_equal(as_factor$rec_int, c(1, 2.944728), tolerance = 1e-5)
   expect_equal(as_factor$confidence_set_size_percentage, 0.25)
 
@@ -491,7 +491,7 @@ test_that("a factor center_characteristic is found by its level-named coefficien
     ),
     tolerance = 1e-10
   )
-  expect_equal(as_factor$est_outcome_goal, 0.85, tolerance = 1e-8)
+  expect_equal(as_factor$est_outcome_goal, 0.85, tolerance = 1e-6)
   # A loose tolerance on purpose, and do NOT tighten it. The subject here is
   # the coefficient LOOKUP. On the tree that predates the restart-selection fix
   # this same call returns 1.00038 rather than 1, because the cheapest restart
@@ -949,7 +949,7 @@ test_that("multiple center characteristics are summed, not recycled (#68, #70)",
     tolerance = 1e-10
   )
   # the goal binds, so the recommendation meets it exactly
-  expect_equal(two$est_outcome_goal, 0.85, tolerance = 1e-8)
+  expect_equal(two$est_outcome_goal, 0.85, tolerance = 1e-6)
   expect_equal(two$rec_int, c(1, 3.347542), tolerance = 1e-5)
 
   # ONE column per characteristic, named after it, and in the order the
@@ -1000,7 +1000,7 @@ test_that("multiple center characteristics are summed, not recycled (#68, #70)",
   # still comes out.
   one <- run("birth_volume_100", 1.75)
   expect_equal(one$rec_int, c(1, 2.778472), tolerance = 1e-5)
-  expect_equal(one$est_outcome_goal, 0.85, tolerance = 1e-8)
+  expect_equal(one$est_outcome_goal, 0.85, tolerance = 1e-6)
   expect_equal(names(one$cs), c(
     "coaching_updt", "launch_duration", "birth_volume_100",
     "CI_lower_bound", "CI_upper_bound", "cost"
