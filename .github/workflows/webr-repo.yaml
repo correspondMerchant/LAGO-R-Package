@@ -1,20 +1,24 @@
-# Builds LAGOtrials (and its dependencies) as WebAssembly binaries with the
-# rwasm toolchain and publishes them as a small CRAN-like repository under
-# webr-repo/ on the GitHub Pages site. The live demo page (live-demo.html,
-# shipped via pkgdown/assets/) installs the package from there so it runs in the
-# browser with webR, no server or local R install needed.
+# Builds a WebAssembly binary of LAGOtrials with the rwasm toolchain and
+# publishes it as a small CRAN-like repository under webr-repo/ on the GitHub
+# Pages site. The live demo page (live-demo.html, shipped via pkgdown/assets/)
+# installs the package from there so it runs in the browser with webR, no server
+# or local R install needed.
 #
-# The webR version is PINNED (v0.6.0) here and in live-demo.html, and the two
-# MUST match: a wasm binary built against one webR ABI will not load in a
-# different webR runtime. tests/js/test-webr-demo.js guards that they stay in
-# sync.
+# The webR version is PINNED (v0.6.0) here (the toolchain container) and in
+# live-demo.html (the CDN runtime), and the two MUST match: a wasm binary built
+# against one webR ABI will not load in a different webR runtime.
+# tests/js/test-webr-demo.js guards that they stay in sync.
 #
-# On a pull request the repository is built but NOT deployed, so the build
-# recipe is verified without touching the published site. On a push to the
-# default branch it is built and deployed into the webr-repo/ subfolder of the
-# gh-pages branch. The deploy uses clean: false and a distinct target-folder so
-# it coexists with the pkgdown site that the pkgdown workflow deploys to the
-# same branch.
+# The actual build is driven by tools/build-webr-repo.R (see that file for why
+# it uses rwasm's internals directly instead of rwasm::add_pkg). We build from a
+# clean `git archive` export (no .git, and with the renv bootstrap files removed)
+# so nothing in the working tree perturbs the package build inside the container.
+#
+# On a pull request the repository is built but NOT deployed, so the recipe is
+# verified without touching the published site. On a push to the default branch
+# it is built and deployed into the webr-repo/ subfolder of gh-pages. The deploy
+# uses force: false and a distinct target-folder so it coexists with the pkgdown
+# site that the pkgdown workflow deploys to the same branch.
 on:
   push:
     branches: [main, master]
@@ -37,15 +41,25 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build the WebAssembly package repository
-        uses: r-wasm/actions/build-rwasm@v3
-        with:
-          # Build the package in this checkout (and its hard dependencies).
-          packages: "local::."
-          repo-path: "webr-repo"
-          # The filesystem image is a side output we do not publish.
-          image-path: "_webr-fs-image"
-          # Keep the ABI in lock-step with the runtime the demo page loads.
-          webr-image: "ghcr.io/r-wasm/webr:v0.6.0"
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pkgsrc" "$RUNNER_TEMP/webr-out"
+          # Clean source: git archive drops .git; strip the renv bootstrap so it
+          # cannot activate inside the build container.
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/pkgsrc"
+          rm -rf "$RUNNER_TEMP/pkgsrc/renv" \
+                 "$RUNNER_TEMP/pkgsrc/.Rprofile" \
+                 "$RUNNER_TEMP/pkgsrc/renv.lock"
+          # Build inside the pinned webR toolchain image (rwasm is preinstalled).
+          docker run --rm --entrypoint Rscript --network=host \
+            -v "$RUNNER_TEMP/pkgsrc:/work" \
+            -v "$RUNNER_TEMP/webr-out:/out" \
+            -v "$GITHUB_WORKSPACE/tools:/tools:ro" \
+            -w / \
+            ghcr.io/r-wasm/webr:v0.6.0 /tools/build-webr-repo.R
+          # Copy the (root-owned) output out of the mount as the runner user so
+          # the deploy step can read it.
+          cp -r "$RUNNER_TEMP/webr-out/webr-repo" "$GITHUB_WORKSPACE/webr-repo"
 
       - name: Deploy the repository to GitHub pages 🚀
         if: github.event_name != 'pull_request'
