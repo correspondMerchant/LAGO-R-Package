@@ -11,11 +11,22 @@
 
 # --- small formatting helpers -------------------------------------------------
 # Rounding kept consistent with print.lago / summary.lago:
-#   - recommendation values, cost, estimated outcome: round(., 4)
+#   - recommendation values, estimated outcome: round(., 4)
+#   - recommended cost: signif(., 5)
 #   - confidence-set cost IQR: round(., 2)
 #   - p-values: signif(., 4)
 
 .lago_fmt_value <- function(v) round(v, 4)
+
+# The recommended cost is produced by the numerical optimizer, whose trailing
+# digits differ across platforms and BLAS builds. At round(., 4) those
+# platform-specific digits become visible once costs are in the thousands
+# (e.g. 23927.7721 vs 23927.7723), which breaks reproducible snapshots and
+# reports. Showing 5 significant figures keeps the value stable regardless of
+# the magnitude of the caller's cost units while staying precise enough for a
+# cost. The confidence-set costs are evaluated at exact grid points, so their
+# IQR stays on round(., 2).
+.lago_fmt_cost <- function(v) signif(v, 5)
 
 .lago_fmt_cost_range <- function(v) round(v, 2)
 
@@ -174,7 +185,7 @@ lago_blocks <- function(x) {
   # --- cost
   cost <- list(
     title = "Cost",
-    rows = paste0("Cost: ", .lago_fmt_value(x$rec_int_cost))
+    rows = paste0("Cost: ", .lago_fmt_cost(x$rec_int_cost))
   )
 
   # --- outcome (estimated outcome, its 95% CI when available, and the outcome
