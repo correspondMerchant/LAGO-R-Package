@@ -203,8 +203,8 @@ cost_sens
 #>   value gear     qsec rec_int_cost est_outcome_goal status
 #> 1   0.8   10 6.522269     66.50689               30     ok
 #> 2   1.0   10 6.522269     83.13361               30     ok
-#> 3   1.2   10 6.522269     99.76034               30     ok
-#> rec_int_cost ranges from 66.50689 to 99.76034 as cost_multiplier goes from 0.8
+#> 3   1.2   10 6.522269     99.76033               30     ok
+#> rec_int_cost ranges from 66.50689 to 99.76033 as cost_multiplier goes from 0.8
 #> to 1.2.
 # }
 ```

@@ -468,7 +468,7 @@ lago_optimization(
 #> ── Recommended intervention 
 #> age: 31.504
 #> parity: 2.0927
-#> Cost: 128.1089
+#> Cost: 128.11
 #> Estimated outcome: 0.3347
 #> 95% CI for the estimated outcome: not available (set include_confidence_set =
 #> TRUE)
@@ -562,7 +562,7 @@ lago_optimization(
 #> ── Recommended intervention 
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23927.7723
+#> Cost: 23928
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
@@ -668,7 +668,7 @@ lago_optimization(
 #> ── Recommended intervention 
 #> coaching_updt: 38.9887
 #> launch_duration: 4.793
-#> Cost: 104624.7913
+#> Cost: 104620
 #> Estimated outcome: 0.838
 #> 95% CI for the estimated outcome: not available (set include_confidence_set =
 #> TRUE)

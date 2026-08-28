@@ -108,7 +108,7 @@ print(result)
 #> ── Recommended intervention 
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23927.7723
+#> Cost: 23928
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
