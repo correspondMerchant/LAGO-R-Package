@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAGOtrials live demo</title>
+  <!--
+    A live, in-browser demo of the LAGOtrials R package. R itself runs in the
+    browser through webR (R compiled to WebAssembly); no server, no install.
+
+    The webR runtime is pinned to v0.6.0 to match the version the package's wasm
+    binary is built with in .github/workflows/webr-repo.yaml. If you bump one,
+    bump the other (tests/js/test-webr-demo.js checks this).
+
+    The package is installed from the CRAN-like wasm repository published
+    alongside this site under /webr-repo, with the webR CRAN mirror as a
+    fallback for any remaining dependencies.
+  -->
+  <style>
+    :root { --accent: #0066cc; --accent-dark: #004b99; --bg: #fbfcfe; --border: #e2e6ea; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1c1e21; background: var(--bg); line-height: 1.5;
+    }
+    header { border-bottom: 1px solid var(--border); background: #fff; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+    header .wrap { display: flex; align-items: baseline; gap: 16px; padding: 14px 20px; flex-wrap: wrap; }
+    header h1 { font-size: 1.15rem; margin: 0; }
+    header nav a { color: var(--accent); text-decoration: none; font-size: 0.9rem; margin-left: 14px; }
+    header nav a:hover { text-decoration: underline; }
+    main { padding: 22px 0 60px; }
+    p.lede { color: #444; margin-top: 0; }
+    .status {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px;
+      background: #eef4fc; border: 1px solid #d6e4f7; color: #24405f; font-size: 0.92rem; margin: 14px 0;
+    }
+    .status.ready { background: #eaf7ee; border-color: #cdebd6; color: #1e5631; }
+    .status.error { background: #fdeeee; border-color: #f6d4d4; color: #7a2020; }
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid #b9d3f2; border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite; flex: none;
+    }
+    .status.ready .spinner, .status.error .spinner { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    label { font-weight: 600; font-size: 0.9rem; display: block; margin: 18px 0 6px; }
+    textarea {
+      width: 100%; min-height: 320px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px; line-height: 1.45; padding: 12px; border: 1px solid var(--border);
+      border-radius: 8px; background: #fff; resize: vertical; color: #1c1e21;
+    }
+    .controls { margin: 12px 0; display: flex; gap: 10px; align-items: center; }
+    button {
+      font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0;
+      padding: 9px 18px; border-radius: 8px; cursor: pointer;
+    }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { background: #9db8d6; cursor: not-allowed; }
+    button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--border); }
+    button.secondary:hover { background: #f2f6fb; }
+    h2 { font-size: 1rem; margin: 26px 0 8px; }
+    pre.out {
+      background: #0f1620; color: #e7edf3; padding: 14px; border-radius: 8px; overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+      white-space: pre-wrap; word-break: break-word; min-height: 40px; margin: 0;
+    }
+    pre.out:empty::before { content: "Run the example to see R output here."; color: #7d8794; }
+    #plots { margin-top: 14px; }
+    #plots canvas { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+    .note { color: #666; font-size: 0.85rem; margin-top: 26px; border-top: 1px solid var(--border); padding-top: 14px; }
+    code { background: #eef1f4; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    .muted { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>LAGOtrials &mdash; live demo</h1>
+      <nav>
+        <a href="./index.html">Home</a>
+        <a href="./reference/index.html">Reference</a>
+        <a href="https://github.com/correspondMerchant/LAGO-R-Package">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p class="lede">
+      This runs the real <code>LAGOtrials</code> R package entirely in your browser, with no install and no server,
+      using <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">webR</a> (R compiled to
+      WebAssembly). Edit the R code below and press <strong>Run</strong>. The first run downloads R and the package,
+      so give it a moment.
+    </p>
+
+    <div id="status" class="status"><span class="spinner"></span><span id="status-text">Starting webR&hellip;</span></div>
+
+    <label for="code">R code</label>
+    <textarea id="code" spellcheck="false"></textarea>
+
+    <div class="controls">
+      <button id="run" disabled>Run</button>
+      <button id="reset" class="secondary" type="button">Reset example</button>
+      <span id="run-hint" class="muted" style="font-size:0.85rem;"></span>
+    </div>
+
+    <h2>Output</h2>
+    <pre id="output" class="out"></pre>
+
+    <div id="plots"></div>
+
+    <p class="note">
+      webR runs a WebAssembly build of R (version 4.6.0) fully client-side. The interactive Shiny app behind
+      <code>visualize_cost()</code> is not available here; everything else works as it does locally. Package binaries are
+      served from this site's <code>/webr-repo</code> repository. See the
+      <a href="./index.html">package documentation</a> for the full API.
+    </p>
+  </main>
+
+  <script type="module">
+    const WEBR_VERSION = "0.6.0";
+    const WEBR_URL = `https://webr.r-wasm.org/v${WEBR_VERSION}/webr.mjs`;
+    // The wasm package repository published next to this site, plus the webR
+    // CRAN mirror as a fallback for any remaining dependencies.
+    const REPOS = [
+      "https://correspondmerchant.github.io/LAGO-R-Package/webr-repo",
+      "https://repo.r-wasm.org",
+    ];
+
+    const EXAMPLE = `library(LAGOtrials)
+
+# Recommend the cheapest intervention expected to reach an 85% outcome,
+# using the built-in BetterBirth trial data.
+result <- lago_optimization(
+  data = BB_data,
+  outcome_name = "pp3_oxytocin_mother",
+  outcome_type = "binary",
+  intervention_components = c("coaching_updt", "launch_duration"),
+  intervention_lower_bounds = c(1, 1),
+  intervention_upper_bounds = c(40, 5),
+  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  outcome_goal = 0.85,
+  outcome_goal_intention = "maximize",
+  confidence_set_grid_step_size = c(1, 1),
+  quiet = TRUE
+)
+
+# Print the recommendation, cost, estimated outcome and confidence set.
+result
+
+# Visualize the confidence set.
+plot(result)
+`;
+
+    const $ = (id) => document.getElementById(id);
+    const codeEl = $("code");
+    const outEl = $("output");
+    const plotsEl = $("plots");
+    const runBtn = $("run");
+    const resetBtn = $("reset");
+    const statusEl = $("status");
+    const statusText = $("status-text");
+    const runHint = $("run-hint");
+
+    codeEl.value = EXAMPLE;
+    resetBtn.addEventListener("click", () => { codeEl.value = EXAMPLE; });
+
+    function setStatus(text, kind) {
+      statusText.textContent = text;
+      statusEl.className = "status" + (kind ? " " + kind : "");
+    }
+
+    let webR, shelter;
+
+    async function boot() {
+      try {
+        setStatus("Downloading R (this happens once)…");
+        const { WebR } = await import(WEBR_URL);
+        webR = new WebR();
+        await webR.init();
+
+        setStatus("Installing LAGOtrials (downloading the package)…");
+        const reposR = "c(" + REPOS.map((r) => JSON.stringify(r)).join(", ") + ")";
+        await webR.evalRVoid(`webr::install("LAGOtrials", repos = ${reposR})`);
+
+        shelter = await new webR.Shelter();
+        setStatus("Ready. Edit the code and press Run.", "ready");
+        runBtn.disabled = false;
+      } catch (err) {
+        setStatus("Failed to start webR: " + (err && err.message ? err.message : err), "error");
+        runHint.textContent = "Your browser may block WebAssembly or the network request.";
+      }
+    }
+
+    async function run() {
+      if (!shelter) return;
+      runBtn.disabled = true;
+      runHint.textContent = "running…";
+      outEl.textContent = "";
+      plotsEl.innerHTML = "";
+      try {
+        const capture = await shelter.captureR(codeEl.value, {
+          withAutoprint: true,
+          captureGraphics: { width: 800, height: 500 },
+        });
+        try {
+          outEl.textContent = capture.output
+            .filter((o) => o.type === "stdout" || o.type === "stderr")
+            .map((o) => o.data)
+            .join("\n");
+          for (const bitmap of capture.images) {
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            canvas.getContext("2d").drawImage(bitmap, 0, 0);
+            plotsEl.appendChild(canvas);
+          }
+        } finally {
+          await shelter.purge();
+        }
+      } catch (err) {
+        outEl.textContent = "Error: " + (err && err.message ? err.message : err);
+      } finally {
+        runBtn.disabled = false;
+        runHint.textContent = "";
+      }
+    }
+
+    runBtn.addEventListener("click", run);
+    boot();
+  </script>
+</body>
+</html>

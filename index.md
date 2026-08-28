@@ -11,6 +11,12 @@ intervention based on data from all stages, 4) calculating the 95%
 confidence sets for the recommended interventions and the optimal
 interventions.
 
+> **Try it in your browser, no installation needed:** the [live
+> demo](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html)
+> runs the real `LAGOtrials` package client-side with
+> [webR](https://docs.r-wasm.org/webr/latest/) (R compiled to
+> WebAssembly). Edit the example and press Run.
+
 ## Table of Contents
 
 1.  [How to install the R package](#how-to-install-the-r-package)
@@ -35,6 +41,9 @@ interventions.
 - Method 2: Clone this repo into RStudio, you can follow the directions
   provided [in this
   video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
+
+Not ready to install? Try the package in your browser on the [live demo
+page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html).
 
 ## The main functions
 
