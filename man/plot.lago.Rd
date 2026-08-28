@@ -42,7 +42,7 @@ result <- lago_optimization(
   center_characteristics_optimization_values = 1.75,
   intervention_lower_bounds = c(1, 1),
   intervention_upper_bounds = c(40, 5),
-  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
   outcome_goal = 0.85,
   outcome_goal_intention = "maximize",
   include_confidence_set = TRUE,

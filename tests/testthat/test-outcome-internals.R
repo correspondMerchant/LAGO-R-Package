@@ -1188,7 +1188,7 @@ test_that("lago_optimization() passes additional_covariates on to the processor"
         additional_covariates = "birth_volume_100",
         intervention_lower_bounds = c(1, 1),
         intervention_upper_bounds = c(40, 5),
-        cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+        cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
         outcome_goal = 0.85,
         include_confidence_set = FALSE,
         quiet = TRUE
@@ -1682,7 +1682,7 @@ test_that("the optimizers are told which coefficients could not be estimated", {
       optimization_grid_search_step_size = NULL,
       link = "logit",
       center_weights_for_outcome_goal = rep(1 / 6, 6),
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       intervention_lower_bounds = c(1, 1),
       intervention_upper_bounds = c(40, 5),
       outcome_goal = 0.85,

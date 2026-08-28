@@ -290,7 +290,7 @@ test_that("BB_data backward compatibility: icc = NULL matches the pre-icc result
     center_characteristics = "birth_volume_100",
     center_characteristics_optimization_values = 1.75,
     intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5),
-    cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+    cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
     power_goal = 0.8, num_centers_in_next_stage = 10,
     patients_per_center_in_next_stage = 30, include_confidence_set = FALSE
   )
