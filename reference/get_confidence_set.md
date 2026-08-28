@@ -227,7 +227,7 @@ opt <- lago_optimization(
   center_characteristics_optimization_values = 1.75,
   intervention_lower_bounds = c(1, 1),
   intervention_upper_bounds = c(40, 5),
-  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
   outcome_goal = 0.85,
   outcome_goal_intention = "maximize",
   include_confidence_set = FALSE,
@@ -252,7 +252,7 @@ cs <- get_confidence_set(
   confidence_set_grid_step_size = c(1, 1),
   center_characteristics = "birth_volume_100",
   center_characteristics_optimization_values = 1.75,
-  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
   rec_int = opt$rec_int
 )
 
@@ -284,11 +284,11 @@ head(cs$cs)
 #> 71            30               2             1.75          0.819          0.863
 #> 72            31               2             1.75          0.822          0.867
 #> 73            32               2             1.75          0.824          0.871
-#>    cost
-#> 68 61.9
-#> 69 63.6
-#> 70 65.3
-#> 71 67.0
-#> 72 68.7
-#> 73 70.4
+#>     cost
+#> 68 61900
+#> 69 63600
+#> 70 65300
+#> 71 67000
+#> 72 68700
+#> 73 70400
 ```

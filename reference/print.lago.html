@@ -109,7 +109,7 @@ further calls. [summary.lago()] renders the same output.</p>
 <span class="r-in"><span>  center_characteristics_optimization_values <span class="op">=</span> <span class="fl">1.75</span>,</span></span>
 <span class="r-in"><span>  intervention_lower_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">40</span>, <span class="fl">5</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.7</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1700</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8000</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  outcome_goal <span class="op">=</span> <span class="fl">0.85</span>,</span></span>
 <span class="r-in"><span>  outcome_goal_intention <span class="op">=</span> <span class="st">"maximize"</span>,</span></span>
 <span class="r-in"><span>  include_confidence_set <span class="op">=</span> <span class="cn">TRUE</span>,</span></span>
@@ -135,7 +135,7 @@ further calls. [summary.lago()] renders the same output.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed time effects: FALSE</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Power goal: not specified</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: c(0, 1.7), c(0, 8)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: c(0, 1700), c(0, 8000)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention lower bounds: 1, 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention upper bounds: 40, 5</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -169,14 +169,14 @@ further calls. [summary.lago()] renders the same output.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 2.7785</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 23.9278</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 23927.7723</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.85</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: 0.802 - 0.898</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Confidence set</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 95% confidence set size: 9% of the grid</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> IQR of the cost within the 95% confidence set: 62.32 - 76.78</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> IQR of the cost within the 95% confidence set: 62325 - 76775</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> First rows of the confidence set (use $cs for all):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 68            27               2             1.75          0.811          0.851</span>
@@ -185,13 +185,13 @@ further calls. [summary.lago()] renders the same output.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 71            30               2             1.75          0.819          0.863</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 72            31               2             1.75          0.822          0.867</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 73            32               2             1.75          0.824          0.871</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    cost</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 68 61.9</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 69 63.6</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 70 65.3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 71 67.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 72 68.7</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 73 70.4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     cost</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 68 61900</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 69 63600</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 70 65300</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 71 67000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 72 68700</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 73 70400</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

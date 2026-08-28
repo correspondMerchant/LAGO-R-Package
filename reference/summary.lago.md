@@ -43,7 +43,7 @@ result <- lago_optimization(
   center_characteristics_optimization_values = 1.75,
   intervention_lower_bounds = c(1, 1),
   intervention_upper_bounds = c(40, 5),
-  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
   outcome_goal = 0.85,
   outcome_goal_intention = "maximize",
   include_confidence_set = TRUE,
@@ -69,7 +69,7 @@ summary(result)
 #> Fixed time effects: FALSE
 #> Outcome goal: 0.85
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1.7), c(0, 8)
+#> Intervention component costs: c(0, 1700), c(0, 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -103,14 +103,14 @@ summary(result)
 #> ── Recommended intervention 
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23.9278
+#> Cost: 23927.7723
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
 #> 
 #> ── Confidence set 
 #> 95% confidence set size: 9% of the grid
-#> IQR of the cost within the 95% confidence set: 62.32 - 76.78
+#> IQR of the cost within the 95% confidence set: 62325 - 76775
 #> First rows of the confidence set (use $cs for all):
 #>    coaching_updt launch_duration birth_volume_100 CI_lower_bound CI_upper_bound
 #> 68            27               2             1.75          0.811          0.851
@@ -119,11 +119,11 @@ summary(result)
 #> 71            30               2             1.75          0.819          0.863
 #> 72            31               2             1.75          0.822          0.867
 #> 73            32               2             1.75          0.824          0.871
-#>    cost
-#> 68 61.9
-#> 69 63.6
-#> 70 65.3
-#> 71 67.0
-#> 72 68.7
-#> 73 70.4
+#>     cost
+#> 68 61900
+#> 69 63600
+#> 70 65300
+#> 71 67000
+#> 72 68700
+#> 73 70400
 ```

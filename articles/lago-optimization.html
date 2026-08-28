@@ -131,7 +131,7 @@ respectively.</p>
 <span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">40</span>, <span class="fl">5</span><span class="op">)</span>,</span>
 <span>  center_characteristics <span class="op">=</span> <span class="st">"birth_volume_100"</span>,</span>
 <span>  center_characteristics_optimization_values <span class="op">=</span> <span class="fl">1.75</span>,</span>
-<span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.7</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1700</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8000</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  outcome_goal <span class="op">=</span> <span class="fl">0.85</span>,</span>
 <span>  outcome_goal_intention <span class="op">=</span> <span class="st">"maximize"</span>,</span>
 <span>  confidence_set_grid_step_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0.5</span><span class="op">)</span>,</span>
@@ -168,7 +168,7 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; Fixed time effects: FALSE</span></span>
 <span><span class="co">#&gt; Outcome goal: 0.85</span></span>
 <span><span class="co">#&gt; Power goal: not specified</span></span>
-<span><span class="co">#&gt; Intervention component costs: c(0, 1.7), c(0, 8)</span></span>
+<span><span class="co">#&gt; Intervention component costs: c(0, 1700), c(0, 8000)</span></span>
 <span><span class="co">#&gt; Intervention lower bounds: 1, 1</span></span>
 <span><span class="co">#&gt; Intervention upper bounds: 40, 5</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -201,14 +201,14 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; ── <span style="color: #0087D7;">Recommended intervention</span></span></span>
 <span><span class="co">#&gt; coaching_updt: 1</span></span>
 <span><span class="co">#&gt; launch_duration: 2.7785</span></span>
-<span><span class="co">#&gt; Cost: 23.9278</span></span>
+<span><span class="co">#&gt; Cost: 23927.7723</span></span>
 <span><span class="co">#&gt; Estimated outcome: 0.85</span></span>
 <span><span class="co">#&gt; 95% CI for the estimated outcome: 0.802 - 0.898</span></span>
 <span><span class="co">#&gt; Outcome goal: 0.85</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; ── <span style="color: #0087D7;">Confidence set</span></span></span>
 <span><span class="co">#&gt; 95% confidence set size: 10.56% of the grid</span></span>
-<span><span class="co">#&gt; IQR of the cost within the 95% confidence set: 31.08 - 69.98</span></span>
+<span><span class="co">#&gt; IQR of the cost within the 95% confidence set: 31075 - 69975</span></span>
 <span><span class="co">#&gt; First rows of the confidence set (use $cs for all):</span></span>
 <span><span class="co">#&gt;     coaching_updt launch_duration birth_volume_100 CI_lower_bound</span></span>
 <span><span class="co">#&gt; 81             40             1.5             1.75          0.755</span></span>
@@ -217,13 +217,13 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; 110            29             2.0             1.75          0.816</span></span>
 <span><span class="co">#&gt; 111            30             2.0             1.75          0.819</span></span>
 <span><span class="co">#&gt; 112            31             2.0             1.75          0.822</span></span>
-<span><span class="co">#&gt;     CI_upper_bound cost</span></span>
-<span><span class="co">#&gt; 81           0.851 80.0</span></span>
-<span><span class="co">#&gt; 108          0.851 61.9</span></span>
-<span><span class="co">#&gt; 109          0.855 63.6</span></span>
-<span><span class="co">#&gt; 110          0.859 65.3</span></span>
-<span><span class="co">#&gt; 111          0.863 67.0</span></span>
-<span><span class="co">#&gt; 112          0.867 68.7</span></span></code></pre></div>
+<span><span class="co">#&gt;     CI_upper_bound  cost</span></span>
+<span><span class="co">#&gt; 81           0.851 80000</span></span>
+<span><span class="co">#&gt; 108          0.851 61900</span></span>
+<span><span class="co">#&gt; 109          0.855 63600</span></span>
+<span><span class="co">#&gt; 110          0.859 65300</span></span>
+<span><span class="co">#&gt; 111          0.863 67000</span></span>
+<span><span class="co">#&gt; 112          0.867 68700</span></span></code></pre></div>
 <p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> renders the same output:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
@@ -242,7 +242,7 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; Fixed time effects: FALSE</span></span>
 <span><span class="co">#&gt; Outcome goal: 0.85</span></span>
 <span><span class="co">#&gt; Power goal: not specified</span></span>
-<span><span class="co">#&gt; Intervention component costs: c(0, 1.7), c(0, 8)</span></span>
+<span><span class="co">#&gt; Intervention component costs: c(0, 1700), c(0, 8000)</span></span>
 <span><span class="co">#&gt; Intervention lower bounds: 1, 1</span></span>
 <span><span class="co">#&gt; Intervention upper bounds: 40, 5</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -275,14 +275,14 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; ── <span style="color: #0087D7;">Recommended intervention</span></span></span>
 <span><span class="co">#&gt; coaching_updt: 1</span></span>
 <span><span class="co">#&gt; launch_duration: 2.7785</span></span>
-<span><span class="co">#&gt; Cost: 23.9278</span></span>
+<span><span class="co">#&gt; Cost: 23927.7723</span></span>
 <span><span class="co">#&gt; Estimated outcome: 0.85</span></span>
 <span><span class="co">#&gt; 95% CI for the estimated outcome: 0.802 - 0.898</span></span>
 <span><span class="co">#&gt; Outcome goal: 0.85</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; ── <span style="color: #0087D7;">Confidence set</span></span></span>
 <span><span class="co">#&gt; 95% confidence set size: 10.56% of the grid</span></span>
-<span><span class="co">#&gt; IQR of the cost within the 95% confidence set: 31.08 - 69.98</span></span>
+<span><span class="co">#&gt; IQR of the cost within the 95% confidence set: 31075 - 69975</span></span>
 <span><span class="co">#&gt; First rows of the confidence set (use $cs for all):</span></span>
 <span><span class="co">#&gt;     coaching_updt launch_duration birth_volume_100 CI_lower_bound</span></span>
 <span><span class="co">#&gt; 81             40             1.5             1.75          0.755</span></span>
@@ -291,19 +291,19 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; 110            29             2.0             1.75          0.816</span></span>
 <span><span class="co">#&gt; 111            30             2.0             1.75          0.819</span></span>
 <span><span class="co">#&gt; 112            31             2.0             1.75          0.822</span></span>
-<span><span class="co">#&gt;     CI_upper_bound cost</span></span>
-<span><span class="co">#&gt; 81           0.851 80.0</span></span>
-<span><span class="co">#&gt; 108          0.851 61.9</span></span>
-<span><span class="co">#&gt; 109          0.855 63.6</span></span>
-<span><span class="co">#&gt; 110          0.859 65.3</span></span>
-<span><span class="co">#&gt; 111          0.863 67.0</span></span>
-<span><span class="co">#&gt; 112          0.867 68.7</span></span></code></pre></div>
+<span><span class="co">#&gt;     CI_upper_bound  cost</span></span>
+<span><span class="co">#&gt; 81           0.851 80000</span></span>
+<span><span class="co">#&gt; 108          0.851 61900</span></span>
+<span><span class="co">#&gt; 109          0.855 63600</span></span>
+<span><span class="co">#&gt; 110          0.859 65300</span></span>
+<span><span class="co">#&gt; 111          0.863 67000</span></span>
+<span><span class="co">#&gt; 112          0.867 68700</span></span></code></pre></div>
 <p>The recommended intervention and its cost are available directly:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">rec_int</span></span>
 <span><span class="co">#&gt; [1] 1.000000 2.778472</span></span>
 <span><span class="va">result</span><span class="op">$</span><span class="va">rec_int_cost</span></span>
-<span><span class="co">#&gt; [1] 23.92777</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 23927.77</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="visualizing-the-confidence-set">Visualizing the confidence set<a class="anchor" aria-label="anchor" href="#visualizing-the-confidence-set"></a>
@@ -337,7 +337,7 @@ alone.</p>
 <span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">40</span>, <span class="fl">5</span><span class="op">)</span>,</span>
 <span>  center_characteristics <span class="op">=</span> <span class="st">"birth_volume_100"</span>,</span>
 <span>  center_characteristics_optimization_values <span class="op">=</span> <span class="fl">1.75</span>,</span>
-<span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.7</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1700</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8000</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  power_goal <span class="op">=</span> <span class="fl">0.8</span>,</span>
 <span>  num_centers_in_next_stage <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  patients_per_center_in_next_stage <span class="op">=</span> <span class="fl">30</span>,</span>
@@ -409,11 +409,11 @@ fast.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Varied <span style="color: #00BB00;">outcome_goal</span> across 4 runs; 0 failed.</span></span>
 <span><span class="co">#&gt;   value coaching_updt launch_duration rec_int_cost est_outcome_goal status</span></span>
-<span><span class="co">#&gt; 1  0.75             1        2.157674     18.96139             0.75     ok</span></span>
-<span><span class="co">#&gt; 2  0.80             1        2.438484     21.20788             0.80     ok</span></span>
-<span><span class="co">#&gt; 3  0.85             1        2.778472     23.92777             0.85     ok</span></span>
-<span><span class="co">#&gt; 4  0.90             1        3.230045     27.54036             0.90     ok</span></span>
-<span><span class="co">#&gt; rec_int_cost ranges from 18.96139 to 27.54036 as outcome_goal goes from 0.75 to</span></span>
+<span><span class="co">#&gt; 1  0.75             1        2.157674     18961.39             0.75     ok</span></span>
+<span><span class="co">#&gt; 2  0.80             1        2.438484     21207.88             0.80     ok</span></span>
+<span><span class="co">#&gt; 3  0.85             1        2.778472     23927.77             0.85     ok</span></span>
+<span><span class="co">#&gt; 4  0.90             1        3.230045     27540.36             0.90     ok</span></span>
+<span><span class="co">#&gt; rec_int_cost ranges from 18961.39 to 27540.36 as outcome_goal goes from 0.75 to</span></span>
 <span><span class="co">#&gt; 0.9.</span></span></code></pre></div>
 <p>The result is a tidy data frame with one row per swept value: the
 value, the recommended value of each component, the recommended cost,

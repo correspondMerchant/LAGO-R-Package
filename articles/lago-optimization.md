@@ -60,7 +60,7 @@ result <- lago_optimization(
   intervention_upper_bounds = c(40, 5),
   center_characteristics = "birth_volume_100",
   center_characteristics_optimization_values = 1.75,
-  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
   outcome_goal = 0.85,
   outcome_goal_intention = "maximize",
   confidence_set_grid_step_size = c(1, 0.5),
@@ -101,7 +101,7 @@ result
 #> Fixed time effects: FALSE
 #> Outcome goal: 0.85
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1.7), c(0, 8)
+#> Intervention component costs: c(0, 1700), c(0, 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -134,14 +134,14 @@ result
 #> ── Recommended intervention
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23.9278
+#> Cost: 23927.7723
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
 #> 
 #> ── Confidence set
 #> 95% confidence set size: 10.56% of the grid
-#> IQR of the cost within the 95% confidence set: 31.08 - 69.98
+#> IQR of the cost within the 95% confidence set: 31075 - 69975
 #> First rows of the confidence set (use $cs for all):
 #>     coaching_updt launch_duration birth_volume_100 CI_lower_bound
 #> 81             40             1.5             1.75          0.755
@@ -150,13 +150,13 @@ result
 #> 110            29             2.0             1.75          0.816
 #> 111            30             2.0             1.75          0.819
 #> 112            31             2.0             1.75          0.822
-#>     CI_upper_bound cost
-#> 81           0.851 80.0
-#> 108          0.851 61.9
-#> 109          0.855 63.6
-#> 110          0.859 65.3
-#> 111          0.863 67.0
-#> 112          0.867 68.7
+#>     CI_upper_bound  cost
+#> 81           0.851 80000
+#> 108          0.851 61900
+#> 109          0.855 63600
+#> 110          0.859 65300
+#> 111          0.863 67000
+#> 112          0.867 68700
 ```
 
 [`summary()`](https://rdrr.io/r/base/summary.html) renders the same
@@ -180,7 +180,7 @@ summary(result)
 #> Fixed time effects: FALSE
 #> Outcome goal: 0.85
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1.7), c(0, 8)
+#> Intervention component costs: c(0, 1700), c(0, 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -213,14 +213,14 @@ summary(result)
 #> ── Recommended intervention
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23.9278
+#> Cost: 23927.7723
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
 #> 
 #> ── Confidence set
 #> 95% confidence set size: 10.56% of the grid
-#> IQR of the cost within the 95% confidence set: 31.08 - 69.98
+#> IQR of the cost within the 95% confidence set: 31075 - 69975
 #> First rows of the confidence set (use $cs for all):
 #>     coaching_updt launch_duration birth_volume_100 CI_lower_bound
 #> 81             40             1.5             1.75          0.755
@@ -229,13 +229,13 @@ summary(result)
 #> 110            29             2.0             1.75          0.816
 #> 111            30             2.0             1.75          0.819
 #> 112            31             2.0             1.75          0.822
-#>     CI_upper_bound cost
-#> 81           0.851 80.0
-#> 108          0.851 61.9
-#> 109          0.855 63.6
-#> 110          0.859 65.3
-#> 111          0.863 67.0
-#> 112          0.867 68.7
+#>     CI_upper_bound  cost
+#> 81           0.851 80000
+#> 108          0.851 61900
+#> 109          0.855 63600
+#> 110          0.859 65300
+#> 111          0.863 67000
+#> 112          0.867 68700
 ```
 
 The recommended intervention and its cost are available directly:
@@ -245,7 +245,7 @@ The recommended intervention and its cost are available directly:
 result$rec_int
 #> [1] 1.000000 2.778472
 result$rec_int_cost
-#> [1] 23.92777
+#> [1] 23927.77
 ```
 
 ## Visualizing the confidence set
@@ -284,7 +284,7 @@ power_result <- lago_optimization(
   intervention_upper_bounds = c(40, 5),
   center_characteristics = "birth_volume_100",
   center_characteristics_optimization_values = 1.75,
-  cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+  cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
   power_goal = 0.8,
   num_centers_in_next_stage = 10,
   patients_per_center_in_next_stage = 30,
@@ -360,11 +360,11 @@ sens
 #> 
 #> Varied outcome_goal across 4 runs; 0 failed.
 #>   value coaching_updt launch_duration rec_int_cost est_outcome_goal status
-#> 1  0.75             1        2.157674     18.96139             0.75     ok
-#> 2  0.80             1        2.438484     21.20788             0.80     ok
-#> 3  0.85             1        2.778472     23.92777             0.85     ok
-#> 4  0.90             1        3.230045     27.54036             0.90     ok
-#> rec_int_cost ranges from 18.96139 to 27.54036 as outcome_goal goes from 0.75 to
+#> 1  0.75             1        2.157674     18961.39             0.75     ok
+#> 2  0.80             1        2.438484     21207.88             0.80     ok
+#> 3  0.85             1        2.778472     23927.77             0.85     ok
+#> 4  0.90             1        3.230045     27540.36             0.90     ok
+#> rec_int_cost ranges from 18961.39 to 27540.36 as outcome_goal goes from 0.75 to
 #> 0.9.
 ```
 

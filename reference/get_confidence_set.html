@@ -278,7 +278,7 @@ from the optimization step.</p></dd>
 <span class="r-in"><span>  center_characteristics_optimization_values <span class="op">=</span> <span class="fl">1.75</span>,</span></span>
 <span class="r-in"><span>  intervention_lower_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">40</span>, <span class="fl">5</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.7</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1700</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8000</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  outcome_goal <span class="op">=</span> <span class="fl">0.85</span>,</span></span>
 <span class="r-in"><span>  outcome_goal_intention <span class="op">=</span> <span class="st">"maximize"</span>,</span></span>
 <span class="r-in"><span>  include_confidence_set <span class="op">=</span> <span class="cn">FALSE</span>,</span></span>
@@ -303,7 +303,7 @@ from the optimization step.</p></dd>
 <span class="r-in"><span>  confidence_set_grid_step_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  center_characteristics <span class="op">=</span> <span class="st">"birth_volume_100"</span>,</span></span>
 <span class="r-in"><span>  center_characteristics_optimization_values <span class="op">=</span> <span class="fl">1.75</span>,</span></span>
-<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.7</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1700</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">8000</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  rec_int <span class="op">=</span> <span class="va">opt</span><span class="op">$</span><span class="va">rec_int</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -335,13 +335,13 @@ from the optimization step.</p></dd>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 71            30               2             1.75          0.819          0.863</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 72            31               2             1.75          0.822          0.867</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 73            32               2             1.75          0.824          0.871</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    cost</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 68 61.9</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 69 63.6</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 70 65.3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 71 67.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 72 68.7</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 73 70.4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     cost</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 68 61900</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 69 63600</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 70 65300</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 71 67000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 72 68700</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 73 70400</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

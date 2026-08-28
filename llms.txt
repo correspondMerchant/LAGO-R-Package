@@ -334,9 +334,9 @@ is above a given threshold (85%). The two intervention components are
 ‘launch_duration’ ($`x_2`$), the launch duration in days. Suppose that
 we know the lower and upper bounds of ‘coaching_updt’ and
 ‘launch_duration’ are \[1,40\] and \[1,5\], respectively. The total
-costs of the two components are $`C(x_1) = 1.7x_1`$, and
-$`C(x_2) = 8x_2`$, respectively. In addition, we assign fake centers and
-fake time periods to all observations to demonstrate fitting outcome
+costs of the two components (in USD) are $`C(x_1) = 1700x_1`$, and
+$`C(x_2) = 8000x_2`$, respectively. In addition, we assign fake centers
+and fake time periods to all observations to demonstrate fitting outcome
 models with fixed center and fixed time effects.
 
 Instead of an overall optimal intervention package, we target the
@@ -364,7 +364,7 @@ optimal intervention package for center “5” in time period “10”.
       include_time_effects = TRUE,
       center_effects_optimization_values = "5",
       time_effect_optimization_value = 10,
-      cost_list_of_vectors = list(c(0, 1.7), c(0, 8)),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
       outcome_goal = 0.85,
       outcome_goal_intention = "maximize"
     )
@@ -402,7 +402,7 @@ Output:
     Fixed time effects: TRUE
     Outcome goal: 0.85
     Power goal: not specified
-    Intervention component costs: c(0, 1.7), c(0, 8)
+    Intervention component costs: c(0, 1700), c(0, 8000)
     Intervention lower bounds: 1, 1
     Intervention upper bounds: 40, 5
 
@@ -450,24 +450,24 @@ Output:
     values 'treatment' or 'control' (binary outcomes only).
 
     ── Recommended intervention
-    coaching_updt: 1.0014
+    coaching_updt: 1
     launch_duration: 1.7508
-    Cost: 15.7083
+    Cost: 15706.0315
     Estimated outcome: 0.85
     95% CI for the estimated outcome: 0.802 - 0.898
     Outcome goal: 0.85
 
     ── Confidence set
     95% confidence set size: 11.85% of the grid
-    IQR of the cost within the 95% confidence set: 32.4 - 67.75
+    IQR of the cost within the 95% confidence set: 32400 - 67750
     First rows of the confidence set (use $cs for all):
-       coaching_updt launch_duration CI_lower_bound CI_upper_bound cost
-    78            33            1.45          0.726          0.853 67.7
-    79            35            1.45          0.722          0.856 71.1
-    80            37            1.45          0.718          0.860 74.5
-    81            39            1.45          0.714          0.864 77.9
-    82             1            1.60          0.769          0.874 14.5
-    83             3            1.60          0.772          0.872 17.9
+       coaching_updt launch_duration CI_lower_bound CI_upper_bound  cost
+    78            33            1.45          0.726          0.853 67700
+    79            35            1.45          0.722          0.856 71100
+    80            37            1.45          0.718          0.860 74500
+    81            39            1.45          0.714          0.864 77900
+    82             1            1.60          0.769          0.874 14500
+    83             3            1.60          0.772          0.872 17900
 
 The outcome model here includes many more coefficients, one per center
 and per time period, than the previous example, and the console output
