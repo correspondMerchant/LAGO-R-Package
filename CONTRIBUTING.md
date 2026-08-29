@@ -1,6 +1,6 @@
-# Contributing to LAGO
+# Contributing to LAGOtrials
 
-Thanks for your interest in LAGO. Contributions of all kinds are
+Thanks for your interest in LAGOtrials. Contributions of all kinds are
 welcome, from bug reports to documentation fixes to new features.
 
 ## Reporting a bug
@@ -15,7 +15,7 @@ Open an issue using the bug-report template. A good report includes:
 - what you expected and what happened instead,
 - the output of
   [`sessionInfo()`](https://rdrr.io/r/utils/sessionInfo.html) and the
-  LAGO version.
+  LAGOtrials version.
 
 A small reproducible example is the single most helpful thing you can
 provide.
@@ -24,7 +24,7 @@ provide.
 
 Open an issue using the feature-request template and describe the use
 case, not just the mechanism: what analysis are you trying to run that
-LAGO does not yet support?
+LAGOtrials does not yet support?
 
 ## Making a change
 

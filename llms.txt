@@ -1,6 +1,13 @@
-# LAGO
+# LAGOtrials
 
-The LAGO R package bridges the gap between theoretical advances in
+**LAGOtrials** is the R package that implements the Learn-As-you-GO
+(LAGO) method. The method is called LAGO; the package is called
+LAGOtrials because the name `LAGO` was already taken on CRAN. Throughout
+this documentation “LAGO” refers to the statistical method and
+“LAGOtrials” refers to this package. (For continuity, the functions keep
+the `lago_` prefix and still return an object of class `"lago"`.)
+
+The LAGOtrials R package bridges the gap between theoretical advances in
 Learn-As-you-GO (LAGO) and practical applications by providing a
 standardized solution for: 1) fitting the outcome models for both binary
 and continuous outcomes, including support for fixed center
@@ -25,8 +32,8 @@ interventions.
 4.  [More advanced use case](#more-advanced-use-case)
 5.  [Sensitivity analysis](#sensitivity-analysis)
 6.  [How to run additional examples](#how-to-run-additional-examples)
-7.  [Using LAGO from Python](#using-lago-from-python)
-8.  [Using LAGO with AI agents](#using-lago-with-ai-agents)
+7.  [Using LAGOtrials from Python](#using-lagotrials-from-python)
+8.  [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
 9.  [Relevant LAGO papers](#relevant-lago-papers)
 10. [Citation](#citation)
 11. [How to get help](#how-to-get-help)
@@ -47,7 +54,7 @@ page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html).
 
 ## The main functions
 
-The LAGO R package has four user-facing functions
+The LAGOtrials R package has four user-facing functions
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md),
@@ -343,7 +350,7 @@ Instead of an overall optimal intervention package, we target the
 optimal intervention package for center “5” in time period “10”.
 
     # The BetterBirth data has been open sourced so a version of
-    # the BetterBirth data is included in the LAGO R package
+    # the BetterBirth data is included in the LAGOtrials R package
     bb_data <- LAGOtrials::BB_data
     head(bb_data)
 
@@ -609,14 +616,15 @@ optimization continues. -
 — overall intervention-effect test, reported when a `group` column is
 supplied.
 
-## Using LAGO from Python
+## Using LAGOtrials from Python
 
 A Python wrapper lives in
 [`python/`](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/python)
 (importable as `lago`) for people who work in Python. It calls the real
 R functions through [`rpy2`](https://rpy2.github.io/), so the results
 are exactly the ones the R package produces. Because it embeds R, you
-need R and the installed LAGO R package as well as the Python package.
+need R and the installed LAGOtrials R package as well as the Python
+package.
 
 ``` python
 import pandas as pd
@@ -652,9 +660,9 @@ server (`python -m lago.mcp_server`) that exposes `optimize` and
 [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md)
 for installation, the MCP server, and the full API.
 
-## Using LAGO with AI agents
+## Using LAGOtrials with AI agents
 
-LAGO ships two ways to drive it from AI coding agents.
+LAGOtrials ships two ways to drive it from AI coding agents.
 
 **Agent skill.**
 [`skills/lagotrials`](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills/lagotrials)
@@ -672,13 +680,14 @@ run anything.
 **MCP server.** The Python package ships a [Model Context
 Protocol](https://modelcontextprotocol.io/) server
 (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity`
-as tools an MCP-aware agent can call to actually run LAGO. It reuses the
-Python wrapper, so R and the installed LAGO R package are required. See
+as tools an MCP-aware agent can call to actually run LAGOtrials. It
+reuses the Python wrapper, so R and the installed LAGOtrials R package
+are required. See
 [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md)
 for the client configuration.
 
-In short: the skill tells an agent how to use LAGO, the MCP server lets
-it execute LAGO.
+In short: the skill tells an agent how to use LAGOtrials, the MCP server
+lets it execute LAGOtrials.
 
 ## Relevant LAGO papers
 
