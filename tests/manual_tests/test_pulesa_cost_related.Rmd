@@ -12,18 +12,18 @@ editor_options:
 # knitr::opts_chunk$set(tidy=TRUE, tidy.opts=list(width.cutoff=70))
 ```
 
-## install and Load the LAGO pacakge 
+## install and Load the LAGOtrials package 
 ```{r}
-# install the LAGO package using the tar.gz file
+# install the LAGOtrials package using the tar.gz file
 # library(LAGOtrials)
 
-# use the following to load the LAGO library while developing the r package:
+# use the following to load the LAGOtrials library while developing the r package:
 devtools::load_all()
 ```
 
 ## load PULESA data and preprocessing for fitting the "main" model 
 ```{r}
-# PULESA data is intentionally NOT pre loaded as part of the LAGO package as the
+# PULESA data is intentionally NOT pre loaded as part of the LAGOtrials package as the
 # PULESA trial is still ongoing.
 #
 # code below are shared by Jingyu:
@@ -240,7 +240,7 @@ print(sum(weights_all * probs))
 
 
 
-## replicate the optimization results using the LAGO package 
+## replicate the optimization results using the LAGOtrials package 
 ```{r}
 
 ```
@@ -346,7 +346,7 @@ fit.res <- glm(
 
 
 
-## replicate the results using the LAGO package 
+## replicate the results using the LAGOtrials package 
 ```{r}
 # work on the previous model first
 ```

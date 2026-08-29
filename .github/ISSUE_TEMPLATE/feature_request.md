@@ -8,12 +8,12 @@ assignees: ""
 
 **The use case**
 
-What analysis are you trying to run that LAGO does not yet support? Describe the
+What analysis are you trying to run that LAGOtrials does not yet support? Describe the
 problem, not just a proposed solution.
 
 **Proposed behaviour**
 
-What you would like LAGO to do, and how you imagine calling it.
+What you would like LAGOtrials to do, and how you imagine calling it.
 
 **Alternatives**
 

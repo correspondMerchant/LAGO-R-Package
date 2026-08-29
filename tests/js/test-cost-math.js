@@ -9,7 +9,7 @@
 //   3. the drag-scaling rule produces a curve whose cost at ub equals the
 //      target, and correctly no-ops on a zero / non-positive curve.
 //
-// The reference values below were produced in R (LAGO's calculate_cost /
+// The reference values below were produced in R (LAGOtrials' calculate_cost /
 // calculate_derivative) for coefs = c(0.5, 1.2, 0.03, 0.004).
 
 var assert = require("assert");

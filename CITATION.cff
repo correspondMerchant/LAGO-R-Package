@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use LAGO, please cite both the software and the methods paper below."
-title: "LAGO: Learn-As-you-GO Adaptive Trial Optimization"
+message: "If you use LAGOtrials, please cite both the software and the methods paper below."
+title: "LAGOtrials: Learn-As-you-GO Adaptive Trial Optimization"
 type: software
 version: 1.1.0
 license: GPL-3.0-only

@@ -1,6 +1,6 @@
-# Contributing to LAGO
+# Contributing to LAGOtrials
 
-Thanks for your interest in LAGO. Contributions of all kinds are welcome, from
+Thanks for your interest in LAGOtrials. Contributions of all kinds are welcome, from
 bug reports to documentation fixes to new features.
 
 ## Reporting a bug
@@ -9,14 +9,14 @@ Open an issue using the bug-report template. A good report includes:
 
 - what you ran (a minimal `lago_optimization()` / `get_confidence_set()` call),
 - what you expected and what happened instead,
-- the output of `sessionInfo()` and the LAGO version.
+- the output of `sessionInfo()` and the LAGOtrials version.
 
 A small reproducible example is the single most helpful thing you can provide.
 
 ## Suggesting a feature
 
 Open an issue using the feature-request template and describe the use case, not
-just the mechanism: what analysis are you trying to run that LAGO does not yet
+just the mechanism: what analysis are you trying to run that LAGOtrials does not yet
 support?
 
 ## Making a change

@@ -6,12 +6,12 @@ A Python wrapper for the [LAGOtrials](https://github.com/correspondMerchant/LAGO
 
 **This wrapper EMBEDS R via [rpy2](https://rpy2.github.io/). R and the installed
 `LAGOtrials` R package are REQUIRED at runtime.** It does not reimplement any
-LAGO math. Every function calls the corresponding exported R function in
+LAGOtrials math. Every function calls the corresponding exported R function in
 `LAGOtrials` and converts inputs/outputs between Python-native types and R
 objects.
 
-In other words: this gives Python users LAGO's API in Python syntax. It is
-**not** an R-free install of LAGO. You must have:
+In other words: this gives Python users LAGOtrials's API in Python syntax. It is
+**not** an R-free install of LAGOtrials. You must have:
 
 - a working R installation (rpy2 must be able to reach it, i.e. `R_HOME` set),
 - the `LAGOtrials` R package installed in that R,
@@ -119,9 +119,9 @@ cost_list = lago.visualize_cost(
 ## MCP server
 
 An optional [Model Context Protocol](https://modelcontextprotocol.io/) server
-(`lago.mcp_server`) exposes LAGO as callable tools so any MCP-aware agent (Claude
+(`lago.mcp_server`) exposes LAGOtrials as callable tools so any MCP-aware agent (Claude
 Desktop, Claude Code, ...) can run optimizations. It is a thin front end over the
-`lago` wrapper, so it adds ZERO impact to the R package and does no LAGO math of
+`lago` wrapper, so it adds ZERO impact to the R package and does no LAGOtrials math of
 its own.
 
 **Honest caveat:** because it reuses the `lago` wrapper, the MCP server EMBEDS R

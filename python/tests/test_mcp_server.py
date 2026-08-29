@@ -1,4 +1,4 @@
-"""Tests for the LAGO MCP server (lago.mcp_server).
+"""Tests for the LAGOtrials MCP server (lago.mcp_server).
 
 These test the tool FUNCTIONS at the function/registration level. The blocking
 stdio server (mcp.run()) is intentionally NOT launched: it would block on
@@ -6,7 +6,7 @@ stdin/stdout forever. Instead we call the registered tool callables directly
 (FastMCP's ``@mcp.tool()`` returns the original function unchanged) and inspect
 the FastMCP tool registry for the input schemas.
 
-Like the wrapper tests, the tool-execution tests drive the REAL LAGO R
+Like the wrapper tests, the tool-execution tests drive the REAL LAGOtrials R
 functions through rpy2 and reuse the shared ``ro`` fixture (see conftest.py), so
 they skip cleanly when R / rpy2 / LAGOtrials cannot be reached. The whole module
 skips if the ``mcp`` SDK is not installed.
