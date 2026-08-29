@@ -435,3 +435,29 @@ test_that("a rank-deficient fit is named as such, not sent to grid_search", {
   expect_true(all(ok_grid$rec_int >= c(1, 1)))
   expect_true(all(ok_grid$rec_int <= c(40, 5)))
 })
+
+test_that("a degenerate all-zero cost falls back to an unnormalized objective", {
+  # Exercises the cost-scale guard in get_recommended_interventions(): when the
+  # cost at the upper bound is not positive (here every cost coefficient is 0, so
+  # cost(x) == 0 everywhere) the normalization divisor falls back to 1 instead of
+  # dividing by zero. The optimization must still run and return a feasible
+  # recommendation that meets the goal, at cost 0.
+  res <- suppressWarnings(suppressMessages(lago_optimization(
+    data = BB_data,
+    outcome_name = "pp3_oxytocin_mother",
+    outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"),
+    intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5),
+    cost_list_of_vectors = list(c(0, 0), c(0, 0)),
+    outcome_goal = 0.85,
+    outcome_goal_intention = "maximize",
+    include_confidence_set = FALSE,
+    quiet = TRUE
+  )))
+  expect_length(res$rec_int, 2)
+  expect_true(all(res$rec_int >= c(1, 1)))
+  expect_true(all(res$rec_int <= c(40, 5)))
+  expect_equal(res$rec_int_cost, 0)
+  expect_gte(res$est_outcome_goal, 0.85 - 1e-6)
+})
