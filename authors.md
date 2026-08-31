@@ -16,12 +16,12 @@
 Source:
 [`DESCRIPTION`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/DESCRIPTION)
 
-Bing A, Bui M, Cui J (2026). *LAGOtrials: Learn-As-You-Go Adaptive Trial
+Bing A, Bui M, Cui J (2026). *LAGOtrials: Learn-as-You-Go Adaptive Trial
 Optimization*. R package version 1.1.0,
 <https://correspondmerchant.github.io/LAGO-R-Package/>.
 
     @Manual{,
-      title = {LAGOtrials: Learn-As-You-Go Adaptive Trial Optimization},
+      title = {LAGOtrials: Learn-as-You-Go Adaptive Trial Optimization},
       author = {Ante Bing and Minh Bui and Jingyu Cui},
       year = {2026},
       note = {R package version 1.1.0},

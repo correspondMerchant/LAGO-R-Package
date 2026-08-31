@@ -1,4 +1,4 @@
-# LAGOtrials: Learn-As-You-Go Adaptive Trial Optimization
+# LAGOtrials: Learn-as-You-Go Adaptive Trial Optimization
 
 Optimizes interventions for adaptive "Learn-As-you-GO" (LAGO) trials, in
 which the intervention package is updated between stages using
