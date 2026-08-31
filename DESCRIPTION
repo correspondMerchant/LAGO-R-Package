@@ -1,6 +1,6 @@
 Package: LAGOtrials
 Type: Package
-Title: Learn-As-You-Go Adaptive Trial Optimization
+Title: Learn-as-You-Go Adaptive Trial Optimization
 Version: 1.1.0
 Authors@R: c(
     person("Ante", "Bing", email = "abing@bu.edu", role = c("aut", "cre")),
