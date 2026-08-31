@@ -27,7 +27,7 @@
 #'   \item{coach3}{Number of coaching vissts accrued divided by 3}
 #' }
 #' @source \doi{10.1186/s13012-015-0309-y}
-#' @source \url{https://www.nejm.org/doi/full/10.1056/NEJMoa1701075}
+#' @source \doi{10.1056/NEJMoa1701075}
 #'
 #' @examples
 #' data(BB_data)

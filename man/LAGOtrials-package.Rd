@@ -4,7 +4,7 @@
 \name{LAGOtrials-package}
 \alias{LAGOtrials}
 \alias{LAGOtrials-package}
-\title{LAGOtrials: Learn-As-You-Go Adaptive Trial Optimization}
+\title{LAGOtrials: Learn-as-You-Go Adaptive Trial Optimization}
 \description{
 \if{html}{\figure{logo.svg}{options: style='float: right' alt='logo' width='120'}}
 
