@@ -574,6 +574,10 @@
       if (!built.ok) { $("run-hint").textContent = built.msg; return; }
       running = true;
       $("run").disabled = true; $("run-hint").textContent = "running…";
+      // Lock the data/reset controls too: a reset, dataset switch or upload
+      // mid-run would rebuild the controls while the in-flight result still
+      // renders against the old config, leaving the panels disagreeing.
+      $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
       clearResults();
       $("output").textContent = "Computing the recommendation…";
       const call = built.call;
@@ -625,6 +629,7 @@
           "\n\nTry a less aggressive goal, wider bounds, or a different outcome/component.";
       } finally {
         running = false;
+        $("reset").disabled = $("dataset").disabled = $("file").disabled = false;
         $("run-hint").textContent = "";
         updateRunEnabled();
       }
