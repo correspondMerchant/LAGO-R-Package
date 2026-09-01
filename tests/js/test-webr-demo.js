@@ -1,13 +1,14 @@
-// Guards the live webR demo wiring (pkgdown/assets/live-demo.html) against the
-// wasm-repo build workflow (.github/workflows/webr-repo.yaml).
+// Guards both webR pages' wiring (pkgdown/assets/live-demo.html and
+// pkgdown/assets/playground.html) against the wasm-repo build workflow
+// (.github/workflows/webr-repo.yaml).
 //
 // Run with:  node tests/js/test-webr-demo.js
 //
 // A wasm package binary built against one webR ABI will not load in a different
-// webR runtime, so the webR version the page loads from the CDN MUST equal the
+// webR runtime, so the webR version each page loads from the CDN MUST equal the
 // webR Docker image the binary is built with. This test also checks that the
-// package repository URL the page installs from matches the folder the workflow
-// deploys to, and that the page actually installs LAGOtrials. These are the
+// package repository URL each page installs from matches the folder the workflow
+// deploys to, and that each page actually installs LAGOtrials. These are the
 // wiring mistakes that would silently break the demo without any R/JS error at
 // build time.
 

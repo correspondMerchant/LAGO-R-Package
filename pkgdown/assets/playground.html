@@ -148,8 +148,8 @@
           </div>
         </div>
       </div>
-      <label style="display:block;margin-top:14px;">Intervention components</label>
-      <div id="components"></div>
+      <label id="components-label" style="display:block;margin-top:14px;">Intervention components</label>
+      <div id="components" role="group" aria-labelledby="components-label"></div>
       <div id="comp-config"></div>
     </div>
 
@@ -201,15 +201,18 @@
     const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
     const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
 
-    let webR, shelter, columns = [], firstBuild = true, bootReady = false;
+    let webR, shelter, columns = [], firstBuild = true, bootReady = false, running = false;
 
-    // Run is enabled only once webR is ready AND at least one component is
-    // ticked, with the reason shown when it stays disabled, so the incomplete
-    // state is visible instead of only complaining after a click.
+    // Run is enabled only once webR is ready, no run is in flight, AND at least
+    // one component is ticked, with the reason shown when it stays disabled, so
+    // the incomplete state is visible instead of only complaining after a click.
+    // The `running` guard matters because any model-panel interaction fires this
+    // via the delegated listener; without it a mid-run edit would re-enable Run
+    // and let a second optimization race the first on single-threaded webR.
     function updateRunEnabled() {
       if (!bootReady) return;
       const ok = selectedComponents().length > 0;
-      $("run").disabled = !ok;
+      $("run").disabled = !ok || running;
       if ($("run-hint").textContent === "running…") return;
       $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
     }
@@ -300,7 +303,7 @@
         numeric = vapply(PG_DATA, is.numeric, logical(1), USE.NAMES = FALSE),
         mins = vapply(PG_DATA, function(v) if (is.numeric(v)) min(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
         maxs = vapply(PG_DATA, function(v) if (is.numeric(v)) max(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
-        binary = vapply(PG_DATA, function(v) is.numeric(v) && all(stats::na.omit(v) %in% c(0, 1)), logical(1), USE.NAMES = FALSE)
+        binary = vapply(PG_DATA, function(v) is.numeric(v) && length(stats::na.omit(v)) > 0 && all(stats::na.omit(v) %in% c(0, 1)), logical(1), USE.NAMES = FALSE)
       ), auto_unbox = TRUE, na = "null", digits = NA)`);
       const meta = JSON.parse(json);
       columns = meta.cols.map((name, i) => ({
@@ -335,12 +338,22 @@
       onOutcomeChanged();
       if (firstBuild) {
         firstBuild = false;
-        Array.from(document.querySelectorAll("#components input")).slice(0, 2).forEach((cb) => {
-          cb.checked = true;
-          cb.dispatchEvent(new Event("change", { bubbles: true }));
-        });
+        prefillComponents();
       }
       updateRCode();
+      // buildModelControls is the single funnel for every schema rebuild
+      // (dataset switch, CSV upload, reset); the dataset select lives outside
+      // #model-panel, so its change never reaches the delegated listener. Refresh
+      // the Run gate here so it can never sit enabled with nothing ticked.
+      updateRunEnabled();
+    }
+
+    // Tick up to two eligible components, as a runnable starting point.
+    function prefillComponents() {
+      Array.from(document.querySelectorAll("#components input")).slice(0, 2).forEach((cb) => {
+        cb.checked = true;
+        cb.dispatchEvent(new Event("change", { bubbles: true }));
+      });
     }
 
     // Set a segmented toggle (#otype / #intent) programmatically.
@@ -409,16 +422,19 @@
       $("goal-val").textContent = fmt(g.value);
     }
 
-    // Restore the prefilled defaults for the current dataset: clear ticks and
-    // any tuned bounds/costs, re-pick a binary outcome, re-tick two components,
-    // reset the goal and direction, and clear results.
+    // Restore a clean runnable baseline for the current dataset: clear ticks and
+    // any tuned bounds/costs, re-derive the (currently selected) outcome's type,
+    // re-tick two components, and reset the goal and direction. Reset keeps the
+    // selected outcome rather than re-running the first-load binary preference,
+    // so it never silently flips a continuous outcome (e.g. mtcars mpg) to a
+    // binary column.
     function resetModel() {
       clearResults();
       document.querySelectorAll("#components input:checked").forEach((cb) => { cb.checked = false; });
       $("comp-config").innerHTML = "";
       setSeg("intent", "maximize");
-      firstBuild = true;
-      buildModelControls();
+      onOutcomeChanged();
+      prefillComponents();
       updateGoalRange(true);
       updateRunEnabled();
     }
@@ -556,6 +572,7 @@
       if (!shelter) return;
       const built = buildCall();
       if (!built.ok) { $("run-hint").textContent = built.msg; return; }
+      running = true;
       $("run").disabled = true; $("run-hint").textContent = "running…";
       clearResults();
       $("output").textContent = "Computing the recommendation…";
@@ -607,7 +624,8 @@
           "The optimization couldn't run with these settings:\n\n" + errMsg(err) +
           "\n\nTry a less aggressive goal, wider bounds, or a different outcome/component.";
       } finally {
-        $("run").disabled = false; $("run-hint").textContent = "";
+        running = false;
+        $("run-hint").textContent = "";
         updateRunEnabled();
       }
     }
@@ -616,7 +634,7 @@
     $("dataset").addEventListener("change", async (e) => {
       clearResults(); setStatus("Loading " + e.target.value + "…");
       try { await loadBundled(e.target.value); setStatus("Ready.", "ready"); }
-      catch (err) { setStatus("Could not load dataset: " + err, "error"); }
+      catch (err) { setStatus("Could not load dataset: " + errMsg(err), "error"); }
     });
     const drop = $("drop"), file = $("file");
     drop.addEventListener("click", () => file.click());
