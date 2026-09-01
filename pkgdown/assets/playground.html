@@ -49,8 +49,18 @@
     .chip input { margin:0; }
     .chip.on { border-color:var(--accent); background:#eef4fc; color:var(--accent-dark); }
     #comp-config { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
-    .comp-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:.85rem; }
+    .comp-row { display:flex; gap:20px; align-items:center; flex-wrap:wrap; font-size:.85rem; padding:8px 0; border-top:1px solid #f0f2f5; }
     .comp-row .name { font-weight:600; min-width:130px; }
+    .comp-row .ctl { display:flex; flex-direction:column; gap:2px; }
+    .comp-row .ctl > span:first-child { font-weight:500; font-size:.75rem; color:var(--muted); }
+    .val { color:var(--accent-dark); font-weight:700; }
+    input[type=range] { width:180px; accent-color:var(--accent); cursor:pointer; vertical-align:middle; }
+    .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .seg button { background:#fff; color:#333; border:0; border-radius:0; padding:8px 14px; font-weight:600; }
+    .seg button.on { background:var(--accent); color:#fff; }
+    .stepper { display:inline-flex; align-items:center; gap:8px; }
+    .stepper button { padding:2px 10px; border-radius:6px; font-size:1rem; line-height:1; }
+    .stepper input { width:80px; }
     button { font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; padding:10px 20px; border-radius:8px; cursor:pointer; }
     button:hover { background:var(--accent-dark); }
     button:disabled { background:#9db8d6; cursor:not-allowed; }
@@ -124,16 +134,16 @@
             <option value="continuous">continuous</option>
           </select>
         </div>
-        <div class="field">
-          <label for="goal">Outcome goal</label>
-          <input id="goal" type="number" step="any" value="0.85">
+        <div class="field" style="min-width:240px;">
+          <label for="goal">Outcome goal: <span id="goal-val" class="val">0.85</span></label>
+          <input id="goal" type="range" min="0" max="1" step="0.01" value="0.85">
         </div>
         <div class="field">
-          <label for="intent">Direction</label>
-          <select id="intent">
-            <option value="maximize">maximize</option>
-            <option value="minimize">minimize</option>
-          </select>
+          <label>Direction</label>
+          <div class="seg" id="intent" data-value="maximize">
+            <button type="button" class="on" data-value="maximize">Maximize</button>
+            <button type="button" data-value="minimize">Minimize</button>
+          </div>
         </div>
       </div>
       <label style="display:block;margin-top:14px;">Intervention components</label>
@@ -275,15 +285,39 @@
         cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); });
         comps.appendChild(chip);
       });
+      updateGoalRange();
       renderCompConfig();
+    }
+
+    // The goal slider spans 0-1 for a binary outcome, or the selected outcome
+    // column's observed range for a continuous one.
+    function updateGoalRange() {
+      const g = $("goal");
+      const oc = columns.find((c) => c.name === $("outcome").value);
+      if ($("otype").value === "binary" || !oc || !Number.isFinite(oc.min) || !Number.isFinite(oc.max) || oc.max <= oc.min) {
+        g.min = 0; g.max = 1; g.step = 0.01;
+        if (!(Number(g.value) >= 0 && Number(g.value) <= 1)) g.value = 0.85;
+      } else {
+        const span = oc.max - oc.min;
+        g.min = oc.min; g.max = oc.max; g.step = span / 100;
+        if (!(Number(g.value) >= oc.min && Number(g.value) <= oc.max)) g.value = oc.min + span / 2;
+      }
+      $("goal-val").textContent = fmt(g.value);
     }
 
     function selectedComponents() {
       return Array.from(document.querySelectorAll("#components input:checked")).map((c) => c.value);
     }
 
-    // For each selected component, a bounds + per-unit cost row (bounds default
-    // to the observed range, rounded outward a little).
+    // Show a value at a sensible precision for a readout.
+    const fmt = (v) => {
+      const n = Number(v);
+      return Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000);
+    };
+
+    // For each selected component, draggable lower/upper bound sliders (spanning
+    // the observed data range) plus a unit-cost stepper, each with a live
+    // readout. The lower and upper handles are kept from crossing.
     function renderCompConfig() {
       const box = $("comp-config");
       const chosen = selectedComponents();
@@ -292,15 +326,43 @@
         const col = columns.find((c) => c.name === name) || {};
         const lo = Number.isFinite(col.min) ? Math.floor(col.min) : 0;
         const hi = Number.isFinite(col.max) ? Math.ceil(col.max) : 1;
+        const step = hi > lo ? (hi - lo) / 100 : 1;
         const row = document.createElement("div");
         row.className = "comp-row";
         row.dataset.comp = name;
         row.innerHTML =
           `<span class="name">${name}</span>` +
-          `<span>lower <input type="number" step="any" class="lb" value="${lo}"></span>` +
-          `<span>upper <input type="number" step="any" class="ub" value="${hi}"></span>` +
-          `<span>unit cost <input type="number" step="any" class="cost" value="1"></span>`;
+          `<div class="ctl"><span>lower: <span class="lbval val"></span></span>` +
+          `<input type="range" class="lb" min="${lo}" max="${hi}" step="${step}" value="${lo}"></div>` +
+          `<div class="ctl"><span>upper: <span class="ubval val"></span></span>` +
+          `<input type="range" class="ub" min="${lo}" max="${hi}" step="${step}" value="${hi}"></div>` +
+          `<div class="ctl"><span>unit cost: <span class="costval val"></span></span>` +
+          `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease cost">&minus;</button>` +
+          `<input type="number" step="any" min="0" class="cost" value="1">` +
+          `<button type="button" class="cost-inc" aria-label="increase cost">+</button></span></div>`;
         box.appendChild(row);
+
+        const lb = row.querySelector(".lb"), ub = row.querySelector(".ub");
+        const cost = row.querySelector(".cost");
+        const sync = () => {
+          // keep lower <= upper
+          if (Number(lb.value) > Number(ub.value)) {
+            if (document.activeElement === lb) ub.value = lb.value; else lb.value = ub.value;
+          }
+          row.querySelector(".lbval").textContent = fmt(lb.value);
+          row.querySelector(".ubval").textContent = fmt(ub.value);
+          row.querySelector(".costval").textContent = fmt(cost.value);
+        };
+        lb.addEventListener("input", sync);
+        ub.addEventListener("input", sync);
+        cost.addEventListener("input", sync);
+        row.querySelector(".cost-dec").addEventListener("click", () => {
+          cost.value = Math.max(0, Number(cost.value) - 1); sync();
+        });
+        row.querySelector(".cost-inc").addEventListener("click", () => {
+          cost.value = Number(cost.value) + 1; sync();
+        });
+        sync();
       });
     }
 
@@ -330,7 +392,7 @@
         `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))},\n` +
         `  cost_list_of_vectors = list(${rows.map((r) => `c(0, ${Number(r.cost)})`).join(", ")}),\n` +
         `  outcome_goal = ${Number($("goal").value)},\n` +
-        `  outcome_goal_intention = ${rstr($("intent").value)},\n` +
+        `  outcome_goal_intention = ${rstr($("intent").dataset.value)},\n` +
         `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
           // Roughly 20 grid steps across each component's range, so a wide
           // continuous range (e.g. mtcars qsec, 0-350) does not blow up the
@@ -403,6 +465,20 @@
       catch (err) { setStatus("Could not read CSV: " + err, "error"); }
     }
     $("run").addEventListener("click", run);
+
+    // Goal slider readout, and re-range the goal when the outcome or its type
+    // changes (binary -> 0-1; continuous -> the column's range).
+    $("goal").addEventListener("input", () => { $("goal-val").textContent = fmt($("goal").value); });
+    $("outcome").addEventListener("change", updateGoalRange);
+    $("otype").addEventListener("change", updateGoalRange);
+
+    // Direction segmented toggle: track the choice on the container's dataset.
+    $("intent").querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        $("intent").dataset.value = btn.dataset.value;
+        $("intent").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
+      });
+    });
 
     boot();
   </script>
