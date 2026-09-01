@@ -100,6 +100,7 @@
     </p>
 
     <div id="status" class="status"><span class="spinner"></span><span id="status-text">Starting webR&hellip;</span></div>
+    <p class="hint" id="load-note" style="margin:-6px 0 10px;">First load downloads R and the package (tens of MB) once and can take up to a minute; after that, runs are quick.</p>
 
     <div class="panel" id="data-panel" style="opacity:.55;pointer-events:none;">
       <h2>1. Data</h2>
@@ -113,7 +114,7 @@
         </div>
         <div class="field">
           <label>&hellip; or upload a CSV</label>
-          <div id="drop">Drop a .csv here, or click to choose</div>
+          <div id="drop" role="button" tabindex="0" aria-label="Upload a CSV file: click, or press Enter">Drop a .csv here, or click to choose</div>
           <input id="file" type="file" accept=".csv,text/csv" style="display:none;">
         </div>
       </div>
@@ -136,7 +137,7 @@
         </div>
         <div class="field" style="min-width:240px;">
           <label for="goal">Outcome goal: <span id="goal-val" class="val">0.85</span></label>
-          <input id="goal" type="range" min="0" max="1" step="0.01" value="0.85">
+          <input id="goal" type="range" min="0" max="1" step="0.01" value="0.85" aria-label="Outcome goal">
         </div>
         <div class="field">
           <label>Direction</label>
@@ -154,6 +155,15 @@
     <div class="controls-bar">
       <button id="run" disabled>Run optimization</button>
       <span id="run-hint" class="hint"></span>
+    </div>
+
+    <div class="panel" id="rcode-panel" style="margin-top:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <h2 style="margin:0;">R code for this configuration</h2>
+        <button type="button" id="copy-code" class="secondary">Copy</button>
+      </div>
+      <p class="hint" style="margin:6px 0 0;">Paste this into R (after <code>library(LAGOtrials)</code>) to reproduce the run.</p>
+      <pre id="rcode" class="out" style="margin-top:10px;"></pre>
     </div>
 
     <h2 class="section">Result</h2>
@@ -185,7 +195,7 @@
     const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
     const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
 
-    let webR, shelter, columns = [];
+    let webR, shelter, columns = [], firstBuild = true;
 
     async function boot() {
       try {
@@ -282,7 +292,22 @@
         $("data-info").textContent +=
           " Need at least two numeric columns (one outcome + one component); this data has " + numeric.length + ".";
       }
+      // On the very first load, prefill a runnable example: prefer a binary
+      // column as the outcome, then tick up to two other numeric columns as
+      // components, so a newcomer can just press Run.
+      if (firstBuild) {
+        const bin = numeric.find((c) => c.binary);
+        if (bin) outcome.value = bin.name;
+      }
       onOutcomeChanged();
+      if (firstBuild) {
+        firstBuild = false;
+        Array.from(document.querySelectorAll("#components input")).slice(0, 2).forEach((cb) => {
+          cb.checked = true;
+          cb.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      }
+      updateRCode();
     }
 
     // Set a segmented toggle (#otype / #intent) programmatically.
@@ -376,12 +401,12 @@
         row.innerHTML =
           `<span class="name">${name}</span>` +
           `<div class="ctl"><span>lower: <span class="lbval val"></span></span>` +
-          `<input type="range" class="lb" min="${lo}" max="${hi}" step="${step}" value="${lo}"></div>` +
+          `<input type="range" class="lb" min="${lo}" max="${hi}" step="${step}" value="${lo}" aria-label="${name} lower bound"></div>` +
           `<div class="ctl"><span>upper: <span class="ubval val"></span></span>` +
-          `<input type="range" class="ub" min="${lo}" max="${hi}" step="${step}" value="${hi}"></div>` +
+          `<input type="range" class="ub" min="${lo}" max="${hi}" step="${step}" value="${hi}" aria-label="${name} upper bound"></div>` +
           `<div class="ctl"><span>unit cost: <span class="costval val"></span></span>` +
-          `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease cost">&minus;</button>` +
-          `<input type="number" step="any" min="0" class="cost" value="1">` +
+          `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease ${name} unit cost">&minus;</button>` +
+          `<input type="number" step="any" min="0" class="cost" value="1" aria-label="${name} unit cost">` +
           `<button type="button" class="cost-inc" aria-label="increase cost">+</button></span></div>`;
         box.appendChild(row);
 
@@ -420,13 +445,11 @@
       });
     }
 
-    async function run() {
-      if (!shelter) return;
+    // Build the lago_optimization() call from the current controls. Returns
+    // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
+    function buildCall() {
       const comps = selectedComponents();
-      if (comps.length < 1) { $("run-hint").textContent = "pick at least one component"; return; }
-      $("run").disabled = true; $("run-hint").textContent = "running…";
-      clearResults();
-
+      if (comps.length < 1) return { ok: false, msg: "pick at least one component" };
       const rows = comps.map((name) => {
         const r = document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`);
         return {
@@ -455,6 +478,25 @@
           return span > 0 ? Math.max(span / 20, 1e-6) : 1;
         }))},\n` +
         `  quiet = TRUE\n)`;
+      return { ok: true, call };
+    }
+
+    // Live-mirror the R code for the current configuration into the code panel.
+    function updateRCode() {
+      const built = buildCall();
+      $("rcode").textContent = built.ok
+        ? built.call
+        : "# choose an outcome and at least one intervention component";
+    }
+
+    async function run() {
+      if (!shelter) return;
+      const built = buildCall();
+      if (!built.ok) { $("run-hint").textContent = built.msg; return; }
+      $("run").disabled = true; $("run-hint").textContent = "running…";
+      clearResults();
+      $("output").textContent = "Computing the recommendation…";
+      const call = built.call;
 
       try {
         const cap = await shelter.captureR(call + "\nprint(res)", {
@@ -509,6 +551,10 @@
     });
     const drop = $("drop"), file = $("file");
     drop.addEventListener("click", () => file.click());
+    // keyboard access: the drop zone is a div, so open the picker on Enter/Space
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); }
+    });
     drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("hot"); });
     drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
     drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("hot"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
@@ -535,6 +581,24 @@
           if (id === "otype") { $("otype-auto").textContent = "(manual)"; updateGoalRange(); }
         });
       });
+    });
+
+    // Keep the R-code panel in sync with any control change in the model panel
+    // (component ticks, sliders, steppers, goal, and the toggle buttons).
+    ["input", "change", "click"].forEach((evt) =>
+      $("model-panel").addEventListener(evt, updateRCode)
+    );
+
+    // Copy the current R code to the clipboard.
+    $("copy-code").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText($("rcode").textContent);
+        const btn = $("copy-code"), label = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = label; }, 1200);
+      } catch (e) {
+        $("run-hint").textContent = "copy failed; select the code and copy manually";
+      }
     });
 
     boot();
