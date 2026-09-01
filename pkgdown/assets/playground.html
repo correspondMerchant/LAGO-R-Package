@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAGOtrials playground</title>
+  <!--
+    An interactive, in-browser LAGO trial designer. R runs client-side through
+    webR (R compiled to WebAssembly); no server, no install. Pick a bundled
+    dataset or upload a CSV, choose the outcome and intervention components, set
+    bounds/costs/goal, and Run: the recommendation is drawn with the SAME D3
+    renderers the package's lago_report() uses (a hover-enabled confidence-set
+    plot and per-component cost curves), plus the console summary.
+
+    The webR runtime is pinned to v0.6.0 to match the version the package's wasm
+    binary is built with (.github/workflows/webr-repo.yaml); tests/js/
+    test-webr-demo.js checks they stay in sync. The vendored D3 library and
+    inst/js/lago-report.js are read out of the installed package at runtime, so
+    the playground always uses the package's own renderers.
+  -->
+  <style>
+    :root { --accent:#0066cc; --accent-dark:#004b99; --bg:#fbfcfe; --border:#e2e6ea; --muted:#6b7280; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#1c1e21; background:var(--bg); line-height:1.5; }
+    header { border-bottom:1px solid var(--border); background:#fff; }
+    .wrap { max-width:1040px; margin:0 auto; padding:0 20px; }
+    header .wrap { display:flex; align-items:baseline; gap:16px; padding:14px 20px; flex-wrap:wrap; }
+    header h1 { font-size:1.15rem; margin:0; }
+    header nav a { color:var(--accent); text-decoration:none; font-size:.9rem; margin-left:14px; }
+    header nav a:hover { text-decoration:underline; }
+    main { padding:22px 0 64px; }
+    p.lede { color:#444; margin-top:0; }
+    .status { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; background:#eef4fc; border:1px solid #d6e4f7; color:#24405f; font-size:.92rem; margin:14px 0; }
+    .status.ready { background:#eaf7ee; border-color:#cdebd6; color:#1e5631; }
+    .status.error { background:#fdeeee; border-color:#f6d4d4; color:#7a2020; }
+    .spinner { width:16px; height:16px; border:2px solid #b9d3f2; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex:none; }
+    .status.ready .spinner, .status.error .spinner { display:none; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .panel { border:1px solid var(--border); border-radius:10px; background:#fff; padding:16px 18px; margin:14px 0; }
+    .panel h2 { font-size:1rem; margin:0 0 12px; }
+    .row { display:flex; flex-wrap:wrap; gap:14px 22px; align-items:flex-end; }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    label { font-weight:600; font-size:.82rem; color:#333; }
+    select, input[type=number], input[type=text] { font:inherit; font-size:.9rem; padding:7px 9px; border:1px solid var(--border); border-radius:7px; background:#fff; }
+    input[type=number] { width:96px; }
+    .hint { color:var(--muted); font-size:.8rem; }
+    #components { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:.85rem; cursor:pointer; user-select:none; background:#fff; }
+    .chip input { margin:0; }
+    .chip.on { border-color:var(--accent); background:#eef4fc; color:var(--accent-dark); }
+    #comp-config { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+    .comp-row { display:flex; gap:20px; align-items:center; flex-wrap:wrap; font-size:.85rem; padding:8px 0; border-top:1px solid #f0f2f5; }
+    .comp-row .name { font-weight:600; min-width:130px; }
+    .comp-row .ctl { display:flex; flex-direction:column; gap:2px; }
+    .comp-row .ctl > span:first-child { font-weight:500; font-size:.75rem; color:var(--muted); }
+    .val { color:var(--accent-dark); font-weight:700; }
+    input[type=range] { width:180px; accent-color:var(--accent); cursor:pointer; vertical-align:middle; }
+    .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .seg button { background:#fff; color:#333; border:0; border-radius:0; padding:8px 14px; font-weight:600; }
+    .seg button.on { background:var(--accent); color:#fff; }
+    .stepper { display:inline-flex; align-items:center; gap:8px; }
+    .stepper button { padding:2px 10px; border-radius:6px; font-size:1rem; line-height:1; }
+    .stepper input { width:80px; }
+    button { font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; padding:10px 20px; border-radius:8px; cursor:pointer; }
+    button:hover { background:var(--accent-dark); }
+    button:disabled { background:#9db8d6; cursor:not-allowed; }
+    button.secondary { background:#fff; color:var(--accent); border:1px solid var(--border); }
+    button.secondary:hover { background:#f2f6fb; }
+    .controls-bar { display:flex; gap:10px; align-items:center; margin-top:8px; }
+    #drop { border:2px dashed var(--border); border-radius:8px; padding:10px 12px; color:var(--muted); font-size:.85rem; cursor:pointer; }
+    #drop.hot { border-color:var(--accent); background:#eef4fc; }
+    h2.section { font-size:1rem; margin:26px 0 8px; }
+    pre.out { background:#0f1620; color:#e7edf3; padding:14px; border-radius:8px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; white-space:pre-wrap; word-break:break-word; min-height:40px; margin:0; }
+    #output:empty::before { content:"Run to see the recommendation and console output here."; color:#7d8794; }
+    #cs-plot, #cost-curves { margin-top:12px; }
+    #cs-plot svg, #cost-curves svg { max-width:100%; }
+    .note { color:var(--muted); font-size:.85rem; margin-top:26px; border-top:1px solid var(--border); padding-top:14px; }
+    code { background:#eef1f4; padding:1px 5px; border-radius:4px; font-size:.85em; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>LAGOtrials &mdash; playground</h1>
+      <nav>
+        <a href="./index.html">Home</a>
+        <a href="./live-demo.html">Quick demo</a>
+        <a href="./reference/index.html">Reference</a>
+        <a href="https://github.com/correspondMerchant/LAGO-R-Package">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p class="lede">
+      Design a LAGO optimization interactively, in your browser, with no install. Pick a bundled dataset or upload your
+      own CSV, choose the outcome and intervention components, set the bounds, per-unit costs and outcome goal, then press
+      <strong>Run</strong>. The recommendation is drawn with the package's own interactive
+      <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">webR</a>-powered charts.
+    </p>
+
+    <div id="status" class="status" role="status" aria-live="polite"><span class="spinner"></span><span id="status-text">Starting webR&hellip;</span></div>
+    <p class="hint" id="load-note" style="margin:-6px 0 10px;">First load downloads R and the package (tens of MB) once and can take up to a minute; after that, runs are quick.</p>
+
+    <div class="panel" id="data-panel" style="opacity:.55;pointer-events:none;">
+      <h2>1. Data</h2>
+      <div class="row">
+        <div class="field">
+          <label for="dataset">Bundled dataset</label>
+          <select id="dataset">
+            <option value="BB_data">BB_data (BetterBirth, binary)</option>
+            <option value="mtcars">mtcars (continuous)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&hellip; or upload a CSV</label>
+          <div id="drop" role="button" tabindex="0" aria-label="Upload a CSV file: click, or press Enter">Drop a .csv here, or click to choose</div>
+          <input id="file" type="file" accept=".csv,text/csv" style="display:none;">
+          <p class="hint" style="margin:4px 0 0;">Comma-separated with a header row; numeric columns become the outcome and component choices.</p>
+        </div>
+      </div>
+      <p class="hint" id="data-info" style="margin:10px 0 0;"></p>
+    </div>
+
+    <div class="panel" id="model-panel" style="opacity:.55;pointer-events:none;">
+      <h2>2. Model</h2>
+      <div class="row">
+        <div class="field">
+          <label for="outcome">Outcome column</label>
+          <select id="outcome"></select>
+        </div>
+        <div class="field">
+          <label>Outcome type <span id="otype-auto" class="hint"></span></label>
+          <div class="seg" id="otype" data-value="binary" role="group" aria-label="Outcome type">
+            <button type="button" class="on" data-value="binary" aria-pressed="true">Binary</button>
+            <button type="button" data-value="continuous" aria-pressed="false">Continuous</button>
+          </div>
+        </div>
+        <div class="field" style="min-width:240px;">
+          <label for="goal">Outcome goal: <span id="goal-val" class="val">0.85</span></label>
+          <input id="goal" type="range" min="0" max="1" step="0.01" value="0.85" aria-label="Outcome goal">
+        </div>
+        <div class="field">
+          <label>Direction</label>
+          <div class="seg" id="intent" data-value="maximize" role="group" aria-label="Direction">
+            <button type="button" class="on" data-value="maximize" aria-pressed="true">Maximize</button>
+            <button type="button" data-value="minimize" aria-pressed="false">Minimize</button>
+          </div>
+        </div>
+      </div>
+      <label id="components-label" style="display:block;margin-top:14px;">Intervention components</label>
+      <div id="components" role="group" aria-labelledby="components-label"></div>
+      <div id="comp-config"></div>
+    </div>
+
+    <div class="controls-bar">
+      <button id="run" disabled>Run optimization</button>
+      <button id="reset" class="secondary" type="button">Reset</button>
+      <span id="run-hint" class="hint"></span>
+    </div>
+
+    <div class="panel" id="rcode-panel" style="margin-top:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <h2 style="margin:0;">R code for this configuration</h2>
+        <button type="button" id="copy-code" class="secondary">Copy</button>
+      </div>
+      <p class="hint" style="margin:6px 0 0;">Paste this into R (after <code>library(LAGOtrials)</code>) to reproduce the run.</p>
+      <pre id="rcode" class="out" style="margin-top:10px;"># choose an outcome and at least one intervention component</pre>
+    </div>
+
+    <h2 class="section">Result</h2>
+    <pre id="output" class="out"></pre>
+    <div id="cs-plot"></div>
+    <div id="cost-curves"></div>
+
+    <p class="note">
+      webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
+      confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
+      full console summary). This playground exposes the common options; for the rest &mdash; a power goal, center
+      characteristics and fixed effects, clustering (<code>icc</code>), a custom GLM family/link, and more &mdash; call
+      <code>lago_optimization()</code> in R (copy the snippet above as a starting point). See the
+      <a href="./index.html">package documentation</a> for the complete API.
+    </p>
+  </main>
+
+  <script type="module">
+    const WEBR_VERSION = "0.6.0";
+    const WEBR_URL = `https://webr.r-wasm.org/v${WEBR_VERSION}/webr.mjs`;
+    const REPOS = [
+      "https://correspondmerchant.github.io/LAGO-R-Package/webr-repo",
+      "https://repo.r-wasm.org",
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("status"), statusText = $("status-text");
+    const setStatus = (t, k) => { statusText.textContent = t; statusEl.className = "status" + (k ? " " + k : ""); };
+    const errMsg = (e) => (e && e.message ? e.message : String(e));
+    const clearResults = () => { $("output").textContent = ""; $("cs-plot").innerHTML = ""; $("cost-curves").innerHTML = ""; };
+    // Escape a value for safe interpolation into an R character string.
+    const rstr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
+    const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
+
+    let webR, shelter, columns = [], firstBuild = true, bootReady = false, running = false;
+
+    // Run is enabled only once webR is ready, no run is in flight, AND at least
+    // one component is ticked, with the reason shown when it stays disabled, so
+    // the incomplete state is visible instead of only complaining after a click.
+    // The `running` guard matters because any model-panel interaction fires this
+    // via the delegated listener; without it a mid-run edit would re-enable Run
+    // and let a second optimization race the first on single-threaded webR.
+    function updateRunEnabled() {
+      if (!bootReady) return;
+      const ok = selectedComponents().length > 0;
+      $("run").disabled = !ok || running;
+      if ($("run-hint").textContent === "running…") return;
+      $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
+    }
+
+    async function boot() {
+      // Starting webR (downloading R) and installing LAGOtrials are separate
+      // failure modes with different fixes, so report them separately: a webR
+      // start failure is usually the browser blocking WebAssembly or the
+      // network, while an install failure usually means the in-browser package
+      // repository has not been published yet (fresh deploy) or is unreachable.
+      try {
+        setStatus("Downloading R (happens once)…");
+        const { WebR } = await import(WEBR_URL);
+        webR = new WebR();
+        await webR.init();
+      } catch (err) {
+        setStatus("Couldn't start webR: " + errMsg(err), "error");
+        $("run-hint").textContent =
+          "your browser may be blocking WebAssembly or the network request; try a current Chrome, Firefox or Safari.";
+        return;
+      }
+
+      try {
+        setStatus("Installing LAGOtrials…");
+        const reposR = "c(" + REPOS.map((r) => JSON.stringify(r)).join(", ") + ")";
+        await webR.evalRVoid(`webr::install("LAGOtrials", repos = ${reposR})`);
+        await webR.evalRVoid('suppressMessages(library(LAGOtrials))');
+
+        // Inject the package's own vendored D3 and report renderer, read out of
+        // the installed package so the playground uses the same code lago_report
+        // does. D3 must load before lago-report.js (which no-ops without d3).
+        setStatus("Loading the interactive charts…");
+        const d3src = await webR.evalRString(
+          'paste(readLines(system.file("js", "d3.v7.min.js", package = "LAGOtrials"), warn = FALSE), collapse = "\\n")'
+        );
+        injectScript(d3src);
+        const rptsrc = await webR.evalRString(
+          'paste(readLines(system.file("js", "lago-report.js", package = "LAGOtrials"), warn = FALSE), collapse = "\\n")'
+        );
+        injectScript(rptsrc);
+
+        shelter = await new webR.Shelter();
+        await loadBundled($("dataset").value);
+      } catch (err) {
+        setStatus("Couldn't install LAGOtrials: " + errMsg(err), "error");
+        $("run-hint").textContent =
+          "the in-browser package repository may still be building; if this is a fresh deploy, try again in a few minutes.";
+        return;
+      }
+
+      setStatus("Ready. Configure the model and press Run.", "ready");
+      $("data-panel").style.opacity = $("model-panel").style.opacity = "1";
+      $("data-panel").style.pointerEvents = $("model-panel").style.pointerEvents = "auto";
+      bootReady = true;
+      updateRunEnabled();
+    }
+
+    function injectScript(src) {
+      const s = document.createElement("script");
+      s.textContent = src;
+      document.head.appendChild(s);
+    }
+
+    // Load a bundled dataset into the R global `PG_DATA` and read its schema.
+    async function loadBundled(name) {
+      await webR.evalRVoid(
+        name === "mtcars"
+          ? "PG_DATA <- mtcars"
+          : `utils::data(${name}, package = "LAGOtrials"); PG_DATA <- as.data.frame(${name})`
+      );
+      await refreshSchema(`bundled dataset ${name}`);
+    }
+
+    // Load an uploaded CSV (written to the webR virtual filesystem) into PG_DATA.
+    async function loadCSV(text, filename) {
+      await webR.FS.writeFile("/tmp/pg_user.csv", new TextEncoder().encode(text));
+      await webR.evalRVoid('PG_DATA <- utils::read.csv("/tmp/pg_user.csv", check.names = TRUE)');
+      await refreshSchema(`uploaded ${filename}`);
+    }
+
+    // Read the schema: which columns are numeric, each numeric column's range,
+    // and whether it looks binary (only 0/1), so the UI can offer sensible
+    // outcome/component choices, pre-fill bounds, and auto-pick the outcome type.
+    async function refreshSchema(sourceLabel) {
+      const json = await webR.evalRString(`jsonlite::toJSON(list(
+        nrow = nrow(PG_DATA), ncol = ncol(PG_DATA),
+        cols = names(PG_DATA),
+        numeric = vapply(PG_DATA, is.numeric, logical(1), USE.NAMES = FALSE),
+        mins = vapply(PG_DATA, function(v) if (is.numeric(v)) min(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
+        maxs = vapply(PG_DATA, function(v) if (is.numeric(v)) max(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
+        binary = vapply(PG_DATA, function(v) is.numeric(v) && length(stats::na.omit(v)) > 0 && all(stats::na.omit(v) %in% c(0, 1)), logical(1), USE.NAMES = FALSE)
+      ), auto_unbox = TRUE, na = "null", digits = NA)`);
+      const meta = JSON.parse(json);
+      columns = meta.cols.map((name, i) => ({
+        name, numeric: meta.numeric[i], min: meta.mins[i], max: meta.maxs[i], binary: meta.binary[i],
+      }));
+      $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
+      buildModelControls();
+    }
+
+    function buildModelControls() {
+      // Outcome + components must be numeric (LAGO fits a GLM on them), so only
+      // numeric columns are offered.
+      const numeric = columns.filter((c) => c.numeric);
+      const outcome = $("outcome");
+      outcome.innerHTML = "";
+      numeric.forEach((c) => {
+        const o = document.createElement("option");
+        o.value = c.name; o.textContent = c.name;
+        outcome.appendChild(o);
+      });
+      if (numeric.length < 2) {
+        $("data-info").textContent +=
+          " Need at least two numeric columns (one outcome + one component); this data has " + numeric.length + ".";
+      }
+      // On the very first load, prefill a runnable example: prefer a binary
+      // column as the outcome, then tick up to two other numeric columns as
+      // components, so a newcomer can just press Run.
+      if (firstBuild) {
+        const bin = numeric.find((c) => c.binary);
+        if (bin) outcome.value = bin.name;
+      }
+      onOutcomeChanged();
+      if (firstBuild) {
+        firstBuild = false;
+        prefillComponents();
+      }
+      updateRCode();
+      // buildModelControls is the single funnel for every schema rebuild
+      // (dataset switch, CSV upload, reset); the dataset select lives outside
+      // #model-panel, so its change never reaches the delegated listener. Refresh
+      // the Run gate here so it can never sit enabled with nothing ticked.
+      updateRunEnabled();
+    }
+
+    // Tick up to two eligible components, as a runnable starting point.
+    function prefillComponents() {
+      Array.from(document.querySelectorAll("#components input")).slice(0, 2).forEach((cb) => {
+        cb.checked = true;
+        cb.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
+
+    // Set a segmented toggle (#otype / #intent) programmatically.
+    function setSeg(id, value) {
+      const seg = $(id);
+      seg.dataset.value = value;
+      seg.querySelectorAll("button").forEach((b) => {
+        const on = b.dataset.value === value;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // (Re)build the component chips: numeric columns except the chosen outcome,
+    // preserving which were already ticked.
+    function renderComponentChips() {
+      const comps = $("components");
+      const checked = new Set(selectedComponents());
+      const outcomeName = $("outcome").value;
+      comps.innerHTML = "";
+      const eligible = columns.filter((c) => c.numeric && c.name !== outcomeName);
+      if (!eligible.length) {
+        comps.innerHTML =
+          '<p class="hint" style="margin:0;">No other numeric columns to use as components — pick a different outcome or add a numeric column.</p>';
+        return;
+      }
+      eligible.forEach((c) => {
+        const chip = document.createElement("label");
+        chip.className = "chip";
+        chip.innerHTML = `<input type="checkbox" value="${c.name}"> ${c.name}`;
+        const cb = chip.querySelector("input");
+        if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
+        cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); updateRunEnabled(); });
+        comps.appendChild(chip);
+      });
+    }
+
+    // On load and whenever the outcome column changes: auto-pick the outcome
+    // type from the column (0/1 -> binary, else continuous), drop the outcome
+    // from the component choices, and re-range the goal.
+    function onOutcomeChanged() {
+      const oc = columns.find((c) => c.name === $("outcome").value);
+      setSeg("otype", oc && oc.binary ? "binary" : "continuous");
+      $("otype-auto").textContent = "(auto-detected)";
+      renderComponentChips();
+      updateGoalRange();
+      renderCompConfig();
+    }
+
+    // The goal slider spans 0-1 for a binary outcome, or the selected outcome
+    // column's observed range (padded by half a span on each side) for a
+    // continuous one, so a user can also target a goal beyond anything observed
+    // in the data, which is the common point of intervening. The default value
+    // stays inside the observed range.
+    function updateGoalRange(forceDefault) {
+      const g = $("goal");
+      const oc = columns.find((c) => c.name === $("outcome").value);
+      if ($("otype").dataset.value === "binary" || !oc || !Number.isFinite(oc.min) || !Number.isFinite(oc.max) || oc.max <= oc.min) {
+        g.min = 0; g.max = 1; g.step = 0.01;
+        if (forceDefault || !(Number(g.value) >= 0 && Number(g.value) <= 1)) g.value = 0.85;
+      } else {
+        const span = oc.max - oc.min;
+        g.min = oc.min - span / 2; g.max = oc.max + span / 2; g.step = span / 100;
+        if (forceDefault || !(Number(g.value) >= Number(g.min) && Number(g.value) <= Number(g.max))) g.value = oc.min + span / 2;
+      }
+      $("goal-val").textContent = fmt(g.value);
+    }
+
+    // Restore a clean runnable baseline for the current dataset: clear ticks and
+    // any tuned bounds/costs, re-derive the (currently selected) outcome's type,
+    // re-tick two components, and reset the goal and direction. Reset keeps the
+    // selected outcome rather than re-running the first-load binary preference,
+    // so it never silently flips a continuous outcome (e.g. mtcars mpg) to a
+    // binary column.
+    function resetModel() {
+      clearResults();
+      document.querySelectorAll("#components input:checked").forEach((cb) => { cb.checked = false; });
+      $("comp-config").innerHTML = "";
+      setSeg("intent", "maximize");
+      onOutcomeChanged();
+      prefillComponents();
+      updateGoalRange(true);
+      updateRunEnabled();
+    }
+
+    function selectedComponents() {
+      return Array.from(document.querySelectorAll("#components input:checked")).map((c) => c.value);
+    }
+
+    // Show a value at a sensible precision for a readout.
+    const fmt = (v) => {
+      const n = Number(v);
+      return Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000);
+    };
+
+    // For each selected component, draggable lower/upper bound sliders (spanning
+    // the observed data range) plus a unit-cost stepper, each with a live
+    // readout. The lower and upper handles are kept from crossing.
+    function renderCompConfig() {
+      const box = $("comp-config");
+      const chosen = selectedComponents();
+      // Snapshot any already-tuned bounds/cost so rebuilding (e.g. after the
+      // outcome column changes) does not throw the user's edits away.
+      const prev = {};
+      box.querySelectorAll(".comp-row").forEach((r) => {
+        prev[r.dataset.comp] = {
+          lb: r.querySelector(".lb").value,
+          ub: r.querySelector(".ub").value,
+          cost: r.querySelector(".cost").value,
+        };
+      });
+      box.innerHTML = "";
+      chosen.forEach((name) => {
+        const col = columns.find((c) => c.name === name) || {};
+        const lo = Number.isFinite(col.min) ? Math.floor(col.min) : 0;
+        const hi = Number.isFinite(col.max) ? Math.ceil(col.max) : 1;
+        const step = hi > lo ? (hi - lo) / 100 : 1;
+        const row = document.createElement("div");
+        row.className = "comp-row";
+        row.dataset.comp = name;
+        row.innerHTML =
+          `<span class="name">${name}</span>` +
+          `<div class="ctl"><span>lower: <span class="lbval val"></span></span>` +
+          `<input type="range" class="lb" min="${lo}" max="${hi}" step="${step}" value="${lo}" aria-label="${name} lower bound"></div>` +
+          `<div class="ctl"><span>upper: <span class="ubval val"></span></span>` +
+          `<input type="range" class="ub" min="${lo}" max="${hi}" step="${step}" value="${hi}" aria-label="${name} upper bound"></div>` +
+          `<div class="ctl"><span>unit cost: <span class="costval val"></span></span>` +
+          `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease ${name} unit cost">&minus;</button>` +
+          `<input type="number" step="any" min="0" class="cost" value="1" aria-label="${name} unit cost">` +
+          `<button type="button" class="cost-inc" aria-label="increase ${name} unit cost">+</button></span></div>`;
+        box.appendChild(row);
+
+        const lb = row.querySelector(".lb"), ub = row.querySelector(".ub");
+        const cost = row.querySelector(".cost");
+        // Restore any prior tuning for this component, clamped to the current
+        // range (so a snapshot from a wider range still falls inside).
+        const p = prev[name];
+        if (p) {
+          const clamp = (v) => Math.min(Math.max(Number(v), Number(lb.min)), Number(lb.max));
+          lb.value = clamp(p.lb);
+          ub.value = clamp(p.ub);
+          cost.value = p.cost;
+        }
+        const sync = () => {
+          // keep lower <= upper
+          if (Number(lb.value) > Number(ub.value)) {
+            if (document.activeElement === lb) ub.value = lb.value; else lb.value = ub.value;
+          }
+          // a cost cannot be negative (a typed value bypasses the input's min)
+          if (Number(cost.value) < 0) cost.value = 0;
+          row.querySelector(".lbval").textContent = fmt(lb.value);
+          row.querySelector(".ubval").textContent = fmt(ub.value);
+          row.querySelector(".costval").textContent = fmt(cost.value);
+        };
+        lb.addEventListener("input", sync);
+        ub.addEventListener("input", sync);
+        cost.addEventListener("input", sync);
+        row.querySelector(".cost-dec").addEventListener("click", () => {
+          cost.value = Math.max(0, Number(cost.value) - 1); sync();
+        });
+        row.querySelector(".cost-inc").addEventListener("click", () => {
+          cost.value = Number(cost.value) + 1; sync();
+        });
+        sync();
+      });
+    }
+
+    // Build the lago_optimization() call from the current controls. Returns
+    // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
+    function buildCall() {
+      // Read from the rendered rows. A component can be ticked a tick before its
+      // row exists (the delegated click/input listener fires updateRCode before
+      // the checkbox 'change' builds the row), so skip any not-yet-rendered row;
+      // the following 'change' event rebuilds the code with the row present.
+      const rows = selectedComponents()
+        .map((name) => document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`))
+        .filter(Boolean)
+        .map((r) => ({
+          name: r.dataset.comp,
+          lb: r.querySelector(".lb").value,
+          ub: r.querySelector(".ub").value,
+          cost: r.querySelector(".cost").value,
+        }));
+      if (!rows.length) return { ok: false, msg: "pick at least one component" };
+      const call =
+        `res <- lago_optimization(\n` +
+        `  data = PG_DATA,\n` +
+        `  outcome_name = ${rstr($("outcome").value)},\n` +
+        `  outcome_type = ${rstr($("otype").dataset.value)},\n` +
+        `  intervention_components = ${rchar(rows.map((r) => r.name))},\n` +
+        `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))},\n` +
+        `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))},\n` +
+        `  cost_list_of_vectors = list(${rows.map((r) => `c(0, ${Number(r.cost)})`).join(", ")}),\n` +
+        `  outcome_goal = ${Number($("goal").value)},\n` +
+        `  outcome_goal_intention = ${rstr($("intent").dataset.value)},\n` +
+        `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
+          // Roughly 20 grid steps across each component's range, so a wide
+          // continuous range (e.g. mtcars qsec, 0-350) does not blow up the
+          // confidence-set grid; fall back to 1 for a degenerate range.
+          const span = Number(r.ub) - Number(r.lb);
+          return span > 0 ? Math.max(span / 20, 1e-6) : 1;
+        }))},\n` +
+        `  quiet = TRUE\n)`;
+      return { ok: true, call };
+    }
+
+    // Live-mirror the R code for the current configuration into the code panel.
+    function updateRCode() {
+      const built = buildCall();
+      $("rcode").textContent = built.ok
+        ? built.call
+        : "# choose an outcome and at least one intervention component";
+    }
+
+    async function run() {
+      if (!shelter) return;
+      const built = buildCall();
+      if (!built.ok) { $("run-hint").textContent = built.msg; return; }
+      running = true;
+      $("run").disabled = true; $("run-hint").textContent = "running…";
+      // Lock the data/reset controls too: a reset, dataset switch or upload
+      // mid-run would rebuild the controls while the in-flight result still
+      // renders against the old config, leaving the panels disagreeing.
+      $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
+      clearResults();
+      $("output").textContent = "Computing the recommendation…";
+      const call = built.call;
+
+      try {
+        const cap = await shelter.captureR(call + "\nprint(res)", {
+          withAutoprint: false,
+          captureConditions: false,
+        });
+        $("output").textContent = cap.output
+          .filter((o) => o.type === "stdout" || o.type === "stderr")
+          .map((o) => o.data).join("\n");
+        await shelter.purge();
+
+        // Build the same payload lago_report() feeds its D3 renderers, then draw.
+        const json = await webR.evalRString(`{
+          comps <- if (!is.null(res$display_components)) res$display_components else res$intervention_components
+          jsonlite::toJSON(list(
+            components = I(as.character(comps)),
+            rec_int = I(as.numeric(res$rec_int)),
+            rec_int_cost = as.numeric(res$rec_int_cost),
+            cs = res$cs,
+            cost = list(
+              components = I(as.character(comps)),
+              coefs = lapply(res$cost_list_of_vectors, function(v) I(as.numeric(v))),
+              lb = I(as.numeric(res$intervention_lower_bounds)),
+              ub = I(as.numeric(res$intervention_upper_bounds))
+            )
+          ), auto_unbox = TRUE, dataframe = "rows", na = "null", digits = NA)
+        }`);
+        const data = JSON.parse(json);
+        if (window.LAGOReport) {
+          // Draw the cost curves first and independently, so an empty or
+          // unplottable confidence set can never hide them.
+          LAGOReport.renderCostCurves("cost-curves", data);
+          if (Array.isArray(data.cs) && data.cs.length) {
+            LAGOReport.renderConfidenceSet("cs-plot", data);
+          } else {
+            $("cs-plot").innerHTML =
+              '<p class="hint">No confidence set was returned for this result, so there is no confidence-set plot.</p>';
+          }
+        }
+      } catch (err) {
+        // A stop() from lago_optimization (e.g. an unreachable goal, a
+        // non-convergent fit, or a degenerate column) propagates here; frame it
+        // as a settings problem and keep the raw R message as the detail.
+        $("output").textContent =
+          "The optimization couldn't run with these settings:\n\n" + errMsg(err) +
+          "\n\nTry a less aggressive goal, wider bounds, or a different outcome/component.";
+      } finally {
+        running = false;
+        $("reset").disabled = $("dataset").disabled = $("file").disabled = false;
+        $("run-hint").textContent = "";
+        updateRunEnabled();
+      }
+    }
+
+    // wire up
+    $("dataset").addEventListener("change", async (e) => {
+      clearResults(); setStatus("Loading " + e.target.value + "…");
+      try { await loadBundled(e.target.value); setStatus("Ready.", "ready"); }
+      catch (err) { setStatus("Could not load dataset: " + errMsg(err), "error"); }
+    });
+    const drop = $("drop"), file = $("file");
+    drop.addEventListener("click", () => file.click());
+    // keyboard access: the drop zone is a div, so open the picker on Enter/Space
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); }
+    });
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); if (!running) drop.classList.add("hot"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("hot"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+    file.addEventListener("change", () => { if (file.files[0]) readFile(file.files[0]); });
+    async function readFile(f) {
+      // Drag-and-drop reaches here directly, bypassing the disabled #file input,
+      // so guard the in-flight run here too or a mid-run drop would rebuild the
+      // controls under the running result.
+      if (running) return;
+      clearResults();
+      // Everything (parse, schema round-trip, and the fit) runs on the webR
+      // thread, so a very large file can make the tab unresponsive; warn rather
+      // than let a long parse look like a crash.
+      const LARGE = 5 * 1024 * 1024;
+      setStatus("Reading " + f.name + (f.size > LARGE ? " (large file, this may be slow)…" : "…"));
+      try { await loadCSV(await f.text(), f.name); setStatus("Ready.", "ready"); }
+      catch (err) { setStatus("Could not read CSV: " + errMsg(err), "error"); }
+    }
+    $("run").addEventListener("click", run);
+    $("reset").addEventListener("click", resetModel);
+
+    // Goal slider readout; changing the outcome re-detects type, components and
+    // the goal range.
+    $("goal").addEventListener("input", () => { $("goal-val").textContent = fmt($("goal").value); });
+    $("outcome").addEventListener("change", onOutcomeChanged);
+
+    // Segmented toggles set their choice on the container's dataset. The outcome
+    // type additionally re-ranges the goal and marks that the user overrode the
+    // auto-detection.
+    ["intent", "otype"].forEach((id) => {
+      $(id).querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setSeg(id, btn.dataset.value);
+          if (id === "otype") { $("otype-auto").textContent = "(manual)"; updateGoalRange(); }
+        });
+      });
+    });
+
+    // Keep the R-code panel and the Run button in sync with any control change
+    // in the model panel (component ticks, sliders, steppers, goal, toggles).
+    ["input", "change", "click"].forEach((evt) =>
+      $("model-panel").addEventListener(evt, () => { updateRCode(); updateRunEnabled(); })
+    );
+
+    // Copy the current R code to the clipboard.
+    $("copy-code").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText($("rcode").textContent);
+        const btn = $("copy-code"), label = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = label; }, 1200);
+      } catch (e) {
+        $("run-hint").textContent = "copy failed; select the code and copy manually";
+      }
+    });
+
+    boot();
+  </script>
+</body>
+</html>

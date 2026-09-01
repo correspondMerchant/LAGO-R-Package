@@ -24,6 +24,10 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  # Match the pkgdown workflow's release trigger so publishing a release rebuilds
+  # the wasm binary too, keeping it in sync with the docs that install from it.
+  release:
+    types: [published]
   workflow_dispatch:
 
 name: webr-repo.yaml

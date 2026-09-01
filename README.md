@@ -18,7 +18,7 @@ The LAGOtrials R package bridges the gap between theoretical advances in Learn-A
 3) estimating the optimal intervention based on data from all stages,
 4) calculating the 95% confidence sets for the recommended interventions and the optimal interventions.
 
-> **Try it in your browser, no installation needed:** the [live demo](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html) runs the real `LAGOtrials` package client-side with [webR](https://docs.r-wasm.org/webr/latest/) (R compiled to WebAssembly). Edit the example and press Run.
+> **Try it in your browser, no installation needed:** the [live demo](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html) runs the real `LAGOtrials` package client-side with [webR](https://docs.r-wasm.org/webr/latest/) (R compiled to WebAssembly) — edit the example and press Run. For a guided version, the [playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html) lets you pick a bundled dataset or upload your own CSV, configure the model with sliders and toggles, and see the recommendation as interactive charts plus a copy-pasteable R snippet.
 
 ## Table of Contents
 1. [How to install the R package](#how-to-install-the-r-package)
@@ -42,7 +42,7 @@ The LAGOtrials R package bridges the gap between theoretical advances in Learn-A
   ```
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
-Not ready to install? Try the package in your browser on the [live demo page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html).
+Not ready to install? Try the package in your browser on the [live demo page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html), or design an optimization interactively with the [guided playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html).
 
 ## The main functions
 The LAGOtrials R package has four user-facing functions `lago_optimization()`, `lago_sensitivity()`, `visualize_cost()`, and `lago_report()`.

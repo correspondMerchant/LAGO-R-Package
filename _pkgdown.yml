@@ -9,12 +9,15 @@ authors:
 
 navbar:
   structure:
-    left: [reference, articles, news, demo]
+    left: [reference, articles, news, demo, playground]
     right: [search, github]
   components:
     demo:
       text: Live demo
       href: live-demo.html
+    playground:
+      text: Playground
+      href: playground.html
 
 news:
   releases:
