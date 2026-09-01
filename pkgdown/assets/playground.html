@@ -99,7 +99,7 @@
       <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">webR</a>-powered charts.
     </p>
 
-    <div id="status" class="status"><span class="spinner"></span><span id="status-text">Starting webR&hellip;</span></div>
+    <div id="status" class="status" role="status" aria-live="polite"><span class="spinner"></span><span id="status-text">Starting webR&hellip;</span></div>
     <p class="hint" id="load-note" style="margin:-6px 0 10px;">First load downloads R and the package (tens of MB) once and can take up to a minute; after that, runs are quick.</p>
 
     <div class="panel" id="data-panel" style="opacity:.55;pointer-events:none;">
@@ -131,9 +131,9 @@
         </div>
         <div class="field">
           <label>Outcome type <span id="otype-auto" class="hint"></span></label>
-          <div class="seg" id="otype" data-value="binary">
-            <button type="button" class="on" data-value="binary">Binary</button>
-            <button type="button" data-value="continuous">Continuous</button>
+          <div class="seg" id="otype" data-value="binary" role="group" aria-label="Outcome type">
+            <button type="button" class="on" data-value="binary" aria-pressed="true">Binary</button>
+            <button type="button" data-value="continuous" aria-pressed="false">Continuous</button>
           </div>
         </div>
         <div class="field" style="min-width:240px;">
@@ -142,9 +142,9 @@
         </div>
         <div class="field">
           <label>Direction</label>
-          <div class="seg" id="intent" data-value="maximize">
-            <button type="button" class="on" data-value="maximize">Maximize</button>
-            <button type="button" data-value="minimize">Minimize</button>
+          <div class="seg" id="intent" data-value="maximize" role="group" aria-label="Direction">
+            <button type="button" class="on" data-value="maximize" aria-pressed="true">Maximize</button>
+            <button type="button" data-value="minimize" aria-pressed="false">Minimize</button>
           </div>
         </div>
       </div>
@@ -155,6 +155,7 @@
 
     <div class="controls-bar">
       <button id="run" disabled>Run optimization</button>
+      <button id="reset" class="secondary" type="button">Reset</button>
       <span id="run-hint" class="hint"></span>
     </div>
 
@@ -193,21 +194,45 @@
     const $ = (id) => document.getElementById(id);
     const statusEl = $("status"), statusText = $("status-text");
     const setStatus = (t, k) => { statusText.textContent = t; statusEl.className = "status" + (k ? " " + k : ""); };
+    const errMsg = (e) => (e && e.message ? e.message : String(e));
     const clearResults = () => { $("output").textContent = ""; $("cs-plot").innerHTML = ""; $("cost-curves").innerHTML = ""; };
     // Escape a value for safe interpolation into an R character string.
     const rstr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
     const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
     const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
 
-    let webR, shelter, columns = [], firstBuild = true;
+    let webR, shelter, columns = [], firstBuild = true, bootReady = false;
+
+    // Run is enabled only once webR is ready AND at least one component is
+    // ticked, with the reason shown when it stays disabled, so the incomplete
+    // state is visible instead of only complaining after a click.
+    function updateRunEnabled() {
+      if (!bootReady) return;
+      const ok = selectedComponents().length > 0;
+      $("run").disabled = !ok;
+      if ($("run-hint").textContent === "running…") return;
+      $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
+    }
 
     async function boot() {
+      // Starting webR (downloading R) and installing LAGOtrials are separate
+      // failure modes with different fixes, so report them separately: a webR
+      // start failure is usually the browser blocking WebAssembly or the
+      // network, while an install failure usually means the in-browser package
+      // repository has not been published yet (fresh deploy) or is unreachable.
       try {
         setStatus("Downloading R (happens once)…");
         const { WebR } = await import(WEBR_URL);
         webR = new WebR();
         await webR.init();
+      } catch (err) {
+        setStatus("Couldn't start webR: " + errMsg(err), "error");
+        $("run-hint").textContent =
+          "your browser may be blocking WebAssembly or the network request; try a current Chrome, Firefox or Safari.";
+        return;
+      }
 
+      try {
         setStatus("Installing LAGOtrials…");
         const reposR = "c(" + REPOS.map((r) => JSON.stringify(r)).join(", ") + ")";
         await webR.evalRVoid(`webr::install("LAGOtrials", repos = ${reposR})`);
@@ -228,14 +253,18 @@
 
         shelter = await new webR.Shelter();
         await loadBundled($("dataset").value);
-
-        setStatus("Ready. Configure the model and press Run.", "ready");
-        $("data-panel").style.opacity = $("model-panel").style.opacity = "1";
-        $("data-panel").style.pointerEvents = $("model-panel").style.pointerEvents = "auto";
-        $("run").disabled = false;
       } catch (err) {
-        setStatus("Failed to start webR: " + (err && err.message ? err.message : err), "error");
+        setStatus("Couldn't install LAGOtrials: " + errMsg(err), "error");
+        $("run-hint").textContent =
+          "the in-browser package repository may still be building; if this is a fresh deploy, try again in a few minutes.";
+        return;
       }
+
+      setStatus("Ready. Configure the model and press Run.", "ready");
+      $("data-panel").style.opacity = $("model-panel").style.opacity = "1";
+      $("data-panel").style.pointerEvents = $("model-panel").style.pointerEvents = "auto";
+      bootReady = true;
+      updateRunEnabled();
     }
 
     function injectScript(src) {
@@ -318,7 +347,11 @@
     function setSeg(id, value) {
       const seg = $(id);
       seg.dataset.value = value;
-      seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.value === value));
+      seg.querySelectorAll("button").forEach((b) => {
+        const on = b.dataset.value === value;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
     }
 
     // (Re)build the component chips: numeric columns except the chosen outcome,
@@ -328,13 +361,19 @@
       const checked = new Set(selectedComponents());
       const outcomeName = $("outcome").value;
       comps.innerHTML = "";
-      columns.filter((c) => c.numeric && c.name !== outcomeName).forEach((c) => {
+      const eligible = columns.filter((c) => c.numeric && c.name !== outcomeName);
+      if (!eligible.length) {
+        comps.innerHTML =
+          '<p class="hint" style="margin:0;">No other numeric columns to use as components — pick a different outcome or add a numeric column.</p>';
+        return;
+      }
+      eligible.forEach((c) => {
         const chip = document.createElement("label");
         chip.className = "chip";
         chip.innerHTML = `<input type="checkbox" value="${c.name}"> ${c.name}`;
         const cb = chip.querySelector("input");
         if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
-        cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); });
+        cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); updateRunEnabled(); });
         comps.appendChild(chip);
       });
     }
@@ -352,19 +391,36 @@
     }
 
     // The goal slider spans 0-1 for a binary outcome, or the selected outcome
-    // column's observed range for a continuous one.
-    function updateGoalRange() {
+    // column's observed range (padded by half a span on each side) for a
+    // continuous one, so a user can also target a goal beyond anything observed
+    // in the data, which is the common point of intervening. The default value
+    // stays inside the observed range.
+    function updateGoalRange(forceDefault) {
       const g = $("goal");
       const oc = columns.find((c) => c.name === $("outcome").value);
       if ($("otype").dataset.value === "binary" || !oc || !Number.isFinite(oc.min) || !Number.isFinite(oc.max) || oc.max <= oc.min) {
         g.min = 0; g.max = 1; g.step = 0.01;
-        if (!(Number(g.value) >= 0 && Number(g.value) <= 1)) g.value = 0.85;
+        if (forceDefault || !(Number(g.value) >= 0 && Number(g.value) <= 1)) g.value = 0.85;
       } else {
         const span = oc.max - oc.min;
-        g.min = oc.min; g.max = oc.max; g.step = span / 100;
-        if (!(Number(g.value) >= oc.min && Number(g.value) <= oc.max)) g.value = oc.min + span / 2;
+        g.min = oc.min - span / 2; g.max = oc.max + span / 2; g.step = span / 100;
+        if (forceDefault || !(Number(g.value) >= Number(g.min) && Number(g.value) <= Number(g.max))) g.value = oc.min + span / 2;
       }
       $("goal-val").textContent = fmt(g.value);
+    }
+
+    // Restore the prefilled defaults for the current dataset: clear ticks and
+    // any tuned bounds/costs, re-pick a binary outcome, re-tick two components,
+    // reset the goal and direction, and clear results.
+    function resetModel() {
+      clearResults();
+      document.querySelectorAll("#components input:checked").forEach((cb) => { cb.checked = false; });
+      $("comp-config").innerHTML = "";
+      setSeg("intent", "maximize");
+      firstBuild = true;
+      buildModelControls();
+      updateGoalRange(true);
+      updateRunEnabled();
     }
 
     function selectedComponents() {
@@ -544,9 +600,15 @@
           }
         }
       } catch (err) {
-        $("output").textContent = "Error: " + (err && err.message ? err.message : err);
+        // A stop() from lago_optimization (e.g. an unreachable goal, a
+        // non-convergent fit, or a degenerate column) propagates here; frame it
+        // as a settings problem and keep the raw R message as the detail.
+        $("output").textContent =
+          "The optimization couldn't run with these settings:\n\n" + errMsg(err) +
+          "\n\nTry a less aggressive goal, wider bounds, or a different outcome/component.";
       } finally {
         $("run").disabled = false; $("run-hint").textContent = "";
+        updateRunEnabled();
       }
     }
 
@@ -567,11 +629,17 @@
     drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("hot"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
     file.addEventListener("change", () => { if (file.files[0]) readFile(file.files[0]); });
     async function readFile(f) {
-      clearResults(); setStatus("Reading " + f.name + "…");
+      clearResults();
+      // Everything (parse, schema round-trip, and the fit) runs on the webR
+      // thread, so a very large file can make the tab unresponsive; warn rather
+      // than let a long parse look like a crash.
+      const LARGE = 5 * 1024 * 1024;
+      setStatus("Reading " + f.name + (f.size > LARGE ? " (large file, this may be slow)…" : "…"));
       try { await loadCSV(await f.text(), f.name); setStatus("Ready.", "ready"); }
-      catch (err) { setStatus("Could not read CSV: " + err, "error"); }
+      catch (err) { setStatus("Could not read CSV: " + errMsg(err), "error"); }
     }
     $("run").addEventListener("click", run);
+    $("reset").addEventListener("click", resetModel);
 
     // Goal slider readout; changing the outcome re-detects type, components and
     // the goal range.
@@ -590,10 +658,10 @@
       });
     });
 
-    // Keep the R-code panel in sync with any control change in the model panel
-    // (component ticks, sliders, steppers, goal, and the toggle buttons).
+    // Keep the R-code panel and the Run button in sync with any control change
+    // in the model panel (component ticks, sliders, steppers, goal, toggles).
     ["input", "change", "click"].forEach((evt) =>
-      $("model-panel").addEventListener(evt, updateRCode)
+      $("model-panel").addEventListener(evt, () => { updateRCode(); updateRunEnabled(); })
     );
 
     // Copy the current R code to the clipboard.

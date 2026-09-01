@@ -42,7 +42,7 @@ The LAGOtrials R package bridges the gap between theoretical advances in Learn-A
   ```
 - Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
-Not ready to install? Try the package in your browser on the [live demo page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html).
+Not ready to install? Try the package in your browser on the [live demo page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html), or design an optimization interactively with the [guided playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html).
 
 ## The main functions
 The LAGOtrials R package has four user-facing functions `lago_optimization()`, `lago_sensitivity()`, `visualize_cost()`, and `lago_report()`.
