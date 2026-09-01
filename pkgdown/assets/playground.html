@@ -354,6 +354,16 @@
     function renderCompConfig() {
       const box = $("comp-config");
       const chosen = selectedComponents();
+      // Snapshot any already-tuned bounds/cost so rebuilding (e.g. after the
+      // outcome column changes) does not throw the user's edits away.
+      const prev = {};
+      box.querySelectorAll(".comp-row").forEach((r) => {
+        prev[r.dataset.comp] = {
+          lb: r.querySelector(".lb").value,
+          ub: r.querySelector(".ub").value,
+          cost: r.querySelector(".cost").value,
+        };
+      });
       box.innerHTML = "";
       chosen.forEach((name) => {
         const col = columns.find((c) => c.name === name) || {};
@@ -377,6 +387,15 @@
 
         const lb = row.querySelector(".lb"), ub = row.querySelector(".ub");
         const cost = row.querySelector(".cost");
+        // Restore any prior tuning for this component, clamped to the current
+        // range (so a snapshot from a wider range still falls inside).
+        const p = prev[name];
+        if (p) {
+          const clamp = (v) => Math.min(Math.max(Number(v), Number(lb.min)), Number(lb.max));
+          lb.value = clamp(p.lb);
+          ub.value = clamp(p.ub);
+          cost.value = p.cost;
+        }
         const sync = () => {
           // keep lower <= upper
           if (Number(lb.value) > Number(ub.value)) {
