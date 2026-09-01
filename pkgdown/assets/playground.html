@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAGOtrials playground</title>
+  <!--
+    An interactive, in-browser LAGO trial designer. R runs client-side through
+    webR (R compiled to WebAssembly); no server, no install. Pick a bundled
+    dataset or upload a CSV, choose the outcome and intervention components, set
+    bounds/costs/goal, and Run: the recommendation is drawn with the SAME D3
+    renderers the package's lago_report() uses (a hover-enabled confidence-set
+    plot and per-component cost curves), plus the console summary.
+
+    The webR runtime is pinned to v0.6.0 to match the version the package's wasm
+    binary is built with (.github/workflows/webr-repo.yaml); tests/js/
+    test-webr-demo.js checks they stay in sync. The vendored D3 library and
+    inst/js/lago-report.js are read out of the installed package at runtime, so
+    the playground always uses the package's own renderers.
+  -->
+  <style>
+    :root { --accent:#0066cc; --accent-dark:#004b99; --bg:#fbfcfe; --border:#e2e6ea; --muted:#6b7280; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#1c1e21; background:var(--bg); line-height:1.5; }
+    header { border-bottom:1px solid var(--border); background:#fff; }
+    .wrap { max-width:1040px; margin:0 auto; padding:0 20px; }
+    header .wrap { display:flex; align-items:baseline; gap:16px; padding:14px 20px; flex-wrap:wrap; }
+    header h1 { font-size:1.15rem; margin:0; }
+    header nav a { color:var(--accent); text-decoration:none; font-size:.9rem; margin-left:14px; }
+    header nav a:hover { text-decoration:underline; }
+    main { padding:22px 0 64px; }
+    p.lede { color:#444; margin-top:0; }
+    .status { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; background:#eef4fc; border:1px solid #d6e4f7; color:#24405f; font-size:.92rem; margin:14px 0; }
+    .status.ready { background:#eaf7ee; border-color:#cdebd6; color:#1e5631; }
+    .status.error { background:#fdeeee; border-color:#f6d4d4; color:#7a2020; }
+    .spinner { width:16px; height:16px; border:2px solid #b9d3f2; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex:none; }
+    .status.ready .spinner, .status.error .spinner { display:none; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .panel { border:1px solid var(--border); border-radius:10px; background:#fff; padding:16px 18px; margin:14px 0; }
+    .panel h2 { font-size:1rem; margin:0 0 12px; }
+    .row { display:flex; flex-wrap:wrap; gap:14px 22px; align-items:flex-end; }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    label { font-weight:600; font-size:.82rem; color:#333; }
+    select, input[type=number], input[type=text] { font:inherit; font-size:.9rem; padding:7px 9px; border:1px solid var(--border); border-radius:7px; background:#fff; }
+    input[type=number] { width:96px; }
+    .hint { color:var(--muted); font-size:.8rem; }
+    #components { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:.85rem; cursor:pointer; user-select:none; background:#fff; }
+    .chip input { margin:0; }
+    .chip.on { border-color:var(--accent); background:#eef4fc; color:var(--accent-dark); }
+    #comp-config { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+    .comp-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:.85rem; }
+    .comp-row .name { font-weight:600; min-width:130px; }
+    button { font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; padding:10px 20px; border-radius:8px; cursor:pointer; }
+    button:hover { background:var(--accent-dark); }
+    button:disabled { background:#9db8d6; cursor:not-allowed; }
+    button.secondary { background:#fff; color:var(--accent); border:1px solid var(--border); }
+    button.secondary:hover { background:#f2f6fb; }
+    .controls-bar { display:flex; gap:10px; align-items:center; margin-top:8px; }
+    #drop { border:2px dashed var(--border); border-radius:8px; padding:10px 12px; color:var(--muted); font-size:.85rem; cursor:pointer; }
+    #drop.hot { border-color:var(--accent); background:#eef4fc; }
+    h2.section { font-size:1rem; margin:26px 0 8px; }
+    pre.out { background:#0f1620; color:#e7edf3; padding:14px; border-radius:8px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; white-space:pre-wrap; word-break:break-word; min-height:40px; margin:0; }
+    pre.out:empty::before { content:"Run to see the recommendation and console output here."; color:#7d8794; }
+    #cs-plot, #cost-curves { margin-top:12px; }
+    #cs-plot svg, #cost-curves svg { max-width:100%; }
+    .note { color:var(--muted); font-size:.85rem; margin-top:26px; border-top:1px solid var(--border); padding-top:14px; }
+    code { background:#eef1f4; padding:1px 5px; border-radius:4px; font-size:.85em; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>LAGOtrials &mdash; playground</h1>
+      <nav>
+        <a href="./index.html">Home</a>
+        <a href="./live-demo.html">Quick demo</a>
+        <a href="./reference/index.html">Reference</a>
+        <a href="https://github.com/correspondMerchant/LAGO-R-Package">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p class="lede">
+      Design a LAGO optimization interactively, in your browser, with no install. Pick a bundled dataset or upload your
+      own CSV, choose the outcome and intervention components, set the bounds, per-unit costs and outcome goal, then press
+      <strong>Run</strong>. The recommendation is drawn with the package's own interactive
+      <a href="https://docs.r-wasm.org/webr/latest/" target="_blank" rel="noopener">webR</a>-powered charts.
+    </p>
+
+    <div id="status" class="status"><span class="spinner"></span><span id="status-text">Starting webR&hellip;</span></div>
+
+    <div class="panel" id="data-panel" style="opacity:.55;pointer-events:none;">
+      <h2>1. Data</h2>
+      <div class="row">
+        <div class="field">
+          <label for="dataset">Bundled dataset</label>
+          <select id="dataset">
+            <option value="BB_data">BB_data (BetterBirth, binary)</option>
+            <option value="mtcars">mtcars (continuous)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&hellip; or upload a CSV</label>
+          <div id="drop">Drop a .csv here, or click to choose</div>
+          <input id="file" type="file" accept=".csv,text/csv" style="display:none;">
+        </div>
+      </div>
+      <p class="hint" id="data-info" style="margin:10px 0 0;"></p>
+    </div>
+
+    <div class="panel" id="model-panel" style="opacity:.55;pointer-events:none;">
+      <h2>2. Model</h2>
+      <div class="row">
+        <div class="field">
+          <label for="outcome">Outcome column</label>
+          <select id="outcome"></select>
+        </div>
+        <div class="field">
+          <label for="otype">Outcome type</label>
+          <select id="otype">
+            <option value="binary">binary</option>
+            <option value="continuous">continuous</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="goal">Outcome goal</label>
+          <input id="goal" type="number" step="any" value="0.85">
+        </div>
+        <div class="field">
+          <label for="intent">Direction</label>
+          <select id="intent">
+            <option value="maximize">maximize</option>
+            <option value="minimize">minimize</option>
+          </select>
+        </div>
+      </div>
+      <label style="display:block;margin-top:14px;">Intervention components</label>
+      <div id="components"></div>
+      <div id="comp-config"></div>
+    </div>
+
+    <div class="controls-bar">
+      <button id="run" disabled>Run optimization</button>
+      <span id="run-hint" class="hint"></span>
+    </div>
+
+    <h2 class="section">Result</h2>
+    <pre id="output" class="out"></pre>
+    <div id="cs-plot"></div>
+    <div id="cost-curves"></div>
+
+    <p class="note">
+      webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
+      confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
+      full console summary). See the <a href="./index.html">package documentation</a> for the complete API.
+    </p>
+  </main>
+
+  <script type="module">
+    const WEBR_VERSION = "0.6.0";
+    const WEBR_URL = `https://webr.r-wasm.org/v${WEBR_VERSION}/webr.mjs`;
+    const REPOS = [
+      "https://correspondmerchant.github.io/LAGO-R-Package/webr-repo",
+      "https://repo.r-wasm.org",
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("status"), statusText = $("status-text");
+    const setStatus = (t, k) => { statusText.textContent = t; statusEl.className = "status" + (k ? " " + k : ""); };
+    const clearResults = () => { $("output").textContent = ""; $("cs-plot").innerHTML = ""; $("cost-curves").innerHTML = ""; };
+    // Escape a value for safe interpolation into an R character string.
+    const rstr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
+    const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
+
+    let webR, shelter, columns = [];
+
+    async function boot() {
+      try {
+        setStatus("Downloading R (happens once)…");
+        const { WebR } = await import(WEBR_URL);
+        webR = new WebR();
+        await webR.init();
+
+        setStatus("Installing LAGOtrials…");
+        const reposR = "c(" + REPOS.map((r) => JSON.stringify(r)).join(", ") + ")";
+        await webR.evalRVoid(`webr::install("LAGOtrials", repos = ${reposR})`);
+        await webR.evalRVoid('suppressMessages(library(LAGOtrials))');
+
+        // Inject the package's own vendored D3 and report renderer, read out of
+        // the installed package so the playground uses the same code lago_report
+        // does. D3 must load before lago-report.js (which no-ops without d3).
+        setStatus("Loading the interactive charts…");
+        const d3src = await webR.evalRString(
+          'paste(readLines(system.file("js", "d3.v7.min.js", package = "LAGOtrials"), warn = FALSE), collapse = "\\n")'
+        );
+        injectScript(d3src);
+        const rptsrc = await webR.evalRString(
+          'paste(readLines(system.file("js", "lago-report.js", package = "LAGOtrials"), warn = FALSE), collapse = "\\n")'
+        );
+        injectScript(rptsrc);
+
+        shelter = await new webR.Shelter();
+        await loadBundled($("dataset").value);
+
+        setStatus("Ready. Configure the model and press Run.", "ready");
+        $("data-panel").style.opacity = $("model-panel").style.opacity = "1";
+        $("data-panel").style.pointerEvents = $("model-panel").style.pointerEvents = "auto";
+        $("run").disabled = false;
+      } catch (err) {
+        setStatus("Failed to start webR: " + (err && err.message ? err.message : err), "error");
+      }
+    }
+
+    function injectScript(src) {
+      const s = document.createElement("script");
+      s.textContent = src;
+      document.head.appendChild(s);
+    }
+
+    // Load a bundled dataset into the R global `PG_DATA` and read its schema.
+    async function loadBundled(name) {
+      await webR.evalRVoid(
+        name === "mtcars"
+          ? "PG_DATA <- mtcars"
+          : `utils::data(${name}, package = "LAGOtrials"); PG_DATA <- as.data.frame(${name})`
+      );
+      await refreshSchema(`bundled dataset ${name}`);
+    }
+
+    // Load an uploaded CSV (written to the webR virtual filesystem) into PG_DATA.
+    async function loadCSV(text, filename) {
+      await webR.FS.writeFile("/tmp/pg_user.csv", new TextEncoder().encode(text));
+      await webR.evalRVoid('PG_DATA <- utils::read.csv("/tmp/pg_user.csv", check.names = TRUE)');
+      await refreshSchema(`uploaded ${filename}`);
+    }
+
+    // Read column names, which are numeric, and each numeric column's range, so
+    // the UI can offer components and pre-fill sensible bounds.
+    async function refreshSchema(sourceLabel) {
+      const json = await webR.evalRString(`jsonlite::toJSON(list(
+        nrow = nrow(PG_DATA), ncol = ncol(PG_DATA),
+        cols = names(PG_DATA),
+        numeric = vapply(PG_DATA, is.numeric, logical(1), USE.NAMES = FALSE),
+        mins = vapply(PG_DATA, function(v) if (is.numeric(v)) min(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
+        maxs = vapply(PG_DATA, function(v) if (is.numeric(v)) max(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE)
+      ), auto_unbox = TRUE, na = "null", digits = NA)`);
+      const meta = JSON.parse(json);
+      columns = meta.cols.map((name, i) => ({
+        name, numeric: meta.numeric[i], min: meta.mins[i], max: meta.maxs[i],
+      }));
+      $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
+      buildModelControls();
+    }
+
+    function buildModelControls() {
+      // Outcome: any column. Components: numeric columns.
+      const outcome = $("outcome");
+      outcome.innerHTML = "";
+      columns.forEach((c) => {
+        const o = document.createElement("option");
+        o.value = c.name; o.textContent = c.name;
+        outcome.appendChild(o);
+      });
+      const comps = $("components");
+      comps.innerHTML = "";
+      columns.filter((c) => c.numeric).forEach((c) => {
+        const id = "comp_" + c.name;
+        const chip = document.createElement("label");
+        chip.className = "chip";
+        chip.innerHTML = `<input type="checkbox" value="${c.name}"> ${c.name}`;
+        const cb = chip.querySelector("input");
+        cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); });
+        comps.appendChild(chip);
+      });
+      renderCompConfig();
+    }
+
+    function selectedComponents() {
+      return Array.from(document.querySelectorAll("#components input:checked")).map((c) => c.value);
+    }
+
+    // For each selected component, a bounds + per-unit cost row (bounds default
+    // to the observed range, rounded outward a little).
+    function renderCompConfig() {
+      const box = $("comp-config");
+      const chosen = selectedComponents();
+      box.innerHTML = "";
+      chosen.forEach((name) => {
+        const col = columns.find((c) => c.name === name) || {};
+        const lo = Number.isFinite(col.min) ? Math.floor(col.min) : 0;
+        const hi = Number.isFinite(col.max) ? Math.ceil(col.max) : 1;
+        const row = document.createElement("div");
+        row.className = "comp-row";
+        row.dataset.comp = name;
+        row.innerHTML =
+          `<span class="name">${name}</span>` +
+          `<span>lower <input type="number" step="any" class="lb" value="${lo}"></span>` +
+          `<span>upper <input type="number" step="any" class="ub" value="${hi}"></span>` +
+          `<span>unit cost <input type="number" step="any" class="cost" value="1"></span>`;
+        box.appendChild(row);
+      });
+    }
+
+    async function run() {
+      if (!shelter) return;
+      const comps = selectedComponents();
+      if (comps.length < 1) { $("run-hint").textContent = "pick at least one component"; return; }
+      $("run").disabled = true; $("run-hint").textContent = "running…";
+      clearResults();
+
+      const rows = comps.map((name) => {
+        const r = document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`);
+        return {
+          name,
+          lb: r.querySelector(".lb").value,
+          ub: r.querySelector(".ub").value,
+          cost: r.querySelector(".cost").value,
+        };
+      });
+      const call =
+        `res <- lago_optimization(\n` +
+        `  data = PG_DATA,\n` +
+        `  outcome_name = ${rstr($("outcome").value)},\n` +
+        `  outcome_type = ${rstr($("otype").value)},\n` +
+        `  intervention_components = ${rchar(rows.map((r) => r.name))},\n` +
+        `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))},\n` +
+        `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))},\n` +
+        `  cost_list_of_vectors = list(${rows.map((r) => `c(0, ${Number(r.cost)})`).join(", ")}),\n` +
+        `  outcome_goal = ${Number($("goal").value)},\n` +
+        `  outcome_goal_intention = ${rstr($("intent").value)},\n` +
+        `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
+          // Roughly 20 grid steps across each component's range, so a wide
+          // continuous range (e.g. mtcars qsec, 0-350) does not blow up the
+          // confidence-set grid; fall back to 1 for a degenerate range.
+          const span = Number(r.ub) - Number(r.lb);
+          return span > 0 ? Math.max(span / 20, 1e-6) : 1;
+        }))},\n` +
+        `  quiet = TRUE\n)`;
+
+      try {
+        const cap = await shelter.captureR(call + "\nprint(res)", {
+          withAutoprint: false,
+          captureConditions: false,
+        });
+        $("output").textContent = cap.output
+          .filter((o) => o.type === "stdout" || o.type === "stderr")
+          .map((o) => o.data).join("\n");
+        await shelter.purge();
+
+        // Build the same payload lago_report() feeds its D3 renderers, then draw.
+        const json = await webR.evalRString(`{
+          comps <- if (!is.null(res$display_components)) res$display_components else res$intervention_components
+          jsonlite::toJSON(list(
+            components = I(as.character(comps)),
+            rec_int = I(as.numeric(res$rec_int)),
+            rec_int_cost = as.numeric(res$rec_int_cost),
+            cs = res$cs,
+            cost = list(
+              components = I(as.character(comps)),
+              coefs = lapply(res$cost_list_of_vectors, function(v) I(as.numeric(v))),
+              lb = I(as.numeric(res$intervention_lower_bounds)),
+              ub = I(as.numeric(res$intervention_upper_bounds))
+            )
+          ), auto_unbox = TRUE, dataframe = "rows", na = "null", digits = NA)
+        }`);
+        const data = JSON.parse(json);
+        if (window.LAGOReport) {
+          // Draw the cost curves first and independently, so an empty or
+          // unplottable confidence set can never hide them.
+          LAGOReport.renderCostCurves("cost-curves", data);
+          if (Array.isArray(data.cs) && data.cs.length) {
+            LAGOReport.renderConfidenceSet("cs-plot", data);
+          } else {
+            $("cs-plot").innerHTML =
+              '<p class="hint">No confidence set was returned for this result, so there is no confidence-set plot.</p>';
+          }
+        }
+      } catch (err) {
+        $("output").textContent = "Error: " + (err && err.message ? err.message : err);
+      } finally {
+        $("run").disabled = false; $("run-hint").textContent = "";
+      }
+    }
+
+    // wire up
+    $("dataset").addEventListener("change", async (e) => {
+      clearResults(); setStatus("Loading " + e.target.value + "…");
+      try { await loadBundled(e.target.value); setStatus("Ready.", "ready"); }
+      catch (err) { setStatus("Could not load dataset: " + err, "error"); }
+    });
+    const drop = $("drop"), file = $("file");
+    drop.addEventListener("click", () => file.click());
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("hot"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("hot"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+    file.addEventListener("change", () => { if (file.files[0]) readFile(file.files[0]); });
+    async function readFile(f) {
+      clearResults(); setStatus("Reading " + f.name + "…");
+      try { await loadCSV(await f.text(), f.name); setStatus("Ready.", "ready"); }
+      catch (err) { setStatus("Could not read CSV: " + err, "error"); }
+    }
+    $("run").addEventListener("click", run);
+
+    boot();
+  </script>
+</body>
+</html>
