@@ -116,6 +116,7 @@
           <label>&hellip; or upload a CSV</label>
           <div id="drop" role="button" tabindex="0" aria-label="Upload a CSV file: click, or press Enter">Drop a .csv here, or click to choose</div>
           <input id="file" type="file" accept=".csv,text/csv" style="display:none;">
+          <p class="hint" style="margin:4px 0 0;">Comma-separated with a header row; numeric columns become the outcome and component choices.</p>
         </div>
       </div>
       <p class="hint" id="data-info" style="margin:10px 0 0;"></p>
@@ -174,7 +175,10 @@
     <p class="note">
       webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
       confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
-      full console summary). See the <a href="./index.html">package documentation</a> for the complete API.
+      full console summary). This playground exposes the common options; for the rest &mdash; a power goal, center
+      characteristics and fixed effects, clustering (<code>icc</code>), a custom GLM family/link, and more &mdash; call
+      <code>lago_optimization()</code> in R (copy the snippet above as a starting point). See the
+      <a href="./index.html">package documentation</a> for the complete API.
     </p>
   </main>
 
