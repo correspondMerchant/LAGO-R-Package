@@ -71,7 +71,7 @@
     #drop.hot { border-color:var(--accent); background:#eef4fc; }
     h2.section { font-size:1rem; margin:26px 0 8px; }
     pre.out { background:#0f1620; color:#e7edf3; padding:14px; border-radius:8px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; white-space:pre-wrap; word-break:break-word; min-height:40px; margin:0; }
-    pre.out:empty::before { content:"Run to see the recommendation and console output here."; color:#7d8794; }
+    #output:empty::before { content:"Run to see the recommendation and console output here."; color:#7d8794; }
     #cs-plot, #cost-curves { margin-top:12px; }
     #cs-plot svg, #cost-curves svg { max-width:100%; }
     .note { color:var(--muted); font-size:.85rem; margin-top:26px; border-top:1px solid var(--border); padding-top:14px; }
@@ -163,7 +163,7 @@
         <button type="button" id="copy-code" class="secondary">Copy</button>
       </div>
       <p class="hint" style="margin:6px 0 0;">Paste this into R (after <code>library(LAGOtrials)</code>) to reproduce the run.</p>
-      <pre id="rcode" class="out" style="margin-top:10px;"></pre>
+      <pre id="rcode" class="out" style="margin-top:10px;"># choose an outcome and at least one intervention component</pre>
     </div>
 
     <h2 class="section">Result</h2>
@@ -407,7 +407,7 @@
           `<div class="ctl"><span>unit cost: <span class="costval val"></span></span>` +
           `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease ${name} unit cost">&minus;</button>` +
           `<input type="number" step="any" min="0" class="cost" value="1" aria-label="${name} unit cost">` +
-          `<button type="button" class="cost-inc" aria-label="increase cost">+</button></span></div>`;
+          `<button type="button" class="cost-inc" aria-label="increase ${name} unit cost">+</button></span></div>`;
         box.appendChild(row);
 
         const lb = row.querySelector(".lb"), ub = row.querySelector(".ub");
@@ -448,17 +448,20 @@
     // Build the lago_optimization() call from the current controls. Returns
     // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
     function buildCall() {
-      const comps = selectedComponents();
-      if (comps.length < 1) return { ok: false, msg: "pick at least one component" };
-      const rows = comps.map((name) => {
-        const r = document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`);
-        return {
-          name,
+      // Read from the rendered rows. A component can be ticked a tick before its
+      // row exists (the delegated click/input listener fires updateRCode before
+      // the checkbox 'change' builds the row), so skip any not-yet-rendered row;
+      // the following 'change' event rebuilds the code with the row present.
+      const rows = selectedComponents()
+        .map((name) => document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`))
+        .filter(Boolean)
+        .map((r) => ({
+          name: r.dataset.comp,
           lb: r.querySelector(".lb").value,
           ub: r.querySelector(".ub").value,
           cost: r.querySelector(".cost").value,
-        };
-      });
+        }));
+      if (!rows.length) return { ok: false, msg: "pick at least one component" };
       const call =
         `res <- lago_optimization(\n` +
         `  data = PG_DATA,\n` +
