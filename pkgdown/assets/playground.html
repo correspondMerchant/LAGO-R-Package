@@ -128,11 +128,11 @@
           <select id="outcome"></select>
         </div>
         <div class="field">
-          <label for="otype">Outcome type</label>
-          <select id="otype">
-            <option value="binary">binary</option>
-            <option value="continuous">continuous</option>
-          </select>
+          <label>Outcome type <span id="otype-auto" class="hint"></span></label>
+          <div class="seg" id="otype" data-value="binary">
+            <button type="button" class="on" data-value="binary">Binary</button>
+            <button type="button" data-value="continuous">Continuous</button>
+          </div>
         </div>
         <div class="field" style="min-width:240px;">
           <label for="goal">Outcome goal: <span id="goal-val" class="val">0.85</span></label>
@@ -247,44 +247,77 @@
       await refreshSchema(`uploaded ${filename}`);
     }
 
-    // Read column names, which are numeric, and each numeric column's range, so
-    // the UI can offer components and pre-fill sensible bounds.
+    // Read the schema: which columns are numeric, each numeric column's range,
+    // and whether it looks binary (only 0/1), so the UI can offer sensible
+    // outcome/component choices, pre-fill bounds, and auto-pick the outcome type.
     async function refreshSchema(sourceLabel) {
       const json = await webR.evalRString(`jsonlite::toJSON(list(
         nrow = nrow(PG_DATA), ncol = ncol(PG_DATA),
         cols = names(PG_DATA),
         numeric = vapply(PG_DATA, is.numeric, logical(1), USE.NAMES = FALSE),
         mins = vapply(PG_DATA, function(v) if (is.numeric(v)) min(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
-        maxs = vapply(PG_DATA, function(v) if (is.numeric(v)) max(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE)
+        maxs = vapply(PG_DATA, function(v) if (is.numeric(v)) max(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
+        binary = vapply(PG_DATA, function(v) is.numeric(v) && all(stats::na.omit(v) %in% c(0, 1)), logical(1), USE.NAMES = FALSE)
       ), auto_unbox = TRUE, na = "null", digits = NA)`);
       const meta = JSON.parse(json);
       columns = meta.cols.map((name, i) => ({
-        name, numeric: meta.numeric[i], min: meta.mins[i], max: meta.maxs[i],
+        name, numeric: meta.numeric[i], min: meta.mins[i], max: meta.maxs[i], binary: meta.binary[i],
       }));
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
       buildModelControls();
     }
 
     function buildModelControls() {
-      // Outcome: any column. Components: numeric columns.
+      // Outcome + components must be numeric (LAGO fits a GLM on them), so only
+      // numeric columns are offered.
+      const numeric = columns.filter((c) => c.numeric);
       const outcome = $("outcome");
       outcome.innerHTML = "";
-      columns.forEach((c) => {
+      numeric.forEach((c) => {
         const o = document.createElement("option");
         o.value = c.name; o.textContent = c.name;
         outcome.appendChild(o);
       });
+      if (numeric.length < 2) {
+        $("data-info").textContent +=
+          " Need at least two numeric columns (one outcome + one component); this data has " + numeric.length + ".";
+      }
+      onOutcomeChanged();
+    }
+
+    // Set a segmented toggle (#otype / #intent) programmatically.
+    function setSeg(id, value) {
+      const seg = $(id);
+      seg.dataset.value = value;
+      seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.value === value));
+    }
+
+    // (Re)build the component chips: numeric columns except the chosen outcome,
+    // preserving which were already ticked.
+    function renderComponentChips() {
       const comps = $("components");
+      const checked = new Set(selectedComponents());
+      const outcomeName = $("outcome").value;
       comps.innerHTML = "";
-      columns.filter((c) => c.numeric).forEach((c) => {
-        const id = "comp_" + c.name;
+      columns.filter((c) => c.numeric && c.name !== outcomeName).forEach((c) => {
         const chip = document.createElement("label");
         chip.className = "chip";
         chip.innerHTML = `<input type="checkbox" value="${c.name}"> ${c.name}`;
         const cb = chip.querySelector("input");
+        if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
         cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); });
         comps.appendChild(chip);
       });
+    }
+
+    // On load and whenever the outcome column changes: auto-pick the outcome
+    // type from the column (0/1 -> binary, else continuous), drop the outcome
+    // from the component choices, and re-range the goal.
+    function onOutcomeChanged() {
+      const oc = columns.find((c) => c.name === $("outcome").value);
+      setSeg("otype", oc && oc.binary ? "binary" : "continuous");
+      $("otype-auto").textContent = "(auto-detected)";
+      renderComponentChips();
       updateGoalRange();
       renderCompConfig();
     }
@@ -294,7 +327,7 @@
     function updateGoalRange() {
       const g = $("goal");
       const oc = columns.find((c) => c.name === $("outcome").value);
-      if ($("otype").value === "binary" || !oc || !Number.isFinite(oc.min) || !Number.isFinite(oc.max) || oc.max <= oc.min) {
+      if ($("otype").dataset.value === "binary" || !oc || !Number.isFinite(oc.min) || !Number.isFinite(oc.max) || oc.max <= oc.min) {
         g.min = 0; g.max = 1; g.step = 0.01;
         if (!(Number(g.value) >= 0 && Number(g.value) <= 1)) g.value = 0.85;
       } else {
@@ -388,7 +421,7 @@
         `res <- lago_optimization(\n` +
         `  data = PG_DATA,\n` +
         `  outcome_name = ${rstr($("outcome").value)},\n` +
-        `  outcome_type = ${rstr($("otype").value)},\n` +
+        `  outcome_type = ${rstr($("otype").dataset.value)},\n` +
         `  intervention_components = ${rchar(rows.map((r) => r.name))},\n` +
         `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))},\n` +
         `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))},\n` +
@@ -468,17 +501,20 @@
     }
     $("run").addEventListener("click", run);
 
-    // Goal slider readout, and re-range the goal when the outcome or its type
-    // changes (binary -> 0-1; continuous -> the column's range).
+    // Goal slider readout; changing the outcome re-detects type, components and
+    // the goal range.
     $("goal").addEventListener("input", () => { $("goal-val").textContent = fmt($("goal").value); });
-    $("outcome").addEventListener("change", updateGoalRange);
-    $("otype").addEventListener("change", updateGoalRange);
+    $("outcome").addEventListener("change", onOutcomeChanged);
 
-    // Direction segmented toggle: track the choice on the container's dataset.
-    $("intent").querySelectorAll("button").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        $("intent").dataset.value = btn.dataset.value;
-        $("intent").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
+    // Segmented toggles set their choice on the container's dataset. The outcome
+    // type additionally re-ranges the goal and marks that the user overrode the
+    // auto-detection.
+    ["intent", "otype"].forEach((id) => {
+      $(id).querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setSeg(id, btn.dataset.value);
+          if (id === "otype") { $("otype-auto").textContent = "(manual)"; updateGoalRange(); }
+        });
       });
     });
 
