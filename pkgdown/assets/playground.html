@@ -647,11 +647,15 @@
     drop.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); }
     });
-    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("hot"); });
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); if (!running) drop.classList.add("hot"); });
     drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
     drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("hot"); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
     file.addEventListener("change", () => { if (file.files[0]) readFile(file.files[0]); });
     async function readFile(f) {
+      // Drag-and-drop reaches here directly, bypassing the disabled #file input,
+      // so guard the in-flight run here too or a mid-run drop would rebuild the
+      // controls under the running result.
+      if (running) return;
       clearResults();
       // Everything (parse, schema round-trip, and the fit) runs on the webR
       // thread, so a very large file can make the tab unresponsive; warn rather
