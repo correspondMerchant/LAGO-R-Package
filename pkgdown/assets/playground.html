@@ -349,6 +349,8 @@
           if (Number(lb.value) > Number(ub.value)) {
             if (document.activeElement === lb) ub.value = lb.value; else lb.value = ub.value;
           }
+          // a cost cannot be negative (a typed value bypasses the input's min)
+          if (Number(cost.value) < 0) cost.value = 0;
           row.querySelector(".lbval").textContent = fmt(lb.value);
           row.querySelector(".ubval").textContent = fmt(ub.value);
           row.querySelector(".costval").textContent = fmt(cost.value);
