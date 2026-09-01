@@ -6,8 +6,12 @@
   (`live-demo.html`) that runs the real package client-side with webR (R
   compiled to WebAssembly), so anyone can try
   [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
-  with no installation. A GitHub Actions workflow builds the package to
-  WebAssembly with the rwasm toolchain and publishes it as a small
+  with no installation, plus an interactive playground
+  (`playground.html`) where you pick a bundled dataset or upload a CSV,
+  configure the model with sliders and toggles, and see the
+  recommendation drawn with the package’s own D3 charts alongside a
+  copy-pasteable R snippet. A GitHub Actions workflow builds the package
+  to WebAssembly with the rwasm toolchain and publishes it as a small
   CRAN-like repository alongside the site.
 - [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
   now renders an interactive HTML dashboard: the confidence set is a

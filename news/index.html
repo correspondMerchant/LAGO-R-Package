@@ -28,6 +28,7 @@
     <li><a class="dropdown-item" href="../news/index.html">Changelog</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../live-demo.html">Live demo</a></li>
+<li class="nav-item"><a class="nav-link" href="../playground.html">Playground</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/correspondMerchant/LAGO-R-Package/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -44,7 +45,7 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.1.0" id="lagotrials-110">LAGOtrials 1.1.0<a class="anchor" aria-label="anchor" href="#lagotrials-110"></a></h2>
-<ul><li>Added a live in-browser demo to the documentation site (<code>live-demo.html</code>) that runs the real package client-side with webR (R compiled to WebAssembly), so anyone can try <code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> with no installation. A GitHub Actions workflow builds the package to WebAssembly with the rwasm toolchain and publishes it as a small CRAN-like repository alongside the site.</li>
+<ul><li>Added a live in-browser demo to the documentation site (<code>live-demo.html</code>) that runs the real package client-side with webR (R compiled to WebAssembly), so anyone can try <code><a href="../reference/lago_optimization.html">lago_optimization()</a></code> with no installation, plus an interactive playground (<code>playground.html</code>) where you pick a bundled dataset or upload a CSV, configure the model with sliders and toggles, and see the recommendation drawn with the package’s own D3 charts alongside a copy-pasteable R snippet. A GitHub Actions workflow builds the package to WebAssembly with the rwasm toolchain and publishes it as a small CRAN-like repository alongside the site.</li>
 <li>
 <code><a href="../reference/lago_report.html">lago_report()</a></code> now renders an interactive HTML dashboard: the confidence set is a hover-enabled D3 plot (a scatter for two components, a strip for one) with the recommended intervention highlighted, and each intervention component gets interactive total-cost and marginal-cost curves. The report stays a single self-contained offline file (D3 is inlined, no CDN or server) and its API is unchanged; rendering now also uses <code>jsonlite</code> (a new Suggests).</li>
 <li>Added an MCP (Model Context Protocol) server to the Python package (<code>python -m lago.mcp_server</code>) that exposes <code>optimize</code> and <code>sensitivity</code> as tools any MCP-aware AI agent can call, plus a <code>sensitivity()</code> function in the Python wrapper.</li>

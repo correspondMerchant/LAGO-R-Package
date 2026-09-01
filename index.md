@@ -22,7 +22,12 @@ interventions.
 > demo](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html)
 > runs the real `LAGOtrials` package client-side with
 > [webR](https://docs.r-wasm.org/webr/latest/) (R compiled to
-> WebAssembly). Edit the example and press Run.
+> WebAssembly) — edit the example and press Run. For a guided version,
+> the
+> [playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html)
+> lets you pick a bundled dataset or upload your own CSV, configure the
+> model with sliders and toggles, and see the recommendation as
+> interactive charts plus a copy-pasteable R snippet.
 
 ## Table of Contents
 
@@ -50,7 +55,9 @@ interventions.
   video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
 Not ready to install? Try the package in your browser on the [live demo
-page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html).
+page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html),
+or design an optimization interactively with the [guided
+playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html).
 
 ## The main functions
 
