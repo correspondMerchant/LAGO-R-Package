@@ -18,8 +18,10 @@ Reset example
 ```
 
 webR runs a WebAssembly build of R (version 4.6.0) fully client-side.
-The interactive Shiny app behind `visualize_cost()` is not available
-here; everything else works as it does locally. Package binaries are
-served from this site's `/webr-repo` repository. See the [package
+The interactive Shiny app behind `visualize_cost()` runs in the browser
+too, on its own [cost
+designer](https://correspondmerchant.github.io/LAGO-R-Package/visualize-cost/)
+page. Package binaries are served from this site's `/webr-repo`
+repository. See the [package
 documentation](https://correspondmerchant.github.io/LAGO-R-Package/index.md)
 for the full API.

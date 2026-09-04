@@ -13,6 +13,15 @@
   copy-pasteable R snippet. A GitHub Actions workflow builds the package
   to WebAssembly with the rwasm toolchain and publishes it as a small
   CRAN-like repository alongside the site.
+- Added a browser version of
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md):
+  the same Shiny cost-function designer now runs client-side on the
+  documentation site (`/visualize-cost/`), exported with shinylive, so
+  you can shape each component’s cost curve and copy the coefficient
+  list with no install.
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  was refactored to build its app object separately from launching it,
+  so the local and in-browser versions share one implementation.
 - [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
   now renders an interactive HTML dashboard: the confidence set is a
   hover-enabled D3 plot (a scatter for two components, a strip for one)

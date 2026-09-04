@@ -67,6 +67,9 @@ cost curves and the full console summary). This playground exposes the
 common options; for the rest — a power goal, center characteristics and
 fixed effects, clustering (`icc`), a custom GLM family/link, and more —
 call `lago_optimization()` in R (copy the snippet above as a starting
-point). See the [package
+point). To shape the per-component cost functions themselves (including
+non-linear ones), use the interactive [cost
+designer](https://correspondmerchant.github.io/LAGO-R-Package/visualize-cost/).
+See the [package
 documentation](https://correspondmerchant.github.io/LAGO-R-Package/index.md)
 for the complete API.

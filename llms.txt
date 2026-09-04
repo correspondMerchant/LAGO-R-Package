@@ -27,7 +27,12 @@ interventions.
 > [playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html)
 > lets you pick a bundled dataset or upload your own CSV, configure the
 > model with sliders and toggles, and see the recommendation as
-> interactive charts plus a copy-pasteable R snippet.
+> interactive charts plus a copy-pasteable R snippet. The [cost
+> designer](https://correspondmerchant.github.io/LAGO-R-Package/visualize-cost/)
+> runs the
+> [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+> Shiny app in the browser so you can shape each component’s cost
+> function and copy the coefficient list.
 
 ## Table of Contents
 
