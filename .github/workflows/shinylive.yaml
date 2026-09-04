@@ -44,6 +44,11 @@ permissions: read-all
 env:
   EXPECTED_WEBR_VERSION: "0.6.0"
   SHINYLIVE_VERSION: "0.5.0"
+  # The repo's .Rprofile activates renv, which would point every Rscript step at
+  # the (empty) renv project library — the install and verify steps would not
+  # share a usable library. The r-lib actions disable this themselves; these
+  # plain Rscript steps need it disabled explicitly.
+  RENV_CONFIG_AUTOLOADER_ENABLED: "FALSE"
 
 jobs:
   shinylive:
@@ -64,17 +69,22 @@ jobs:
 
       - name: Install shinylive (pinned) and the app's bundled dependencies
         run: |
+          set -euo pipefail
           # Binaries from RSPM (set by use-public-rspm) — no from-source build.
           # shiny/bslib/shinyjs are the packages the app uses that shinylive
           # resolves and versions to bundle from repo.r-wasm.org; remotes drives
           # the version pin below.
-          Rscript -e 'install.packages(c("remotes", "shiny", "bslib", "shinyjs"))'
+          Rscript -e 'cat("libPaths:\n"); print(.libPaths()); install.packages(c("remotes", "shiny", "bslib", "shinyjs"))'
           # Pin shinylive to an exact version so its bundled webR is deterministic:
           # SHINYLIVE_VERSION 0.5.0 bundles webR EXPECTED_WEBR_VERSION (0.6.0), the
           # ABI the webr-repo binary is built with. install_version pulls
           # shinylive's own dependency closure as RSPM binaries; upgrade = "never"
           # leaves the packages installed above untouched.
           Rscript -e 'remotes::install_version("shinylive", version = Sys.getenv("SHINYLIVE_VERSION"), upgrade = "never")'
+          # Fail here, not two steps later, if shinylive did not land in a library
+          # this job can load from (the failure mode when something re-points
+          # .libPaths(), e.g. the renv autoloader disabled via env above).
+          Rscript -e 'loadNamespace("shinylive"); cat("shinylive loads from:", dirname(getNamespaceInfo("shinylive", "path")), "\n")'
 
       - name: Verify the pinned shinylive (fails CI if its webR ABI could drift)
         run: |
