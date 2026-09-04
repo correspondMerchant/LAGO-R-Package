@@ -44,6 +44,13 @@ permissions: read-all
 env:
   EXPECTED_WEBR_VERSION: "0.6.0"
   SHINYLIVE_VERSION: "0.5.0"
+  # The repo's .Rprofile activates renv, which repoints .libPaths() at renv's
+  # project library plus its sandbox. The sibling workflows run their R commands
+  # through r-lib/actions, which detects an activated renv project and installs
+  # into that same library, so they stay consistent; these plain Rscript steps
+  # would install into one library and read from another, so switch the
+  # autoloader off outright (renv/activate.R reads this variable).
+  RENV_CONFIG_AUTOLOADER_ENABLED: "FALSE"
 
 jobs:
   shinylive:
@@ -64,17 +71,23 @@ jobs:
 
       - name: Install shinylive (pinned) and the app's bundled dependencies
         run: |
+          set -euo pipefail
           # Binaries from RSPM (set by use-public-rspm) — no from-source build.
           # shiny/bslib/shinyjs are the packages the app uses that shinylive
           # resolves and versions to bundle from repo.r-wasm.org; remotes drives
           # the version pin below.
-          Rscript -e 'install.packages(c("remotes", "shiny", "bslib", "shinyjs"))'
+          Rscript -e 'cat("libPaths:\n"); print(.libPaths()); install.packages(c("remotes", "shiny", "bslib", "shinyjs"))'
           # Pin shinylive to an exact version so its bundled webR is deterministic:
           # SHINYLIVE_VERSION 0.5.0 bundles webR EXPECTED_WEBR_VERSION (0.6.0), the
           # ABI the webr-repo binary is built with. install_version pulls
           # shinylive's own dependency closure as RSPM binaries; upgrade = "never"
           # leaves the packages installed above untouched.
           Rscript -e 'remotes::install_version("shinylive", version = Sys.getenv("SHINYLIVE_VERSION"), upgrade = "never")'
+          # Fail here, not in a later step, if any of the above did not produce a
+          # loadable package: install.packages() only warns on failure and still
+          # exits 0, so set -e cannot catch it, and a missing shinyjs would break
+          # the export instead.
+          Rscript -e 'for (p in c("remotes", "shiny", "bslib", "shinyjs", "shinylive")) invisible(loadNamespace(p)); cat("shinylive loads from:", dirname(getNamespaceInfo("shinylive", "path")), "\n")'
 
       - name: Verify the pinned shinylive (fails CI if its webR ABI could drift)
         run: |
@@ -82,7 +95,12 @@ jobs:
           # change here AND re-verified to still bundle EXPECTED_WEBR_VERSION,
           # otherwise the runtime install of the 0.6.0 LAGOtrials binary would
           # silently fail to load in the browser.
-          Rscript -e 'stopifnot(as.character(packageVersion("shinylive")) == Sys.getenv("SHINYLIVE_VERSION")); cat("shinylive", Sys.getenv("SHINYLIVE_VERSION"), "installed; assets:\n"); print(shinylive::assets_info())'
+          # assets_version() is a package constant, so it needs no downloaded
+          # asset bundle (assets_info() would abort here: on a fresh runner no
+          # assets are cached yet and it indexes past the end of its placeholder).
+          # The web assets version is what determines the bundled webR, so log it
+          # next to .libPaths() to make any future library or ABI drift obvious.
+          Rscript -e 'stopifnot(as.character(packageVersion("shinylive")) == Sys.getenv("SHINYLIVE_VERSION")); cat("shinylive", Sys.getenv("SHINYLIVE_VERSION"), "with web assets", shinylive::assets_version(), "\n"); print(.libPaths())'
 
       - name: Export the app to static files
         run: |
