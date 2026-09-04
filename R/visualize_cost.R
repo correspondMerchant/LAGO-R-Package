@@ -57,14 +57,14 @@
 #' the button does not save the list.
 #'
 # nocov start
-# The body of visualize_cost() is an interactive Shiny app (UI definition plus
-# the server function and its nested plot helpers). It only runs inside a live
-# browser session, which the coverage instrumentation cannot drive, so counting
-# its lines only depresses the coverage figure without measuring anything. The
-# curve/drag math it relies on is tested separately by the standalone JavaScript
-# test (tests/js/test-cost-math.js, run in its own CI job), and the pure R
-# helpers below (compute_slider_range, format_coef) are outside this block and
-# are covered by tests/testthat/test-helpers.R.
+# visualize_cost() validates its inputs and launches the app; the interactive
+# UI + server live in .build_visualize_cost_app() below. Both only run inside a
+# live browser session, which the coverage instrumentation cannot drive, so
+# counting their lines only depresses the coverage figure without measuring
+# anything. The curve/drag math they rely on is tested separately by the
+# standalone JavaScript test (tests/js/test-cost-math.js, run in its own CI job),
+# and the pure R helpers below (compute_slider_range, format_coef) are outside
+# this block and are covered by tests/testthat/test-helpers.R.
 visualize_cost <- function(
     component_names,
     unit_costs,
@@ -97,26 +97,44 @@ visualize_cost <- function(
       all(intervention_lower_bounds < intervention_upper_bounds)
   )
 
-  # When the user closes the app with the "Return list to R & close" button, the
-  # quit observer saves the current cost list to the `lago_cost_list` option and
-  # sets `saved` to TRUE. This on.exit then tells the user where it is. The flag
-  # (initialized locally here) is required so the message only
-  # prints on that button-close path: it must NOT fire on an early error or on a
-  # browser tab-close / Esc, where no cost list was produced.
-  saved <- FALSE
-  on.exit(
-    if (saved) {
-      message(
-        "Your cost list has been saved to the `lago_cost_list` option.\n",
-        "Retrieve it with: cost_list <- getOption(\"lago_cost_list\")\n",
-        "Use it with: ",
-        "lago_optimization(..., cost_list_of_vectors = ",
-        "getOption(\"lago_cost_list\"))"
-      )
-    },
-    add = TRUE
+  # Build and launch the app. The quit button's observer stores the current cost
+  # list in the `lago_cost_list` option and calls stopApp(cost_list), so
+  # runApp() returns that list on a button-close and NULL otherwise (closing the
+  # browser tab leaves the app running; an error propagates). Report the save
+  # only on that button-close path.
+  cost_list <- shiny::runApp(
+    .build_visualize_cost_app(
+      component_names = component_names,
+      unit_costs = unit_costs,
+      default_cost_fxn_type = default_cost_fxn_type,
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds
+    )
   )
+  if (!is.null(cost_list)) {
+    message(
+      "Your cost list has been saved to the `lago_cost_list` option.\n",
+      "Retrieve it with: cost_list <- getOption(\"lago_cost_list\")\n",
+      "Use it with: ",
+      "lago_optimization(..., cost_list_of_vectors = ",
+      "getOption(\"lago_cost_list\"))"
+    )
+  }
+  invisible(cost_list)
+}
 
+# Build the visualize_cost() Shiny app (UI + server) for the given component
+# configuration and return it via shinyApp(), without running it. Separated from
+# visualize_cost() so the same app can be launched locally (visualize_cost() ->
+# runApp) and exported to run entirely in the browser with shinylive (see
+# pkgdown/shinylive/visualize-cost/app.R), keeping one source of truth for
+# the UI and server.
+.build_visualize_cost_app <- function(
+    component_names,
+    unit_costs,
+    default_cost_fxn_type,
+    intervention_lower_bounds,
+    intervention_upper_bounds) {
   # Calculate the initial coefficients for the cost function
   initial_coefficients_list <- cost_fxn_calculator(
     intervention_lower_bounds = intervention_lower_bounds,
@@ -675,21 +693,17 @@ visualize_cost <- function(
       # assignment). Using options() rather than assigning into the global
       # environment keeps this CRAN-clean (package code may not write to
       # globalenv()) while preserving the convenience: the caller can retrieve
-      # it with getOption("lago_cost_list"). This overwrites any existing value;
-      # the on.exit message announces it. `saved` gates that message (see the
-      # on.exit near the top).
+      # it with getOption("lago_cost_list"). This overwrites any existing value.
+      # Returning it via stopApp() is what lets visualize_cost() report the save
+      # (runApp() returns this list only on a button-close). In the browser
+      # (shinylive) there is no R session to return to: options() is harmless and
+      # stopApp() simply ends the app.
       options(lago_cost_list = cl)
-      saved <<- TRUE
       stopApp(cl)
     })
   }
 
-  # Run the app rather than only returning the app object, so that calling
-  # visualize_cost(...) launches it AND the value passed to stopApp() (the
-  # current cost list) is returned to the caller, i.e.
-  # cost_list <- visualize_cost(...). invisible() keeps a bare call from
-  # auto-printing the whole list to the console on close.
-  invisible(shiny::runApp(shinyApp(ui, server)))
+  shinyApp(ui, server)
 }
 # nocov end
 

@@ -9,7 +9,7 @@ authors:
 
 navbar:
   structure:
-    left: [reference, articles, news, demo, playground]
+    left: [reference, articles, news, demo, playground, costdesigner]
     right: [search, github]
   components:
     demo:
@@ -18,6 +18,9 @@ navbar:
     playground:
       text: Playground
       href: playground.html
+    costdesigner:
+      text: Cost designer
+      href: visualize-cost/index.html
 
 news:
   releases:

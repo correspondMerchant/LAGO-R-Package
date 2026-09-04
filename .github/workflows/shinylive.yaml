@@ -1,0 +1,106 @@
+# Exports the interactive visualize_cost() Shiny app to static files with
+# shinylive (Shiny on webR / WebAssembly) and publishes them under
+# /visualize-cost/ on the GitHub Pages site, so the cost-function designer runs
+# entirely in the browser with no server and no local R install.
+#
+# The app source is pkgdown/shinylive/visualize-cost/app.R. shinylive bundles
+# shiny, bslib and shinyjs (their wasm binaries live on repo.r-wasm.org);
+# LAGOtrials is installed at runtime from the CRAN-like wasm repository the
+# webr-repo workflow publishes under /webr-repo.
+#
+# ABI NOTE: shinylive bundles its own webR. It is pinned (SHINYLIVE_VERSION) to a
+# version whose bundled webR equals EXPECTED_WEBR_VERSION, which MUST match the
+# webR toolchain image webr-repo.yaml builds LAGOtrials with (a binary built for
+# one webR ABI will not load in another). A shinylive upgrade that moves the
+# bundled webR off that version would make the runtime install of LAGOtrials fail
+# to load in the browser; the verify step below hard-fails on any version drift,
+# and tests/js/test-webr-demo.js guards that EXPECTED_WEBR_VERSION stays in sync
+# with the build image. To upgrade shinylive, re-verify its bundled webR and bump
+# SHINYLIVE_VERSION, EXPECTED_WEBR_VERSION and webr-repo.yaml's image together.
+#
+# On a pull request the app is exported but NOT deployed, so the recipe is
+# verified without touching the published site. On a push to the default branch
+# it is exported and deployed into the visualize-cost/ subfolder of gh-pages,
+# using force: false / clean: false and a distinct target-folder so it coexists
+# with the pkgdown site and the webr-repo repository on the same branch.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  # Match the pkgdown and webr-repo workflows so a release rebuilds this too.
+  release:
+    types: [published]
+  workflow_dispatch:
+
+name: shinylive.yaml
+
+permissions: read-all
+
+# Keep these in sync with the webR toolchain image in webr-repo.yaml. shinylive
+# is pinned to an exact version whose bundled webR equals EXPECTED_WEBR_VERSION;
+# bumping SHINYLIVE_VERSION requires re-verifying the bundled webR and updating
+# both values (and webr-repo.yaml's image) together.
+env:
+  EXPECTED_WEBR_VERSION: "0.6.0"
+  SHINYLIVE_VERSION: "0.5.0"
+
+jobs:
+  shinylive:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: shinylive-${{ github.event_name != 'pull_request' || github.run_id }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          # Binary packages from the public RStudio Package Manager, so shinylive
+          # and its dependencies (archive, pkgdepends, renv) install without a
+          # from-source build.
+          use-public-rspm: true
+
+      - name: Install shinylive (pinned) and the app's bundled dependencies
+        run: |
+          # Binaries from RSPM (set by use-public-rspm) — no from-source build.
+          # shiny/bslib/shinyjs are the packages the app uses that shinylive
+          # resolves and versions to bundle from repo.r-wasm.org; remotes drives
+          # the version pin below.
+          Rscript -e 'install.packages(c("remotes", "shiny", "bslib", "shinyjs"))'
+          # Pin shinylive to an exact version so its bundled webR is deterministic:
+          # SHINYLIVE_VERSION 0.5.0 bundles webR EXPECTED_WEBR_VERSION (0.6.0), the
+          # ABI the webr-repo binary is built with. install_version pulls
+          # shinylive's own dependency closure as RSPM binaries; upgrade = "never"
+          # leaves the packages installed above untouched.
+          Rscript -e 'remotes::install_version("shinylive", version = Sys.getenv("SHINYLIVE_VERSION"), upgrade = "never")'
+
+      - name: Verify the pinned shinylive (fails CI if its webR ABI could drift)
+        run: |
+          # Hard-fail on a version drift: a shinylive upgrade must be a conscious
+          # change here AND re-verified to still bundle EXPECTED_WEBR_VERSION,
+          # otherwise the runtime install of the 0.6.0 LAGOtrials binary would
+          # silently fail to load in the browser.
+          Rscript -e 'stopifnot(as.character(packageVersion("shinylive")) == Sys.getenv("SHINYLIVE_VERSION")); cat("shinylive", Sys.getenv("SHINYLIVE_VERSION"), "installed; assets:\n"); print(shinylive::assets_info())'
+
+      - name: Export the app to static files
+        run: |
+          set -euo pipefail
+          Rscript -e 'shinylive::export("pkgdown/shinylive/visualize-cost", "site")'
+          test -f site/index.html
+          echo "Exported files:" && ls -la site
+
+      - name: Deploy the app to GitHub pages 🚀
+        if: github.event_name != 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        with:
+          # Same gh-pages branch as the pkgdown and webr-repo deploys. force:
+          # false makes the action fetch and rebase instead of force-pushing, so
+          # concurrent deploys touching disjoint folders (clean: false) merge
+          # rather than clobber one another.
+          force: false
+          clean: false
+          branch: gh-pages
+          folder: site
+          target-folder: visualize-cost
