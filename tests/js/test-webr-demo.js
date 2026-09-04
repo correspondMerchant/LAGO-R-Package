@@ -1,5 +1,6 @@
 // Guards both webR pages' wiring (pkgdown/assets/live-demo.html and
-// pkgdown/assets/playground.html) against the wasm-repo build workflow
+// pkgdown/assets/playground.html) and the shinylive cost designer
+// (.github/workflows/shinylive.yaml) against the wasm-repo build workflow
 // (.github/workflows/webr-repo.yaml).
 //
 // Run with:  node tests/js/test-webr-demo.js
@@ -8,9 +9,11 @@
 // webR runtime, so the webR version each page loads from the CDN MUST equal the
 // webR Docker image the binary is built with. This test also checks that the
 // package repository URL each page installs from matches the folder the workflow
-// deploys to, and that each page actually installs LAGOtrials. These are the
-// wiring mistakes that would silently break the demo without any R/JS error at
-// build time.
+// deploys to, and that each page actually installs LAGOtrials. The shinylive app
+// installs LAGOtrials from the same repo at runtime and shinylive bundles its
+// own webR, so its expected webR version must match the build image too. These
+// are the wiring mistakes that would silently break the demo without any R/JS
+// error at build time.
 
 var assert = require("assert");
 var fs = require("fs");
@@ -70,5 +73,38 @@ var targetFolder = targetMatch && targetMatch[1].trim();
       /correspondmerchant\.github\.io\/LAGO-R-Package\//.test(page)
   );
 });
+
+// The shinylive cost designer (.github/workflows/shinylive.yaml) bundles its own
+// webR and installs LAGOtrials from the same deployed /webr-repo at runtime, so
+// its expected webR version must match the build image, and its app must install
+// from the deployed repo folder.
+var shinylive = fs.readFileSync(
+  path.join(root, ".github/workflows/shinylive.yaml"),
+  "utf8"
+);
+var expectedMatch = shinylive.match(
+  /EXPECTED_WEBR_VERSION:\s*"(\d+\.\d+\.\d+)"/
+);
+check("shinylive workflow declares EXPECTED_WEBR_VERSION", !!expectedMatch);
+var expectedWebr = expectedMatch && expectedMatch[1];
+check(
+  "shinylive EXPECTED_WEBR_VERSION (" + expectedWebr + ") == build (" +
+    buildVersion + ")",
+  expectedWebr === buildVersion
+);
+
+var costApp = fs.readFileSync(
+  path.join(root, "pkgdown/shinylive/visualize-cost/app.R"),
+  "utf8"
+);
+check(
+  "cost designer installs LAGOtrials",
+  /pkg\s*<-\s*"LAGOtrials"/.test(costApp) && /webr::install\(pkg,/.test(costApp)
+);
+check(
+  "cost designer installs from the deployed /" + targetFolder + " repo",
+  costApp.indexOf("/" + targetFolder) !== -1 &&
+    /correspondmerchant\.github\.io\/LAGO-R-Package\//.test(costApp)
+);
 
 console.log("\nAll " + passed + " webR demo wiring assertions passed.");
