@@ -179,7 +179,7 @@ This writes a self-contained HTML report with the recommended intervention, the 
 
 To adjust the cost functions $C(x_1) = 4x_1$ and $C(x_2) = 4 + 6x_2$, `visualize_cost()` lets you visualize and select cost functions:
 
-`visualize_cost()` creates a Shiny app that allows the user to adjust the coefficients of the cost functions for each intervention component and visualize the resulting total cost function and unit cost function. The initial coefficients are calculated based on the unit costs, the default cost function type (linear or cubic), and the lower and upper bounds.
+`visualize_cost()` creates a Shiny app that allows the user to adjust the coefficients of the cost functions for each intervention component and visualize the resulting total cost function and unit cost function. The initial coefficients are calculated based on the unit costs, the cost function type (linear or cubic), and the lower and upper bounds. A "Cost function form" toggle at the top switches all components between the linear (2 coefficients) and cubic (5 coefficients) forms, resetting each to that form's initial coefficients.
 
 The user can adjust the coefficients using sliders and reset them to their initial values. The app also displays the current coefficient vector for each component. The user can copy the final coefficient list (at the bottom of the app) for use in `lago_optimization()`.
 

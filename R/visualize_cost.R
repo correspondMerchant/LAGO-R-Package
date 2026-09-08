@@ -5,7 +5,10 @@
 #' coefficients of the cost functions for each intervention component and
 #' visualize the resulting total cost function and its derivative.
 #' The initial coefficients are calculated based on the unit costs, the
-#' default cost function type (linear or cubic), and the lower and upper bounds.
+#' cost function type (linear or cubic), and the lower and upper bounds. A
+#' "Cost function form" toggle at the top switches all components between the
+#' linear (2 coefficients) and cubic (a degree-4 total cost, 5 coefficients)
+#' forms, resetting each to that form's initial coefficients.
 #' The user can adjust the coefficients using sliders and reset them to their
 #' initial values. Each slider has a default range scaled to its coefficient's
 #' magnitude (derived from the unit costs and bounds), and the user can set a
@@ -18,8 +21,9 @@
 #' intervention components.
 #' @param unit_costs A numeric vector of the unit costs for each
 #' intervention component.
-#' @param default_cost_fxn_type A character string specifying the default
-#' cost function type. Must be either "linear" or "cubic".
+#' @param default_cost_fxn_type A character string specifying the cost function
+#' type the app opens with. Must be either "linear" or "cubic". The user can
+#' switch forms in the app with the "Cost function form" toggle.
 #' @param intervention_lower_bounds A numeric vector of the lower bounds for
 #' each intervention component.
 #' @param intervention_upper_bounds A numeric vector of the upper bounds for
@@ -135,32 +139,53 @@ visualize_cost <- function(
     default_cost_fxn_type,
     intervention_lower_bounds,
     intervention_upper_bounds) {
-  # Calculate the initial coefficients for the cost function
-  initial_coefficients_list <- cost_fxn_calculator(
-    intervention_lower_bounds = intervention_lower_bounds,
-    intervention_upper_bounds = intervention_upper_bounds,
-    unit_costs = unit_costs,
-    default_cost_fxn_type = default_cost_fxn_type
-  )
-
-  # Calculate the default slider range for every coefficient. Each coefficient
-  # gets its own range scaled to its magnitude (see compute_slider_range), so
-  # sliders are usable regardless of the coefficient's scale, instead of the
-  # previous fixed -15..15 range. The range is derived from the initial
-  # coefficients (which come from unit_costs, the bounds, and the cost function
-  # type) and the component's unit cost. Users can override any slider's range
-  # with the per-slider min/max inputs in the app.
-  slider_ranges_list <- lapply(
-    seq_along(initial_coefficients_list),
-    function(component_idx) {
-      lapply(
-        initial_coefficients_list[[component_idx]],
-        function(init) {
-          compute_slider_range(init, unit_costs[component_idx])
-        }
-      )
+  # Precompute the initial coefficients and per-coefficient slider ranges for
+  # BOTH cost-function forms, so the app can switch between them at runtime with
+  # a Linear/Cubic toggle. A linear total cost has 2 coefficients, a cubic
+  # (degree-4 total) has 5. Each coefficient gets its own slider range scaled to
+  # its magnitude (see compute_slider_range) so a slider is usable regardless of
+  # the coefficient's scale, and the user can still override any range with the
+  # per-slider min/max inputs. The UI renders the maximum number of slider rows
+  # per component and shows/hides the higher-order rows as the form changes; the
+  # server assembles the coefficient vector at the currently selected form's
+  # length.
+  cost_types <- c("linear", "cubic")
+  coefs_by_type <- stats::setNames(lapply(cost_types, function(t) {
+    cost_fxn_calculator(
+      intervention_lower_bounds = intervention_lower_bounds,
+      intervention_upper_bounds = intervention_upper_bounds,
+      unit_costs = unit_costs,
+      default_cost_fxn_type = t
+    )
+  }), cost_types)
+  ranges_by_type <- stats::setNames(lapply(cost_types, function(t) {
+    lapply(seq_along(coefs_by_type[[t]]), function(ci) {
+      lapply(coefs_by_type[[t]][[ci]], function(init) {
+        compute_slider_range(init, unit_costs[ci])
+      })
+    })
+  }), cost_types)
+  n_components <- length(component_names)
+  # coefficient count for a component under a given form
+  n_coef <- function(t, ci) length(coefs_by_type[[t]][[ci]])
+  # maximum slider rows to render per component (linear 2, cubic 5)
+  max_ncoef <- vapply(seq_len(n_components), function(ci) {
+    max(vapply(cost_types, function(t) n_coef(t, ci), integer(1)))
+  }, integer(1))
+  # value + range to seed slider row i0 (0-based) of component ci at build time:
+  # the chosen starting form's value when that row is part of the form, else the
+  # cubic value (a sensible default for when a form switch later reveals it).
+  seed_row <- function(ci, i0) {
+    t <- if (i0 < n_coef(default_cost_fxn_type, ci)) {
+      default_cost_fxn_type
+    } else {
+      "cubic"
     }
-  )
+    list(
+      value = coefs_by_type[[t]][[ci]][i0 + 1],
+      rng = ranges_by_type[[t]][[ci]][[i0 + 1]]
+    )
+  }
 
   # Serve the vendored client-side assets (D3 v7 + the cost-curve binding) from
   # the installed package's inst/js directory under a URL prefix. This keeps the
@@ -175,12 +200,28 @@ visualize_cost <- function(
     title = "Cost Functions Visualization",
     theme = bs_theme(version = 5, bootswatch = "flatly"),
 
-    # Load the vendored D3 first, then the cost-curve binding. Placed in the
-    # document head via header = tags$head(...); tags$head content is hoisted to
-    # <head> regardless of where it appears in the UI.
-    header = tags$head(
-      tags$script(src = "lago_cost_assets/d3.v7.min.js"),
-      tags$script(src = "lago_cost_assets/cost-curves.js")
+    # Load the vendored D3 first, then the cost-curve binding (tags$head content
+    # is hoisted to <head>). The Linear/Cubic form toggle sits alongside it in
+    # the header so it shows above every component tab and switches all
+    # components at once.
+    header = tagList(
+      tags$head(
+        tags$script(src = "lago_cost_assets/d3.v7.min.js"),
+        tags$script(src = "lago_cost_assets/cost-curves.js")
+      ),
+      div(
+        style = paste(
+          "padding: 10px 16px; background-color: #f8f9fa;",
+          "border-bottom: 1px solid #dee2e6;"
+        ),
+        radioButtons(
+          inputId = "cost_type",
+          label = "Cost function form",
+          choices = c("Linear" = "linear", "Cubic" = "cubic"),
+          selected = default_cost_fxn_type,
+          inline = TRUE
+        )
+      )
     ),
 
     # Include shinyjs
@@ -234,7 +275,7 @@ visualize_cost <- function(
     ),
 
     # Add nav panels for each component
-    !!!lapply(seq_along(initial_coefficients_list), function(component_idx) {
+    !!!lapply(seq_len(n_components), function(component_idx) {
       nav_panel(
         paste("Component", component_idx, ":", component_names[component_idx]),
         fluidRow(
@@ -243,14 +284,22 @@ visualize_cost <- function(
             card(
               card_header("Adjust coefficients using sliders"),
               card_body(
-                # Create sliders for the current component's coefficients.
-                # Each slider has its own default range (compute_slider_range)
-                # plus two numeric inputs so the user can set a custom range.
+                # Create sliders for the component's coefficients. Every form's
+                # rows are rendered (up to the cubic's 5); rows beyond the
+                # starting form's length are hidden and revealed when the user
+                # switches form. Each slider has its own default range
+                # (compute_slider_range) plus two numeric inputs for a custom
+                # range. Each row is wrapped in an id'd div so the cost_type
+                # observer can show or hide it.
                 lapply(
-                  seq_along(initial_coefficients_list[[component_idx]]),
+                  seq_len(max_ncoef[component_idx]),
                   function(i) {
-                    rng <- slider_ranges_list[[component_idx]][[i]]
-                    tagList(
+                    seed <- seed_row(component_idx, i - 1)
+                    rng <- seed$rng
+                    hidden <- (i - 1) >= n_coef(default_cost_fxn_type, component_idx)
+                    div(
+                      id = paste0("coef_row_", component_idx, "_", i - 1),
+                      style = if (hidden) "display: none;" else NULL,
                       div(
                         style = paste(
                           "display: flex; gap: 10px; align-items: flex-end;",
@@ -281,7 +330,7 @@ visualize_cost <- function(
                         ),
                         min = rng$min,
                         max = rng$max,
-                        value = initial_coefficients_list[[component_idx]][i],
+                        value = seed$value,
                         step = rng$step,
                         width = "100%"
                       )
@@ -334,8 +383,13 @@ visualize_cost <- function(
                   id = paste0("cost_curves_", component_idx),
                   class = "lago-cost-curves",
                   `data-component` = component_idx,
-                  `data-ncoef` =
-                    length(initial_coefficients_list[[component_idx]]),
+                  # data-ncoef is the currently selected form's coefficient count
+                  # (the number of coefficients the curve reads); it is updated
+                  # when the form changes. data-maxncoef is the number of slider
+                  # rows rendered (so the JS binds them all up front, including
+                  # rows that a later form switch reveals).
+                  `data-ncoef` = n_coef(default_cost_fxn_type, component_idx),
+                  `data-maxncoef` = max_ncoef[component_idx],
                   `data-lb` = intervention_lower_bounds[component_idx],
                   `data-ub` = intervention_upper_bounds[component_idx],
                   `data-unit-cost` = unit_costs[component_idx],
@@ -384,18 +438,20 @@ visualize_cost <- function(
       all(diff(y_vals) >= -1e-10) # Using small tolerance for numerical stability
     }
 
-    # Create a reactiveValues object to store the initial coefficients
-    rv <- reactiveValues(
-      initial_coefs = initial_coefficients_list
-    )
+    # The currently selected cost-function form (linear/cubic); defaults to the
+    # form the app was launched with until the user toggles it.
+    cur_type <- reactive({
+      if (is.null(input$cost_type)) default_cost_fxn_type else input$cost_type
+    })
 
-    # Current coefficients for all components, as a list of numeric vectors.
-    # Shared by the coefficient-list text, the copy button, and the value
-    # returned to R when the app closes.
+    # Current coefficients for all components, as a list of numeric vectors, at
+    # the selected form's length (2 for linear, 5 for cubic). Shared by the
+    # coefficient-list text, the copy button, and the value returned to R when
+    # the app closes.
     current_cost_list <- reactive({
-      lapply(seq_along(initial_coefficients_list), function(component_idx) {
+      lapply(seq_len(n_components), function(component_idx) {
         sapply(
-          seq_along(initial_coefficients_list[[component_idx]]),
+          seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
             input[[paste0("coef_", component_idx, "_", i - 1)]]
           }
@@ -456,14 +512,16 @@ visualize_cost <- function(
     })
 
     # Create reactive expressions and outputs for each component
-    lapply(seq_along(initial_coefficients_list), function(component_idx) {
-      # Add observer for reset button
+    lapply(seq_len(n_components), function(component_idx) {
+      # Add observer for reset button: reset each slider to the CURRENT form's
+      # initial value and default range (so Reset in cubic mode restores the
+      # cubic defaults, not the linear ones).
       observeEvent(input[[paste0("reset_", component_idx)]], {
-        # Reset each slider to its initial value AND its default range from rv
+        t <- cur_type()
         lapply(
-          seq_along(rv$initial_coefs[[component_idx]]),
+          seq_len(n_coef(t, component_idx)),
           function(i) {
-            rng <- slider_ranges_list[[component_idx]][[i]]
+            rng <- ranges_by_type[[t]][[component_idx]][[i]]
             updateNumericInput(
               session,
               inputId = paste0("range_min_", component_idx, "_", i - 1),
@@ -477,7 +535,7 @@ visualize_cost <- function(
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = rv$initial_coefs[[component_idx]][i],
+              value = coefs_by_type[[t]][[component_idx]][i],
               min = rng$min,
               max = rng$max,
               step = rng$step
@@ -489,9 +547,10 @@ visualize_cost <- function(
       # Observers for the custom range inputs: when the user edits a slider's
       # min or max, update that slider's range. Only apply valid ranges
       # (both finite, min < max) so a partially-typed value does not break
-      # the slider.
+      # the slider. Set up for every rendered row (including higher-order rows a
+      # form switch reveals), not just the starting form's rows.
       lapply(
-        seq_along(initial_coefficients_list[[component_idx]]),
+        seq_len(max_ncoef[component_idx]),
         function(i) {
           observeEvent(
             {
@@ -521,7 +580,7 @@ visualize_cost <- function(
       # Coefficient text output
       output[[paste0("coefficient_text_", component_idx)]] <- renderText({
         current_coefs <- sapply(
-          seq_along(initial_coefficients_list[[component_idx]]),
+          seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
             input[[paste0("coef_", component_idx, "_", i - 1)]]
           }
@@ -532,7 +591,7 @@ visualize_cost <- function(
       # Add reactive expression for cost function validation
       observe({
         current_coefs <- sapply(
-          seq_along(initial_coefficients_list[[component_idx]]),
+          seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
             input[[paste0("coef_", component_idx, "_", i - 1)]]
           }
@@ -610,8 +669,7 @@ visualize_cost <- function(
         {
           msg <- input[[paste0("dragged_coefs_", component_idx)]]
           new_coefs <- as.numeric(unlist(msg$coefs))
-          if (length(new_coefs) !=
-            length(initial_coefficients_list[[component_idx]]) ||
+          if (length(new_coefs) != n_coef(cur_type(), component_idx) ||
             any(!is.finite(new_coefs))) {
             return()
           }
@@ -662,7 +720,7 @@ visualize_cost <- function(
       # marginal (per-unit) cost across the range.
       output[[paste0("cost_summary_", component_idx)]] <- renderText({
         current_coefs <- sapply(
-          seq_along(initial_coefficients_list[[component_idx]]),
+          seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
             input[[paste0("coef_", component_idx, "_", i - 1)]]
           }
@@ -683,6 +741,57 @@ visualize_cost <- function(
         )
       })
     })
+
+    # Switch every component between the linear and cubic cost-function forms.
+    # All slider rows are rendered up front; here we reconfigure the rows the new
+    # form uses (value + range), show or hide the higher-order rows, tell the
+    # client how many coefficients each curve should now read (data-ncoef), and
+    # redraw. ignoreInit skips the initial value so the app opens in the form it
+    # was launched with without a needless rebuild.
+    observeEvent(input$cost_type, {
+      t <- input$cost_type
+      lapply(seq_len(n_components), function(component_idx) {
+        n <- n_coef(t, component_idx)
+        lapply(seq_len(max_ncoef[component_idx]), function(i) {
+          row_id <- paste0("coef_row_", component_idx, "_", i - 1)
+          if (i <= n) {
+            rng <- ranges_by_type[[t]][[component_idx]][[i]]
+            updateNumericInput(
+              session,
+              inputId = paste0("range_min_", component_idx, "_", i - 1),
+              value = rng$min
+            )
+            updateNumericInput(
+              session,
+              inputId = paste0("range_max_", component_idx, "_", i - 1),
+              value = rng$max
+            )
+            updateSliderInput(
+              session,
+              inputId = paste0("coef_", component_idx, "_", i - 1),
+              value = coefs_by_type[[t]][[component_idx]][i],
+              min = rng$min,
+              max = rng$max,
+              step = rng$step
+            )
+            shinyjs::show(row_id)
+          } else {
+            shinyjs::hide(row_id)
+          }
+        })
+      })
+      # The coefficient count is uniform across components for a given form, so a
+      # single data-ncoef update covers every curve; then redraw them all.
+      runjs(sprintf(
+        paste0(
+          "document.querySelectorAll('.lago-cost-curves')",
+          ".forEach(function(c){ c.setAttribute('data-ncoef', %d); });",
+          " if (window.LAGOCostCurves && LAGOCostCurves.redraw) {",
+          " LAGOCostCurves.redraw(); }"
+        ),
+        n_coef(t, 1)
+      ))
+    }, ignoreInit = TRUE)
 
     # Closing the app returns the current cost list to R, so the result can be
     # captured (e.g. cost_list <- visualize_cost(...)) instead of only copied.

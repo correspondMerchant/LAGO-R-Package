@@ -542,7 +542,13 @@
       }
       container._bound = true;
       var comp = container.getAttribute("data-component");
-      var ncoef = +container.getAttribute("data-ncoef");
+      // Bind every rendered slider row (data-maxncoef), not just the current
+      // form's data-ncoef, so sliders a Linear/Cubic form switch reveals also
+      // trigger a client-side redraw. Falls back to data-ncoef if maxncoef is
+      // absent.
+      var ncoef =
+        +container.getAttribute("data-maxncoef") ||
+        +container.getAttribute("data-ncoef");
       for (var i = 0; i < ncoef; i++) {
         var id = "coef_" + comp + "_" + i;
         var el = document.getElementById(id);
@@ -571,6 +577,11 @@
     bindSliders();
     drawAll();
   }
+
+  // Redraw hook for the server: the Linear/Cubic form toggle updates each
+  // container's data-ncoef and then calls this to repaint the curves with the
+  // new coefficient count.
+  global.LAGOCostCurves = { redraw: drawAll };
 
   // Draw once the client is connected (sliders exist by then). Also redraw when
   // a nav tab is shown (an inactive tab may have laid out at an odd size) and on
