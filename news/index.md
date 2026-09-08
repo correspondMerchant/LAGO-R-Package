@@ -8,8 +8,17 @@
   being fixed for the whole session by `default_cost_fxn_type`.
   Switching resets each component to that form’s initial coefficients
   and shows the right number of coefficient sliders (2 for linear, 5 for
-  the cubic’s degree-4 total cost). This also gives the in-browser cost
-  designer a cubic option.
+  the cubic’s degree-4 total cost). The cubic form opens on a visibly
+  curved (but still valid) demo cost rather than the near-linear one
+  `cost_fxn_calculator()` returns for typical unit costs, so the toggle
+  clearly shows a cubic. This also gives the in-browser cost designer a
+  cubic option.
+- The total cost curve in
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  can now be reshaped by dragging: each curve carries a draggable handle
+  at several points along it, and dragging one refits the cost function
+  through the new set of points (and updates the sliders), instead of
+  the single right-endpoint handle that only rescaled the whole curve.
 - The fitted outcome model’s `Call:`, shown in the “Outcome model fit”
   section of [`print()`](https://rdrr.io/r/base/print.html) and
   [`summary()`](https://rdrr.io/r/base/summary.html), now displays the

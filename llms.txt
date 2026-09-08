@@ -296,7 +296,9 @@ coefficients) and cubic (5 coefficients) forms, resetting each to that
 form’s initial coefficients.
 
 The user can adjust the coefficients using sliders and reset them to
-their initial values. The app also displays the current coefficient
+their initial values, or reshape the total cost curve directly by
+dragging any of the handles along it (each drag refits the cost function
+through the new points). The app also displays the current coefficient
 vector for each component. The user can copy the final coefficient list
 (at the bottom of the app) for use in
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
