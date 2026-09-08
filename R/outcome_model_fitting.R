@@ -58,6 +58,15 @@ outcome_model_fitting <- function(
     ))
   }
 
+  # Record the actual model formula in the fitted model's call. glm() captured
+  # the `formula` symbol from this call site, so print()/summary() showed the
+  # uninformative "glm(formula = formula, ...)", and how that symbol deparsed
+  # changed across R versions (newer R substitutes the formula itself), which
+  # made the print/summary snapshots version-dependent. Storing the formula
+  # object makes the printed Call show the real model and be identical across R
+  # versions.
+  model$call$formula <- formula
+
   # refuse a rank-deficient fit up front, but only when the aliasing lands on a
   # coefficient the optimization actually reads. glm() returns NA for a
   # coefficient it could not estimate -- two predictors carrying the same
