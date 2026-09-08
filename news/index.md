@@ -2,6 +2,13 @@
 
 ## LAGOtrials 1.1.0
 
+- The fitted outcome model’s `Call:`, shown in the “Outcome model fit”
+  section of [`print()`](https://rdrr.io/r/base/print.html) and
+  [`summary()`](https://rdrr.io/r/base/summary.html), now displays the
+  actual model formula instead of the literal word `formula`. This also
+  makes the console output identical across R versions: a change in
+  recent R to how the unrecorded formula deparses had otherwise made the
+  output (and its snapshot tests) version dependent.
 - Added a live in-browser demo to the documentation site
   (`live-demo.html`) that runs the real package client-side with webR (R
   compiled to WebAssembly), so anyone can try

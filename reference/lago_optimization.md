@@ -444,7 +444,8 @@ lago_optimization(
 #> ── Outcome model fit 
 #> 
 #> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> glm(formula = case ~ age + parity, family = family_object, data = data, 
+#>     weights = weights)
 #> 
 #> Coefficients:
 #>              Estimate Std. Error z value Pr(>|z|)
@@ -535,7 +536,8 @@ lago_optimization(
 #> ── Outcome model fit 
 #> 
 #> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+#>     birth_volume_100, family = family_object, data = data, weights = weights)
 #> 
 #> Coefficients:
 #>                   Estimate Std. Error z value Pr(>|z|)    
@@ -641,7 +643,8 @@ lago_optimization(
 #> ── Outcome model fit 
 #> 
 #> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> glm(formula = EBP_proportions ~ coaching_updt + launch_duration + 
+#>     birth_volume_100, family = family_object, data = data, weights = weights)
 #> 
 #> Coefficients:
 #>                   Estimate Std. Error t value Pr(>|t|)    

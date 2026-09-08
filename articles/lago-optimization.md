@@ -108,7 +108,8 @@ result
 #> ── Outcome model fit
 #> 
 #> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+#>     birth_volume_100, family = family_object, data = data, weights = weights)
 #> 
 #> Coefficients:
 #>                   Estimate Std. Error z value Pr(>|z|)    
@@ -187,7 +188,8 @@ summary(result)
 #> ── Outcome model fit
 #> 
 #> Call:
-#> glm(formula = formula, family = family_object, data = data, weights = weights)
+#> glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+#>     birth_volume_100, family = family_object, data = data, weights = weights)
 #> 
 #> Coefficients:
 #>                   Estimate Std. Error z value Pr(>|z|)    
