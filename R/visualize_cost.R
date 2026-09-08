@@ -130,13 +130,12 @@ visualize_cost <- function(
   invisible(cost_list)
 }
 
-# Build the visualize_cost() Shiny app (UI + server) for the given component
-# configuration and return it via shinyApp(), without running it. Separated from
-# visualize_cost() so the same app can be launched locally (visualize_cost() ->
-# runApp) and exported to run entirely in the browser with shinylive (see
-# pkgdown/shinylive/visualize-cost/app.R), keeping one source of truth for
-# the UI and server.
-.build_visualize_cost_app <- function(
+# Build the UI tags and server function of the visualize_cost() app for one fixed
+# component configuration, returned as list(ui, server). Kept separate from both
+# visualize_cost() (which runs the app locally) and .build_visualize_cost_app()
+# (which wraps these into a request-driven shinyApp), so a single source of truth
+# builds the UI and server for a config.
+.build_cost_parts <- function(
     component_names,
     unit_costs,
     default_cost_fxn_type,
@@ -211,7 +210,11 @@ visualize_cost <- function(
   js_dir <- system.file("js", package = "LAGOtrials")
   addResourcePath("lago_cost_assets", js_dir)
 
-  ui <- navbarPage(
+  # bslib warns that navbarPage's direct children should all be nav panels; this
+  # app deliberately also passes useShinyjs() and the form-toggle header, so the
+  # warning is expected and benign. Suppress it so it does not clutter the
+  # console on every launch.
+  ui <- suppressWarnings(navbarPage(
     title = "Cost Functions Visualization",
     theme = bs_theme(version = 5, bootswatch = "flatly"),
 
@@ -420,7 +423,7 @@ visualize_cost <- function(
         )
       )
     })
-  )
+  ))
 
   calculate_cost <- function(coefficients, x) {
     degree <- length(coefficients) - 1
@@ -827,9 +830,89 @@ visualize_cost <- function(
     })
   }
 
+  list(ui = ui, server = server)
+}
+
+# Assemble the visualize_cost() shinyApp. The component configuration can come
+# from the page's URL query (?components=a,b&lower=..&upper=..&costs=..&form=..),
+# which is how the playground hands off the components the user set up; when the
+# query is absent or invalid the explicit arguments are used, so a plain
+# visualize_cost(...) / local launch is unchanged. Both the UI (request-driven)
+# and the server (reading the same query at connect via isolate) resolve the
+# same configuration independently and hand it to .build_cost_parts().
+.build_visualize_cost_app <- function(
+    component_names,
+    unit_costs,
+    default_cost_fxn_type,
+    intervention_lower_bounds,
+    intervention_upper_bounds) {
+  defaults <- list(
+    component_names = component_names,
+    unit_costs = unit_costs,
+    default_cost_fxn_type = default_cost_fxn_type,
+    intervention_lower_bounds = intervention_lower_bounds,
+    intervention_upper_bounds = intervention_upper_bounds
+  )
+  ui <- function(request) {
+    do.call(.build_cost_parts, .parse_cost_query(request$QUERY_STRING, defaults))$ui
+  }
+  server <- function(input, output, session) {
+    args <- .parse_cost_query(
+      shiny::isolate(session$clientData$url_search), defaults
+    )
+    do.call(.build_cost_parts, args)$server(input, output, session)
+  }
   shinyApp(ui, server)
 }
 # nocov end
+
+# Resolve the component configuration for the cost designer from a URL query
+# string, falling back to `defaults` (a list of the .build_cost_parts arguments)
+# whenever the query is missing or does not fully and validly specify a
+# configuration. The query carries `components` (comma-separated names), `lower`,
+# `upper` and `costs` (comma-separated numbers, one per component) and an
+# optional `form` ("linear"/"cubic"). Everything must agree in length and be
+# finite with lower < upper, or the defaults are used, so a malformed link
+# degrades to the standard example rather than erroring.
+.parse_cost_query <- function(query_string, defaults) {
+  if (is.null(query_string) || !nzchar(query_string)) {
+    return(defaults)
+  }
+  q <- shiny::parseQueryString(query_string)
+  comps <- q[["components"]]
+  if (is.null(comps) || !nzchar(comps)) {
+    return(defaults)
+  }
+  names <- strsplit(comps, ",", fixed = TRUE)[[1]]
+  as_num <- function(s) {
+    if (is.null(s)) {
+      return(numeric(0))
+    }
+    suppressWarnings(as.numeric(strsplit(s, ",", fixed = TRUE)[[1]]))
+  }
+  lower <- as_num(q[["lower"]])
+  upper <- as_num(q[["upper"]])
+  costs <- as_num(q[["costs"]])
+  n <- length(names)
+  valid <- n >= 1 && n <= 10 &&
+    length(lower) == n && length(upper) == n && length(costs) == n &&
+    all(is.finite(lower)) && all(is.finite(upper)) && all(is.finite(costs)) &&
+    all(costs >= 0) && all(lower < upper)
+  if (!valid) {
+    return(defaults)
+  }
+  form <- q[["form"]]
+  if (is.null(form) || !form %in% c("linear", "cubic")) {
+    form <- "linear"
+  }
+  list(
+    component_names = names,
+    unit_costs = costs,
+    default_cost_fxn_type = form,
+    intervention_lower_bounds = lower,
+    intervention_upper_bounds = upper
+  )
+}
 
 # A visibly curved starting cost for the cubic form of the designer, returned as
 # the 5 ascending-power coefficients (x^0..x^4) of the total cost. It is the

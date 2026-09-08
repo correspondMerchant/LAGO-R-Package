@@ -163,7 +163,10 @@
     <div class="panel" id="rcode-panel" style="margin-top:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <h2 style="margin:0;">R code for this configuration</h2>
-        <button type="button" id="copy-code" class="secondary">Copy</button>
+        <span style="display:flex;gap:8px;">
+          <button type="button" id="open-designer" class="secondary" disabled title="Open the cost designer for these components">Shape costs in the designer &#8599;</button>
+          <button type="button" id="copy-code" class="secondary">Copy</button>
+        </span>
       </div>
       <p class="hint" style="margin:6px 0 0;">Paste this into R (after <code>library(LAGOtrials)</code>) to reproduce the run.</p>
       <pre id="rcode" class="out" style="margin-top:10px;"># choose an outcome and at least one intervention component</pre>
@@ -215,6 +218,8 @@
       if (!bootReady) return;
       const ok = selectedComponents().length > 0;
       $("run").disabled = !ok || running;
+      // the cost designer hand-off needs at least one component too
+      $("open-designer").disabled = !ok;
       if ($("run-hint").textContent === "running…") return;
       $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
     }
@@ -562,6 +567,28 @@
       return { ok: true, call };
     }
 
+    // Build a deep link to the cost designer for the currently selected
+    // components, carrying their names, bounds and unit costs as query params
+    // (the designer reads these to build itself for exactly these components).
+    // Names are per-item encoded and comma-joined; numbers join with commas.
+    // Returns null when no component is ready yet.
+    function buildDesignerUrl() {
+      const rows = selectedComponents()
+        .map((name) => document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`))
+        .filter(Boolean)
+        .map((r) => ({
+          name: r.dataset.comp,
+          lb: r.querySelector(".lb").value,
+          ub: r.querySelector(".ub").value,
+          cost: r.querySelector(".cost").value,
+        }));
+      if (!rows.length) return null;
+      const names = rows.map((r) => encodeURIComponent(r.name)).join(",");
+      const nums = (key) => rows.map((r) => Number(r[key])).join(",");
+      return "./visualize-cost/?components=" + names +
+        "&lower=" + nums("lb") + "&upper=" + nums("ub") + "&costs=" + nums("cost");
+    }
+
     // Live-mirror the R code for the current configuration into the code panel.
     function updateRCode() {
       const built = buildCall();
@@ -703,6 +730,13 @@
       } catch (e) {
         $("run-hint").textContent = "copy failed; select the code and copy manually";
       }
+    });
+
+    // Open the cost designer in a new tab, pre-loaded with the selected
+    // components, their bounds and unit costs.
+    $("open-designer").addEventListener("click", () => {
+      const url = buildDesignerUrl();
+      if (url) window.open(url, "_blank", "noopener");
     });
 
     boot();
