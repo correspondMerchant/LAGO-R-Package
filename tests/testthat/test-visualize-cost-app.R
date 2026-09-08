@@ -55,3 +55,35 @@ test_that(".build_visualize_cost_app returns a runnable Shiny app object", {
   ))
   expect_s3_class(app, "shiny.appobj")
 })
+
+test_that("the Linear/Cubic toggle switches the coefficient-vector length", {
+  builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
+  # testServer runs the app's onStop, which already removes the resource path, so
+  # this best-effort cleanup must also swallow removeResourcePath's "not found"
+  # warning (try() only catches errors).
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
+  app <- suppressWarnings(builder(
+    component_names = "A",
+    unit_costs = 1700,
+    default_cost_fxn_type = "linear",
+    intervention_lower_bounds = 1,
+    intervention_upper_bounds = 40
+  ))
+  shiny::testServer(app, {
+    # linear: a 2-coefficient vector (intercept + slope)
+    session$setInputs(cost_type = "linear", coef_1_0 = 0, coef_1_1 = 1700)
+    expect_length(current_cost_list()[[1]], 2L)
+    # cubic: a 5-coefficient vector (degree-4 total cost)
+    session$setInputs(
+      cost_type = "cubic",
+      coef_1_0 = 0, coef_1_1 = 1705, coef_1_2 = 0.1,
+      coef_1_3 = -0.07, coef_1_4 = 0.002
+    )
+    expect_length(current_cost_list()[[1]], 5L)
+    # and back to linear reads 2 again
+    session$setInputs(cost_type = "linear")
+    expect_length(current_cost_list()[[1]], 2L)
+  })
+})
