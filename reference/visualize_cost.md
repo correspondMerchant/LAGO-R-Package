@@ -4,8 +4,11 @@ Visualize the cost functions for the intervention components. This
 function creates a Shiny app that allows the user to adjust the
 coefficients of the cost functions for each intervention component and
 visualize the resulting total cost function and its derivative. The
-initial coefficients are calculated based on the unit costs, the default
-cost function type (linear or cubic), and the lower and upper bounds.
+initial coefficients are calculated based on the unit costs, the cost
+function type (linear or cubic), and the lower and upper bounds. A "Cost
+function form" toggle at the top switches all components between the
+linear (2 coefficients) and cubic (a degree-4 total cost, 5
+coefficients) forms, resetting each to that form's initial coefficients.
 The user can adjust the coefficients using sliders and reset them to
 their initial values. Each slider has a default range scaled to its
 coefficient's magnitude (derived from the unit costs and bounds), and
@@ -38,8 +41,9 @@ visualize_cost(
 
 - default_cost_fxn_type:
 
-  A character string specifying the default cost function type. Must be
-  either "linear" or "cubic".
+  A character string specifying the cost function type the app opens
+  with. Must be either "linear" or "cubic". The user can switch forms in
+  the app with the "Cost function form" toggle.
 
 - intervention_lower_bounds:
 

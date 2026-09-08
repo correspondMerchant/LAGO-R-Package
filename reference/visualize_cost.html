@@ -4,7 +4,10 @@ This function creates a Shiny app that allows the user to adjust the
 coefficients of the cost functions for each intervention component and
 visualize the resulting total cost function and its derivative.
 The initial coefficients are calculated based on the unit costs, the
-default cost function type (linear or cubic), and the lower and upper bounds.
+cost function type (linear or cubic), and the lower and upper bounds. A
+&quot;Cost function form&quot; toggle at the top switches all components between the
+linear (2 coefficients) and cubic (a degree-4 total cost, 5 coefficients)
+forms, resetting each to that form's initial coefficients.
 The user can adjust the coefficients using sliders and reset them to their
 initial values. Each slider has a default range scaled to its coefficient's
 magnitude (derived from the unit costs and bounds), and the user can set a
@@ -16,7 +19,10 @@ This function creates a Shiny app that allows the user to adjust the
 coefficients of the cost functions for each intervention component and
 visualize the resulting total cost function and its derivative.
 The initial coefficients are calculated based on the unit costs, the
-default cost function type (linear or cubic), and the lower and upper bounds.
+cost function type (linear or cubic), and the lower and upper bounds. A
+&quot;Cost function form&quot; toggle at the top switches all components between the
+linear (2 coefficients) and cubic (a degree-4 total cost, 5 coefficients)
+forms, resetting each to that form's initial coefficients.
 The user can adjust the coefficients using sliders and reset them to their
 initial values. Each slider has a default range scaled to its coefficient's
 magnitude (derived from the unit costs and bounds), and the user can set a
@@ -75,7 +81,10 @@ This function creates a Shiny app that allows the user to adjust the
 coefficients of the cost functions for each intervention component and
 visualize the resulting total cost function and its derivative.
 The initial coefficients are calculated based on the unit costs, the
-default cost function type (linear or cubic), and the lower and upper bounds.
+cost function type (linear or cubic), and the lower and upper bounds. A
+"Cost function form" toggle at the top switches all components between the
+linear (2 coefficients) and cubic (a degree-4 total cost, 5 coefficients)
+forms, resetting each to that form's initial coefficients.
 The user can adjust the coefficients using sliders and reset them to their
 initial values. Each slider has a default range scaled to its coefficient's
 magnitude (derived from the unit costs and bounds), and the user can set a
@@ -111,8 +120,9 @@ intervention component.</p></dd>
 
 
 <dt id="arg-default-cost-fxn-type">default_cost_fxn_type<a class="anchor" aria-label="anchor" href="#arg-default-cost-fxn-type"></a></dt>
-<dd><p>A character string specifying the default
-cost function type. Must be either "linear" or "cubic".</p></dd>
+<dd><p>A character string specifying the cost function
+type the app opens with. Must be either "linear" or "cubic". The user can
+switch forms in the app with the "Cost function form" toggle.</p></dd>
 
 
 <dt id="arg-intervention-lower-bounds">intervention_lower_bounds<a class="anchor" aria-label="anchor" href="#arg-intervention-lower-bounds"></a></dt>

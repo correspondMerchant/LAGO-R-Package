@@ -2,6 +2,14 @@
 
 ## LAGOtrials 1.1.0
 
+- [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  now has a “Cost function form” toggle that switches all components
+  between the linear and cubic cost functions live, instead of the form
+  being fixed for the whole session by `default_cost_fxn_type`.
+  Switching resets each component to that form’s initial coefficients
+  and shows the right number of coefficient sliders (2 for linear, 5 for
+  the cubic’s degree-4 total cost). This also gives the in-browser cost
+  designer a cubic option.
 - The fitted outcome model’s `Call:`, shown in the “Outcome model fit”
   section of [`print()`](https://rdrr.io/r/base/print.html) and
   [`summary()`](https://rdrr.io/r/base/summary.html), now displays the
