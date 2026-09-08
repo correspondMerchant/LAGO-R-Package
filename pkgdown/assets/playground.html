@@ -820,14 +820,23 @@
       if (url) window.open(url, "_blank");
     });
 
-    // Receive cost functions the cost designer sends back (postMessage from the
-    // tab this page opened). Same-origin only.
-    window.addEventListener("message", (e) => {
-      if (e.origin !== window.location.origin) return;
-      const d = e.data;
+    // Receive cost functions the cost designer sends back. The designer runs in
+    // a same-origin iframe (shinylive), so it broadcasts on a same-origin
+    // BroadcastChannel (works regardless of the frame/opener relationship); it
+    // also posts to window.(top.)opener as a fallback, which arrives here as a
+    // window "message". Handle both, same-origin only.
+    const onDesignerCosts = (d) => {
       if (!d || d.type !== "lago-cost-designer") return;
       applyDesignerCosts(d.components, d.costs);
+    };
+    window.addEventListener("message", (e) => {
+      if (e.origin !== window.location.origin) return;
+      onDesignerCosts(e.data);
     });
+    try {
+      const bc = new BroadcastChannel("lago-cost-designer");
+      bc.addEventListener("message", (e) => onDesignerCosts(e.data));
+    } catch (e) { /* BroadcastChannel unsupported; window message still works */ }
 
     boot();
   </script>

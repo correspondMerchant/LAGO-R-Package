@@ -859,20 +859,36 @@ visualize_cost <- function(
         ),
         "]"
       )
+      # Deliver to the playground. shinylive runs this app inside a same-origin
+      # iframe, so window.opener here is null (the opener lives on the top tab);
+      # a same-origin BroadcastChannel reaches the playground tab regardless of
+      # the frame/opener relationship. The confirmation is gated on an opener
+      # existing (window.top.opener, else window.opener) rather than on the
+      # broadcast, since the broadcast cannot detect a missing listener: opened
+      # from the playground shows "sent", a standalone launch shows the hint.
       runjs(sprintf(
-        'if (window.opener && !window.opener.closed) {
-           window.opener.postMessage(
-             {type: "lago-cost-designer", components: %s, costs: %s},
-             window.location.origin
-           );
-           var c = document.getElementById("send_confirmation");
-           if (c) { c.style.display = "inline";
-             setTimeout(function(){ c.style.display = "none"; }, 2500); }
-         } else {
-           var e = document.getElementById("send_error");
-           if (e) { e.style.display = "inline";
-             setTimeout(function(){ e.style.display = "none"; }, 4000); }
-         }',
+        'var msg = {type: "lago-cost-designer", components: %s, costs: %s};
+         /* Best-effort broadcast: reaches the playground tab across the
+            same-origin shinylive iframe. BroadcastChannel cannot confirm
+            receipt (postMessage succeeds even with no listener), so it does not
+            drive the confirmation. */
+         try {
+           var bc = new BroadcastChannel("lago-cost-designer");
+           bc.postMessage(msg); bc.close();
+         } catch (e) {}
+         /* Confirm only when this designer was launched from a tab (the
+            playground) via an opener; also deliver through it, idempotently with
+            the broadcast. A standalone launch has no opener, so show the hint. */
+         var launched = false;
+         try {
+           var op = (window.top && window.top.opener) || window.opener;
+           if (op && !op.closed) {
+             op.postMessage(msg, window.location.origin); launched = true;
+           }
+         } catch (e) {}
+         var el = document.getElementById(launched ? "send_confirmation" : "send_error");
+         if (el) { el.style.display = "inline";
+           setTimeout(function(){ el.style.display = "none"; }, launched ? 2500 : 4000); }',
         comp_json, costs_json
       ))
     })
