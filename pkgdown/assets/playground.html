@@ -170,6 +170,7 @@
       </div>
       <p class="hint" style="margin:6px 0 0;">Paste this into R (after <code>library(LAGOtrials)</code>) to reproduce the run.</p>
       <pre id="rcode" class="out" style="margin-top:10px;"># choose an outcome and at least one intervention component</pre>
+      <p class="hint" id="designer-note" style="margin:8px 0 0; display:none;"></p>
     </div>
 
     <h2 class="section">Result</h2>
@@ -222,6 +223,70 @@
       $("open-designer").disabled = !ok;
       if ($("run-hint").textContent === "running…") return;
       $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
+    }
+
+    // Cost functions shaped in the cost designer and sent back (postMessage),
+    // keyed by component name. When present for a ticked component they REPLACE
+    // its linear unit cost in the optimization's cost_list_of_vectors.
+    let customCosts = {};
+
+    // Which ticked components currently carry a designer cost.
+    function customCostNames() {
+      return selectedComponents().filter((n) => Array.isArray(customCosts[n]));
+    }
+
+    // Drop a component's designer cost (e.g. the user edited its unit cost, which
+    // means they want the linear cost back).
+    function revertCustomCost(name) {
+      if (customCosts[name]) {
+        delete customCosts[name];
+        updateDesignerNote();
+        updateRCode();
+      }
+    }
+
+    // Note listing which components use a designer cost, with a clear-all action.
+    function updateDesignerNote() {
+      const names = customCostNames();
+      const note = $("designer-note");
+      note.textContent = "";
+      if (!names.length) { note.style.display = "none"; return; }
+      note.style.display = "";
+      // textContent (not innerHTML) so component names can't inject markup
+      note.textContent =
+        "Using cost functions from the cost designer for " + names.join(", ") +
+        ". Adjust a component's unit cost to revert it, or ";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "secondary";
+      btn.textContent = "clear all";
+      btn.style.cssText = "padding:2px 8px; font-size:.8rem;";
+      btn.addEventListener("click", () => {
+        customCosts = {};
+        updateDesignerNote();
+        updateRCode();
+      });
+      note.appendChild(btn);
+    }
+
+    // Receive cost functions sent from the cost designer tab and apply them to
+    // the matching ticked components.
+    function applyDesignerCosts(comps, costs) {
+      if (!Array.isArray(comps) || !Array.isArray(costs)) return;
+      const sel = new Set(selectedComponents());
+      let applied = 0;
+      comps.forEach((name, i) => {
+        const v = costs[i];
+        if (sel.has(name) && Array.isArray(v) && v.length &&
+          v.every((x) => Number.isFinite(Number(x)))) {
+          customCosts[name] = v.map(Number);
+          applied++;
+        }
+      });
+      if (applied) {
+        updateDesignerNote();
+        updateRCode();
+      }
     }
 
     async function boot() {
@@ -317,6 +382,9 @@
         name, numeric: meta.numeric[i], min: meta.mins[i], max: meta.maxs[i], binary: meta.binary[i],
       }));
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
+      // a new dataset/CSV has different components, so drop any designer costs
+      customCosts = {};
+      updateDesignerNote();
       buildModelControls();
     }
 
@@ -439,6 +507,9 @@
       clearResults();
       document.querySelectorAll("#components input:checked").forEach((cb) => { cb.checked = false; });
       $("comp-config").innerHTML = "";
+      // drop any designer cost overrides so Reset restores the linear baseline
+      customCosts = {};
+      updateDesignerNote();
       setSeg("intent", "maximize");
       onOutcomeChanged();
       prefillComponents();
@@ -517,12 +588,13 @@
         };
         lb.addEventListener("input", sync);
         ub.addEventListener("input", sync);
-        cost.addEventListener("input", sync);
+        // editing a component's unit cost reverts it from any designer cost
+        cost.addEventListener("input", () => { sync(); revertCustomCost(name); });
         row.querySelector(".cost-dec").addEventListener("click", () => {
-          cost.value = Math.max(0, Number(cost.value) - 1); sync();
+          cost.value = Math.max(0, Number(cost.value) - 1); sync(); revertCustomCost(name);
         });
         row.querySelector(".cost-inc").addEventListener("click", () => {
-          cost.value = Number(cost.value) + 1; sync();
+          cost.value = Number(cost.value) + 1; sync(); revertCustomCost(name);
         });
         sync();
       });
@@ -553,7 +625,12 @@
         `  intervention_components = ${rchar(rows.map((r) => r.name))},\n` +
         `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))},\n` +
         `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))},\n` +
-        `  cost_list_of_vectors = list(${rows.map((r) => `c(0, ${Number(r.cost)})`).join(", ")}),\n` +
+        `  cost_list_of_vectors = list(${rows.map((r) => {
+          // a designer cost (full coefficient vector) overrides the linear unit
+          // cost c(0, cost) for that component
+          const cv = customCosts[r.name];
+          return cv ? `c(${cv.map(Number).join(", ")})` : `c(0, ${Number(r.cost)})`;
+        }).join(", ")}),\n` +
         `  outcome_goal = ${Number($("goal").value)},\n` +
         `  outcome_goal_intention = ${rstr($("intent").dataset.value)},\n` +
         `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
@@ -583,9 +660,11 @@
           cost: r.querySelector(".cost").value,
         }));
       if (!rows.length) return null;
-      const names = rows.map((r) => encodeURIComponent(r.name)).join(",");
+      // names go as one repeated `components` param each (so a name may contain a
+      // comma); the numbers stay comma-joined.
+      const comps = rows.map((r) => "components=" + encodeURIComponent(r.name)).join("&");
       const nums = (key) => rows.map((r) => Number(r[key])).join(",");
-      return "./visualize-cost/?components=" + names +
+      return "./visualize-cost/?" + comps +
         "&lower=" + nums("lb") + "&upper=" + nums("ub") + "&costs=" + nums("cost");
     }
 
@@ -733,10 +812,21 @@
     });
 
     // Open the cost designer in a new tab, pre-loaded with the selected
-    // components, their bounds and unit costs.
+    // components, their bounds and unit costs. No "noopener" here on purpose:
+    // the designer sends the shaped cost functions back via
+    // window.opener.postMessage (see the message listener below).
     $("open-designer").addEventListener("click", () => {
       const url = buildDesignerUrl();
-      if (url) window.open(url, "_blank", "noopener");
+      if (url) window.open(url, "_blank");
+    });
+
+    // Receive cost functions the cost designer sends back (postMessage from the
+    // tab this page opened). Same-origin only.
+    window.addEventListener("message", (e) => {
+      if (e.origin !== window.location.origin) return;
+      const d = e.data;
+      if (!d || d.type !== "lago-cost-designer") return;
+      applyDesignerCosts(d.components, d.costs);
     });
 
     boot();

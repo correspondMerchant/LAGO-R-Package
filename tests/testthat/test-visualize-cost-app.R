@@ -68,19 +68,31 @@ test_that(".parse_cost_query reads a valid config and falls back on anything els
   # missing / empty query -> defaults
   expect_identical(pq("", d), d)
   expect_identical(pq(NULL, d), d)
-  # a valid query is parsed into the component configuration
-  v <- pq("components=x,y&lower=1,1&upper=40,5&costs=1700,8000&form=cubic", d)
+  # a valid query is parsed into the component configuration (names arrive as
+  # repeated `components` params)
+  v <- pq(
+    "components=x&components=y&lower=1,1&upper=40,5&costs=1700,8000&form=cubic", d
+  )
   expect_equal(v$component_names, c("x", "y"))
   expect_equal(v$unit_costs, c(1700, 8000))
   expect_equal(v$intervention_lower_bounds, c(1, 1))
   expect_equal(v$intervention_upper_bounds, c(40, 5))
   expect_equal(v$default_cost_fxn_type, "cubic")
+  # a name containing a comma survives (repeated params, not comma-split)
+  expect_equal(
+    pq("components=a, b&lower=1&upper=5&costs=2", d)$component_names,
+    "a, b"
+  )
   # malformed queries fall back to the defaults rather than erroring
-  expect_identical(pq("components=x,y&lower=1&upper=5&costs=2", d), d) # length mismatch
+  expect_identical(pq("components=x&components=y&lower=1&upper=5&costs=2", d), d) # length mismatch
   expect_identical(pq("components=x&lower=5&upper=5&costs=2", d), d) # lower !< upper
   expect_identical(pq("components=x&lower=1&upper=5&costs=-2", d), d) # negative cost
   expect_identical(pq("components=x&lower=1&upper=5&costs=nope", d), d) # non-numeric
-  # an unknown form defaults to linear
+  # the actual playground hand-off omits form, which resolves to linear
+  expect_equal(
+    pq("components=x&lower=1&upper=5&costs=2", d)$default_cost_fxn_type, "linear"
+  )
+  # an unknown form also defaults to linear
   expect_equal(
     pq("components=x&lower=1&upper=5&costs=2&form=quartic", d)$default_cost_fxn_type,
     "linear"
