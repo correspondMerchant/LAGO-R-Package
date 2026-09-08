@@ -26,7 +26,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+          birth_volume_100, family = family_object, data = data, weights = weights)
       
       Coefficients:
                         Estimate Std. Error z value Pr(>|z|)    
@@ -107,7 +108,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+          birth_volume_100, family = family_object, data = data, weights = weights)
       
       Coefficients:
                         Estimate Std. Error z value Pr(>|z|)    
@@ -187,7 +189,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = mpg ~ gear + qsec, family = family_object, data = data, 
+          weights = weights)
       
       Coefficients:
                   Estimate Std. Error t value Pr(>|t|)    
@@ -259,7 +262,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = mpg ~ gear + qsec, family = family_object, data = data, 
+          weights = weights)
       
       Coefficients:
                   Estimate Std. Error t value Pr(>|t|)    
@@ -333,7 +337,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+          birth_volume_100, family = family_object, data = data, weights = weights)
       
       Coefficients:
                         Estimate Std. Error z value Pr(>|z|)    
@@ -399,7 +404,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+          birth_volume_100, family = family_object, data = data, weights = weights)
       
       Coefficients:
                         Estimate Std. Error z value Pr(>|z|)    
@@ -463,7 +469,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = y ~ dose, family = family_object, data = data, 
+          weights = weights)
       
       Coefficients:
                   Estimate Std. Error z value Pr(>|z|)  
@@ -528,7 +535,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = y ~ dose, family = family_object, data = data, 
+          weights = weights)
       
       Coefficients:
                   Estimate Std. Error z value Pr(>|z|)  
@@ -594,7 +602,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+          birth_volume_100, family = family_object, data = data, weights = weights)
       
       Coefficients:
                         Estimate Std. Error z value Pr(>|z|)    
@@ -659,7 +668,8 @@
     Output
       
       Call:
-      glm(formula = formula, family = family_object, data = data, weights = weights)
+      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
+          birth_volume_100, family = family_object, data = data, weights = weights)
       
       Coefficients:
                         Estimate Std. Error z value Pr(>|z|)    
