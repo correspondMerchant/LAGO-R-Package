@@ -149,4 +149,42 @@ check("all-zero curve is unrecoverable (why the floor matters)", brick.scaled ==
 var sliceOfCoefs = coefs.slice();
 check("fix 3: a fresh slice is never === the original (dead guard)", sliceOfCoefs !== coefs);
 
+// 8. anchorXs: n evenly spaced points across [lb, ub], endpoints included.
+var ax = m.anchorXs(1, 40, 5);
+check("anchorXs returns n points", ax.length === 5);
+check("anchorXs starts at lb", ax[0] === 1);
+check("anchorXs ends exactly at ub", ax[4] === 40);
+check("anchorXs is evenly spaced", Math.abs((ax[2] - ax[1]) - (ax[1] - ax[0])) < 1e-9);
+
+// 9. solveVandermonde is the inverse of costAt: sampling a known polynomial at
+// the anchors and solving must recover its coefficients (drag reshape relies on
+// this). Use a realistic degree-4 total cost over [1, 40].
+var poly = [1700, 1200, -30, 5, 0.02];
+var axm = m.anchorXs(1, 40, poly.length);
+var ym = axm.map(function (x) { return m.costAt(poly, x); });
+var solved = m.solveVandermonde(axm, ym);
+check("solveVandermonde recovers the coefficients", solved !== null);
+for (var si = 0; si < poly.length; si++) {
+  var rel = Math.abs(solved[si] - poly[si]) / (Math.abs(poly[si]) + 1e-9);
+  check("solveVandermonde coef " + si + " round-trips (rel<1e-4)", rel < 1e-4);
+}
+// the reconstructed curve matches at arbitrary points, not just the anchors
+[3.2, 17, 29.5].forEach(function (x) {
+  check(
+    "solveVandermonde curve matches at x=" + x,
+    Math.abs(m.costAt(solved, x) - m.costAt(poly, x)) < 1e-3
+  );
+});
+
+// 10. reshape semantics: move ONE anchor's y and re-solve; the new curve passes
+// through the moved point and still through the untouched anchors.
+var ys2 = axm.map(function (x) { return m.costAt(poly, x); });
+ys2[2] = ys2[2] + 5000; // drag the middle anchor up
+var reshaped = m.solveVandermonde(axm, ys2);
+check("reshape hits the dragged anchor", Math.abs(m.costAt(reshaped, axm[2]) - ys2[2]) < 1e-3);
+check("reshape keeps a fixed anchor", Math.abs(m.costAt(reshaped, axm[0]) - ys2[0]) < 1e-3);
+
+// 11. solveVandermonde returns null on a singular system (duplicated x).
+check("solveVandermonde null on duplicated x", m.solveVandermonde([1, 1, 2], [1, 2, 3]) === null);
+
 console.log("\nAll " + passed + " JS math assertions passed.");

@@ -13,6 +13,9 @@
 #' initial values. Each slider has a default range scaled to its coefficient's
 #' magnitude (derived from the unit costs and bounds), and the user can set a
 #' custom range for any slider using its "Range min" / "Range max" inputs.
+#' The total cost curve can also be reshaped directly: it carries a draggable
+#' handle at each of several points along the curve, and dragging one refits the
+#' cost function through the new set of points and updates the sliders.
 #' The app also displays the current coefficient vector for each component.
 #' The user can copy the final coefficient list for use in the optimization
 #' function lago_optimization().
@@ -150,14 +153,26 @@ visualize_cost <- function(
   # server assembles the coefficient vector at the currently selected form's
   # length.
   cost_types <- c("linear", "cubic")
-  coefs_by_type <- stats::setNames(lapply(cost_types, function(t) {
-    cost_fxn_calculator(
+  coefs_by_type <- list(
+    linear = cost_fxn_calculator(
       intervention_lower_bounds = intervention_lower_bounds,
       intervention_upper_bounds = intervention_upper_bounds,
       unit_costs = unit_costs,
-      default_cost_fxn_type = t
-    )
-  }), cost_types)
+      default_cost_fxn_type = "linear"
+    ),
+    # cost_fxn_calculator's cubic is, for typical unit costs, within ~1% of the
+    # straight line over the range, so it renders as a near-straight line and the
+    # Cubic toggle looks like no change. The designer instead opens the cubic form
+    # on a visibly curved but still valid (non-negative, non-decreasing) demo
+    # cost, which the user then shapes; see .designer_cubic_coefs.
+    cubic = lapply(seq_along(unit_costs), function(ci) {
+      .designer_cubic_coefs(
+        intervention_lower_bounds[ci],
+        intervention_upper_bounds[ci],
+        unit_costs[ci]
+      )
+    })
+  )
   ranges_by_type <- stats::setNames(lapply(cost_types, function(t) {
     lapply(seq_along(coefs_by_type[[t]]), function(ci) {
       lapply(coefs_by_type[[t]][[ci]], function(init) {
@@ -815,6 +830,28 @@ visualize_cost <- function(
   shinyApp(ui, server)
 }
 # nocov end
+
+# A visibly curved starting cost for the cubic form of the designer, returned as
+# the 5 ascending-power coefficients (x^0..x^4) of the total cost. It is the
+# convex increasing cost C(x) = unit_cost*lb + (unit_cost/2)(x-lb) +
+# a4*(x-lb)^4, with a4 = unit_cost/(2*(ub-lb)^3). By construction it starts at
+# C(lb) = unit_cost*lb and reaches C(ub) = unit_cost*ub (the same endpoints as
+# the linear cost), stays non-negative and non-decreasing on [lb, ub], and puts
+# half of its rise into the quartic term so the curve is clearly bent rather than
+# within ~1% of a line. Used only as the designer's cubic starting point (the
+# user reshapes it); it does not change the cost model used by lago_optimization.
+.designer_cubic_coefs <- function(lower_bound, upper_bound, unit_cost) {
+  span <- upper_bound - lower_bound
+  a4 <- unit_cost / (2 * span^3)
+  # Expand unit_cost*lb + (unit_cost/2)(x-lb) + a4*(x-lb)^4 into powers of x.
+  c(
+    a4 * lower_bound^4 + (unit_cost / 2) * lower_bound,
+    -4 * a4 * lower_bound^3 + unit_cost / 2,
+    6 * a4 * lower_bound^2,
+    -4 * a4 * lower_bound,
+    a4
+  )
+}
 
 # Compute a default slider range for a single cost-function coefficient.
 # The cost-function coefficients span very different scales (for a cubic cost

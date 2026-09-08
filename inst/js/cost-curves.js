@@ -4,12 +4,15 @@
 // Two SVGs are drawn per intervention component: the total cost curve and its
 // derivative (marginal cost). The coefficient sliders drive the curves; when a
 // slider moves the curves redraw entirely in the browser (no server round-trip
-// for the redraw). The only trip back to R is the drag writeback: dragging the
-// right endpoint of the total-cost curve rescales all of that component's
-// coefficients and pushes the rescaled values back to the Shiny sliders.
+// for the redraw). The only trip back to R is the drag writeback: the total-cost
+// curve carries a draggable handle at each of several anchor points, and
+// dragging one reshapes the curve (refits the polynomial through the moved point
+// via solveVandermonde) and pushes the reshaped coefficients back to the Shiny
+// sliders on release.
 //
 // The file is split into two parts:
-//   1. Pure math (costAt / marginalAt / validate / dragScale). These have no
+//   1. Pure math (costAt / marginalAt / sampleCurve / validate / dragScale /
+//      anchorXs / solveVandermonde). These have no
 //      dependency on the DOM, d3, or Shiny and are exported for node so the
 //      curve math can be unit-tested independently (tests/js/test-cost-math.js).
 //   2. Browser rendering + Shiny wiring, only run when d3 and Shiny exist.
@@ -120,12 +123,86 @@
     return { scaled: true, coefs: out, ratio: ratio };
   }
 
+  // n evenly spaced anchor x-positions across [lb, ub] (endpoints included).
+  // These are the draggable control points; n of them (one per coefficient)
+  // uniquely determine a degree-(n-1) polynomial.
+  function anchorXs(lb, ub, n) {
+    if (n <= 1) {
+      return [ub];
+    }
+    var xs = [];
+    var step = (ub - lb) / (n - 1);
+    for (var i = 0; i < n; i++) {
+      xs.push(i === n - 1 ? ub : lb + i * step);
+    }
+    return xs;
+  }
+
+  // Solve for the polynomial coefficients c[0..n-1] (in the same ascending-power
+  // order as costAt) whose curve passes through the points (xs[i], ys[i]). This
+  // is the Vandermonde system V c = y with V[i][k] = xs[i]^k, solved by Gaussian
+  // elimination with partial pivoting. It is the inverse of costAt: dragging an
+  // anchor to a new y and re-solving reshapes the curve to pass through the new
+  // point while holding the other anchors fixed. Returns null if the system is
+  // singular (e.g. duplicated x) or the result is non-finite.
+  function solveVandermonde(xs, ys) {
+    var n = xs.length;
+    // augmented matrix [V | y]
+    var m = [];
+    for (var i = 0; i < n; i++) {
+      var row = [];
+      var xp = 1;
+      for (var k = 0; k < n; k++) {
+        row.push(xp);
+        xp *= xs[i];
+      }
+      row.push(ys[i]);
+      m.push(row);
+    }
+    for (var col = 0; col < n; col++) {
+      // partial pivot
+      var piv = col;
+      for (var r = col + 1; r < n; r++) {
+        if (Math.abs(m[r][col]) > Math.abs(m[piv][col])) {
+          piv = r;
+        }
+      }
+      if (Math.abs(m[piv][col]) < 1e-12) {
+        return null;
+      }
+      var tmp = m[col];
+      m[col] = m[piv];
+      m[piv] = tmp;
+      // eliminate
+      for (var r2 = 0; r2 < n; r2++) {
+        if (r2 === col) {
+          continue;
+        }
+        var f = m[r2][col] / m[col][col];
+        for (var c2 = col; c2 <= n; c2++) {
+          m[r2][c2] -= f * m[col][c2];
+        }
+      }
+    }
+    var coefs = [];
+    for (var i2 = 0; i2 < n; i2++) {
+      var v = m[i2][n] / m[i2][i2];
+      if (!isFinite(v)) {
+        return null;
+      }
+      coefs.push(v);
+    }
+    return coefs;
+  }
+
   var math = {
     costAt: costAt,
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
     validate: validate,
-    dragScale: dragScale
+    dragScale: dragScale,
+    anchorXs: anchorXs,
+    solveVandermonde: solveVandermonde
   };
 
   // Export for node (unit tests). Harmless in the browser.
@@ -402,7 +479,7 @@
         return costAt(cfg.coefs, x);
       }
     });
-    addDragHandle(container, cfg, totalChart);
+    addDragHandles(container, cfg, totalChart);
 
     // ---- marginal cost chart (with unit-cost reference line) ----
     var margChart = baseChart(margSvg, {
@@ -439,84 +516,94 @@
       .text("Unit Cost: " + cfg.unitCost.toFixed(2));
   }
 
-  // Attach a draggable handle to the right endpoint (x = ub) of the total-cost
-  // curve. Dragging rescales all coefficients and, on release, writes them back
-  // to R via Shiny.setInputValue.
-  function addDragHandle(container, cfg, chart) {
-    var ub = cfg.ub;
-    var handleX = chart.xScale(ub);
-    var handleY = chart.yScale(costAt(cfg.coefs, ub));
-
-    var handle = chart.g
-      .append("circle")
-      .attr("class", "cc-drag-handle")
-      .attr("cx", handleX)
-      .attr("cy", handleY)
-      .attr("r", 7)
-      .attr("fill", COLOR_TOTAL)
-      .attr("stroke", "white")
-      .attr("stroke-width", 2)
-      .style("cursor", "ns-resize");
-    handle.append("title").text("Drag to rescale all coefficients");
-
+  // Attach draggable handles to the total-cost curve so the user can RESHAPE it,
+  // not just rescale it. One handle sits at each of n evenly spaced anchor
+  // x-positions (n = number of coefficients), so the handles uniquely pin a
+  // degree-(n-1) polynomial. Dragging one handle vertically holds the other
+  // anchors' current cost values fixed and re-solves the polynomial through the
+  // new set of points (solveVandermonde), reshaping the curve locally; on
+  // release the reshaped coefficients are written back to R via
+  // Shiny.setInputValue (the same path the sliders update through).
+  function addDragHandles(container, cfg, chart) {
     var yScale = chart.yScale;
     var yRange = yScale.range(); // [IH, 0]
-    var working = cfg.coefs.slice();
-    var scaled = false; // set true only when a drag actually rescaled the coefs
+    var n = cfg.coefs.length;
+    var xs = anchorXs(cfg.lb, cfg.ub, n);
+    // The anchor cost values for the current curve; the fixed reference the
+    // non-dragged anchors keep during a drag.
+    var baseY = xs.map(function (x) {
+      return costAt(cfg.coefs, x);
+    });
 
-    // Never let a single drag collapse the curve irreversibly to zero. Dragging
-    // the handle to the plot floor would set target = 0, scaling every
-    // coefficient by 0; cost(ub) would then be 0 forever and dragScale's
-    // |current|~0 no-op guard would make the handle un-draggable (recovery only
-    // via the sliders / reset). So clamp the target to a small positive floor:
-    // 0.01% of the starting cost at ub, but never below 1e-6. A drag to the
-    // floor leaves a tiny, still-recoverable curve instead of a hard zero.
-    var startCost = costAt(cfg.coefs, ub);
-    var targetFloor = Math.max(1e-6, Math.abs(startCost) * 1e-4);
+    xs.forEach(function (xa, idx) {
+      var handle = chart.g
+        .append("circle")
+        .attr("class", "cc-drag-handle")
+        .attr("cx", chart.xScale(xa))
+        .attr("cy", yScale(baseY[idx]))
+        .attr("r", 6)
+        .attr("fill", COLOR_TOTAL)
+        .attr("stroke", "white")
+        .attr("stroke-width", 2)
+        .style("cursor", "ns-resize");
+      handle.append("title").text("Drag to reshape the cost curve");
 
-    var drag = d3
-      .drag()
-      .on("start", function () {
-        container._dragging = true; // suppress full redraws mid-drag
-      })
-      .on("drag", function (event) {
-        // clamp the pointer to the plot's y pixel range, invert to a target
-        // cost, then clamp the target to a small positive floor so the curve
-        // can never collapse irreversibly to zero.
-        var py = Math.max(yRange[1], Math.min(yRange[0], event.y));
-        var target = Math.max(targetFloor, yScale.invert(py));
-        var res = dragScale(cfg.coefs, ub, target);
-        if (!res.scaled) {
-          return; // zero / non-positive curve: cannot scale, snap back
-        }
-        scaled = true;
-        working = res.coefs;
-        // optimistic local redraw of just this curve + handle (no rebuild, so
-        // the drag gesture is not interrupted).
-        var pts = sampleCurve(working, cfg.lb, ub, 200, costAt);
-        chart.path.datum(pts).attr("d", chart.lineGen);
-        handle.attr("cy", yScale(costAt(working, ub)));
-      })
-      .on("end", function () {
-        container._dragging = false;
-        // write the rescaled coefficients back to R exactly once, as an event
-        // (priority:"event" so it fires even when a value repeats). The R
-        // observeEvent updates the sliders; that update fires the sliders'
-        // change events which trigger a normal client-side redraw. The redraw
-        // path never calls setInputValue, so there is no feedback oscillation.
-        // Guard on `scaled` (set inside the drag handler), NOT array identity:
-        // `working` is a fresh slice so it is never === cfg.coefs, which made
-        // the old `working !== cfg.coefs` guard always true. A plain click or a
-        // no-op drag now writes nothing back.
-        if (scaled) {
-          Shiny.setInputValue(
-            "dragged_coefs_" + cfg.comp,
-            { coefs: working, nonce: Date.now() },
-            { priority: "event" }
+      var ys; // the anchor y-values held during this drag
+      var working = cfg.coefs.slice();
+      var reshaped = false;
+
+      var drag = d3
+        .drag()
+        .on("start", function () {
+          container._dragging = true; // suppress full redraws mid-drag
+          ys = baseY.slice();
+        })
+        .on("drag", function (event) {
+          // clamp the pointer to the plot's y pixel range, invert to a target
+          // cost for this anchor, then re-solve the polynomial through all
+          // anchors (this one moved, the rest fixed).
+          var py = Math.max(yRange[1], Math.min(yRange[0], event.y));
+          ys[idx] = yScale.invert(py);
+          var solved = solveVandermonde(xs, ys);
+          if (!solved) {
+            return; // singular system, ignore this step
+          }
+          reshaped = true;
+          working = solved;
+          // optimistic local redraw of just this curve + handle (no rebuild, so
+          // the drag gesture is not interrupted). The other handles already sit
+          // on the curve because it passes through their fixed anchor values.
+          var pts = sampleCurve(working, cfg.lb, cfg.ub, 200, costAt);
+          chart.path.datum(pts).attr("d", chart.lineGen);
+          // recolor live to match the post-release cue: red when the reshape
+          // makes the total cost decrease or go negative (same condition
+          // baseChart uses for the total chart), instead of staying blue until
+          // the drag ends.
+          var v = validate(working, cfg.lb, cfg.ub, 500);
+          chart.path.attr(
+            "stroke",
+            !v.nonDecreasing || !v.nonNegativeTotal ? COLOR_INVALID : COLOR_TOTAL
           );
-        }
-      });
-    handle.call(drag);
+          handle.attr("cy", yScale(ys[idx]));
+        })
+        .on("end", function () {
+          container._dragging = false;
+          // write the reshaped coefficients back to R exactly once, as an event
+          // (priority:"event" so it fires even when a value repeats). The R
+          // observeEvent updates the sliders; that update fires the sliders'
+          // change events which trigger a normal client-side redraw. The redraw
+          // path never calls setInputValue, so there is no feedback oscillation.
+          // A plain click (no drag) leaves reshaped false and writes nothing.
+          if (reshaped) {
+            Shiny.setInputValue(
+              "dragged_coefs_" + cfg.comp,
+              { coefs: working, nonce: Date.now() },
+              { priority: "event" }
+            );
+          }
+        });
+      handle.call(drag);
+    });
   }
 
   // ------------------------------------------------------------------
