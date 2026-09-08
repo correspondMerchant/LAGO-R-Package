@@ -47,6 +47,8 @@ Reset
 
 ## R code for this configuration
 
+Shape costs in the designer ↗
+
 Copy
 
 Paste this into R (after `library(LAGOtrials)`) to reproduce the run.

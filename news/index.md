@@ -2,6 +2,18 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground and the cost designer now round-trip. A
+  “Shape costs in the designer” button opens
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  in the browser pre-loaded with the intervention components, bounds and
+  unit costs configured in the playground (the designer reads this from
+  its page URL query and falls back to its built-in example when the
+  query is absent or malformed; a plain `visualize_cost(...)` call is
+  unchanged). In the designer, a “Use these costs in the playground”
+  button sends the shaped cost functions back to the playground tab,
+  which then uses them as `cost_list_of_vectors` for the optimization
+  (shown in the reproducible R code) instead of the linear unit cost;
+  adjusting a component’s unit cost reverts it.
 - [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   now has a “Cost function form” toggle that switches all components
   between the linear and cubic cost functions live, instead of the form
