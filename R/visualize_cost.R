@@ -130,13 +130,12 @@ visualize_cost <- function(
   invisible(cost_list)
 }
 
-# Build the visualize_cost() Shiny app (UI + server) for the given component
-# configuration and return it via shinyApp(), without running it. Separated from
-# visualize_cost() so the same app can be launched locally (visualize_cost() ->
-# runApp) and exported to run entirely in the browser with shinylive (see
-# pkgdown/shinylive/visualize-cost/app.R), keeping one source of truth for
-# the UI and server.
-.build_visualize_cost_app <- function(
+# Build the UI tags and server function of the visualize_cost() app for one fixed
+# component configuration, returned as list(ui, server). Kept separate from both
+# visualize_cost() (which runs the app locally) and .build_visualize_cost_app()
+# (which wraps these into a request-driven shinyApp), so a single source of truth
+# builds the UI and server for a config.
+.build_cost_parts <- function(
     component_names,
     unit_costs,
     default_cost_fxn_type,
@@ -211,7 +210,11 @@ visualize_cost <- function(
   js_dir <- system.file("js", package = "LAGOtrials")
   addResourcePath("lago_cost_assets", js_dir)
 
-  ui <- navbarPage(
+  # bslib warns that navbarPage's direct children should all be nav panels; this
+  # app deliberately also passes useShinyjs() and the form-toggle header, so the
+  # warning is expected and benign. Suppress it so it does not clutter the
+  # console on every launch.
+  ui <- suppressWarnings(navbarPage(
     title = "Cost Functions Visualization",
     theme = bs_theme(version = 5, bootswatch = "flatly"),
 
@@ -266,10 +269,28 @@ visualize_cost <- function(
               class = "btn-primary btn-sm",
               icon = icon("clipboard")
             ),
+            # Send the current cost functions back to the playground tab that
+            # opened this designer (see the postMessage in the observer below).
+            actionButton(
+              inputId = "send_to_playground",
+              label = "Use these costs in the playground",
+              class = "btn-primary btn-sm",
+              icon = icon("arrow-left")
+            ),
             span(
               id = "copy_confirmation",
               style = "color: #198754; margin-left: 10px; display: none;",
               "Copied!"
+            ),
+            span(
+              id = "send_confirmation",
+              style = "color: #198754; margin-left: 10px; display: none;",
+              "Sent to the playground."
+            ),
+            span(
+              id = "send_error",
+              style = "color: #7a2020; margin-left: 10px; display: none;",
+              "Open the cost designer from the playground to send costs back."
             )
           ),
           p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
@@ -420,7 +441,7 @@ visualize_cost <- function(
         )
       )
     })
-  )
+  ))
 
   calculate_cost <- function(coefficients, x) {
     degree <- length(coefficients) - 1
@@ -808,6 +829,54 @@ visualize_cost <- function(
       ))
     }, ignoreInit = TRUE)
 
+    # Send the current cost functions back to the playground tab that opened this
+    # designer. window.opener is that tab (the designer is opened with a plain
+    # window.open, no noopener), so postMessage hands over the component names and
+    # their coefficient vectors same-origin; the playground uses them as
+    # cost_list_of_vectors. If there is no opener (the designer was opened
+    # directly), show a hint instead of failing silently.
+    observeEvent(input$send_to_playground, {
+      cl <- current_cost_list()
+      # escape names for a JS string literal (mirrors the copy-button path):
+      # backslash, double quote, and newline/carriage return, which would
+      # otherwise break the literal.
+      esc <- gsub("\\\\", "\\\\\\\\", component_names)
+      esc <- gsub("\"", "\\\\\"", esc)
+      esc <- gsub("\n", "\\\\n", esc)
+      esc <- gsub("\r", "\\\\r", esc)
+      comp_json <- paste0(
+        "[", paste0("\"", esc, "\"", collapse = ","), "]"
+      )
+      costs_json <- paste0(
+        "[",
+        paste(
+          vapply(
+            cl,
+            function(v) paste0("[", paste(v, collapse = ","), "]"),
+            character(1)
+          ),
+          collapse = ","
+        ),
+        "]"
+      )
+      runjs(sprintf(
+        'if (window.opener && !window.opener.closed) {
+           window.opener.postMessage(
+             {type: "lago-cost-designer", components: %s, costs: %s},
+             window.location.origin
+           );
+           var c = document.getElementById("send_confirmation");
+           if (c) { c.style.display = "inline";
+             setTimeout(function(){ c.style.display = "none"; }, 2500); }
+         } else {
+           var e = document.getElementById("send_error");
+           if (e) { e.style.display = "inline";
+             setTimeout(function(){ e.style.display = "none"; }, 4000); }
+         }',
+        comp_json, costs_json
+      ))
+    })
+
     # Closing the app returns the current cost list to R, so the result can be
     # captured (e.g. cost_list <- visualize_cost(...)) instead of only copied.
     observeEvent(input$quit_button, {
@@ -827,9 +896,92 @@ visualize_cost <- function(
     })
   }
 
+  list(ui = ui, server = server)
+}
+
+# Assemble the visualize_cost() shinyApp. The component configuration can come
+# from the page's URL query (?components=a&components=b&lower=..&upper=..&costs=..&form=..),
+# which is how the playground hands off the components the user set up; when the
+# query is absent or invalid the explicit arguments are used, so a plain
+# visualize_cost(...) / local launch is unchanged. Both the UI (request-driven)
+# and the server (reading the same query at connect via isolate) resolve the
+# same configuration independently and hand it to .build_cost_parts().
+.build_visualize_cost_app <- function(
+    component_names,
+    unit_costs,
+    default_cost_fxn_type,
+    intervention_lower_bounds,
+    intervention_upper_bounds) {
+  defaults <- list(
+    component_names = component_names,
+    unit_costs = unit_costs,
+    default_cost_fxn_type = default_cost_fxn_type,
+    intervention_lower_bounds = intervention_lower_bounds,
+    intervention_upper_bounds = intervention_upper_bounds
+  )
+  ui <- function(request) {
+    do.call(.build_cost_parts, .parse_cost_query(request$QUERY_STRING, defaults))$ui
+  }
+  server <- function(input, output, session) {
+    args <- .parse_cost_query(
+      shiny::isolate(session$clientData$url_search), defaults
+    )
+    do.call(.build_cost_parts, args)$server(input, output, session)
+  }
   shinyApp(ui, server)
 }
 # nocov end
+
+# Resolve the component configuration for the cost designer from a URL query
+# string, falling back to `defaults` (a list of the .build_cost_parts arguments)
+# whenever the query is missing or does not fully and validly specify a
+# configuration. The query carries `components` (one repeated param per name), `lower`,
+# `upper` and `costs` (comma-separated numbers, one per component) and an
+# optional `form` ("linear"/"cubic"). Everything must agree in length and be
+# finite with lower < upper, or the defaults are used, so a malformed link
+# degrades to the standard example rather than erroring.
+.parse_cost_query <- function(query_string, defaults) {
+  if (is.null(query_string) || !nzchar(query_string)) {
+    return(defaults)
+  }
+  q <- shiny::parseQueryString(query_string)
+  # Component names come as repeated `components` params (components=a&components=b),
+  # not a comma-joined string, so a name may itself contain a comma without being
+  # split apart. The numeric params stay comma-joined (numbers never contain a
+  # comma).
+  comp_names <- unlist(q[names(q) == "components"], use.names = FALSE)
+  if (length(comp_names) == 0L || any(!nzchar(comp_names))) {
+    return(defaults)
+  }
+  as_num <- function(s) {
+    if (is.null(s)) {
+      return(numeric(0))
+    }
+    suppressWarnings(as.numeric(strsplit(s, ",", fixed = TRUE)[[1]]))
+  }
+  lower <- as_num(q[["lower"]])
+  upper <- as_num(q[["upper"]])
+  costs <- as_num(q[["costs"]])
+  n <- length(comp_names)
+  valid <- n >= 1 && n <= 10 &&
+    length(lower) == n && length(upper) == n && length(costs) == n &&
+    all(is.finite(lower)) && all(is.finite(upper)) && all(is.finite(costs)) &&
+    all(costs >= 0) && all(lower < upper)
+  if (!valid) {
+    return(defaults)
+  }
+  form <- q[["form"]]
+  if (is.null(form) || !form %in% c("linear", "cubic")) {
+    form <- "linear"
+  }
+  list(
+    component_names = comp_names,
+    unit_costs = costs,
+    default_cost_fxn_type = form,
+    intervention_lower_bounds = lower,
+    intervention_upper_bounds = upper
+  )
+}
 
 # A visibly curved starting cost for the cubic form of the designer, returned as
 # the 5 ascending-power coefficients (x^0..x^4) of the total cost. It is the

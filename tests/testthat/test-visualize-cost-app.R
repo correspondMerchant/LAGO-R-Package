@@ -39,9 +39,12 @@ test_that("visualize_cost validates its inputs before launching", {
 
 test_that(".build_visualize_cost_app returns a runnable Shiny app object", {
   builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
-  # The builder registers a resource path for its client-side assets; clean it
-  # up so constructing the app in a test does not leak the path process-globally.
-  on.exit(try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE))
+  # Best-effort cleanup of the client-asset resource path. It may not be
+  # registered at all (the app now registers it lazily when the UI/server build),
+  # so also swallow removeResourcePath's "not found" warning.
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
   # bslib::navbarPage emits a benign construction warning about non-nav children
   # (the app passes useShinyjs() alongside its nav panels); it predates this
   # refactor and is unrelated to the app object being valid, so keep it out of
@@ -54,6 +57,46 @@ test_that(".build_visualize_cost_app returns a runnable Shiny app object", {
     intervention_upper_bounds = c(40, 5)
   ))
   expect_s3_class(app, "shiny.appobj")
+})
+
+test_that(".parse_cost_query reads a valid config and falls back on anything else", {
+  pq <- getFromNamespace(".parse_cost_query", "LAGOtrials")
+  d <- list(
+    component_names = "A", unit_costs = 1, default_cost_fxn_type = "linear",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 5
+  )
+  # missing / empty query -> defaults
+  expect_identical(pq("", d), d)
+  expect_identical(pq(NULL, d), d)
+  # a valid query is parsed into the component configuration (names arrive as
+  # repeated `components` params)
+  v <- pq(
+    "components=x&components=y&lower=1,1&upper=40,5&costs=1700,8000&form=cubic", d
+  )
+  expect_equal(v$component_names, c("x", "y"))
+  expect_equal(v$unit_costs, c(1700, 8000))
+  expect_equal(v$intervention_lower_bounds, c(1, 1))
+  expect_equal(v$intervention_upper_bounds, c(40, 5))
+  expect_equal(v$default_cost_fxn_type, "cubic")
+  # a name containing a comma survives (repeated params, not comma-split)
+  expect_equal(
+    pq("components=a, b&lower=1&upper=5&costs=2", d)$component_names,
+    "a, b"
+  )
+  # malformed queries fall back to the defaults rather than erroring
+  expect_identical(pq("components=x&components=y&lower=1&upper=5&costs=2", d), d) # length mismatch
+  expect_identical(pq("components=x&lower=5&upper=5&costs=2", d), d) # lower !< upper
+  expect_identical(pq("components=x&lower=1&upper=5&costs=-2", d), d) # negative cost
+  expect_identical(pq("components=x&lower=1&upper=5&costs=nope", d), d) # non-numeric
+  # the actual playground hand-off omits form, which resolves to linear
+  expect_equal(
+    pq("components=x&lower=1&upper=5&costs=2", d)$default_cost_fxn_type, "linear"
+  )
+  # an unknown form also defaults to linear
+  expect_equal(
+    pq("components=x&lower=1&upper=5&costs=2&form=quartic", d)$default_cost_fxn_type,
+    "linear"
+  )
 })
 
 test_that("the Linear/Cubic toggle switches the coefficient-vector length", {
@@ -72,18 +115,20 @@ test_that("the Linear/Cubic toggle switches the coefficient-vector length", {
     intervention_upper_bounds = 40
   ))
   shiny::testServer(app, {
+    # count the coefficients in a rendered "c(a, b, ...)" vector text
+    ncoef <- function(txt) length(strsplit(gsub("[c() ]", "", txt), ",")[[1]])
     # linear: a 2-coefficient vector (intercept + slope)
     session$setInputs(cost_type = "linear", coef_1_0 = 0, coef_1_1 = 1700)
-    expect_length(current_cost_list()[[1]], 2L)
+    expect_equal(ncoef(output$coefficient_text_1), 2L)
     # cubic: a 5-coefficient vector (degree-4 total cost)
     session$setInputs(
       cost_type = "cubic",
       coef_1_0 = 0, coef_1_1 = 1705, coef_1_2 = 0.1,
       coef_1_3 = -0.07, coef_1_4 = 0.002
     )
-    expect_length(current_cost_list()[[1]], 5L)
+    expect_equal(ncoef(output$coefficient_text_1), 5L)
     # and back to linear reads 2 again
     session$setInputs(cost_type = "linear")
-    expect_length(current_cost_list()[[1]], 2L)
+    expect_equal(ncoef(output$coefficient_text_1), 2L)
   })
 })
