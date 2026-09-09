@@ -286,6 +286,25 @@
       if (applied) {
         updateDesignerNote();
         updateRCode();
+        // Make the hand-off obvious: the config changed but the result doesn't
+        // recompute until Run, and the note sits below the fold. Announce it in
+        // the status banner (top of the page, visible when the user switches back
+        // from the designer tab) and scroll the note into view with a brief flash.
+        const applNames = customCostNames();
+        // announce it, but don't paint over a load-error banner (e.g. a failed
+        // dataset switch) — the note/R code still update below
+        if (!statusEl.classList.contains("error")) {
+          setStatus(
+            "Cost functions updated from the designer for " +
+              applNames.join(", ") + " — press Run to recompute.",
+            "ready"
+          );
+        }
+        const note = $("designer-note");
+        note.scrollIntoView({ behavior: "smooth", block: "center" });
+        note.style.transition = "background-color .4s";
+        note.style.backgroundColor = "#fff3cd";
+        setTimeout(() => { note.style.backgroundColor = ""; }, 1600);
       }
     }
 
@@ -739,6 +758,10 @@
         running = false;
         $("reset").disabled = $("dataset").disabled = $("file").disabled = false;
         $("run-hint").textContent = "";
+        // the recompute just happened, so clear the designer "press Run" cue
+        if (statusText.textContent.startsWith("Cost functions updated from the designer")) {
+          setStatus("Ready.", "ready");
+        }
         updateRunEnabled();
       }
     }
