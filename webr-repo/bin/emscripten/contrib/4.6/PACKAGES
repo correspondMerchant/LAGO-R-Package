@@ -6,7 +6,7 @@ LinkingTo: Rcpp
 Suggests: testthat (>= 3.0.0), tibble, knitr, rmarkdown, jsonlite,
         spelling
 License: GPL-3
-MD5sum: b6181d387b28e9399f80db76df2ad6d3
-Built: R 4.6.0; wasm32-unknown-emscripten; 2026-09-10 17:14:12 UTC;
+MD5sum: ddff880870ebe0fcce768d99a3c333de
+Built: R 4.6.0; wasm32-unknown-emscripten; 2026-09-10 23:16:33 UTC;
         unix
 File: LAGOtrials_1.1.0.tgz
