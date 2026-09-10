@@ -224,6 +224,28 @@ visualize_cost <- function(
     # components at once.
     header = tagList(
       tags$head(
+        # shinylive runs this app in a same-origin iframe whose URL does NOT
+        # carry the parent tab's ?components=... deep link (that query lives on
+        # the top /visualize-cost/ tab). Without it the app would always fall
+        # back to the example, so the designer never receives the components the
+        # playground handed off. Adopt the parent's query into this iframe's own
+        # URL (a one-time reload) so the normal request/clientData query parsing
+        # below picks it up. Guarded: only when we are in an iframe, the parent
+        # has a query, and this frame does not yet (prevents a reload loop); a
+        # cross-origin parent throws and is ignored. No-op outside an iframe
+        # (e.g. a local visualize_cost() launch), where window.top === window.
+        tags$script(shiny::HTML(paste0(
+          "(function(){try{",
+          "if (window.top === window) return;",           # not in an iframe (local launch)
+          "var q = window.top.location.search;",           # parent tab's query, same-origin
+          "if (!q || q.indexOf('components=') === -1) return;", # only a cost-designer deep link
+          "if (window.location.search) return;",           # this frame already carries a query
+          "var seen = false;",
+          "try { seen = !!sessionStorage.getItem('lago_cost_adopted');",
+          "  if (!seen) sessionStorage.setItem('lago_cost_adopted', '1'); } catch (e) {}",
+          "if (!seen) window.location.replace(window.location.pathname + q);", # adopt once
+          "}catch(e){}})();"
+        ))),
         tags$script(src = "lago_cost_assets/d3.v7.min.js"),
         tags$script(src = "lago_cost_assets/cost-curves.js")
       ),
