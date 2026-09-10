@@ -49,6 +49,8 @@ Reset
 
 Shape costs in the designer ↗
 
+Share link
+
 Copy
 
 Paste this into R (after `library(LAGOtrials)`) to reproduce the run.

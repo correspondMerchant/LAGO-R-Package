@@ -2,6 +2,15 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground now has a “Share link” button that encodes
+  the whole current setup (bundled dataset, outcome column and type,
+  intervention components, their bounds and costs, the goal and
+  direction) into the page URL and copies it to the clipboard. Opening
+  that link restores the configuration on load, ready to run. Costs are
+  encoded as per-component coefficient vectors, so a curve shaped in the
+  cost designer is preserved along with plain unit costs. Sharing is
+  offered only for the bundled datasets, since an uploaded CSV cannot be
+  carried in a URL.
 - The in-browser playground and the cost designer now round-trip. A
   “Shape costs in the designer” button opens
   [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
