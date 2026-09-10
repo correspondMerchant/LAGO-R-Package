@@ -2,8 +2,10 @@
 # tests/js/test-cost-math.js checks the curve/drag math in inst/js/cost-curves.js
 # (the visualize_cost() Shiny binding), and tests/js/test-report-math.js checks
 # the cost math copied into inst/js/lago-report.js (the interactive lago_report()
-# renderer). Both match their output against the R reference values. Kept out of
-# the R test suite so R CMD check does not depend on a node interpreter.
+# renderer). Both match their output against the R reference values.
+# tests/js/test-share-config.js checks the playground "Share link" encode/decode
+# round-trip in pkgdown/assets/share-config.js. Kept out of the R test suite so
+# R CMD check does not depend on a node interpreter.
 on:
   push:
     branches: [main, master]
@@ -33,3 +35,6 @@ jobs:
 
       - name: Run webR demo wiring test
         run: node tests/js/test-webr-demo.js
+
+      - name: Run share-link round-trip test
+        run: node tests/js/test-share-config.js
