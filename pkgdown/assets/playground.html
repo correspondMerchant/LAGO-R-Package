@@ -165,6 +165,7 @@
         <h2 style="margin:0;">R code for this configuration</h2>
         <span style="display:flex;gap:8px;">
           <button type="button" id="open-designer" class="secondary" disabled title="Open the cost designer for these components">Shape costs in the designer &#8599;</button>
+          <button type="button" id="share-link" class="secondary" disabled title="Copy a link that restores this whole setup (bundled datasets only)">Share link</button>
           <button type="button" id="copy-code" class="secondary">Copy</button>
         </span>
       </div>
@@ -189,6 +190,9 @@
     </p>
   </main>
 
+  <!-- pure share-link encode/decode (classic script: runs before the deferred
+       module below, so the on-load restore can parse the query synchronously) -->
+  <script src="./share-config.js"></script>
   <script type="module">
     const WEBR_VERSION = "0.6.0";
     const WEBR_URL = `https://webr.r-wasm.org/v${WEBR_VERSION}/webr.mjs`;
@@ -221,6 +225,8 @@
       $("run").disabled = !ok || running;
       // the cost designer hand-off needs at least one component too
       $("open-designer").disabled = !ok;
+      // sharing needs components AND a bundled dataset (a CSV can't go in a URL)
+      $("share-link").disabled = !ok || currentSource.type !== "bundled";
       if ($("run-hint").textContent === "running…") return;
       $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
     }
@@ -229,6 +235,26 @@
     // keyed by component name. When present for a ticked component they REPLACE
     // its linear unit cost in the optimization's cost_list_of_vectors.
     let customCosts = {};
+
+    // Where the current data came from: a bundled dataset (shareable via URL) or
+    // an uploaded CSV (whose data cannot be put in a share link).
+    let currentSource = { type: "bundled", name: "BB_data" };
+    // Set once a Share link's configuration has been applied, so boot() can show
+    // the restore cue instead of the generic ready message (it runs applyRestore
+    // during loadBundled, before its own setStatus).
+    let restoredFromShare = false;
+
+    // If this page was opened from a "Share" link, capture the configuration to
+    // restore once the chosen dataset has loaded (applied from buildModelControls
+    // in place of the default prefill). Parsing/encoding lives in share-config.js
+    // (pure, unit-tested); costs are per-component coefficient vectors, so both a
+    // linear unit cost c(0, x) and a designer cost vector round-trip.
+    let pendingRestore = ShareConfig.parseShareQuery(window.location.search);
+    if (pendingRestore && pendingRestore.dataset &&
+      Array.from($("dataset").options).some((o) => o.value === pendingRestore.dataset)) {
+      // Point the dataset select at the shared bundled dataset before boot loads it.
+      $("dataset").value = pendingRestore.dataset;
+    }
 
     // Which ticked components currently carry a designer cost.
     function customCostNames() {
@@ -354,7 +380,11 @@
         return;
       }
 
-      setStatus("Ready. Configure the model and press Run.", "ready");
+      // boot's loadBundled already ran applyRestore for a Share link; keep its cue
+      // rather than clobbering it with the generic ready message.
+      setStatus(restoredFromShare
+        ? "Restored a shared configuration — press Run to compute."
+        : "Ready. Configure the model and press Run.", "ready");
       $("data-panel").style.opacity = $("model-panel").style.opacity = "1";
       $("data-panel").style.pointerEvents = $("model-panel").style.pointerEvents = "auto";
       bootReady = true;
@@ -374,6 +404,7 @@
           ? "PG_DATA <- mtcars"
           : `utils::data(${name}, package = "LAGOtrials"); PG_DATA <- as.data.frame(${name})`
       );
+      currentSource = { type: "bundled", name: name };
       await refreshSchema(`bundled dataset ${name}`);
     }
 
@@ -381,6 +412,7 @@
     async function loadCSV(text, filename) {
       await webR.FS.writeFile("/tmp/pg_user.csv", new TextEncoder().encode(text));
       await webR.evalRVoid('PG_DATA <- utils::read.csv("/tmp/pg_user.csv", check.names = TRUE)');
+      currentSource = { type: "csv", name: filename };
       await refreshSchema(`uploaded ${filename}`);
     }
 
@@ -422,17 +454,22 @@
         $("data-info").textContent +=
           " Need at least two numeric columns (one outcome + one component); this data has " + numeric.length + ".";
       }
-      // On the very first load, prefill a runnable example: prefer a binary
-      // column as the outcome, then tick up to two other numeric columns as
-      // components, so a newcomer can just press Run.
-      if (firstBuild) {
+      // On the very first load either restore a shared configuration (if this
+      // page was opened from a Share link) or prefill a runnable example: prefer
+      // a binary column as the outcome, then tick up to two other numeric columns
+      // as components, so a newcomer can just press Run.
+      if (firstBuild && pendingRestore && pendingRestore.outcome &&
+        Array.from(outcome.options).some((o) => o.value === pendingRestore.outcome)) {
+        outcome.value = pendingRestore.outcome;
+      } else if (firstBuild) {
         const bin = numeric.find((c) => c.binary);
         if (bin) outcome.value = bin.name;
       }
       onOutcomeChanged();
       if (firstBuild) {
         firstBuild = false;
-        prefillComponents();
+        if (pendingRestore) { applyRestore(pendingRestore); pendingRestore = null; }
+        else prefillComponents();
       }
       updateRCode();
       // buildModelControls is the single funnel for every schema rebuild
@@ -448,6 +485,47 @@
         cb.checked = true;
         cb.dispatchEvent(new Event("change", { bubbles: true }));
       });
+    }
+
+    // Restore a configuration from a Share link. The outcome column has already
+    // been selected by buildModelControls; here we set the outcome type, tick the
+    // shared components (which builds their rows), set each one's bounds and cost
+    // (a c(0, x) vector becomes the linear unit cost, any other vector a designer
+    // cost), then the goal and direction.
+    function applyRestore(r) {
+      if (r.otype === "binary" || r.otype === "continuous") {
+        setSeg("otype", r.otype);
+        $("otype-auto").textContent = "(manual)";
+        updateGoalRange();
+      }
+      (r.components || []).forEach((name) => {
+        const cb = document.querySelector(`#components input[value="${CSS.escape(name)}"]`);
+        if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
+      });
+      (r.components || []).forEach((name, i) => {
+        const row = document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`);
+        if (!row) return;
+        const lb = row.querySelector(".lb"), ub = row.querySelector(".ub"), cost = row.querySelector(".cost");
+        if (Number.isFinite(r.lower[i])) lb.value = r.lower[i];
+        if (Number.isFinite(r.upper[i])) ub.value = r.upper[i];
+        const vec = r.costs[i];
+        const unit = ShareConfig.linearUnitCost(vec);
+        if (unit !== null) cost.value = unit;
+        else if (ShareConfig.isDesignerCost(vec)) customCosts[name] = vec;
+        // refresh the row's readouts (sync updates all three) and the R code
+        lb.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      if (r.goal !== null && Number.isFinite(Number(r.goal))) {
+        $("goal").value = Number(r.goal);
+        $("goal-val").textContent = fmt($("goal").value);
+      }
+      if (r.intent === "maximize" || r.intent === "minimize") setSeg("intent", r.intent);
+      updateDesignerNote();
+      // boot() shows the restore cue after it finishes (this runs mid-boot). Only
+      // claim a restore when a component actually came back, so a stale link whose
+      // components are absent from the dataset falls back to the ready message
+      // instead of a banner that contradicts the disabled Run button.
+      restoredFromShare = selectedComponents().length > 0;
     }
 
     // Set a segmented toggle (#otype / #intent) programmatically.
@@ -619,14 +697,14 @@
       });
     }
 
-    // Build the lago_optimization() call from the current controls. Returns
-    // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
-    function buildCall() {
-      // Read from the rendered rows. A component can be ticked a tick before its
-      // row exists (the delegated click/input listener fires updateRCode before
-      // the checkbox 'change' builds the row), so skip any not-yet-rendered row;
-      // the following 'change' event rebuilds the code with the row present.
-      const rows = selectedComponents()
+    // The selected components as {name, lb, ub, cost} read from their rendered
+    // rows. A component can be ticked a tick before its row exists (the delegated
+    // click/input listener fires before the checkbox 'change' builds the row), so
+    // any not-yet-rendered row is skipped; the following 'change' rebuilds with it
+    // present. Single source of the row shape for the R code, the designer link,
+    // and the share link.
+    function selectedRows() {
+      return selectedComponents()
         .map((name) => document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`))
         .filter(Boolean)
         .map((r) => ({
@@ -635,6 +713,12 @@
           ub: r.querySelector(".ub").value,
           cost: r.querySelector(".cost").value,
         }));
+    }
+
+    // Build the lago_optimization() call from the current controls. Returns
+    // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
+    function buildCall() {
+      const rows = selectedRows();
       if (!rows.length) return { ok: false, msg: "pick at least one component" };
       const call =
         `res <- lago_optimization(\n` +
@@ -669,15 +753,7 @@
     // Names are per-item encoded and comma-joined; numbers join with commas.
     // Returns null when no component is ready yet.
     function buildDesignerUrl() {
-      const rows = selectedComponents()
-        .map((name) => document.querySelector(`.comp-row[data-comp="${CSS.escape(name)}"]`))
-        .filter(Boolean)
-        .map((r) => ({
-          name: r.dataset.comp,
-          lb: r.querySelector(".lb").value,
-          ub: r.querySelector(".ub").value,
-          cost: r.querySelector(".cost").value,
-        }));
+      const rows = selectedRows();
       if (!rows.length) return null;
       // names go as one repeated `components` param each (so a name may contain a
       // comma); the numbers stay comma-joined.
@@ -685,6 +761,29 @@
       const nums = (key) => rows.map((r) => Number(r[key])).join(",");
       return "./visualize-cost/?" + comps +
         "&lower=" + nums("lb") + "&upper=" + nums("ub") + "&costs=" + nums("cost");
+    }
+
+    // Build a shareable link to this playground page that restores the whole
+    // setup (bundled dataset, outcome, type, components, bounds, costs, goal,
+    // direction). costs are per-component coefficient vectors so a designer cost
+    // survives too. Returns null when nothing is selected or the data is an
+    // uploaded CSV (which can't be encoded in a URL).
+    function buildShareUrl() {
+      if (currentSource.type !== "bundled") return null;
+      const rows = selectedRows();
+      if (!rows.length) return null;
+      const query = ShareConfig.buildShareQuery({
+        dataset: currentSource.name,
+        outcome: $("outcome").value,
+        otype: $("otype").dataset.value,
+        goal: $("goal").value,
+        intent: $("intent").dataset.value,
+        // a designer cost (full coefficient vector) overrides the linear unit
+        // cost c(0, cost) for that component
+        rows: rows.map((r) => ({ name: r.name, lb: r.lb, ub: r.ub,
+          costVec: customCosts[r.name] || [0, Number(r.cost)] })),
+      });
+      return location.origin + location.pathname + "?" + query;
     }
 
     // Live-mirror the R code for the current configuration into the code panel.
@@ -831,6 +930,20 @@
         setTimeout(() => { btn.textContent = label; }, 1200);
       } catch (e) {
         $("run-hint").textContent = "copy failed; select the code and copy manually";
+      }
+    });
+
+    // Copy a shareable link that restores this whole setup on load.
+    $("share-link").addEventListener("click", async () => {
+      const url = buildShareUrl();
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        const btn = $("share-link"), label = btn.textContent;
+        btn.textContent = "Link copied!";
+        setTimeout(() => { btn.textContent = label; }, 1400);
+      } catch (e) {
+        $("run-hint").textContent = "copy failed; here is the link: " + url;
       }
     });
 
