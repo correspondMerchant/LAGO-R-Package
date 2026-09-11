@@ -162,7 +162,7 @@ sens
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear      qsec rec_int_cost est_outcome_goal status
 #> 1    30   10  6.522269     83.13361               30     ok
-#> 2    35   10  9.239851     99.43910               35     ok
+#> 2    35   10  9.239851     99.43911               35     ok
 #> 3    40   10 11.957433    115.74460               40     ok
 #> rec_int_cost ranges from 83.13361 to 115.7446 as outcome_goal goes from 30 to
 #> 40.
@@ -203,8 +203,8 @@ cost_sens
 #>   value gear     qsec rec_int_cost est_outcome_goal status
 #> 1   0.8   10 6.522269     66.50689               30     ok
 #> 2   1.0   10 6.522269     83.13361               30     ok
-#> 3   1.2   10 6.522269     99.76033               30     ok
-#> rec_int_cost ranges from 66.50689 to 99.76033 as cost_multiplier goes from 0.8
+#> 3   1.2   10 6.522269     99.76034               30     ok
+#> rec_int_cost ranges from 66.50689 to 99.76034 as cost_multiplier goes from 0.8
 #> to 1.2.
 # }
 ```

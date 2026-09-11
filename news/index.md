@@ -2,6 +2,16 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed the in-browser playground’s default configuration not producing
+  a result. It prefilled the first binary column as the outcome, which
+  for `BB_data` is the `pre_post` pre/post period flag: perfectly
+  separable from the coaching components, so the outcome model never
+  converged and Run (and the sensitivity sweep) errored out of the box.
+  Each bundled dataset now starts from a preset that fits (`BB_data`
+  uses the `pp3_oxytocin_mother` outcome with the `coaching_updt` and
+  `launch_duration` components; `mtcars` uses `mpg` with `gear` and
+  `qsec`), and switching datasets or pressing Reset lands on that
+  dataset’s runnable preset. Uploaded CSVs keep the generic prefill.
 - The in-browser playground now has a “Sensitivity sweep” section that
   re-runs the recommendation across a range of one input, using
   [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md).

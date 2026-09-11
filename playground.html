@@ -238,6 +238,24 @@
     const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
 
     let webR, shelter, columns = [], firstBuild = true, bootReady = false, running = false;
+    // Set whenever the next schema build should (re)prefill a runnable example:
+    // true on first load and after a dataset switch, so each bundled dataset lands
+    // on a configuration whose model actually fits and Run/sweep work out of box.
+    let prefillNext = true;
+
+    // Known-good starting configuration per bundled dataset. The generic "first
+    // binary column" prefill can land on a column that doesn't yield a fittable
+    // model (e.g. BB_data's pre_post is a pre/post period flag, perfectly
+    // separable from the coaching components, so the GLM never converges); these
+    // pick a real outcome and components that do. A missing goal keeps the
+    // range-derived default. Uploaded CSVs have no preset and use the generic
+    // prefill.
+    const PRESETS = {
+      BB_data: { outcome: "pp3_oxytocin_mother", components: ["coaching_updt", "launch_duration"] },
+      mtcars: { outcome: "mpg", components: ["gear", "qsec"], goal: 25 },
+    };
+    const bundledPreset = () =>
+      currentSource.type === "bundled" ? PRESETS[currentSource.name] || null : null;
 
     // Run is enabled only once webR is ready, no run is in flight, AND at least
     // one component is ticked, with the reason shown when it stays disabled, so
@@ -483,23 +501,36 @@
         $("data-info").textContent +=
           " Need at least two numeric columns (one outcome + one component); this data has " + numeric.length + ".";
       }
-      // On the very first load either restore a shared configuration (if this
-      // page was opened from a Share link) or prefill a runnable example: prefer
-      // a binary column as the outcome, then tick up to two other numeric columns
-      // as components, so a newcomer can just press Run.
+      // On first load either restore a shared configuration (if opened from a
+      // Share link) or prefill a runnable example; a dataset switch reprefills
+      // too. Prefer the dataset's known-good preset outcome (so the model fits),
+      // else the first binary column, then tick runnable components, so a
+      // newcomer can just press Run.
+      const preset = bundledPreset();
       if (firstBuild && pendingRestore && pendingRestore.outcome &&
         Array.from(outcome.options).some((o) => o.value === pendingRestore.outcome)) {
         outcome.value = pendingRestore.outcome;
-      } else if (firstBuild) {
-        const bin = numeric.find((c) => c.binary);
-        if (bin) outcome.value = bin.name;
+      } else if (prefillNext) {
+        if (preset && Array.from(outcome.options).some((o) => o.value === preset.outcome)) {
+          outcome.value = preset.outcome;
+        } else {
+          const bin = numeric.find((c) => c.binary);
+          if (bin) outcome.value = bin.name;
+        }
       }
       onOutcomeChanged();
-      if (firstBuild) {
-        firstBuild = false;
-        if (pendingRestore) { applyRestore(pendingRestore); pendingRestore = null; }
-        else prefillComponents();
+      if (firstBuild && pendingRestore) {
+        applyRestore(pendingRestore); pendingRestore = null;
+      } else if (prefillNext) {
+        // a fresh prefill lands on the dataset's default goal (so a switch does
+        // not carry a stale, clamped goal across), which a preset may override;
+        // then keep the sweep range centered on whatever goal ended up set.
+        updateGoalRange(true);
+        if (preset) applyPreset(preset); else prefillComponents();
+        setSensDefaults();
       }
+      firstBuild = false;
+      prefillNext = false;
       updateRCode();
       // buildModelControls is the single funnel for every schema rebuild
       // (dataset switch, CSV upload, reset); the dataset select lives outside
@@ -514,6 +545,23 @@
         cb.checked = true;
         cb.dispatchEvent(new Event("change", { bubbles: true }));
       });
+    }
+
+    // Apply a bundled dataset's preset: tick its known-good components (the
+    // outcome was already selected in buildModelControls) and set its goal if it
+    // gives one. Falls back to the generic prefill if none of the named
+    // components are present (e.g. the data changed shape).
+    function applyPreset(preset) {
+      (preset.components || []).forEach((name) => {
+        const cb = document.querySelector(`#components input[value="${CSS.escape(name)}"]`);
+        if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
+      });
+      if (!selectedComponents().length) { prefillComponents(); return; }
+      if (preset.goal != null && Number.isFinite(preset.goal)) {
+        $("goal").value = preset.goal;
+        $("goal-val").textContent = fmt($("goal").value);
+        setSensDefaults();
+      }
     }
 
     // Restore a configuration from a Share link. The outcome column has already
@@ -640,8 +688,16 @@
       updateDesignerNote();
       setSeg("intent", "maximize");
       onOutcomeChanged();
-      prefillComponents();
+      // Force the range-derived default goal first; a preset with its own goal
+      // (applied below) then overrides it, matching the first-load order.
       updateGoalRange(true);
+      // restore the dataset's known-good components when the outcome is still the
+      // preset's (so Reset stays runnable); otherwise a generic two-component pick.
+      const preset = bundledPreset();
+      if (preset && $("outcome").value === preset.outcome) applyPreset(preset);
+      else prefillComponents();
+      // keep the sweep range centered on whatever goal ended up set
+      setSensDefaults();
       updateRunEnabled();
     }
 
@@ -1050,8 +1106,22 @@
     // wire up
     $("dataset").addEventListener("change", async (e) => {
       clearResults(); setStatus("Loading " + e.target.value + "…");
+      // reprefill for the newly chosen dataset so it lands on a runnable preset
+      prefillNext = true;
+      // single-flight the load: disable the dataset/file inputs until it finishes
+      // so a second switch can't race and leave the final dataset unprefilled (or
+      // render the new schema against the previous dataset's just-loaded columns).
+      $("dataset").disabled = $("file").disabled = true;
       try { await loadBundled(e.target.value); setStatus("Ready.", "ready"); }
-      catch (err) { setStatus("Could not load dataset: " + errMsg(err), "error"); }
+      catch (err) {
+        // clear the arm so a failed load can't leak a reprefill into a later CSV
+        prefillNext = false;
+        setStatus("Could not load dataset: " + errMsg(err), "error");
+      } finally {
+        // don't re-enable mid-run: if a Run/Sweep started during the load it
+        // owns the lock and re-enables these in its own finally when it clears.
+        if (!running) $("dataset").disabled = $("file").disabled = false;
+      }
     });
     const drop = $("drop"), file = $("file");
     drop.addEventListener("click", () => file.click());
