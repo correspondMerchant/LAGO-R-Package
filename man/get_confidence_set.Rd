@@ -222,6 +222,7 @@ head(cs$cs)
 [lago_optimization()]
 
 Other LAGO functions:
+\code{\link[=lago_budget]{lago_budget()}},
 \code{\link[=lago_optimization]{lago_optimization()}},
 \code{\link[=lago_report]{lago_report()}},
 \code{\link[=lago_sensitivity]{lago_sensitivity()}},

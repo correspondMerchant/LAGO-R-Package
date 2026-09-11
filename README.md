@@ -26,12 +26,13 @@ The LAGOtrials R package bridges the gap between theoretical advances in Learn-A
 3. [Basic use case](#basic-use-case)
 4. [More advanced use case](#more-advanced-use-case)
 5. [Sensitivity analysis](#sensitivity-analysis)
-6. [How to run additional examples](#how-to-run-additional-examples)
-7. [Using LAGOtrials from Python](#using-lagotrials-from-python)
-8. [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
-9. [Relevant LAGO papers](#relevant-lago-papers)
-10. [Citation](#citation)
-11. [How to get help](#how-to-get-help)
+6. [Budget-constrained optimization](#budget-constrained-optimization)
+7. [How to run additional examples](#how-to-run-additional-examples)
+8. [Using LAGOtrials from Python](#using-lagotrials-from-python)
+9. [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
+10. [Relevant LAGO papers](#relevant-lago-papers)
+11. [Citation](#citation)
+12. [How to get help](#how-to-get-help)
 
 
 ## How to install the R package
@@ -45,9 +46,9 @@ The LAGOtrials R package bridges the gap between theoretical advances in Learn-A
 Not ready to install? Try the package in your browser on the [live demo page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html), or design an optimization interactively with the [guided playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html).
 
 ## The main functions
-The LAGOtrials R package has four user-facing functions `lago_optimization()`, `lago_sensitivity()`, `visualize_cost()`, and `lago_report()`.
+The LAGOtrials R package has five user-facing functions `lago_optimization()`, `lago_sensitivity()`, `lago_budget()`, `visualize_cost()`, and `lago_report()`.
 
-`lago_optimization()` carries out the LAGO optimizations, `lago_sensitivity()` checks how robust the recommendation is to your assumptions, `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained, interactive HTML report of an optimization result.
+`lago_optimization()` carries out the LAGO optimizations, `lago_sensitivity()` checks how robust the recommendation is to your assumptions, `lago_budget()` answers the reverse question ("given a fixed budget, what is the best outcome I can reach?"), `visualize_cost()` helps you choose cost functions for the intervention components, and `lago_report()` renders a self-contained, interactive HTML report of an optimization result.
 
 `lago_optimization()` returns an object of class `"lago"` with `print()`, `summary()`, and `plot()` methods: `print()` (and the identical `summary()`) shows the full result on the console, including an inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set; `plot()` visualizes the confidence set. `lago_report(result)` writes those same sections, plus a session-info footer, to a shareable HTML file, with the confidence set and the cost functions drawn as interactive D3 charts.
 
@@ -57,6 +58,8 @@ These functions take many arguments.
 To understand the input arguments, read the help files by running the following code in R **(this step is HIGHLY recommended, please do this before moving on to the examples)**:
 ```
 help(lago_optimization)
+help(lago_sensitivity)
+help(lago_budget)
 help(visualize_cost)
 help(lago_report)
 ```
@@ -381,6 +384,23 @@ plot(sens)    # the recommended cost as a function of the swept value
 You can also call `lago_sensitivity()` without a fitted result by passing the `lago_optimization()` arguments directly (the same arguments, plus `parameter` and `values`); passing the result just saves retyping them.
 
 Use `parameter = "cost_multiplier"` to scale every cost at once (for example `values = c(0.8, 1, 1.2)` for plus or minus 20%). Runs that fail are recorded as `NA` with a `status` note rather than stopping the sweep, and the confidence set is skipped for speed.
+
+## Budget-constrained optimization
+`lago_optimization()` finds the least costly intervention that reaches an outcome goal. `lago_budget()` answers the reverse question a trial designer often has: **given a fixed budget, what is the best outcome I can reach, and with which intervention?**
+
+The best-outcome-within-budget intervention lies on the same least-cost frontier `lago_optimization()` traces out, so `lago_budget()` searches the outcome goal to find the most ambitious one whose recommended cost still fits the budget. Like `lago_sensitivity()`, it reuses a fitted result's call (or takes the arguments directly), and it never computes the confidence set.
+
+```r
+b <- lago_budget(
+  result,        # reuse the call from the fit above
+  budget = 100
+)
+
+b             # the recommended intervention, its cost (<= budget), and estimated outcome
+plot(b)       # the cost/outcome frontier, with the budget line and the choice marked
+```
+
+The result reports whether the budget is `feasible` (some reachable intervention fits it) and whether it is `binding` (a larger budget would buy a better outcome), along with the full `frontier` of cost-vs-outcome points the search traced. For `outcome_goal_intention = "minimize"` it returns the lowest outcome reachable within budget instead.
 
 ## How to run additional examples
 This README does not document every input argument, every component of the outcome model, or the optimization algorithm behind the recommended interventions.

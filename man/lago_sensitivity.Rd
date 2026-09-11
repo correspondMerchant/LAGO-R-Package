@@ -150,6 +150,7 @@ cost_sens
 
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},
+\code{\link[=lago_budget]{lago_budget()}},
 \code{\link[=lago_optimization]{lago_optimization()}},
 \code{\link[=lago_report]{lago_report()}},
 \code{\link[=visualize_cost]{visualize_cost()}}

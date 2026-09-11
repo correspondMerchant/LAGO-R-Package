@@ -33,6 +33,7 @@ reference:
   contents:
   - lago_optimization
   - lago_sensitivity
+  - lago_budget
   - visualize_cost
 - title: Reporting
   desc: Generate a shareable report from an optimization result.
@@ -46,6 +47,8 @@ reference:
   - plot.lago
   - print.lago_sensitivity
   - plot.lago_sensitivity
+  - print.lago_budget
+  - plot.lago_budget
 - title: Datasets
   desc: Datasets included with the package.
   contents:
