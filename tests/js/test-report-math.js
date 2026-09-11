@@ -77,4 +77,25 @@ check(
   Math.abs(pts[10].y - m.costAt(coefs, pts[10].x)) < TOL
 );
 
+// 6. sensFinitePoints: keep only points whose value AND cost are present and
+// finite. A failed sweep run serializes cost as null; +null is 0 (finite), so
+// the guard must reject null before the isFinite check (regression guard for
+// the sensitivity chart's filter).
+var sens = [
+  { value: 30, cost: 12 },       // ok
+  { value: 35, cost: null },     // failed run -> drop (must not plot at 0)
+  { value: 40, cost: 5 },        // ok
+  { value: null, cost: 7 },      // no swept value -> drop
+  { value: 45, cost: NaN }       // non-finite cost -> drop
+];
+var kept = m.sensFinitePoints(sens);
+check("sensFinitePoints keeps only the 2 finite points", kept.length === 2);
+check("sensFinitePoints keeps the right rows", kept[0].value === 30 && kept[1].value === 40);
+check("sensFinitePoints drops a null cost (not plotted at 0)",
+  !kept.some(function (p) { return p.cost === null; }));
+check("sensFinitePoints on [] is []", m.sensFinitePoints([]).length === 0);
+check("sensFinitePoints on undefined is []", m.sensFinitePoints(undefined).length === 0);
+check("sensFinitePoints keeps a legitimate zero cost",
+  m.sensFinitePoints([{ value: 1, cost: 0 }]).length === 1);
+
 console.log("\nAll " + passed + " JS report-math assertions passed.");

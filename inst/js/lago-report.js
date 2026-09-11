@@ -10,9 +10,10 @@
 // The file is split into two parts, mirroring cost-curves.js:
 //   1. Pure math (costAt / marginalAt / sampleCurve). No DOM/d3 dependency, so
 //      it can be unit-tested under node (tests/js/test-report-math.js).
-//   2. Browser rendering, exposed as window.LAGOReport with two entry points:
+//   2. Browser rendering, exposed as window.LAGOReport with these entry points:
 //        LAGOReport.renderConfidenceSet(elementId, data)
 //        LAGOReport.renderCostCurves(elementId, data)
+//        LAGOReport.renderSensitivity(elementId, data)  (used by the playground)
 //      Each takes the JSON the report serialized with jsonlite and a target
 //      element id, and draws into that element. They are no-ops when d3 is
 //      absent, so the report degrades gracefully.
@@ -58,10 +59,21 @@
     return pts;
   }
 
+  // Sensitivity points that can be plotted: both value and cost present and
+  // finite. A failed run serializes cost as null, and +null is 0 (finite), so
+  // the null check must come first. Pure so it can be unit-tested.
+  function sensFinitePoints(points) {
+    return (points || []).filter(function (p) {
+      return p && p.value != null && p.cost != null &&
+        isFinite(+p.value) && isFinite(+p.cost);
+    });
+  }
+
   var math = {
     costAt: costAt,
     marginalAt: marginalAt,
-    sampleCurve: sampleCurve
+    sampleCurve: sampleCurve,
+    sensFinitePoints: sensFinitePoints
   };
 
   // Export for node (unit tests). Harmless in the browser.
@@ -81,7 +93,8 @@
     if (global) {
       global.LAGOReport = {
         renderConfidenceSet: function () {},
-        renderCostCurves: function () {}
+        renderCostCurves: function () {},
+        renderSensitivity: function () {}
       };
     }
     return;
@@ -549,11 +562,114 @@
       });
   }
 
+  // ---- sensitivity viz ----------------------------------------------------
+  //
+  // data.parameter  : the swept parameter name, used as the x-axis label
+  //                   (e.g. "outcome_goal" or "cost_multiplier").
+  // data.points     : array of { value, cost, est, status, comps }, one per
+  //                   swept value; comps is an object of component name ->
+  //                   recommended value for that run (shown in the tooltip).
+  // data.components : component names, giving the tooltip a stable order.
+  //
+  // Draws the recommended cost against the swept value as a line with points:
+  // a cost-of-stringency curve for an outcome_goal sweep, a straight line for a
+  // cost_multiplier sweep. Points with a non-finite cost (a failed run) are
+  // dropped; a no-op when none remain.
+  function renderSensitivity(elementId, data) {
+    var host = document.getElementById(elementId);
+    if (!host || !data || !data.points) {
+      return;
+    }
+    var comps = data.components || [];
+    var pts = sensFinitePoints(data.points);
+    var sel = d3.select(host);
+    sel.selectAll("*").remove();
+    if (pts.length === 0) {
+      return;
+    }
+
+    var xs = pts.map(function (p) { return +p.value; });
+    var ys = pts.map(function (p) { return +p.cost; });
+    var xScale = d3.scaleLinear().domain(paddedExtent(xs)).range([0, IW]).nice();
+    // anchor the cost axis at 0 so a flat curve stays readable
+    var yLo = Math.min(0, d3.min(ys));
+    var yHi = d3.max(ys);
+    if (!(yHi > yLo)) {
+      yHi = yLo + 1;
+    }
+    var yScale = d3
+      .scaleLinear()
+      .domain([yLo, yHi + (yHi - yLo) * 0.1])
+      .range([IH, 0])
+      .nice();
+
+    var chart = makeSvg(sel, {
+      title: "Sensitivity: recommended cost",
+      xlab: data.parameter,
+      ylab: "recommended cost",
+      xScale: xScale,
+      yScale: yScale
+    });
+    var g = chart.g;
+    var tip = makeTooltip(g);
+
+    // sort by x so the connecting line runs monotone in the swept value
+    var line = pts.slice().sort(function (a, b) { return +a.value - +b.value; });
+    var lineGen = d3
+      .line()
+      .x(function (p) { return xScale(+p.value); })
+      .y(function (p) { return yScale(+p.cost); });
+    g.append("path")
+      .datum(line)
+      .attr("fill", "none")
+      .attr("stroke", COLOR_TOTAL)
+      .attr("stroke-width", 2)
+      .attr("d", lineGen);
+
+    g.selectAll("circle.sens-pt")
+      .data(pts)
+      .enter()
+      .append("circle")
+      .attr("class", "sens-pt")
+      .attr("cx", function (d) { return xScale(+d.value); })
+      .attr("cy", function (d) { return yScale(+d.cost); })
+      .attr("r", 5)
+      .attr("fill", COLOR_TOTAL)
+      .attr("fill-opacity", 0.7)
+      .attr("stroke", "white")
+      .attr("stroke-width", 0.75)
+      .style("cursor", "pointer")
+      .on("mouseover", function (event, d) {
+        d3.select(this).attr("fill-opacity", 1).attr("r", 6.5);
+        tip.show(sensTooltipLines(comps, data.parameter, d), xScale(+d.value), yScale(+d.cost));
+      })
+      .on("mouseout", function () {
+        d3.select(this).attr("fill-opacity", 0.7).attr("r", 5);
+        tip.hide();
+      });
+  }
+
+  // Tooltip lines for one sensitivity point: the swept value, the cost, the
+  // estimated outcome, then each component's recommended value.
+  function sensTooltipLines(comps, param, p) {
+    var lines = [param + ": " + fmt(+p.value), "cost: " + fmt(+p.cost)];
+    if (p.est != null && isFinite(+p.est)) {
+      lines.push("est. outcome: " + fmt(+p.est));
+    }
+    (comps || []).forEach(function (c) {
+      if (p.comps && p.comps[c] != null && isFinite(+p.comps[c])) {
+        lines.push(c + ": " + fmt(+p.comps[c]));
+      }
+    });
+    return lines;
+  }
+
   // Public API.
   if (global) {
     global.LAGOReport = {
       renderConfidenceSet: renderConfidenceSet,
-      renderCostCurves: renderCostCurves
+      renderCostCurves: renderCostCurves,
+      renderSensitivity: renderSensitivity
     };
   }
 })(typeof window !== "undefined" ? window : this);
