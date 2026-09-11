@@ -64,6 +64,16 @@ Paste this into R (after `library(LAGOtrials)`) to reproduce the run.
 ``` out
 ```
 
+## Sensitivity sweep
+
+vary outcome goal cost multiplier from to steps
+
+Run sweep
+
+Re-runs the recommendation across a range of one input to show how it
+moves. Each step is a full optimization, and the confidence set is
+skipped for speed.
+
 webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing
 you load or type leaves your browser. The confidence-set plot is drawn
 for one- or two-component interventions (three or more still get the

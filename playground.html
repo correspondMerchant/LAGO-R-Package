@@ -179,6 +179,28 @@
     <div id="cs-plot"></div>
     <div id="cost-curves"></div>
 
+    <div class="panel" id="sens-panel" style="margin-top:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Sensitivity sweep</h2>
+        <span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <label>vary
+            <select id="sens-param">
+              <option value="outcome_goal">outcome goal</option>
+              <option value="cost_multiplier">cost multiplier</option>
+            </select>
+          </label>
+          <label>from <input type="number" id="sens-from" step="any" style="width:6em;"></label>
+          <label>to <input type="number" id="sens-to" step="any" style="width:6em;"></label>
+          <label>steps <input type="number" id="sens-steps" min="2" max="15" step="1" value="5" style="width:4.5em;"></label>
+          <button type="button" id="sens-run" class="secondary" disabled title="Re-run the recommendation across a range of one input">Run sweep</button>
+          <span id="sens-hint" class="hint"></span>
+        </span>
+      </div>
+      <p class="hint" style="margin:6px 0 0;">Re-runs the recommendation across a range of one input to show how it moves. Each step is a full optimization, and the confidence set is skipped for speed.</p>
+      <div id="sens-plot"></div>
+      <div id="sens-table"></div>
+    </div>
+
     <p class="note">
       webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
       confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
@@ -205,7 +227,11 @@
     const statusEl = $("status"), statusText = $("status-text");
     const setStatus = (t, k) => { statusText.textContent = t; statusEl.className = "status" + (k ? " " + k : ""); };
     const errMsg = (e) => (e && e.message ? e.message : String(e));
-    const clearResults = () => { $("output").textContent = ""; $("cs-plot").innerHTML = ""; $("cost-curves").innerHTML = ""; };
+    const clearResults = () => {
+      $("output").textContent = "";
+      $("cs-plot").innerHTML = ""; $("cost-curves").innerHTML = "";
+      $("sens-plot").innerHTML = ""; $("sens-table").innerHTML = "";
+    };
     // Escape a value for safe interpolation into an R character string.
     const rstr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
     const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
@@ -227,6 +253,9 @@
       $("open-designer").disabled = !ok;
       // sharing needs components AND a bundled dataset (a CSV can't go in a URL)
       $("share-link").disabled = !ok || currentSource.type !== "bundled";
+      // the sensitivity sweep re-runs the current optimization, so it needs a
+      // component too and must not start while a run/sweep is in flight
+      $("sens-run").disabled = !ok || running;
       if ($("run-hint").textContent === "running…") return;
       $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
     }
@@ -573,6 +602,8 @@
       renderComponentChips();
       updateGoalRange();
       renderCompConfig();
+      // the sweep's default range keys off the goal, which just re-ranged
+      setSensDefaults();
     }
 
     // The goal slider spans 0-1 for a binary outcome, or the selected outcome
@@ -715,36 +746,58 @@
         }));
     }
 
-    // Build the lago_optimization() call from the current controls. Returns
-    // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
-    function buildCall() {
+    // The lago_optimization() argument list for the current controls, as R
+    // source (one "  name = value" per line, comma-joined, no trailing comma).
+    // Shared by the run call and the sensitivity sweep so they never drift.
+    // Returns null when no component is ready.
+    function optimizationArgs() {
       const rows = selectedRows();
-      if (!rows.length) return { ok: false, msg: "pick at least one component" };
-      const call =
-        `res <- lago_optimization(\n` +
-        `  data = PG_DATA,\n` +
-        `  outcome_name = ${rstr($("outcome").value)},\n` +
-        `  outcome_type = ${rstr($("otype").dataset.value)},\n` +
-        `  intervention_components = ${rchar(rows.map((r) => r.name))},\n` +
-        `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))},\n` +
-        `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))},\n` +
+      if (!rows.length) return null;
+      return [
+        `  data = PG_DATA`,
+        `  outcome_name = ${rstr($("outcome").value)}`,
+        `  outcome_type = ${rstr($("otype").dataset.value)}`,
+        `  intervention_components = ${rchar(rows.map((r) => r.name))}`,
+        `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))}`,
+        `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))}`,
         `  cost_list_of_vectors = list(${rows.map((r) => {
           // a designer cost (full coefficient vector) overrides the linear unit
           // cost c(0, cost) for that component
           const cv = customCosts[r.name];
           return cv ? `c(${cv.map(Number).join(", ")})` : `c(0, ${Number(r.cost)})`;
-        }).join(", ")}),\n` +
-        `  outcome_goal = ${Number($("goal").value)},\n` +
-        `  outcome_goal_intention = ${rstr($("intent").dataset.value)},\n` +
+        }).join(", ")})`,
+        `  outcome_goal = ${Number($("goal").value)}`,
+        `  outcome_goal_intention = ${rstr($("intent").dataset.value)}`,
         `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
           // Roughly 20 grid steps across each component's range, so a wide
           // continuous range (e.g. mtcars qsec, 0-350) does not blow up the
           // confidence-set grid; fall back to 1 for a degenerate range.
           const span = Number(r.ub) - Number(r.lb);
           return span > 0 ? Math.max(span / 20, 1e-6) : 1;
-        }))},\n` +
-        `  quiet = TRUE\n)`;
-      return { ok: true, call };
+        }))}`,
+        `  quiet = TRUE`,
+      ].join(",\n");
+    }
+
+    // Build the lago_optimization() call from the current controls. Returns
+    // {ok:false,msg} when nothing is selected yet, else {ok:true, call}.
+    function buildCall() {
+      const args = optimizationArgs();
+      if (!args) return { ok: false, msg: "pick at least one component" };
+      return { ok: true, call: `res <- lago_optimization(\n${args}\n)` };
+    }
+
+    // Build a lago_sensitivity() call that re-runs the current optimization
+    // across `values` of `parameter` ("outcome_goal" or "cost_multiplier"). It
+    // forwards the same arguments as the run (confidence set is forced off
+    // inside lago_sensitivity, so the sweep stays fast). Returns null when no
+    // component is ready.
+    function buildSensitivityCall(parameter, values) {
+      const args = optimizationArgs();
+      if (!args) return null;
+      return `sens <- lago_sensitivity(\n${args},\n` +
+        `  parameter = ${rstr(parameter)},\n` +
+        `  values = ${rnum(values)}\n)`;
     }
 
     // Build a deep link to the cost designer for the currently selected
@@ -802,8 +855,10 @@
       $("run").disabled = true; $("run-hint").textContent = "running…";
       // Lock the data/reset controls too: a reset, dataset switch or upload
       // mid-run would rebuild the controls while the in-flight result still
-      // renders against the old config, leaving the panels disagreeing.
+      // renders against the old config, leaving the panels disagreeing. The
+      // sweep button is locked as well so it isn't left clickable-but-inert.
       $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
+      $("sens-run").disabled = true;
       clearResults();
       $("output").textContent = "Computing the recommendation…";
       const call = built.call;
@@ -865,6 +920,133 @@
       }
     }
 
+    // n evenly spaced values from a to b inclusive (just [a] when n <= 1).
+    function linspace(a, b, n) {
+      if (n <= 1) return [a];
+      const step = (b - a) / (n - 1);
+      return Array.from({ length: n }, (_, i) => a + i * step);
+    }
+
+    // Fill the sweep from/to with a sensible default range for the chosen
+    // parameter: a band around the current outcome goal (kept inside the goal
+    // slider's range), or 0.5x-1.5x for the cost multiplier.
+    function setSensDefaults() {
+      const round3 = (v) => Math.round(v * 1000) / 1000;
+      if ($("sens-param").value === "cost_multiplier") {
+        $("sens-from").value = 0.5; $("sens-to").value = 1.5;
+      } else {
+        const g = Number($("goal").value);
+        const gmin = Number($("goal").min), gmax = Number($("goal").max);
+        const band = (gmax - gmin) * 0.15 || Math.abs(g) * 0.15 || 1;
+        $("sens-from").value = round3(Math.max(gmin, g - band));
+        $("sens-to").value = round3(Math.min(gmax, g + band));
+      }
+    }
+
+    // Build an HTML table of the sweep: swept value, each component's
+    // recommended value, cost, estimated outcome, and status.
+    function renderSensTable(elId, data) {
+      const host = $(elId);
+      const comps = data.components || [];
+      // component names come from a user-uploaded CSV's columns, so escape them
+      // before putting them in innerHTML (the other headers and cells are fixed
+      // labels or numbers). Cells use a literal em dash for a missing value.
+      const esc = (s) => String(s).replace(/[&<>"]/g,
+        (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const num = (v) => (v == null || !isFinite(Number(v)) ? "—" : fmt(v));
+      const head = ["value", ...comps, "cost", "est. outcome", "status"]
+        .map((h) => `<th style="text-align:left;padding:4px 10px;border-bottom:1px solid #ddd;">${esc(h)}</th>`).join("");
+      const rows = data.points.map((p) => {
+        const cells = [num(p.value), ...comps.map((c) => num(p.comps ? p.comps[c] : null)),
+          num(p.cost), num(p.est), p.status === "ok" ? "ok" : "error"];
+        return "<tr>" + cells.map((c) => `<td style="padding:4px 10px;border-bottom:1px solid #f0f0f0;">${c}</td>`).join("") + "</tr>";
+      }).join("");
+      host.innerHTML = `<table style="border-collapse:collapse;font-size:13px;margin-top:8px;">` +
+        `<thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    // Run the sensitivity sweep: re-run the current optimization across a range
+    // of one input and draw how the recommended cost (and each component) moves.
+    async function runSweep() {
+      if (!shelter || running) return;
+      const param = $("sens-param").value;
+      const from = Number($("sens-from").value), to = Number($("sens-to").value);
+      let steps = Math.round(Number($("sens-steps").value));
+      if (!Number.isFinite(from) || !Number.isFinite(to)) {
+        $("sens-hint").textContent = "enter a numeric from/to range"; return;
+      }
+      if (!Number.isFinite(steps) || steps < 2) steps = 2;
+      if (steps > 15) steps = 15;
+      if (param === "cost_multiplier" && (from <= 0 || to <= 0)) {
+        $("sens-hint").textContent = "cost multiplier must be positive"; return;
+      }
+      const values = linspace(from, to, steps).map((v) => Math.round(v * 1e6) / 1e6);
+      const call = buildSensitivityCall(param, values);
+      if (!call) { $("sens-hint").textContent = "pick at least one component"; return; }
+
+      running = true;
+      $("sens-run").disabled = $("run").disabled = true;
+      $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
+      $("sens-hint").textContent = "sweeping " + values.length + " values…";
+      $("sens-plot").innerHTML = ""; $("sens-table").innerHTML = "";
+      try {
+        // run the sweep (warnings from failed runs are shown), then serialize it.
+        const cap = await shelter.captureR(call, { withAutoprint: false, captureConditions: false });
+        await shelter.purge();
+        const json = await webR.evalRString(`{
+          comps <- attr(sens, "component_names")
+          # the sensitivity data.frame is value, <component cols>, rec_int_cost,
+          # est_outcome_goal, status; take the component values by POSITION (cols
+          # 2..1+n) rather than by name, so a component literally named "value"
+          # reads its own recommended value, not the swept "value" column. (A
+          # component named like a TRAILING output column -- rec_int_cost /
+          # est_outcome_goal / status -- is already clobbered inside
+          # lago_sensitivity() before this runs and can't be recovered here; that
+          # is a pre-existing edge in that function, not fixable playground-side.)
+          comp_idx <- if (length(comps)) seq_len(length(comps)) + 1L else integer(0)
+          jsonlite::toJSON(list(
+            parameter = attr(sens, "parameter"),
+            components = I(as.character(comps)),
+            points = lapply(seq_len(nrow(sens)), function(i) list(
+              value = as.numeric(sens$value[i]),
+              cost = as.numeric(sens$rec_int_cost[i]),
+              est = as.numeric(sens$est_outcome_goal[i]),
+              status = as.character(sens$status[i]),
+              comps = as.list(stats::setNames(
+                as.numeric(unlist(sens[i, comp_idx, drop = FALSE])), comps))
+            ))
+          ), auto_unbox = TRUE, na = "null", digits = NA)
+        }`);
+        const data = JSON.parse(json);
+        // normalize: jsonlite emits a scalar (not a length-1 array) for one value
+        if (!Array.isArray(data.points)) data.points = [data.points];
+        if (data.components && !Array.isArray(data.components)) data.components = [data.components];
+        // guard the method's existence too: right after a deploy the installed
+        // package may still carry an older lago-report.js without this renderer,
+        // in which case we skip the chart but still show the table.
+        if (window.LAGOReport && LAGOReport.renderSensitivity) {
+          LAGOReport.renderSensitivity("sens-plot", data);
+        }
+        renderSensTable("sens-table", data);
+        const nFail = data.points.filter((p) => p.status !== "ok").length;
+        $("sens-hint").textContent = nFail
+          ? nFail + " of " + data.points.length + " runs failed (shown as —)"
+          : "";
+      } catch (err) {
+        // set the R error via textContent (it can contain < or &), matching run()
+        $("sens-plot").innerHTML = "";
+        const p = document.createElement("p");
+        p.className = "hint";
+        p.textContent = "The sweep couldn't run with these settings: " + errMsg(err);
+        $("sens-plot").appendChild(p);
+        $("sens-hint").textContent = "";
+      } finally {
+        running = false;
+        $("reset").disabled = $("dataset").disabled = $("file").disabled = false;
+        updateRunEnabled();
+      }
+    }
+
     // wire up
     $("dataset").addEventListener("change", async (e) => {
       clearResults(); setStatus("Loading " + e.target.value + "…");
@@ -897,6 +1079,10 @@
     }
     $("run").addEventListener("click", run);
     $("reset").addEventListener("click", resetModel);
+    $("sens-run").addEventListener("click", runSweep);
+    // switching the swept parameter resets the from/to to a sensible default
+    $("sens-param").addEventListener("change", setSensDefaults);
+    setSensDefaults();
 
     // Goal slider readout; changing the outcome re-detects type, components and
     // the goal range.

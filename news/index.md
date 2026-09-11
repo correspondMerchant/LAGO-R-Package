@@ -2,6 +2,15 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground now has a “Sensitivity sweep” section that
+  re-runs the recommendation across a range of one input, using
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md).
+  Pick the input to vary (the outcome goal or a cost multiplier), a
+  from/to range and a number of steps, and it draws how the recommended
+  cost moves as an interactive D3 line (with each run’s per-component
+  recommendation, estimated outcome and status in a table beneath). The
+  confidence set is skipped during the sweep for speed, and a failed run
+  is shown as a gap rather than aborting the sweep.
 - The in-browser playground now has a “Share link” button that encodes
   the whole current setup (bundled dataset, outcome column and type,
   intervention components, their bounds and costs, the goal and
