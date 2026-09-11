@@ -381,6 +381,7 @@ carries its own call arguments in the attribute \`"lago_call_args"\`
 
 Other LAGO functions:
 [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
+[`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)

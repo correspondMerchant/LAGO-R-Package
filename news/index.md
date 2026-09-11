@@ -2,6 +2,23 @@
 
 ## LAGOtrials 1.1.0
 
+- Added
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),
+  which answers the reverse of the usual LAGO question: given a fixed
+  cost budget, what is the best outcome reachable, and with which
+  intervention? It searches the outcome goal along the least-cost
+  frontier
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  traces out and returns the most ambitious reachable goal whose
+  recommended cost fits the budget (the lowest reachable outcome within
+  budget for `outcome_goal_intention = "minimize"`), with
+  [`print()`](https://rdrr.io/r/base/print.html) and
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) methods and a
+  `frontier` of the cost-vs-outcome points searched. Like
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
+  it reuses a fitted `lago` result’s call or takes the arguments
+  directly, and it never computes the confidence set. It reports whether
+  the budget is feasible and whether it binds.
 - Fixed the in-browser playground’s default configuration not producing
   a result. It prefilled the first binary column as the outcome, which
   for `BB_data` is the `pre_post` pre/post period flag: perfectly

@@ -81,6 +81,7 @@ the button does not save the list.
 
 Other LAGO functions:
 [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
+[`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)

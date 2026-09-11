@@ -8,6 +8,8 @@ Main user-facing functions.
   : Run a LAGO optimization
 - [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
   : Sensitivity analysis for a LAGO recommendation
+- [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  : Budget-constrained LAGO optimization
 - [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   : Visualize and choose intervention cost functions
 
@@ -32,6 +34,10 @@ Methods for the objects returned by the functions above.
   : Print a LAGO sensitivity analysis
 - [`plot(`*`<lago_sensitivity>`*`)`](https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago_sensitivity.md)
   : Plot a LAGO sensitivity analysis
+- [`print(`*`<lago_budget>`*`)`](https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago_budget.md)
+  : Print a budget-constrained LAGO result
+- [`plot(`*`<lago_budget>`*`)`](https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago_budget.md)
+  : Plot a budget-constrained LAGO result
 
 ## Datasets
 

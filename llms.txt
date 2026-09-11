@@ -41,12 +41,13 @@ interventions.
 3.  [Basic use case](#basic-use-case)
 4.  [More advanced use case](#more-advanced-use-case)
 5.  [Sensitivity analysis](#sensitivity-analysis)
-6.  [How to run additional examples](#how-to-run-additional-examples)
-7.  [Using LAGOtrials from Python](#using-lagotrials-from-python)
-8.  [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
-9.  [Relevant LAGO papers](#relevant-lago-papers)
-10. [Citation](#citation)
-11. [How to get help](#how-to-get-help)
+6.  [Budget-constrained optimization](#budget-constrained-optimization)
+7.  [How to run additional examples](#how-to-run-additional-examples)
+8.  [Using LAGOtrials from Python](#using-lagotrials-from-python)
+9.  [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
+10. [Relevant LAGO papers](#relevant-lago-papers)
+11. [Citation](#citation)
+12. [How to get help](#how-to-get-help)
 
 ## How to install the R package
 
@@ -66,9 +67,10 @@ playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html)
 
 ## The main functions
 
-The LAGOtrials R package has four user-facing functions
+The LAGOtrials R package has five user-facing functions
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
+[`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md),
 and
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md).
@@ -77,6 +79,9 @@ and
 carries out the LAGO optimizations,
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
 checks how robust the recommendation is to your assumptions,
+[`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+answers the reverse question (“given a fixed budget, what is the best
+outcome I can reach?”),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
 helps you choose cost functions for the intervention components, and
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
@@ -121,6 +126,8 @@ read the help files by running the following code in R **(this step is
 HIGHLY recommended, please do this before moving on to the examples)**:
 
     help(lago_optimization)
+    help(lago_sensitivity)
+    help(lago_budget)
     help(visualize_cost)
     help(lago_report)
 
@@ -552,6 +559,43 @@ example `values = c(0.8, 1, 1.2)` for plus or minus 20%). Runs that fail
 are recorded as `NA` with a `status` note rather than stopping the
 sweep, and the confidence set is skipped for speed.
 
+## Budget-constrained optimization
+
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+finds the least costly intervention that reaches an outcome goal.
+[`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+answers the reverse question a trial designer often has: **given a fixed
+budget, what is the best outcome I can reach, and with which
+intervention?**
+
+The best-outcome-within-budget intervention lies on the same least-cost
+frontier
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+traces out, so
+[`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+searches the outcome goal to find the most ambitious one whose
+recommended cost still fits the budget. Like
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
+it reuses a fitted result’s call (or takes the arguments directly), and
+it never computes the confidence set.
+
+``` r
+
+b <- lago_budget(
+  result,        # reuse the call from the fit above
+  budget = 100
+)
+
+b             # the recommended intervention, its cost (<= budget), and estimated outcome
+plot(b)       # the cost/outcome frontier, with the budget line and the choice marked
+```
+
+The result reports whether the budget is `feasible` (some reachable
+intervention fits it) and whether it is `binding` (a larger budget would
+buy a better outcome), along with the full `frontier` of cost-vs-outcome
+points the search traced. For `outcome_goal_intention = "minimize"` it
+returns the lowest outcome reachable within budget instead.
+
 ## How to run additional examples
 
 This README does not document every input argument, every component of
@@ -767,6 +811,8 @@ Main user-facing functions.
   : Run a LAGO optimization
 - [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
   : Sensitivity analysis for a LAGO recommendation
+- [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  : Budget-constrained LAGO optimization
 - [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   : Visualize and choose intervention cost functions
 
@@ -791,6 +837,10 @@ Methods for the objects returned by the functions above.
   : Print a LAGO sensitivity analysis
 - [`plot(`*`<lago_sensitivity>`*`)`](https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago_sensitivity.md)
   : Plot a LAGO sensitivity analysis
+- [`print(`*`<lago_budget>`*`)`](https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago_budget.md)
+  : Print a budget-constrained LAGO result
+- [`plot(`*`<lago_budget>`*`)`](https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago_budget.md)
+  : Plot a budget-constrained LAGO result
 
 ## Datasets
 
