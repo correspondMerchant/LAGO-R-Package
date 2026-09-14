@@ -74,6 +74,16 @@ Re-runs the recommendation across a range of one input to show how it
 moves. Each step is a full optimization, and the confidence set is
 skipped for speed.
 
+## Budget: best outcome for a cost
+
+budget
+
+Find best within budget
+
+The reverse of an outcome goal: given a fixed cost budget, finds the
+best outcome you can reach and the intervention that reaches it. Runs
+several optimizations, so it takes a few seconds.
+
 webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing
 you load or type leaves your browser. The confidence-set plot is drawn
 for one- or two-component interventions (three or more still get the

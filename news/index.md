@@ -2,6 +2,16 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground now has a “Budget” section that surfaces
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md):
+  enter a cost budget and it finds the best outcome reachable within it
+  and the intervention that reaches it (the reverse of setting an
+  outcome goal). It reports the recommendation, its cost and estimated
+  outcome (or that no intervention fits), notes when the budget does not
+  bind, and draws the cost/outcome frontier as an interactive D3 chart
+  with the budget line and the chosen point marked. The budget field
+  auto-fills a sensible default from the current costs and bounds until
+  it is edited.
 - Added
   [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),
   which answers the reverse of the usual LAGO question: given a fixed
