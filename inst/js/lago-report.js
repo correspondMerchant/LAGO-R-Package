@@ -14,6 +14,7 @@
 //        LAGOReport.renderConfidenceSet(elementId, data)
 //        LAGOReport.renderCostCurves(elementId, data)
 //        LAGOReport.renderSensitivity(elementId, data)  (used by the playground)
+//        LAGOReport.renderBudget(elementId, data)        (used by the playground)
 //      Each takes the JSON the report serialized with jsonlite and a target
 //      element id, and draws into that element. They are no-ops when d3 is
 //      absent, so the report degrades gracefully.
@@ -69,11 +70,22 @@
     });
   }
 
+  // Budget-frontier points that can be plotted: both recommended cost and
+  // estimated outcome present and finite (a null from R must be rejected before
+  // the finite check, since +null is 0). Pure so it can be unit-tested.
+  function budgetFinitePoints(frontier) {
+    return (frontier || []).filter(function (p) {
+      return p && p.rec_int_cost != null && p.est_outcome != null &&
+        isFinite(+p.rec_int_cost) && isFinite(+p.est_outcome);
+    });
+  }
+
   var math = {
     costAt: costAt,
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
-    sensFinitePoints: sensFinitePoints
+    sensFinitePoints: sensFinitePoints,
+    budgetFinitePoints: budgetFinitePoints
   };
 
   // Export for node (unit tests). Harmless in the browser.
@@ -94,7 +106,8 @@
       global.LAGOReport = {
         renderConfidenceSet: function () {},
         renderCostCurves: function () {},
-        renderSensitivity: function () {}
+        renderSensitivity: function () {},
+        renderBudget: function () {}
       };
     }
     return;
@@ -664,12 +677,114 @@
     return lines;
   }
 
+  // ---- budget-frontier viz ------------------------------------------------
+  //
+  // data.frontier    : array of { outcome_goal, rec_int_cost, est_outcome,
+  //                    affordable, status }, the reachable cost/outcome tradeoff.
+  // data.budget      : the cost budget (drawn as a vertical line).
+  // data.feasible    : whether a within-budget recommendation was found.
+  // data.cost/.est_outcome : the chosen point (highlighted) when feasible.
+  //
+  // Plots estimated outcome against recommended cost (the cost-effectiveness
+  // frontier), colours points within/over budget, marks the budget with a
+  // dashed line, and highlights the chosen recommendation. Mirrors
+  // plot.lago_budget(). No-op when nothing reachable is finite.
+  function renderBudget(elementId, data) {
+    var host = document.getElementById(elementId);
+    if (!host || !data || !data.frontier) {
+      return;
+    }
+    var pts = budgetFinitePoints(data.frontier);
+    var sel = d3.select(host);
+    sel.selectAll("*").remove();
+    if (pts.length === 0) {
+      return;
+    }
+
+    var xs = pts.map(function (p) { return +p.rec_int_cost; });
+    var ys = pts.map(function (p) { return +p.est_outcome; });
+    if (data.budget != null && isFinite(+data.budget)) xs.push(+data.budget);
+    var xScale = d3.scaleLinear().domain(paddedExtent(xs)).range([0, IW]).nice();
+    var yScale = d3.scaleLinear().domain(paddedExtent(ys)).range([IH, 0]).nice();
+
+    var chart = makeSvg(sel, {
+      title: "Budget frontier: best outcome per cost",
+      xlab: "recommended cost",
+      ylab: "estimated outcome",
+      xScale: xScale,
+      yScale: yScale
+    });
+    var g = chart.g;
+    var tip = makeTooltip(g);
+
+    // connecting line, in cost order
+    var line = pts.slice().sort(function (a, b) {
+      return +a.rec_int_cost - +b.rec_int_cost;
+    });
+    g.append("path")
+      .datum(line)
+      .attr("fill", "none")
+      .attr("stroke", COLOR_TOTAL)
+      .attr("stroke-width", 2)
+      .attr("d", d3.line()
+        .x(function (p) { return xScale(+p.rec_int_cost); })
+        .y(function (p) { return yScale(+p.est_outcome); }));
+
+    // budget line
+    if (data.budget != null && isFinite(+data.budget)) {
+      var bx = xScale(+data.budget);
+      g.append("line")
+        .attr("x1", bx).attr("x2", bx).attr("y1", 0).attr("y2", IH)
+        .attr("stroke", COLOR_REC).attr("stroke-dasharray", "4,3");
+    }
+
+    // points, coloured by affordability
+    g.selectAll("circle.bud-pt")
+      .data(pts)
+      .enter()
+      .append("circle")
+      .attr("class", "bud-pt")
+      .attr("cx", function (d) { return xScale(+d.rec_int_cost); })
+      .attr("cy", function (d) { return yScale(+d.est_outcome); })
+      .attr("r", 5)
+      .attr("fill", function (d) { return d.affordable ? COLOR_POINT : "#b0b7c0"; })
+      .attr("fill-opacity", 0.75)
+      .attr("stroke", "white")
+      .attr("stroke-width", 0.75)
+      .style("cursor", "pointer")
+      .on("mouseover", function (event, d) {
+        d3.select(this).attr("fill-opacity", 1).attr("r", 6.5);
+        tip.show([
+          "cost: " + fmt(+d.rec_int_cost),
+          "est. outcome: " + fmt(+d.est_outcome),
+          d.affordable ? "within budget" : "over budget"
+        ], xScale(+d.rec_int_cost), yScale(+d.est_outcome));
+      })
+      .on("mouseout", function () {
+        d3.select(this).attr("fill-opacity", 0.75).attr("r", 5);
+        tip.hide();
+      });
+
+    // chosen recommendation (red diamond)
+    if (data.feasible && data.cost != null && isFinite(+data.cost) &&
+      data.est_outcome != null && isFinite(+data.est_outcome)) {
+      g.append("path")
+        .attr("d", d3.symbol().type(d3.symbolDiamond).size(120))
+        .attr("transform", "translate(" + xScale(+data.cost) + "," +
+          yScale(+data.est_outcome) + ")")
+        .attr("fill", COLOR_REC)
+        .attr("stroke", "white")
+        .attr("stroke-width", 1.5);
+    }
+  }
+
   // Public API.
   if (global) {
     global.LAGOReport = {
       renderConfidenceSet: renderConfidenceSet,
       renderCostCurves: renderCostCurves,
-      renderSensitivity: renderSensitivity
+      renderSensitivity: renderSensitivity,
+      renderBudget: renderBudget
     };
   }
 })(typeof window !== "undefined" ? window : this);

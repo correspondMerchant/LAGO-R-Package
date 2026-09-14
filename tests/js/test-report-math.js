@@ -98,4 +98,25 @@ check("sensFinitePoints on undefined is []", m.sensFinitePoints(undefined).lengt
 check("sensFinitePoints keeps a legitimate zero cost",
   m.sensFinitePoints([{ value: 1, cost: 0 }]).length === 1);
 
+// 7. budgetFinitePoints: keep only frontier points whose rec_int_cost AND
+// est_outcome are present and finite (a null from R must be rejected before the
+// finite check, since +null is 0). Regression guard for the budget chart.
+var fr = [
+  { rec_int_cost: 30, est_outcome: 0.6 },   // ok
+  { rec_int_cost: null, est_outcome: 0.7 }, // failed run -> drop
+  { rec_int_cost: 50, est_outcome: null },  // no outcome -> drop
+  { rec_int_cost: 80, est_outcome: 0.9 },   // ok
+  { rec_int_cost: NaN, est_outcome: 0.5 }   // non-finite -> drop
+];
+var bkept = m.budgetFinitePoints(fr);
+check("budgetFinitePoints keeps only the 2 finite points", bkept.length === 2);
+check("budgetFinitePoints keeps the right rows",
+  bkept[0].rec_int_cost === 30 && bkept[1].rec_int_cost === 80);
+check("budgetFinitePoints drops a null cost (not plotted at 0)",
+  !bkept.some(function (p) { return p.rec_int_cost === null; }));
+check("budgetFinitePoints on [] is []", m.budgetFinitePoints([]).length === 0);
+check("budgetFinitePoints on undefined is []", m.budgetFinitePoints(undefined).length === 0);
+check("budgetFinitePoints keeps a legitimate zero cost/outcome",
+  m.budgetFinitePoints([{ rec_int_cost: 0, est_outcome: 0 }]).length === 1);
+
 console.log("\nAll " + passed + " JS report-math assertions passed.");

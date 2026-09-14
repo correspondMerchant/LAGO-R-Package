@@ -201,6 +201,20 @@
       <div id="sens-table"></div>
     </div>
 
+    <div class="panel" id="bud-panel" style="margin-top:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Budget: best outcome for a cost</h2>
+        <span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <label>budget <input type="number" id="bud-budget" step="any" min="0" style="width:7em;"></label>
+          <button type="button" id="bud-run" class="secondary" disabled title="Find the best outcome reachable within this budget">Find best within budget</button>
+          <span id="bud-hint" class="hint"></span>
+        </span>
+      </div>
+      <p class="hint" style="margin:6px 0 0;">The reverse of an outcome goal: given a fixed cost budget, finds the best outcome you can reach and the intervention that reaches it. Runs several optimizations, so it takes a few seconds.</p>
+      <div id="bud-summary" class="hint" style="margin:8px 0 0;"></div>
+      <div id="bud-plot"></div>
+    </div>
+
     <p class="note">
       webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
       confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
@@ -231,6 +245,7 @@
       $("output").textContent = "";
       $("cs-plot").innerHTML = ""; $("cost-curves").innerHTML = "";
       $("sens-plot").innerHTML = ""; $("sens-table").innerHTML = "";
+      $("bud-plot").innerHTML = ""; $("bud-summary").textContent = "";
     };
     // Escape a value for safe interpolation into an R character string.
     const rstr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
@@ -242,6 +257,9 @@
     // true on first load and after a dataset switch, so each bundled dataset lands
     // on a configuration whose model actually fits and Run/sweep work out of box.
     let prefillNext = true;
+    // Has the user typed their own budget? Until then the budget field auto-fills
+    // a sensible default from the current costs/bounds; reset on a schema rebuild.
+    let budgetDirty = false;
 
     // Known-good starting configuration per bundled dataset. The generic "first
     // binary column" prefill can land on a column that doesn't yield a fittable
@@ -274,6 +292,10 @@
       // the sensitivity sweep re-runs the current optimization, so it needs a
       // component too and must not start while a run/sweep is in flight
       $("sens-run").disabled = !ok || running;
+      // the budget search likewise needs a component and a free thread
+      $("bud-run").disabled = !ok || running;
+      // keep a sensible default budget in the field until the user edits it
+      if (ok) setBudgetDefault();
       if ($("run-hint").textContent === "running…") return;
       $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
     }
@@ -359,6 +381,9 @@
       if (applied) {
         updateDesignerNote();
         updateRCode();
+        // the designer changed the cost scale, so let the budget field re-default
+        // to it (setBudgetDefault, via updateRunEnabled, no-ops if the user edited)
+        updateRunEnabled();
         // Make the hand-off obvious: the config changed but the result doesn't
         // recompute until Run, and the note sits below the fold. Announce it in
         // the status banner (top of the page, visible when the user switches back
@@ -481,7 +506,9 @@
       }));
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
       // a new dataset/CSV has different components, so drop any designer costs
+      // and let the budget field re-default to the new cost scale
       customCosts = {};
+      budgetDirty = false;
       updateDesignerNote();
       buildModelControls();
     }
@@ -685,6 +712,8 @@
       $("comp-config").innerHTML = "";
       // drop any designer cost overrides so Reset restores the linear baseline
       customCosts = {};
+      // let the budget field auto-fill from the reset costs again
+      budgetDirty = false;
       updateDesignerNote();
       setSeg("intent", "maximize");
       onOutcomeChanged();
@@ -856,6 +885,19 @@
         `  values = ${rnum(values)}\n)`;
     }
 
+    // Build a lago_budget() call: the best outcome reachable within `budget`.
+    // Reuses the same optimization arguments (they already end with quiet = TRUE,
+    // which binds lago_budget()'s own quiet, so it is not repeated; the swept
+    // outcome_goal in the args is overridden internally). n_grid is kept modest
+    // to bound the number of webR optimizations. Returns null when no component
+    // is ready.
+    function buildBudgetCall(budget) {
+      const args = optimizationArgs();
+      if (!args) return null;
+      return `bud <- lago_budget(\n${args},\n` +
+        `  budget = ${Number(budget)},\n  n_grid = 8\n)`;
+    }
+
     // Build a deep link to the cost designer for the currently selected
     // components, carrying their names, bounds and unit costs as query params
     // (the designer reads these to build itself for exactly these components).
@@ -914,7 +956,8 @@
       // renders against the old config, leaving the panels disagreeing. The
       // sweep button is locked as well so it isn't left clickable-but-inert.
       $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
-      $("sens-run").disabled = true;
+      // lock the sweep and budget buttons too so they aren't clickable-but-inert
+      $("sens-run").disabled = $("bud-run").disabled = true;
       clearResults();
       $("output").textContent = "Computing the recommendation…";
       const call = built.call;
@@ -1041,7 +1084,7 @@
       if (!call) { $("sens-hint").textContent = "pick at least one component"; return; }
 
       running = true;
-      $("sens-run").disabled = $("run").disabled = true;
+      $("sens-run").disabled = $("run").disabled = $("bud-run").disabled = true;
       $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
       $("sens-hint").textContent = "sweeping " + values.length + " values…";
       $("sens-plot").innerHTML = ""; $("sens-table").innerHTML = "";
@@ -1103,6 +1146,124 @@
       }
     }
 
+    // Total cost of putting every selected component at its lower vs upper bound
+    // (the cheapest and dearest interventions the bounds allow). Used to prefill
+    // a default budget in between, so the field is never empty and the default
+    // is above the cost floor the lower bounds impose (a plain fraction of the
+    // max can fall below it). Uses the designer cost vector when present, else
+    // the linear unit cost c(0, cost).
+    function computeCostBounds() {
+      const evalAt = (coefs, x) =>
+        coefs.reduce((s, a, k) => s + Number(a) * Math.pow(x, k), 0);
+      return selectedRows().reduce((acc, r) => {
+        const coefs = customCosts[r.name] || [0, Number(r.cost)];
+        const lo = evalAt(coefs, Number(r.lb)), hi = evalAt(coefs, Number(r.ub));
+        return {
+          min: acc.min + (Number.isFinite(lo) ? lo : 0),
+          max: acc.max + (Number.isFinite(hi) ? hi : 0),
+        };
+      }, { min: 0, max: 0 });
+    }
+    function setBudgetDefault() {
+      if (budgetDirty) return;
+      const b = computeCostBounds();
+      // midpoint of the cheapest/dearest interventions: above the cost floor
+      // (so it is usually feasible) and below the max (so it usually binds).
+      const mid = (b.min + b.max) / 2;
+      if (mid <= 0) return;
+      // round to cents, but for a sub-cent cost scale keep enough precision that
+      // a positive midpoint never rounds down to an unusable 0.
+      const v = mid >= 0.01 ? Math.round(mid * 100) / 100 : Number(mid.toPrecision(2));
+      if (v > 0) $("bud-budget").value = v;
+    }
+
+    // Write the plain-language recommendation (or the no-fit note) into the
+    // summary line. textContent throughout, since component names come from a
+    // user-uploaded CSV.
+    function renderBudgetSummary(data) {
+      const el = $("bud-summary");
+      if (!data.feasible) {
+        // the frontier holds only genuinely reached goals; empty means the model
+        // reached nothing in range (a larger budget won't help), otherwise the
+        // budget is simply below the cheapest reachable option.
+        const anyReachable = Array.isArray(data.frontier) && data.frontier.length > 0;
+        el.textContent = anyReachable
+          ? "No intervention fits a budget of " + fmt(data.budget) +
+            " (the cheapest reachable option costs more). Try a larger budget."
+          : "No reachable intervention was found for these settings. Check the outcome, components, bounds and costs.";
+        return;
+      }
+      const comps = data.components || [];
+      const rec = data.rec || {};
+      const parts = comps.map((c) => c + " = " + fmt(rec[c])).join(", ");
+      let s = "Best within budget " + fmt(data.budget) + ": " + parts +
+        " — cost " + fmt(data.cost) + ", estimated outcome " + fmt(data.est_outcome) + ".";
+      if (data.binding === false) {
+        // direction-aware: for "minimize" the best is the lowest reachable outcome
+        const extreme = data.intention === "minimize" ? "minimum" : "maximum";
+        s += " (The budget doesn't bind — this is the " + extreme + " reachable outcome.)";
+      }
+      el.textContent = s;
+    }
+
+    // Find the best outcome reachable within the entered budget and draw the
+    // cost/outcome frontier with the budget line and the chosen point marked.
+    async function runBudget() {
+      if (!shelter || running) return;
+      const budget = Number($("bud-budget").value);
+      if (!Number.isFinite(budget) || budget <= 0) {
+        $("bud-hint").textContent = "enter a positive budget"; return;
+      }
+      const call = buildBudgetCall(budget);
+      if (!call) { $("bud-hint").textContent = "pick at least one component"; return; }
+
+      running = true;
+      $("bud-run").disabled = $("run").disabled = $("sens-run").disabled = true;
+      $("reset").disabled = $("dataset").disabled = $("file").disabled = true;
+      $("bud-hint").textContent = "searching…";
+      $("bud-plot").innerHTML = ""; $("bud-summary").textContent = "";
+      try {
+        await shelter.captureR(call, { withAutoprint: false, captureConditions: false });
+        await shelter.purge();
+        const json = await webR.evalRString(`{
+          comps <- bud$component_names
+          jsonlite::toJSON(list(
+            budget = bud$budget,
+            feasible = bud$feasible,
+            binding = bud$binding,
+            components = I(as.character(comps)),
+            rec = as.list(stats::setNames(as.numeric(bud$rec_int), comps)),
+            cost = as.numeric(bud$rec_int_cost),
+            est_outcome = as.numeric(bud$est_outcome),
+            intention = bud$intention,
+            frontier = bud$frontier
+          ), auto_unbox = TRUE, na = "null", digits = NA, dataframe = "rows")
+        }`);
+        const data = JSON.parse(json);
+        if (data.components && !Array.isArray(data.components)) data.components = [data.components];
+        // jsonlite emits a single frontier row as an object, not a length-1 array
+        if (data.frontier && !Array.isArray(data.frontier)) data.frontier = [data.frontier];
+        renderBudgetSummary(data);
+        // guard the method: right after a deploy the installed package may carry
+        // an older lago-report.js without this renderer, so skip the chart then.
+        if (window.LAGOReport && LAGOReport.renderBudget) {
+          LAGOReport.renderBudget("bud-plot", data);
+        }
+        $("bud-hint").textContent = "";
+      } catch (err) {
+        $("bud-plot").innerHTML = "";
+        const p = document.createElement("p");
+        p.className = "hint";
+        p.textContent = "The budget search couldn't run with these settings: " + errMsg(err);
+        $("bud-plot").appendChild(p);
+        $("bud-hint").textContent = "";
+      } finally {
+        running = false;
+        $("reset").disabled = $("dataset").disabled = $("file").disabled = false;
+        updateRunEnabled();
+      }
+    }
+
     // wire up
     $("dataset").addEventListener("change", async (e) => {
       clearResults(); setStatus("Loading " + e.target.value + "…");
@@ -1150,6 +1311,9 @@
     $("run").addEventListener("click", run);
     $("reset").addEventListener("click", resetModel);
     $("sens-run").addEventListener("click", runSweep);
+    $("bud-run").addEventListener("click", runBudget);
+    // once the user edits the budget, stop auto-filling it
+    $("bud-budget").addEventListener("input", () => { budgetDirty = true; });
     // switching the swept parameter resets the from/to to a sensible default
     $("sens-param").addEventListener("change", setSensDefaults);
     setSensDefaults();
