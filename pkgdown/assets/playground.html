@@ -152,6 +152,10 @@
       <label id="components-label" style="display:block;margin-top:14px;">Intervention components</label>
       <div id="components" role="group" aria-labelledby="components-label"></div>
       <div id="comp-config"></div>
+
+      <label id="center-chars-label" style="display:block;margin-top:14px;">Center characteristics <span class="hint" style="font-weight:400;">(optional &mdash; optimize for a center holding these at set values)</span></label>
+      <div id="center-chars" role="group" aria-labelledby="center-chars-label"></div>
+      <div id="center-char-config"></div>
     </div>
 
     <div class="controls-bar">
@@ -662,9 +666,98 @@
         chip.innerHTML = `<input type="checkbox" value="${c.name}"> ${c.name}`;
         const cb = chip.querySelector("input");
         if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
-        cb.addEventListener("change", () => { chip.classList.toggle("on", cb.checked); renderCompConfig(); updateRunEnabled(); });
+        cb.addEventListener("change", () => {
+          chip.classList.toggle("on", cb.checked);
+          renderCompConfig();
+          // a column can't be both a component and a center characteristic, so
+          // re-render the center-char chips to drop one that just became a component
+          renderCenterCharChips();
+          updateRunEnabled();
+        });
         comps.appendChild(chip);
       });
+    }
+
+    function selectedCenterCharNames() {
+      return Array.from(document.querySelectorAll("#center-chars input:checked")).map((c) => c.value);
+    }
+    // Selected center characteristics as {name, value} pairs read from their
+    // rows. A row whose value is blank or non-numeric is dropped rather than
+    // sent: Number("") is 0, so emitting it would silently optimize for that
+    // characteristic held at 0 (usually far outside the observed range) with no
+    // error. An empty value therefore means "not applied" (the value pre-fills to
+    // the column midpoint on tick, so blank only happens if the user clears it).
+    function selectedCenterChars() {
+      return Array.from(document.querySelectorAll(".cc-row"))
+        .map((r) => ({ name: r.dataset.cc, value: r.querySelector(".cc-val").value }))
+        .filter((c) => c.value !== "" && Number.isFinite(Number(c.value)));
+    }
+
+    // Center-characteristic chips: numeric columns that are neither the outcome
+    // nor a ticked component (a column can only play one role). Ticking one adds
+    // a value row below. Built with the DOM (not innerHTML) so a CSV column name
+    // can't inject markup.
+    function renderCenterCharChips() {
+      const box = $("center-chars");
+      const checked = new Set(selectedCenterCharNames());
+      const outcomeName = $("outcome").value;
+      const comps = new Set(selectedComponents());
+      box.innerHTML = "";
+      const eligible = columns.filter(
+        (c) => c.numeric && c.name !== outcomeName && !comps.has(c.name)
+      );
+      if (!eligible.length) {
+        box.innerHTML =
+          '<p class="hint" style="margin:0;">No other numeric columns available as center characteristics.</p>';
+        renderCenterCharConfig();
+        return;
+      }
+      eligible.forEach((c) => {
+        const chip = document.createElement("label");
+        chip.className = "chip";
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.value = c.name;
+        if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
+        cb.addEventListener("change", () => {
+          chip.classList.toggle("on", cb.checked); renderCenterCharConfig(); updateRunEnabled();
+        });
+        chip.appendChild(cb);
+        chip.appendChild(document.createTextNode(" " + c.name));
+        box.appendChild(chip);
+      });
+      renderCenterCharConfig();
+    }
+
+    // A numeric "value at" input per ticked center characteristic, defaulting to
+    // the column's observed midpoint (a typical center), preserving prior edits.
+    function renderCenterCharConfig() {
+      const box = $("center-char-config");
+      const chosen = selectedCenterCharNames();
+      const prev = {};
+      box.querySelectorAll(".cc-row").forEach((r) => { prev[r.dataset.cc] = r.querySelector(".cc-val").value; });
+      box.innerHTML = "";
+      chosen.forEach((name) => {
+        const col = columns.find((c) => c.name === name) || {};
+        const mid = (Number.isFinite(col.min) && Number.isFinite(col.max))
+          ? (col.min + col.max) / 2 : 0;
+        const row = document.createElement("div");
+        row.className = "comp-row cc-row";
+        row.dataset.cc = name;
+        const nm = document.createElement("span");
+        nm.className = "name"; nm.textContent = name;
+        const ctl = document.createElement("div");
+        ctl.className = "ctl";
+        const lab = document.createElement("span");
+        lab.textContent = "value at";
+        const input = document.createElement("input");
+        input.type = "number"; input.step = "any"; input.className = "cc-val";
+        input.setAttribute("aria-label", "value of " + name);
+        input.value = prev[name] != null ? prev[name] : Math.round(mid * 1000) / 1000;
+        ctl.appendChild(lab); ctl.appendChild(input);
+        row.appendChild(nm); row.appendChild(ctl);
+        box.appendChild(row);
+      });
+      updateRCode();
     }
 
     // On load and whenever the outcome column changes: auto-pick the outcome
@@ -677,6 +770,8 @@
       renderComponentChips();
       updateGoalRange();
       renderCompConfig();
+      // center-char eligibility depends on the outcome and the ticked components
+      renderCenterCharChips();
       // the sweep's default range keys off the goal, which just re-ranged
       setSensDefaults();
     }
@@ -710,6 +805,9 @@
       clearResults();
       document.querySelectorAll("#components input:checked").forEach((cb) => { cb.checked = false; });
       $("comp-config").innerHTML = "";
+      // drop any center characteristics too (onOutcomeChanged re-renders the chips)
+      document.querySelectorAll("#center-chars input:checked").forEach((cb) => { cb.checked = false; });
+      $("center-char-config").innerHTML = "";
       // drop any designer cost overrides so Reset restores the linear baseline
       customCosts = {};
       // let the budget field auto-fill from the reset costs again
@@ -838,7 +936,7 @@
     function optimizationArgs() {
       const rows = selectedRows();
       if (!rows.length) return null;
-      return [
+      const args = [
         `  data = PG_DATA`,
         `  outcome_name = ${rstr($("outcome").value)}`,
         `  outcome_type = ${rstr($("otype").dataset.value)}`,
@@ -853,6 +951,16 @@
         }).join(", ")})`,
         `  outcome_goal = ${Number($("goal").value)}`,
         `  outcome_goal_intention = ${rstr($("intent").dataset.value)}`,
+      ];
+      // optional center characteristics: the recommendation is computed for a
+      // center holding these columns at the given values. Both args must be
+      // supplied together and aligned (lago_optimization() requires it).
+      const ccs = selectedCenterChars();
+      if (ccs.length) {
+        args.push(`  center_characteristics = ${rchar(ccs.map((c) => c.name))}`);
+        args.push(`  center_characteristics_optimization_values = ${rnum(ccs.map((c) => c.value))}`);
+      }
+      args.push(
         `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
           // Roughly 20 grid steps across each component's range, so a wide
           // continuous range (e.g. mtcars qsec, 0-350) does not blow up the
@@ -860,8 +968,9 @@
           const span = Number(r.ub) - Number(r.lb);
           return span > 0 ? Math.max(span / 20, 1e-6) : 1;
         }))}`,
-        `  quiet = TRUE`,
-      ].join(",\n");
+        `  quiet = TRUE`
+      );
+      return args.join(",\n");
     }
 
     // Build the lago_optimization() call from the current controls. Returns
