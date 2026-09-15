@@ -41,6 +41,9 @@ Minimize
 
 Intervention components
 
+Center characteristics (optional — optimize for a center holding these
+at set values)
+
 Run optimization
 
 Reset
