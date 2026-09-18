@@ -628,6 +628,41 @@
         $("goal-val").textContent = fmt($("goal").value);
       }
       if (r.intent === "maximize" || r.intent === "minimize") setSeg("intent", r.intent);
+      // Center characteristics: ticking the components above already re-rendered
+      // the chips, so only columns still eligible (numeric, not the outcome, not
+      // a component) have a chip to tick. Tick the shared ones (which builds a
+      // value row each), then set every held-at value. A shared characteristic
+      // that is now a component has no chip and is dropped, matching the one-role
+      // rule; setting the value dispatches input so the R code refreshes.
+      (r.centerChars || []).forEach((name) => {
+        const cb = document.querySelector(`#center-chars input[value="${CSS.escape(name)}"]`);
+        if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
+      });
+      (r.centerChars || []).forEach((name, i) => {
+        const row = document.querySelector(`.cc-row[data-cc="${CSS.escape(name)}"]`);
+        if (row && Number.isFinite(r.centerCharValues[i])) {
+          const inp = row.querySelector(".cc-val");
+          inp.value = r.centerCharValues[i];
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+      // A shared budget is the user's own choice, so pin it (mark it dirty so the
+      // auto-default can't overwrite it) and fill the field.
+      if (r.budget != null && Number.isFinite(r.budget) && r.budget > 0) {
+        $("bud-budget").value = r.budget;
+        budgetDirty = true;
+      }
+      // Sweep: set the param without firing its change handler (which would reset
+      // the range to defaults for the new param), then restore the shared range
+      // and step count. Left untouched when the link omits them.
+      if (r.sweep) {
+        if (r.sweep.param === "outcome_goal" || r.sweep.param === "cost_multiplier") {
+          $("sens-param").value = r.sweep.param;
+        }
+        if (Number.isFinite(r.sweep.from)) $("sens-from").value = r.sweep.from;
+        if (Number.isFinite(r.sweep.to)) $("sens-to").value = r.sweep.to;
+        if (Number.isFinite(r.sweep.steps)) $("sens-steps").value = r.sweep.steps;
+      }
       updateDesignerNote();
       // boot() shows the restore cue after it finishes (this runs mid-boot). Only
       // claim a restore when a component actually came back, so a stale link whose
@@ -1032,6 +1067,7 @@
       if (currentSource.type !== "bundled") return null;
       const rows = selectedRows();
       if (!rows.length) return null;
+      const budgetVal = Number($("bud-budget").value);
       const query = ShareConfig.buildShareQuery({
         dataset: currentSource.name,
         outcome: $("outcome").value,
@@ -1042,6 +1078,13 @@
         // cost c(0, cost) for that component
         rows: rows.map((r) => ({ name: r.name, lb: r.lb, ub: r.ub,
           costVec: customCosts[r.name] || [0, Number(r.cost)] })),
+        // {name, value} pairs, already filtered to finite held-at values
+        centerChars: selectedCenterChars(),
+        // only share a budget the user actually typed; otherwise let the opened
+        // link auto-fill its own default from the (possibly rescaled) costs
+        budget: budgetDirty && Number.isFinite(budgetVal) && budgetVal > 0 ? budgetVal : null,
+        sweep: { param: $("sens-param").value, from: $("sens-from").value,
+          to: $("sens-to").value, steps: $("sens-steps").value },
       });
       return location.origin + location.pathname + "?" + query;
     }

@@ -2,6 +2,14 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground’s “Share link” now carries the whole page,
+  not just the core optimization: the center characteristics and their
+  held-at values, a budget you have entered, and the sensitivity sweep’s
+  input, range and step count all round-trip through the URL, so an
+  opened link reproduces the full setup. Older or hand-trimmed links
+  that omit these simply keep the page’s own defaults for those
+  controls.
+
 - The in-browser playground now has an optional “Center characteristics”
   section: tick numeric columns (for example a center’s birth volume)
   and set the value each is held at, and the recommendation is computed
@@ -11,7 +19,6 @@
   `center_characteristics_optimization_values`. The sensitivity sweep
   and budget search inherit the same setting. A column can be an
   intervention component or a center characteristic but not both.
-  (Center characteristics are not yet carried in the Share link.)
 
 - The in-browser playground now has a “Budget” section that surfaces
   [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md):
