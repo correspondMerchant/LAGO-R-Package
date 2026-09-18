@@ -8,7 +8,12 @@
 // `lower`/`upper` comma-joined, `costs` a ";"-separated list of per-component
 // coefficient vectors (comma within), plus goal and intent. A component's cost
 // is either a linear unit cost, encoded as the vector c(0, x), or a designer
-// cost, encoded as its full coefficient vector, so both round-trip.
+// cost, encoded as its full coefficient vector, so both round-trip. The center
+// characteristics (one repeated `cc` name each, values comma-joined in `ccval`),
+// a user-set `budget`, and the sweep settings (`sparam`, `sfrom`, `sto`,
+// `ssteps`) ride along too, so a link restores the whole page and not just the
+// core optimization. Each of these is optional: an older or truncated link that
+// omits them simply keeps the page's own defaults for that control.
 (function (global) {
   "use strict";
 
@@ -35,8 +40,20 @@
   function parseShareQuery(search) {
     var q = new URLSearchParams(search || "");
     if (!q.has("outcome") && !q.has("components")) return null;
-    var toNums = function (s) { return s ? s.split(",").map(Number) : []; };
+    // An empty comma segment becomes NaN, not 0: Number("") is 0, so a truncated
+    // or hand-trimmed list ("1.5," -> ["1.5",""]) would otherwise force that
+    // position to 0. NaN makes the caller's Number.isFinite guard (bounds/ccval)
+    // or its linearUnitCost/isDesignerCost check (costs) skip it, so a missing
+    // value keeps the control's default rather than pinning it to 0 (as the
+    // "degrades rather than forcing to zero" contract below intends).
+    var toNum = function (x) { return x === "" ? NaN : Number(x); };
+    var toNums = function (s) { return s ? s.split(",").map(toNum) : []; };
     var costs = q.get("costs");
+    // A finite number from a query value, else null: keeps a missing or
+    // hand-mangled optional field from forcing a control to NaN or 0.
+    var numOrNull = function (s) {
+      return s !== null && s !== "" && Number.isFinite(Number(s)) ? Number(s) : null;
+    };
     return {
       dataset: q.get("dataset"),
       outcome: q.get("outcome"),
@@ -44,16 +61,27 @@
       components: q.getAll("components"),
       lower: toNums(q.get("lower")),
       upper: toNums(q.get("upper")),
-      costs: costs ? costs.split(";").map(function (s) { return s.split(",").map(Number); }) : [],
+      costs: costs ? costs.split(";").map(function (s) { return s.split(",").map(toNum); }) : [],
       goal: q.get("goal"),
       intent: q.get("intent"),
+      centerChars: q.getAll("cc"),
+      centerCharValues: toNums(q.get("ccval")),
+      budget: numOrNull(q.get("budget")),
+      sweep: {
+        param: q.get("sparam"),
+        from: numOrNull(q.get("sfrom")),
+        to: numOrNull(q.get("sto")),
+        steps: numOrNull(q.get("ssteps")),
+      },
     };
   }
 
   // Build the query string (without the leading "?") from a configuration:
-  // { dataset, outcome, otype, rows: [{ name, lb, ub, costVec }], goal, intent }.
+  // { dataset, outcome, otype, rows: [{ name, lb, ub, costVec }], goal, intent,
+  //   centerChars: [{ name, value }], budget, sweep: { param, from, to, steps } }.
   // costVec is the component's full coefficient vector ([0, unitCost] for a
-  // linear cost). Inverse of parseShareQuery.
+  // linear cost). centerChars, budget and sweep are optional (omitted params
+  // just restore defaults). Inverse of parseShareQuery.
   function buildShareQuery(config) {
     var p = new URLSearchParams();
     p.set("dataset", config.dataset);
@@ -65,6 +93,29 @@
     p.set("costs", config.rows.map(function (r) { return r.costVec.map(Number).join(","); }).join(";"));
     p.set("goal", Number(config.goal));
     p.set("intent", config.intent);
+    // A finite number, else null. Treats "" (a cleared input) as absent, since
+    // Number("") is 0 and would otherwise encode a blank field as an explicit 0
+    // that overrides the opener's own default instead of being omitted.
+    var numField = function (v) {
+      return v !== "" && v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+    };
+    // center characteristics: a repeated `cc` per name, values comma-joined in
+    // `ccval` (same shape as components + lower/upper), only when any are set.
+    var ccs = config.centerChars || [];
+    if (ccs.length) {
+      ccs.forEach(function (c) { p.append("cc", c.name); });
+      p.set("ccval", ccs.map(function (c) { return Number(c.value); }).join(","));
+    }
+    // budget only when the user set one; otherwise the page auto-fills its own
+    // default from the current costs, which a stale encoded value would defeat.
+    if (numField(config.budget) !== null) p.set("budget", numField(config.budget));
+    var s = config.sweep;
+    if (s) {
+      if (s.param) p.set("sparam", s.param);
+      if (numField(s.from) !== null) p.set("sfrom", numField(s.from));
+      if (numField(s.to) !== null) p.set("sto", numField(s.to));
+      if (numField(s.steps) !== null) p.set("ssteps", numField(s.steps));
+    }
     return p.toString();
   }
 
