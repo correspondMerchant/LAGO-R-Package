@@ -41,6 +41,8 @@ Minimize
 
 Intervention components
 
+Interaction terms (optional — model the product of two components)
+
 Center characteristics (optional — optimize for a center holding these
 at set values)
 

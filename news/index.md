@@ -2,13 +2,24 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground now has an optional “Interaction terms”
+  section: with two or more intervention components ticked, tick a pair
+  to model their product (for example
+  `coaching_updt × launch_duration`). It sets
+  `include_interaction_terms = TRUE` and `main_components`, appends the
+  `a:b` term to `intervention_components`, and prepends the line that
+  creates the interaction’s product column so the shown R code stays
+  copy-pasteable. Bounds, costs and the confidence set stay per main
+  component, and the sensitivity sweep, budget search and Share link
+  inherit the interactions.
+
 - The in-browser playground’s “Share link” now carries the whole page,
   not just the core optimization: the center characteristics and their
-  held-at values, a budget you have entered, and the sensitivity sweep’s
-  input, range and step count all round-trip through the URL, so an
-  opened link reproduces the full setup. Older or hand-trimmed links
-  that omit these simply keep the page’s own defaults for those
-  controls.
+  held-at values, the interaction terms, a budget you have entered, and
+  the sensitivity sweep’s input, range and step count all round-trip
+  through the URL, so an opened link reproduces the full setup. Older or
+  hand-trimmed links that omit these simply keep the page’s own defaults
+  for those controls.
 
 - The in-browser playground now has an optional “Center characteristics”
   section: tick numeric columns (for example a center’s birth volume)
