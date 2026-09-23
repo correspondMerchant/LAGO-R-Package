@@ -153,6 +153,9 @@
       <div id="components" role="group" aria-labelledby="components-label"></div>
       <div id="comp-config"></div>
 
+      <label id="interactions-label" style="display:block;margin-top:14px;">Interaction terms <span class="hint" style="font-weight:400;">(optional &mdash; model the product of two components)</span></label>
+      <div id="interactions" role="group" aria-labelledby="interactions-label"></div>
+
       <label id="center-chars-label" style="display:block;margin-top:14px;">Center characteristics <span class="hint" style="font-weight:400;">(optional &mdash; optimize for a center holding these at set values)</span></label>
       <div id="center-chars" role="group" aria-labelledby="center-chars-label"></div>
       <div id="center-char-config"></div>
@@ -628,6 +631,13 @@
         $("goal-val").textContent = fmt($("goal").value);
       }
       if (r.intent === "maximize" || r.intent === "minimize") setSeg("intent", r.intent);
+      // Interaction terms: ticking the components above already rebuilt the pair
+      // chips, so tick the shared "a:b" terms. A term whose pair is no longer
+      // present (a component absent from this dataset) has no chip and is dropped.
+      (r.interactions || []).forEach((term) => {
+        const cb = document.querySelector(`#interactions input[value="${CSS.escape(term)}"]`);
+        if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
+      });
       // Center characteristics: ticking the components above already re-rendered
       // the chips, so only columns still eligible (numeric, not the outcome, not
       // a component) have a chip to tick. Tick the shared ones (which builds a
@@ -704,6 +714,9 @@
         cb.addEventListener("change", () => {
           chip.classList.toggle("on", cb.checked);
           renderCompConfig();
+          // interaction pairs are drawn from the ticked components, so rebuild
+          // them when the set changes (a dropped component drops its pairs)
+          renderInteractionChips();
           // a column can't be both a component and a center characteristic, so
           // re-render the center-char chips to drop one that just became a component
           renderCenterCharChips();
@@ -805,7 +818,9 @@
       renderComponentChips();
       updateGoalRange();
       renderCompConfig();
-      // center-char eligibility depends on the outcome and the ticked components
+      // interaction pairs and center-char eligibility both depend on the ticked
+      // components (and the outcome), so rebuild them after the chips
+      renderInteractionChips();
       renderCenterCharChips();
       // the sweep's default range keys off the goal, which just re-ranged
       setSensDefaults();
@@ -840,6 +855,8 @@
       clearResults();
       document.querySelectorAll("#components input:checked").forEach((cb) => { cb.checked = false; });
       $("comp-config").innerHTML = "";
+      // drop any interaction terms too (onOutcomeChanged re-renders the chips)
+      document.querySelectorAll("#interactions input:checked").forEach((cb) => { cb.checked = false; });
       // drop any center characteristics too (onOutcomeChanged re-renders the chips)
       document.querySelectorAll("#center-chars input:checked").forEach((cb) => { cb.checked = false; });
       $("center-char-config").innerHTML = "";
@@ -964,6 +981,61 @@
         }));
     }
 
+    // The ticked interaction terms as {a, b, term} where term is "a:b" (the R
+    // formula/column name the package expects). Only pairs whose two components
+    // are still ticked survive, since the chips are rebuilt from the components.
+    function selectedInteractions() {
+      return Array.from(document.querySelectorAll("#interactions input:checked"))
+        .map((c) => {
+          const parts = c.value.split(":");
+          return { a: parts[0], b: parts[1], term: c.value };
+        });
+    }
+
+    // Interaction chips: one per unordered pair of ticked components (a x b),
+    // preserving which were ticked. An interaction needs two components, so
+    // with fewer than two the section shows a hint instead. Built with the DOM
+    // (not innerHTML) so a CSV column name cannot inject markup.
+    function renderInteractionChips() {
+      const box = $("interactions");
+      const checked = new Set(selectedInteractions().map((x) => x.term));
+      const comps = selectedComponents();
+      box.innerHTML = "";
+      if (comps.length < 2) {
+        box.innerHTML =
+          '<p class="hint" style="margin:0;">Tick at least two intervention components to form an interaction.</p>';
+        return;
+      }
+      for (let i = 0; i < comps.length; i++) {
+        for (let j = i + 1; j < comps.length; j++) {
+          const term = comps[i] + ":" + comps[j];
+          const chip = document.createElement("label");
+          chip.className = "chip";
+          const cb = document.createElement("input");
+          cb.type = "checkbox"; cb.value = term;
+          if (checked.has(term)) { cb.checked = true; chip.classList.add("on"); }
+          cb.addEventListener("change", () => {
+            chip.classList.toggle("on", cb.checked); updateRCode(); updateRunEnabled();
+          });
+          chip.appendChild(cb);
+          chip.appendChild(document.createTextNode(" " + comps[i] + " × " + comps[j]));
+          box.appendChild(chip);
+        }
+      }
+    }
+
+    // R that creates the product column each selected interaction needs before
+    // the optimization runs (the package fits "a:b" as a real column, not a
+    // formula term). Empty when no interaction is selected. Prepended to the run,
+    // sweep and budget calls so all three (and the shown R code) stay runnable.
+    function interactionPreamble() {
+      const inter = selectedInteractions();
+      if (!inter.length) return "";
+      return inter.map((x) =>
+        `PG_DATA[[${rstr(x.term)}]] <- PG_DATA[[${rstr(x.a)}]] * PG_DATA[[${rstr(x.b)}]]`
+      ).join("\n") + "\n";
+    }
+
     // The lago_optimization() argument list for the current controls, as R
     // source (one "  name = value" per line, comma-joined, no trailing comma).
     // Shared by the run call and the sensitivity sweep so they never drift.
@@ -971,11 +1043,17 @@
     function optimizationArgs() {
       const rows = selectedRows();
       if (!rows.length) return null;
+      // With interactions on, the ticked components are the main effects and the
+      // interaction terms are appended to intervention_components; bounds, costs
+      // and the CS grid stay per main component (the package optimizes over the
+      // mains only, and rec_int / the confidence set hold main effects).
+      const mains = rows.map((r) => r.name);
+      const interTerms = selectedInteractions().map((x) => x.term);
       const args = [
         `  data = PG_DATA`,
         `  outcome_name = ${rstr($("outcome").value)}`,
         `  outcome_type = ${rstr($("otype").dataset.value)}`,
-        `  intervention_components = ${rchar(rows.map((r) => r.name))}`,
+        `  intervention_components = ${rchar(interTerms.length ? mains.concat(interTerms) : mains)}`,
         `  intervention_lower_bounds = ${rnum(rows.map((r) => r.lb))}`,
         `  intervention_upper_bounds = ${rnum(rows.map((r) => r.ub))}`,
         `  cost_list_of_vectors = list(${rows.map((r) => {
@@ -987,6 +1065,10 @@
         `  outcome_goal = ${Number($("goal").value)}`,
         `  outcome_goal_intention = ${rstr($("intent").dataset.value)}`,
       ];
+      if (interTerms.length) {
+        args.push(`  include_interaction_terms = TRUE`);
+        args.push(`  main_components = ${rchar(mains)}`);
+      }
       // optional center characteristics: the recommendation is computed for a
       // center holding these columns at the given values. Both args must be
       // supplied together and aligned (lago_optimization() requires it).
@@ -1013,7 +1095,7 @@
     function buildCall() {
       const args = optimizationArgs();
       if (!args) return { ok: false, msg: "pick at least one component" };
-      return { ok: true, call: `res <- lago_optimization(\n${args}\n)` };
+      return { ok: true, call: `${interactionPreamble()}res <- lago_optimization(\n${args}\n)` };
     }
 
     // Build a lago_sensitivity() call that re-runs the current optimization
@@ -1024,7 +1106,7 @@
     function buildSensitivityCall(parameter, values) {
       const args = optimizationArgs();
       if (!args) return null;
-      return `sens <- lago_sensitivity(\n${args},\n` +
+      return `${interactionPreamble()}sens <- lago_sensitivity(\n${args},\n` +
         `  parameter = ${rstr(parameter)},\n` +
         `  values = ${rnum(values)}\n)`;
     }
@@ -1038,7 +1120,7 @@
     function buildBudgetCall(budget) {
       const args = optimizationArgs();
       if (!args) return null;
-      return `bud <- lago_budget(\n${args},\n` +
+      return `${interactionPreamble()}bud <- lago_budget(\n${args},\n` +
         `  budget = ${Number(budget)},\n  n_grid = 8\n)`;
     }
 
@@ -1080,6 +1162,8 @@
           costVec: customCosts[r.name] || [0, Number(r.cost)] })),
         // {name, value} pairs, already filtered to finite held-at values
         centerChars: selectedCenterChars(),
+        // "a:b" interaction terms among the ticked components
+        interactions: selectedInteractions().map((x) => x.term),
         // only share a budget the user actually typed; otherwise let the opened
         // link auto-fill its own default from the (possibly rescaled) costs
         budget: budgetDirty && Number.isFinite(budgetVal) && budgetVal > 0 ? budgetVal : null,
