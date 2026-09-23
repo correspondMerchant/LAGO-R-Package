@@ -6,14 +6,15 @@
 // It proves, independently of the browser/DOM:
 //   1. buildShareQuery -> parseShareQuery round-trips the whole configuration
 //      (dataset, outcome, otype, components, bounds, costs, goal, intent, plus
-//      the optional center characteristics, budget, and sweep settings),
+//      the optional center characteristics, interaction terms, budget, and
+//      sweep settings),
 //   2. linearUnitCost / isDesignerCost classify cost vectors correctly, which is
 //      what decides on restore whether a component gets a linear unit cost or a
 //      designer coefficient vector,
 //   3. a query carrying no configuration parses to null; a truncated numeric
 //      list (lower/upper/costs/ccval) degrades to a non-finite entry the caller
 //      skips rather than a forced 0; and an omitted optional field (cc/ccval/
-//      budget/sweep) degrades to []/null so the opener keeps its own default.
+//      int/budget/sweep) degrades to []/null so the opener keeps its own default.
 
 var assert = require("assert");
 var m = require("../../pkgdown/assets/share-config.js");
@@ -84,12 +85,15 @@ var full = {
   goal: 0.85, intent: "maximize",
   rows: [{ name: "coaching_updt", lb: 0, ub: 40, costVec: [0, 1] }],
   centerChars: [{ name: "birth_volume_100", value: 1.75 }, { name: "urban", value: 0 }],
+  interactions: ["coaching_updt:launch_duration", "coaching_updt:datafeedback"],
   budget: 120.5,
   sweep: { param: "cost_multiplier", from: 0.5, to: 1.5, steps: 7 },
 };
 var f = m.parseShareQuery("?" + m.buildShareQuery(full));
 eq(f.centerChars, ["birth_volume_100", "urban"], "center-char names round-trip in order");
 eq(f.centerCharValues, [1.75, 0], "center-char values round-trip (including 0)");
+eq(f.interactions, ["coaching_updt:launch_duration", "coaching_updt:datafeedback"],
+  "interaction terms round-trip in order");
 eq(f.budget, 120.5, "budget round-trips");
 eq(f.sweep.param, "cost_multiplier", "sweep param round-trips");
 eq(f.sweep.from, 0.5, "sweep from round-trips");
@@ -104,6 +108,14 @@ var ccComma = m.parseShareQuery("?" + m.buildShareQuery({
 }));
 eq(ccComma.centerChars, ["x,y"], "center-char name with a comma round-trips");
 
+// an interaction term containing a comma survives (repeated `int` param)
+var intComma = m.parseShareQuery("?" + m.buildShareQuery({
+  dataset: "d", outcome: "o", otype: "continuous", goal: 1, intent: "maximize",
+  rows: [{ name: "a", lb: 0, ub: 1, costVec: [0, 1] }],
+  interactions: ["a,x:b"],
+}));
+eq(intComma.interactions, ["a,x:b"], "interaction term with a comma round-trips");
+
 // ---- 5. optional fields omitted: an older/leaner link keeps page defaults ----
 var lean = m.parseShareQuery("?" + m.buildShareQuery({
   dataset: "BB_data", outcome: "pp3_oxytocin_mother", otype: "binary",
@@ -112,6 +124,7 @@ var lean = m.parseShareQuery("?" + m.buildShareQuery({
 }));
 eq(lean.centerChars, [], "no cc params -> [] (no characteristics restored)");
 eq(lean.centerCharValues, [], "no ccval -> [] (values skipped)");
+eq(lean.interactions, [], "no int params -> [] (no interactions restored)");
 eq(lean.budget, null, "no budget param -> null (page auto-fills its default)");
 eq(lean.sweep, { param: null, from: null, to: null, steps: null },
   "no sweep params -> nulls (page keeps its derived defaults)");
