@@ -159,6 +159,16 @@
       <label id="center-chars-label" style="display:block;margin-top:14px;">Center characteristics <span class="hint" style="font-weight:400;">(optional &mdash; optimize for a center holding these at set values)</span></label>
       <div id="center-chars" role="group" aria-labelledby="center-chars-label"></div>
       <div id="center-char-config"></div>
+
+      <label id="covariates-label" style="display:block;margin-top:14px;">Additional covariates <span class="hint" style="font-weight:400;">(optional &mdash; extra columns to adjust the outcome model for)</span></label>
+      <div id="covariates" role="group" aria-labelledby="covariates-label"></div>
+
+      <div id="time-effects-wrap" style="display:none;margin-top:14px;">
+        <label style="display:block;font-weight:600;"><input type="checkbox" id="time-effects" style="width:auto;"> Fixed time effects <span class="hint" style="font-weight:400;">(the data has a &lsquo;period&rsquo; column)</span></label>
+        <div id="time-effects-config" style="display:none;margin-top:6px;">
+          <label>optimize for period <input type="number" id="te-value" step="any" style="width:6em;"></label>
+        </div>
+      </div>
     </div>
 
     <div class="controls-bar">
@@ -291,20 +301,27 @@
     function updateRunEnabled() {
       if (!bootReady) return;
       const ok = selectedComponents().length > 0;
-      $("run").disabled = !ok || running;
-      // the cost designer hand-off needs at least one component too
+      // fixed time effects on but no period value yet blocks a runnable call
+      const teBad = timeEffectsOn() && !timeEffectValueOk();
+      const runnable = ok && !teBad;
+      $("run").disabled = !runnable || running;
+      // the cost designer hand-off needs at least one component too (it does not
+      // use time effects, so a missing period value does not block it)
       $("open-designer").disabled = !ok;
       // sharing needs components AND a bundled dataset (a CSV can't go in a URL)
       $("share-link").disabled = !ok || currentSource.type !== "bundled";
-      // the sensitivity sweep re-runs the current optimization, so it needs a
-      // component too and must not start while a run/sweep is in flight
-      $("sens-run").disabled = !ok || running;
-      // the budget search likewise needs a component and a free thread
-      $("bud-run").disabled = !ok || running;
+      // the sensitivity sweep and budget search re-run the current optimization,
+      // so they need a component, a valid time-effect value, and a free thread
+      $("sens-run").disabled = !runnable || running;
+      $("bud-run").disabled = !runnable || running;
       // keep a sensible default budget in the field until the user edits it
       if (ok) setBudgetDefault();
       if ($("run-hint").textContent === "running…") return;
-      $("run-hint").textContent = ok ? "" : "tick at least one intervention component to run";
+      $("run-hint").textContent = !ok
+        ? "tick at least one intervention component to run"
+        : teBad
+        ? "enter the period value to optimize at, or untick fixed time effects"
+        : "";
     }
 
     // Cost functions shaped in the cost designer and sent back (postMessage),
@@ -516,6 +533,9 @@
       // and let the budget field re-default to the new cost scale
       customCosts = {};
       budgetDirty = false;
+      // start fixed time effects off: a different dataset has a different (or no)
+      // 'period' column, so a carried-over tick and value would be stale
+      $("time-effects").checked = false; $("te-value").value = "";
       updateDesignerNote();
       buildModelControls();
     }
@@ -656,6 +676,13 @@
           inp.dispatchEvent(new Event("input", { bubbles: true }));
         }
       });
+      // Additional covariates: the component and center-char ticks above already
+      // rebuilt the covariate chips, so tick the shared ones. A column now
+      // claimed by another role (or absent) has no chip and is skipped.
+      (r.covariates || []).forEach((name) => {
+        const cb = document.querySelector(`#covariates input[value="${CSS.escape(name)}"]`);
+        if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
+      });
       // A shared budget is the user's own choice, so pin it (mark it dirty so the
       // auto-default can't overwrite it) and fill the field.
       if (r.budget != null && Number.isFinite(r.budget) && r.budget > 0) {
@@ -699,7 +726,11 @@
       const checked = new Set(selectedComponents());
       const outcomeName = $("outcome").value;
       comps.innerHTML = "";
-      const eligible = columns.filter((c) => c.numeric && c.name !== outcomeName);
+      // when fixed time effects are on, 'period' is the time factor, not an
+      // intervention knob, so it cannot also be a component
+      const eligible = columns.filter(
+        (c) => c.numeric && c.name !== outcomeName && !(timeEffectsOn() && c.name === "period")
+      );
       if (!eligible.length) {
         comps.innerHTML =
           '<p class="hint" style="margin:0;">No other numeric columns to use as components — pick a different outcome or add a numeric column.</p>';
@@ -720,6 +751,8 @@
           // a column can't be both a component and a center characteristic, so
           // re-render the center-char chips to drop one that just became a component
           renderCenterCharChips();
+          // additional-covariate eligibility excludes components too
+          renderAdditionalCovariateChips();
           updateRunEnabled();
         });
         comps.appendChild(chip);
@@ -751,8 +784,11 @@
       const outcomeName = $("outcome").value;
       const comps = new Set(selectedComponents());
       box.innerHTML = "";
+      // 'period' is the time factor when fixed time effects are on, not a center
+      // characteristic, so exclude it then (as the component chips do)
       const eligible = columns.filter(
-        (c) => c.numeric && c.name !== outcomeName && !comps.has(c.name)
+        (c) => c.numeric && c.name !== outcomeName && !comps.has(c.name) &&
+          !(timeEffectsOn() && c.name === "period")
       );
       if (!eligible.length) {
         box.innerHTML =
@@ -767,7 +803,9 @@
         cb.type = "checkbox"; cb.value = c.name;
         if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
         cb.addEventListener("change", () => {
-          chip.classList.toggle("on", cb.checked); renderCenterCharConfig(); updateRunEnabled();
+          chip.classList.toggle("on", cb.checked); renderCenterCharConfig();
+          // a center characteristic is not also an additional covariate
+          renderAdditionalCovariateChips(); updateRunEnabled();
         });
         chip.appendChild(cb);
         chip.appendChild(document.createTextNode(" " + c.name));
@@ -822,6 +860,10 @@
       // components (and the outcome), so rebuild them after the chips
       renderInteractionChips();
       renderCenterCharChips();
+      // fixed time effects depend on the dataset (a 'period' column), additional
+      // covariates on the outcome and the other roles
+      syncTimeEffects();
+      renderAdditionalCovariateChips();
       // the sweep's default range keys off the goal, which just re-ranged
       setSensDefaults();
     }
@@ -860,6 +902,10 @@
       // drop any center characteristics too (onOutcomeChanged re-renders the chips)
       document.querySelectorAll("#center-chars input:checked").forEach((cb) => { cb.checked = false; });
       $("center-char-config").innerHTML = "";
+      // drop any additional covariates and fixed time effects (onOutcomeChanged
+      // re-renders the covariate chips and re-syncs the time-effects control)
+      document.querySelectorAll("#covariates input:checked").forEach((cb) => { cb.checked = false; });
+      $("time-effects").checked = false; $("te-value").value = "";
       // drop any designer cost overrides so Reset restores the linear baseline
       customCosts = {};
       // let the budget field auto-fill from the reset costs again
@@ -981,6 +1027,72 @@
         }));
     }
 
+    // Ticked additional covariates (plain model covariates), as column names.
+    function selectedAdditionalCovariates() {
+      return Array.from(document.querySelectorAll("#covariates input:checked")).map((c) => c.value);
+    }
+
+    // Additional-covariate chips: any column that is not the outcome and not
+    // already playing another role (component, center characteristic, or, when
+    // fixed time effects are on, the 'period' column). Unlike components and
+    // center characteristics these may be non-numeric (e.g. a site or arm
+    // label). Built with the DOM so a CSV column name cannot inject markup.
+    function renderAdditionalCovariateChips() {
+      const box = $("covariates");
+      const checked = new Set(selectedAdditionalCovariates());
+      const claimed = new Set([
+        $("outcome").value,
+        ...selectedComponents(),
+        ...selectedCenterCharNames(),
+      ]);
+      if (timeEffectsOn()) claimed.add("period");
+      box.innerHTML = "";
+      const eligible = columns.filter((c) => !claimed.has(c.name));
+      if (!eligible.length) {
+        box.innerHTML =
+          '<p class="hint" style="margin:0;">No other columns available as additional covariates.</p>';
+        return;
+      }
+      eligible.forEach((c) => {
+        const chip = document.createElement("label");
+        chip.className = "chip";
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.value = c.name;
+        if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
+        cb.addEventListener("change", () => {
+          chip.classList.toggle("on", cb.checked); updateRCode(); updateRunEnabled();
+        });
+        chip.appendChild(cb);
+        chip.appendChild(document.createTextNode(" " + c.name));
+        box.appendChild(chip);
+      });
+    }
+
+    // Fixed time effects need a 'period' column (lago_optimization() requires
+    // it), which no bundled dataset has, so the control appears only for an
+    // uploaded CSV that has one. When the column is absent the section is hidden
+    // and the checkbox forced off so a stale tick cannot leak into the call.
+    function hasPeriodColumn() {
+      return columns.some((c) => c.name === "period");
+    }
+    function timeEffectsOn() {
+      return hasPeriodColumn() && $("time-effects").checked;
+    }
+    // The period value to optimize at must be a real number: a blank box would
+    // otherwise send Number("") === 0, silently optimizing at period 0 (a wrong
+    // result or an opaque "not one of the periods" error). Mirrors how
+    // selectedCenterChars() drops a blank held-at value.
+    function timeEffectValueOk() {
+      const v = $("te-value").value;
+      return v != null && v.trim() !== "" && Number.isFinite(Number(v));
+    }
+    function syncTimeEffects() {
+      const has = hasPeriodColumn();
+      $("time-effects-wrap").style.display = has ? "block" : "none";
+      if (!has) $("time-effects").checked = false;
+      $("time-effects-config").style.display = timeEffectsOn() ? "block" : "none";
+    }
+
     // The ticked interaction terms as {a, b, term} where term is "a:b" (the R
     // formula/column name the package expects). Only pairs whose two components
     // are still ticked survive, since the chips are rebuilt from the components.
@@ -1077,6 +1189,17 @@
         args.push(`  center_characteristics = ${rchar(ccs.map((c) => c.name))}`);
         args.push(`  center_characteristics_optimization_values = ${rnum(ccs.map((c) => c.value))}`);
       }
+      // optional additional covariates: extra columns adjusted for in the outcome
+      // model, with no optimization value of their own.
+      const covs = selectedAdditionalCovariates();
+      if (covs.length) args.push(`  additional_covariates = ${rchar(covs)}`);
+      // optional fixed time effects: needs a 'period' column and a single period
+      // value to optimize at (both required together). A blank value is treated
+      // as "not applied" (Run is disabled meanwhile) so it never emits a bogus 0.
+      if (timeEffectsOn() && timeEffectValueOk()) {
+        args.push(`  include_time_effects = TRUE`);
+        args.push(`  time_effect_optimization_value = ${Number($("te-value").value)}`);
+      }
       args.push(
         `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
           // Roughly 20 grid steps across each component's range, so a wide
@@ -1164,6 +1287,10 @@
         centerChars: selectedCenterChars(),
         // "a:b" interaction terms among the ticked components
         interactions: selectedInteractions().map((x) => x.term),
+        // extra model covariates (column names). Fixed time effects are not
+        // shared: they need an uploaded CSV with a 'period' column, and sharing
+        // is offered only for the bundled datasets.
+        covariates: selectedAdditionalCovariates(),
         // only share a budget the user actually typed; otherwise let the opened
         // link auto-fill its own default from the (possibly rescaled) costs
         budget: budgetDirty && Number.isFinite(budgetVal) && budgetVal > 0 ? budgetVal : null,
@@ -1553,6 +1680,19 @@
     // switching the swept parameter resets the from/to to a sensible default
     $("sens-param").addEventListener("change", setSensDefaults);
     setSensDefaults();
+
+    // toggling fixed time effects shows/hides its period-value input and claims
+    // or frees the 'period' column across every role. Rebuild all the chip
+    // groups (and the component config rows) so a 'period' tick is dropped when
+    // time effects go on and offered again when they go off.
+    $("time-effects").addEventListener("change", () => {
+      syncTimeEffects();
+      renderComponentChips(); renderCompConfig();
+      renderInteractionChips();
+      renderCenterCharChips();
+      renderAdditionalCovariateChips();
+      updateRCode(); updateRunEnabled();
+    });
 
     // Goal slider readout; changing the outcome re-detects type, components and
     // the goal range.

@@ -10,11 +10,13 @@
 // is either a linear unit cost, encoded as the vector c(0, x), or a designer
 // cost, encoded as its full coefficient vector, so both round-trip. The center
 // characteristics (one repeated `cc` name each, values comma-joined in `ccval`),
-// the interaction terms (one repeated `int` per "a:b" term), a user-set
-// `budget`, and the sweep settings (`sparam`, `sfrom`, `sto`, `ssteps`) ride
-// along too, so a link restores the whole page and not just the core
-// optimization. Each of these is optional: an older or truncated link that
-// omits them simply keeps the page's own defaults for that control.
+// the interaction terms (one repeated `int` per "a:b" term), the additional
+// covariates (one repeated `cov` per column), a user-set `budget`, and the
+// sweep settings (`sparam`, `sfrom`, `sto`, `ssteps`) ride along too, so a link
+// restores the whole page and not just the core optimization. Each of these is
+// optional: an older or truncated link that omits them simply keeps the page's
+// own defaults for that control. (Fixed time effects are not carried, since
+// they need an uploaded CSV and sharing is offered only for bundled datasets.)
 (function (global) {
   "use strict";
 
@@ -68,6 +70,7 @@
       centerChars: q.getAll("cc"),
       centerCharValues: toNums(q.get("ccval")),
       interactions: q.getAll("int"),
+      covariates: q.getAll("cov"),
       budget: numOrNull(q.get("budget")),
       sweep: {
         param: q.get("sparam"),
@@ -80,11 +83,11 @@
 
   // Build the query string (without the leading "?") from a configuration:
   // { dataset, outcome, otype, rows: [{ name, lb, ub, costVec }], goal, intent,
-  //   centerChars: [{ name, value }], interactions: ["a:b"], budget,
-  //   sweep: { param, from, to, steps } }.
+  //   centerChars: [{ name, value }], interactions: ["a:b"], covariates: [name],
+  //   budget, sweep: { param, from, to, steps } }.
   // costVec is the component's full coefficient vector ([0, unitCost] for a
-  // linear cost). centerChars, interactions, budget and sweep are optional
-  // (omitted params just restore defaults). Inverse of parseShareQuery.
+  // linear cost). centerChars, interactions, covariates, budget and sweep are
+  // optional (omitted params just restore defaults). Inverse of parseShareQuery.
   function buildShareQuery(config) {
     var p = new URLSearchParams();
     p.set("dataset", config.dataset);
@@ -111,6 +114,8 @@
     }
     // interaction terms: a repeated `int` per "a:b" term, only when any are set.
     (config.interactions || []).forEach(function (t) { p.append("int", t); });
+    // additional covariates: a repeated `cov` per column name.
+    (config.covariates || []).forEach(function (name) { p.append("cov", name); });
     // budget only when the user set one; otherwise the page auto-fills its own
     // default from the current costs, which a stale encoded value would defeat.
     if (numField(config.budget) !== null) p.set("budget", numField(config.budget));
