@@ -46,6 +46,13 @@ Interaction terms (optional — model the product of two components)
 Center characteristics (optional — optimize for a center holding these
 at set values)
 
+Additional covariates (optional — extra columns to adjust the outcome
+model for)
+
+Fixed time effects (the data has a ‘period’ column)
+
+optimize for period
+
 Run optimization
 
 Reset
