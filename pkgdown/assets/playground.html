@@ -268,6 +268,10 @@
     const rstr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
     const rchar = (arr) => "c(" + arr.map(rstr).join(", ") + ")";
     const rnum = (arr) => "c(" + arr.map((x) => Number(x)).join(", ") + ")";
+    // HTML-escape a string before it enters innerHTML (column names come from an
+    // uploaded CSV). Shared by every renderer that builds markup from a name.
+    const esc = (s) => String(s).replace(/[&<>"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
     let webR, shelter, columns = [], firstBuild = true, bootReady = false, running = false;
     // Set whenever the next schema build should (re)prefill a runnable example:
@@ -739,8 +743,12 @@
       eligible.forEach((c) => {
         const chip = document.createElement("label");
         chip.className = "chip";
-        chip.innerHTML = `<input type="checkbox" value="${c.name}"> ${c.name}`;
-        const cb = chip.querySelector("input");
+        // DOM construction (not innerHTML) so a column name can't inject markup,
+        // matching the center-characteristic, interaction and covariate chips
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.value = c.name;
+        chip.appendChild(cb);
+        chip.appendChild(document.createTextNode(" " + c.name));
         if (checked.has(c.name)) { cb.checked = true; chip.classList.add("on"); }
         cb.addEventListener("change", () => {
           chip.classList.toggle("on", cb.checked);
@@ -961,16 +969,19 @@
         const row = document.createElement("div");
         row.className = "comp-row";
         row.dataset.comp = name;
+        // esc() the column name everywhere it enters this HTML (the label and
+        // the aria-labels) so it can't inject markup; lo/hi/step are numbers
+        const en = esc(name);
         row.innerHTML =
-          `<span class="name">${name}</span>` +
+          `<span class="name">${en}</span>` +
           `<div class="ctl"><span>lower: <span class="lbval val"></span></span>` +
-          `<input type="range" class="lb" min="${lo}" max="${hi}" step="${step}" value="${lo}" aria-label="${name} lower bound"></div>` +
+          `<input type="range" class="lb" min="${lo}" max="${hi}" step="${step}" value="${lo}" aria-label="${en} lower bound"></div>` +
           `<div class="ctl"><span>upper: <span class="ubval val"></span></span>` +
-          `<input type="range" class="ub" min="${lo}" max="${hi}" step="${step}" value="${hi}" aria-label="${name} upper bound"></div>` +
+          `<input type="range" class="ub" min="${lo}" max="${hi}" step="${step}" value="${hi}" aria-label="${en} upper bound"></div>` +
           `<div class="ctl"><span>unit cost: <span class="costval val"></span></span>` +
-          `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease ${name} unit cost">&minus;</button>` +
-          `<input type="number" step="any" min="0" class="cost" value="1" aria-label="${name} unit cost">` +
-          `<button type="button" class="cost-inc" aria-label="increase ${name} unit cost">+</button></span></div>`;
+          `<span class="stepper"><button type="button" class="cost-dec" aria-label="decrease ${en} unit cost">&minus;</button>` +
+          `<input type="number" step="any" min="0" class="cost" value="1" aria-label="${en} unit cost">` +
+          `<button type="button" class="cost-inc" aria-label="increase ${en} unit cost">+</button></span></div>`;
         box.appendChild(row);
 
         const lb = row.querySelector(".lb"), ub = row.querySelector(".ub");
@@ -1413,8 +1424,6 @@
       // component names come from a user-uploaded CSV's columns, so escape them
       // before putting them in innerHTML (the other headers and cells are fixed
       // labels or numbers). Cells use a literal em dash for a missing value.
-      const esc = (s) => String(s).replace(/[&<>"]/g,
-        (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
       const num = (v) => (v == null || !isFinite(Number(v)) ? "—" : fmt(v));
       const head = ["value", ...comps, "cost", "est. outcome", "status"]
         .map((h) => `<th style="text-align:left;padding:4px 10px;border-bottom:1px solid #ddd;">${esc(h)}</th>`).join("");
