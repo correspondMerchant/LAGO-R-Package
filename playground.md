@@ -53,6 +53,29 @@ Fixed time effects (the data has a ‘period’ column)
 
 optimize for period
 
+Power goal (optional — also plan for the next stage’s statistical power;
+binary outcomes only)
+
+Goal
+
+Power + outcome goal
+
+Power goal only
+
+Power goal
+
+Treatment arm
+
+Centers in next stage
+
+Patients per center
+
+Approachunconditional conditional
+
+ICC (optional)
+
+Cluster (center) column
+
 Run optimization
 
 Reset
@@ -78,7 +101,7 @@ Paste this into R (after `library(LAGOtrials)`) to reproduce the run.
 
 ## Sensitivity sweep
 
-vary outcome goal cost multiplier from to steps
+vary outcome goal cost multiplier power goal from to steps
 
 Run sweep
 
@@ -100,11 +123,11 @@ webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing
 you load or type leaves your browser. The confidence-set plot is drawn
 for one- or two-component interventions (three or more still get the
 cost curves and the full console summary). This playground exposes the
-common options; for the rest — a power goal, center characteristics and
-fixed effects, clustering (`icc`), a custom GLM family/link, and more —
-call `lago_optimization()` in R (copy the snippet above as a starting
-point). To shape the per-component cost functions themselves (including
-non-linear ones), use the interactive [cost
+common options; for the rest — center fixed effects, a custom GLM
+family/link, center weights, and more — call `lago_optimization()` in R
+(copy the snippet above as a starting point). To shape the per-component
+cost functions themselves (including non-linear ones), use the
+interactive [cost
 designer](https://correspondmerchant.github.io/LAGO-R-Package/visualize-cost/).
 See the [package
 documentation](https://correspondmerchant.github.io/LAGO-R-Package/index.md)

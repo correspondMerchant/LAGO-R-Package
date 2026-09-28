@@ -2,6 +2,27 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground now supports a power goal (binary outcomes):
+  tick “Power goal” to plan for the next stage’s statistical power
+  alongside, or instead of, the outcome goal, matching
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)’s
+  `power_goal`, `num_centers_in_next_stage`,
+  `patients_per_center_in_next_stage`, `power_goal_approach`, `icc` and
+  `power_goal_cluster_id`. The treatment arm comes from the data’s own
+  `group` column when it has one (used as is, so it must hold only
+  “treatment” and “control” with both present), otherwise from a
+  complete 0/1 column you pick (`pre_post` for `BB_data`, as in the
+  package tests), and the shown R code includes the lines that build it
+  on a copy of the data. Direction must be Maximize, the outcome column
+  must have no missing values, and Run stays disabled with a hint until
+  the power settings are complete. The ICC cluster column list offers
+  only columns with at least two non-missing centers in each arm,
+  checked when an ICC is entered. The sensitivity sweep can vary the
+  power goal, and the budget search and Share link carry the settings.
+  On `BB_data` the stage-1 data already powers the comparison, so the
+  power goal alone recommends no intervention, and the printed result
+  reports the power-implied outcome.
+
 - The in-browser playground now has an optional “Additional covariates”
   section: tick any columns (numeric or not, for example a site or arm
   label) to adjust the outcome model for them, matching

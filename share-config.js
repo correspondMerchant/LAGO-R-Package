@@ -11,12 +11,14 @@
 // cost, encoded as its full coefficient vector, so both round-trip. The center
 // characteristics (one repeated `cc` name each, values comma-joined in `ccval`),
 // the interaction terms (one repeated `int` per "a:b" term), the additional
-// covariates (one repeated `cov` per column), a user-set `budget`, and the
-// sweep settings (`sparam`, `sfrom`, `sto`, `ssteps`) ride along too, so a link
-// restores the whole page and not just the core optimization. Each of these is
-// optional: an older or truncated link that omits them simply keeps the page's
-// own defaults for that control. (Fixed time effects are not carried, since
-// they need an uploaded CSV and sharing is offered only for bundled datasets.)
+// covariates (one repeated `cov` per column), the power goal (`pw=1` plus
+// `pmode`, `pgoal`, `parm`, `pnc`, `ppc`, `papp`, `picc`, `pcid`), a user-set
+// `budget`, and the sweep settings (`sparam`, `sfrom`, `sto`, `ssteps`) ride
+// along too, so a link restores the whole page and not just the core
+// optimization. Each of these is optional: an older or truncated link that
+// omits them simply keeps the page's own defaults for that control. (Fixed
+// time effects are not carried, since they need an uploaded CSV and sharing is
+// offered only for bundled datasets.)
 (function (global) {
   "use strict";
 
@@ -71,6 +73,17 @@
       centerCharValues: toNums(q.get("ccval")),
       interactions: q.getAll("int"),
       covariates: q.getAll("cov"),
+      // the power goal settings, present only when the link turned one on
+      power: q.get("pw") === "1" ? {
+        mode: q.get("pmode"),
+        goal: numOrNull(q.get("pgoal")),
+        arm: q.get("parm"),
+        nc: numOrNull(q.get("pnc")),
+        pc: numOrNull(q.get("ppc")),
+        approach: q.get("papp"),
+        icc: numOrNull(q.get("picc")),
+        cid: q.get("pcid"),
+      } : null,
       budget: numOrNull(q.get("budget")),
       sweep: {
         param: q.get("sparam"),
@@ -84,10 +97,12 @@
   // Build the query string (without the leading "?") from a configuration:
   // { dataset, outcome, otype, rows: [{ name, lb, ub, costVec }], goal, intent,
   //   centerChars: [{ name, value }], interactions: ["a:b"], covariates: [name],
+  //   power: { mode, goal, arm, nc, pc, approach, icc, cid } | null,
   //   budget, sweep: { param, from, to, steps } }.
   // costVec is the component's full coefficient vector ([0, unitCost] for a
-  // linear cost). centerChars, interactions, covariates, budget and sweep are
-  // optional (omitted params just restore defaults). Inverse of parseShareQuery.
+  // linear cost). centerChars, interactions, covariates, power, budget and
+  // sweep are optional (omitted params just restore defaults). Inverse of
+  // parseShareQuery.
   function buildShareQuery(config) {
     var p = new URLSearchParams();
     p.set("dataset", config.dataset);
@@ -116,6 +131,24 @@
     (config.interactions || []).forEach(function (t) { p.append("int", t); });
     // additional covariates: a repeated `cov` per column name.
     (config.covariates || []).forEach(function (name) { p.append("cov", name); });
+    // power goal: `pw=1` plus its settings; blank numeric fields are omitted so
+    // the opener keeps its defaults, and the ICC cluster column only rides along
+    // with a non-zero ICC.
+    var pw = config.power;
+    if (pw) {
+      p.set("pw", "1");
+      if (pw.mode) p.set("pmode", pw.mode);
+      if (numField(pw.goal) !== null) p.set("pgoal", numField(pw.goal));
+      if (pw.arm) p.set("parm", pw.arm);
+      if (numField(pw.nc) !== null) p.set("pnc", numField(pw.nc));
+      if (numField(pw.pc) !== null) p.set("ppc", numField(pw.pc));
+      if (pw.approach) p.set("papp", pw.approach);
+      var icc = numField(pw.icc);
+      if (icc !== null) {
+        p.set("picc", icc);
+        if (icc > 0 && pw.cid) p.set("pcid", pw.cid);
+      }
+    }
     // budget only when the user set one; otherwise the page auto-fills its own
     // default from the current costs, which a stale encoded value would defeat.
     if (numField(config.budget) !== null) p.set("budget", numField(config.budget));
