@@ -5,29 +5,7 @@
 # move the answer). We build a small clustered synthetic dataset for the
 # direct-function tests, and use BB_data for the backward-compat path.
 
-make_small_clustered <- function() {
-  # deterministic small two-arm clustered dataset. J centers per label, m each.
-  J <- 8
-  m <- 10
-  rows <- list()
-  # fixed 0/1 pattern per center to avoid any RNG dependence across R versions
-  for (j in seq_len(J)) {
-    grp <- if (j <= J / 2) "control" else "treatment"
-    rate <- if (grp == "treatment") 0.45 else 0.30
-    y <- as.integer(seq_len(m) / m <= rate)
-    rows[[j]] <- data.frame(
-      center = paste0("c", j), group = grp, y = y
-    )
-  }
-  do.call(rbind, rows)
-}
-
-small_coeff <- function(d) {
-  c(
-    "(Intercept)" = stats::qlogis(mean(d$y[d$group == "control"])),
-    "dose" = 0.6
-  )
-}
+# make_small_clustered() and small_coeff() live in helper-power-data.R.
 
 test_that("icc = NULL and icc = 0 give identical power-implied outcomes", {
   d <- make_small_clustered()

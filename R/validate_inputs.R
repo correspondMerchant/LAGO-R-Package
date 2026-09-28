@@ -76,6 +76,13 @@ validate_inputs <- function(
   if (!(outcome_name %in% names(data))) {
     stop("The outcome name must be presented in the provided input data.")
   }
+  # an outcome with no observed value leaves nothing to fit or to compare a
+  # goal against (its mean with na.rm = TRUE would be NaN)
+  if (all(is.na(data[[outcome_name]]))) {
+    stop(paste0(
+      "The outcome column '", outcome_name, "' has no observed values."
+    ))
+  }
 
   # check if the outcome type is a character type
   if (!is.character(outcome_type)) {
@@ -874,23 +881,23 @@ validate_inputs <- function(
     lower_outcome_goal <- FALSE
   } else if (outcome_goal_intention == "minimize") {
     lower_outcome_goal <- TRUE
-    if (outcome_goal > mean(data[[outcome_name]])) {
+    if (outcome_goal > mean(data[[outcome_name]], na.rm = TRUE)) {
       warning(paste(
         "The specified outcome goal intention is",
         "to minimize the outcome.",
         "The observed mean of the outcome is",
-        mean(data[[outcome_name]]),
+        mean(data[[outcome_name]], na.rm = TRUE),
         "and the specified outcome goal is", outcome_goal, "."
       ))
     }
   } else {
     lower_outcome_goal <- FALSE
-    if (outcome_goal <= mean(data[[outcome_name]])) {
+    if (outcome_goal <= mean(data[[outcome_name]], na.rm = TRUE)) {
       warning(paste(
         "The specified outcome goal intention",
         "is to maximize the outcome.",
         "The observed mean of the outcome is",
-        mean(data[[outcome_name]]),
+        mean(data[[outcome_name]], na.rm = TRUE),
         "and the specified outcome goal is", outcome_goal, "."
       ))
     }
@@ -1035,6 +1042,17 @@ validate_inputs <- function(
         " or 'control'."
       ))
     }
+    # the power calculation uses stage-1 rows with an observed outcome, so
+    # each arm needs at least one (a missing outcome is not counted)
+    observed_group <- data$group[!is.na(data[[outcome_name]])]
+    for (grp in c("control", "treatment")) {
+      if (!any(observed_group == grp)) {
+        stop(paste0(
+          "A power goal needs stage-1 data in both arms, but the '", grp,
+          "' arm of the 'group' column has no rows with an observed outcome."
+        ))
+      }
+    }
     # num_centers_in_next_stage and patients_per_center_in_next_stage
     # cannot be null for power goal to work
     if (is.null(num_centers_in_next_stage) ||
@@ -1096,17 +1114,22 @@ validate_inputs <- function(
             "' was not found in the data."
           ))
         }
-        # need at least two centers per arm to identify between-cluster variance
+        # need at least two centers per arm to identify between-cluster
+        # variance, counted on the rows the power calculation uses (an observed
+        # outcome) and ignoring a missing center id, as its table() does
         for (grp in c("control", "treatment")) {
-          n_centers <- length(unique(
-            data[data$group == grp, power_goal_cluster_id, drop = TRUE]
-          ))
+          ids <- data[
+            data$group == grp & !is.na(data[[outcome_name]]),
+            power_goal_cluster_id,
+            drop = TRUE
+          ]
+          n_centers <- length(unique(ids[!is.na(ids)]))
           if (n_centers < 2) {
             stop(paste0(
               "The '", grp, "' arm has fewer than two distinct ",
-              "power_goal_cluster_id centers, so the stage-1 design effect is ",
-              "not identifiable. Provide data with at least two centers per ",
-              "arm, or set icc = NULL."
+              "power_goal_cluster_id centers with an observed outcome, so ",
+              "the stage-1 design effect is not identifiable. Provide data ",
+              "with at least two such centers per arm, or set icc = NULL."
             ))
           }
         }

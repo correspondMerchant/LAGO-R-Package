@@ -100,7 +100,8 @@ power goal requires increasing the outcome.}
 
 \item{power_goal}{A numeric value. Specifies the power goal, a desired power
 value (between 0 and 1). Only supported for binary outcomes, and requires a
-'group' column (values "treatment"/"control") along with
+'group' column (values "treatment"/"control", with both arms present and at
+least one observed outcome in each) along with
 num_centers_in_next_stage and patients_per_center_in_next_stage.
 At least one of outcome_goal or power_goal must be provided. The power goal
 is converted into the outcome level needed to achieve that power; the
@@ -136,8 +137,9 @@ Default value without user specification: NULL.}
 data identifying the stage-1 centers (clusters), used to compute the stage-1
 design effect for the power calculation. Required when icc is non-zero. The
 stage-1 cluster size is the variance-appropriate (size-biased) mean
-sum(m_i^2) / sum(m_i) over that arm's centers, and each arm must have at
-least two centers.
+sum(m_i^2) / sum(m_i) over that arm's centers, where m_i counts the center's
+rows with an observed outcome, and each arm must have at least two centers
+with an observed outcome.
 Default value without user specification: NULL.}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each

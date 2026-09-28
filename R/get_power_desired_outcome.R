@@ -25,6 +25,25 @@ get_power_desired_outcome <- function(
   # ---------------------------------------------------------------------------
   n2j <- patients_per_center_in_next_stage
 
+  # Use only rows with an observed outcome and group, the rows the final
+  # two-arm test (test_processor) uses. Rows with a missing predictor are
+  # kept, unlike in glm(). A missing outcome would otherwise count toward its
+  # arm's size but make the arm's sum NA, which crashes the unconditional path
+  # and makes the conditional path silently return 0 (dropping the goal).
+  data <- data[
+    !is.na(data[[outcome_name]]) & !is.na(data$group), ,
+    drop = FALSE
+  ]
+  # validate_inputs() checks this too; kept here for direct callers
+  for (grp in c("control", "treatment")) {
+    if (!any(data$group == grp)) {
+      stop(paste0(
+        "A power goal needs stage-1 data in both arms, but the '", grp,
+        "' arm of the 'group' column has no rows with an observed outcome."
+      ))
+    }
+  }
+
   # icc may be a scalar (shared) or length-2 c(control, treatment).
   if (is.null(icc)) {
     icc_ctl <- 0
@@ -64,9 +83,9 @@ get_power_desired_outcome <- function(
   if (needs_stage1_de && (is.na(m1_ctl) || is.na(m1_int))) {
     stop(paste(
       "A non-zero 'icc' requires a valid 'power_goal_cluster_id' column that",
-      "identifies stage-1 centers, with at least two centers per arm, so the",
-      "stage-1 design effect can be computed. Please provide it, or set",
-      "icc = NULL / icc = 0."
+      "identifies stage-1 centers, with at least two centers with an observed",
+      "outcome per arm, so the stage-1 design effect can be computed. Please",
+      "provide it, or set icc = NULL / icc = 0."
     ))
   }
 
