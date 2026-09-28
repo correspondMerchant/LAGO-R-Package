@@ -7,14 +7,14 @@
 //   1. buildShareQuery -> parseShareQuery round-trips the whole configuration
 //      (dataset, outcome, otype, components, bounds, costs, goal, intent, plus
 //      the optional center characteristics, interaction terms, additional
-//      covariates, budget, and sweep settings),
+//      covariates, power goal, budget, and sweep settings),
 //   2. linearUnitCost / isDesignerCost classify cost vectors correctly, which is
 //      what decides on restore whether a component gets a linear unit cost or a
 //      designer coefficient vector,
 //   3. a query carrying no configuration parses to null; a truncated numeric
 //      list (lower/upper/costs/ccval) degrades to a non-finite entry the caller
 //      skips rather than a forced 0; and an omitted optional field (cc/ccval/
-//      int/cov/budget/sweep) degrades to []/null so the opener keeps its own
+//      int/cov/pw/budget/sweep) degrades to []/null so the opener keeps its own
 //      default.
 
 var assert = require("assert");
@@ -178,5 +178,55 @@ eq(m.parseShareQuery("?" + m.buildShareQuery({
   rows: [{ name: "a", lb: 0, ub: 1, costVec: [0, 1] }],
   sweep: { param: "outcome_goal", from: 0, to: 2, steps: 5 },
 })).sweep.from, 0, "a sweep 'from' of 0 round-trips (not dropped as blank)");
+
+// ---- 7. power goal round-trip, omission, and degradation ----
+var pwBase = {
+  dataset: "BB_data", outcome: "pp3_oxytocin_mother", otype: "binary", goal: 0.85, intent: "maximize",
+  rows: [{ name: "coaching_updt", lb: 0, ub: 40, costVec: [0, 1] }],
+};
+var pwFull = m.parseShareQuery("?" + m.buildShareQuery(Object.assign({}, pwBase, {
+  power: { mode: "power", goal: "0.9", arm: "pre_post", nc: "6", pc: "25",
+    approach: "conditional", icc: "0.05", cid: "site_name" },
+})));
+eq(pwFull.power, { mode: "power", goal: 0.9, arm: "pre_post", nc: 6, pc: 25,
+  approach: "conditional", icc: 0.05, cid: "site_name" }, "power settings round-trip");
+eq(m.parseShareQuery("?" + m.buildShareQuery(pwBase)).power, null,
+  "no power goal -> power is null (the opener leaves it off)");
+// an ICC of 0 round-trips as 0, and without a non-zero ICC no cluster column is sent
+var pwIcc0 = m.buildShareQuery(Object.assign({}, pwBase, {
+  power: { mode: "both", goal: 0.8, arm: "pre_post", nc: 10, pc: 30, approach: "unconditional", icc: "0", cid: "site_name" },
+}));
+eq(m.parseShareQuery("?" + pwIcc0).power.icc, 0, "an ICC of 0 round-trips as 0");
+ok(pwIcc0.indexOf("pcid=") === -1, "a zero ICC does not carry a cluster column");
+// blank numeric fields are omitted (never encoded as 0) and parse back to null
+var pwBlank = m.buildShareQuery(Object.assign({}, pwBase, {
+  power: { mode: "both", goal: "", arm: "pre_post", nc: "", pc: "", approach: "unconditional", icc: "", cid: "site_name" },
+}));
+ok(pwBlank.indexOf("pgoal=") === -1 && pwBlank.indexOf("pnc=") === -1 &&
+  pwBlank.indexOf("ppc=") === -1 && pwBlank.indexOf("picc=") === -1,
+  "blank power fields are omitted, not encoded as 0");
+var pwBlankParsed = m.parseShareQuery("?" + pwBlank).power;
+ok(pwBlankParsed.goal === null && pwBlankParsed.nc === null && pwBlankParsed.icc === null,
+  "omitted power fields parse to null (the opener keeps its defaults)");
+eq(m.parseShareQuery("?outcome=o&pw=1&pgoal=abc").power.goal, null,
+  "a non-numeric power goal -> null");
+ok(pwBlank.indexOf("pcid=") === -1, "a blank ICC does not carry a cluster column");
+// a non-zero ICC with the "choose…" placeholder selected (cid "") carries no pcid
+var pwChoose = m.buildShareQuery(Object.assign({}, pwBase, {
+  power: { mode: "both", goal: 0.8, arm: "pre_post", nc: 10, pc: 30, approach: "unconditional", icc: "0.05", cid: "" },
+}));
+ok(pwChoose.indexOf("pcid=") === -1, "an unchosen cluster column is not encoded");
+var pwChooseParsed = m.parseShareQuery("?" + pwChoose).power;
+ok(pwChooseParsed.icc === 0.05 && pwChooseParsed.cid === null,
+  "an ICC with no chosen cluster column parses back with cid null");
+eq(m.parseShareQuery("?outcome=o&pgoal=0.9&pmode=power").power, null,
+  "power fields without pw=1 -> power is null (the opener leaves it off)");
+var pwBare = m.parseShareQuery("?outcome=o&pw=1").power;
+ok(pwBare !== null && pwBare.mode === null && pwBare.approach === null && pwBare.arm === null,
+  "pw=1 alone -> power on with every setting absent (the opener keeps its defaults)");
+eq(m.parseShareQuery("?" + m.buildShareQuery(Object.assign({}, pwBase, {
+  power: { mode: "power", goal: 0.8, arm: "pre_post", nc: 10, pc: 30, approach: "unconditional", icc: "", cid: "" },
+  sweep: { param: "power_goal", from: 0.65, to: 0.95, steps: 5 },
+}))).sweep, { param: "power_goal", from: 0.65, to: 0.95, steps: 5 }, "a power-goal sweep round-trips");
 
 console.log("share-config round-trip: " + pass + " assertions passed");
