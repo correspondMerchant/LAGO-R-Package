@@ -169,6 +169,29 @@
           <label>optimize for period <input type="number" id="te-value" step="any" style="width:6em;"></label>
         </div>
       </div>
+
+      <div id="power-wrap" style="margin-top:14px;">
+        <label style="display:block;font-weight:600;"><input type="checkbox" id="power-on" style="width:auto;"> Power goal <span class="hint" style="font-weight:400;">(optional &mdash; also plan for the next stage&rsquo;s statistical power; binary outcomes only)</span></label>
+        <div id="power-config" style="display:none;margin-top:6px;">
+          <div class="row">
+            <div class="field">
+              <label>Goal</label>
+              <div class="seg" id="pmode" data-value="both" role="group" aria-label="Power goal mode">
+                <button type="button" class="on" data-value="both" aria-pressed="true">Power + outcome goal</button>
+                <button type="button" data-value="power" aria-pressed="false">Power goal only</button>
+              </div>
+            </div>
+            <div class="field"><label for="pgoal">Power goal</label><input type="number" id="pgoal" min="0.05" max="0.99" step="0.01" value="0.8" style="width:6em;"></div>
+            <div class="field"><label for="parm">Treatment arm</label><select id="parm"></select></div>
+            <div class="field"><label for="pnc">Centers in next stage</label><input type="number" id="pnc" min="1" step="1" value="10" style="width:6em;"></div>
+            <div class="field"><label for="ppc">Patients per center</label><input type="number" id="ppc" min="1" step="1" value="30" style="width:6em;"></div>
+            <div class="field"><label for="papp">Approach</label><select id="papp"><option value="unconditional">unconditional</option><option value="conditional">conditional</option></select></div>
+            <div class="field"><label for="picc">ICC <span class="hint">(optional)</span></label><input type="number" id="picc" min="0" max="0.99" step="0.01" style="width:6em;"></div>
+            <div class="field" id="pcid-wrap" style="display:none;"><label for="pcid">Cluster (center) column</label><select id="pcid"></select></div>
+          </div>
+          <p id="power-hint" class="hint" style="margin:6px 0 0;"></p>
+        </div>
+      </div>
     </div>
 
     <div class="controls-bar">
@@ -204,6 +227,7 @@
             <select id="sens-param">
               <option value="outcome_goal">outcome goal</option>
               <option value="cost_multiplier">cost multiplier</option>
+              <option value="power_goal" disabled>power goal</option>
             </select>
           </label>
           <label>from <input type="number" id="sens-from" step="any" style="width:6em;"></label>
@@ -235,8 +259,8 @@
     <p class="note">
       webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
       confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
-      full console summary). This playground exposes the common options; for the rest &mdash; a power goal, center
-      characteristics and fixed effects, clustering (<code>icc</code>), a custom GLM family/link, and more &mdash; call
+      full console summary). This playground exposes the common options; for the rest &mdash; center fixed effects, a
+      custom GLM family/link, center weights, and more &mdash; call
       <code>lago_optimization()</code> in R (copy the snippet above as a starting point). To shape the per-component cost
       functions themselves (including non-linear ones), use the interactive <a href="./visualize-cost/">cost designer</a>.
       See the <a href="./index.html">package documentation</a> for the complete API.
@@ -274,6 +298,16 @@
       (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
     let webR, shelter, columns = [], firstBuild = true, bootReady = false, running = false;
+    // does the loaded data already have a usable 'group' (treatment/control)
+    // column for a power goal? Set by refreshSchema.
+    let groupOk = false;
+    // arm -> columns usable as the ICC cluster id, computed lazily per arm by
+    // ensureClusterList(). schemaGen discards a reply for a replaced dataset.
+    // pendingCid is a cluster column to reselect once the selected arm's list
+    // arrives: a Share-restored one, or the user's choice carried across a
+    // switch to an arm whose list has not loaded yet.
+    // (prototype-free, so a column named e.g. "constructor" is just a key)
+    let clusterOk = Object.create(null), clusterPending = new Set(), schemaGen = 0, pendingCid = null;
     // Set whenever the next schema build should (re)prefill a runnable example:
     // true on first load and after a dataset switch, so each bundled dataset lands
     // on a configuration whose model actually fits and Run/sweep work out of box.
@@ -307,7 +341,9 @@
       const ok = selectedComponents().length > 0;
       // fixed time effects on but no period value yet blocks a runnable call
       const teBad = timeEffectsOn() && !timeEffectValueOk();
-      const runnable = ok && !teBad;
+      // a power goal that is on but incomplete/invalid blocks a runnable call too
+      const pProblem = powerProblem();
+      const runnable = ok && !teBad && !pProblem;
       $("run").disabled = !runnable || running;
       // the cost designer hand-off needs at least one component too (it does not
       // use time effects, so a missing period value does not block it)
@@ -315,7 +351,8 @@
       // sharing needs components AND a bundled dataset (a CSV can't go in a URL)
       $("share-link").disabled = !ok || currentSource.type !== "bundled";
       // the sensitivity sweep and budget search re-run the current optimization,
-      // so they need a component, a valid time-effect value, and a free thread
+      // so they need a component, valid time-effect and power settings, and a
+      // free thread
       $("sens-run").disabled = !runnable || running;
       $("bud-run").disabled = !runnable || running;
       // keep a sensible default budget in the field until the user edits it
@@ -325,6 +362,8 @@
         ? "tick at least one intervention component to run"
         : teBad
         ? "enter the period value to optimize at, or untick fixed time effects"
+        : pProblem
+        ? pProblem
         : "";
     }
 
@@ -488,6 +527,8 @@
       $("data-panel").style.opacity = $("model-panel").style.opacity = "1";
       $("data-panel").style.pointerEvents = $("model-panel").style.pointerEvents = "auto";
       bootReady = true;
+      // a Share-restored ICC needs its cluster list, which waits for boot
+      syncPower();
       updateRunEnabled();
     }
 
@@ -526,12 +567,22 @@
         numeric = vapply(PG_DATA, is.numeric, logical(1), USE.NAMES = FALSE),
         mins = vapply(PG_DATA, function(v) if (is.numeric(v)) min(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
         maxs = vapply(PG_DATA, function(v) if (is.numeric(v)) max(v, na.rm = TRUE) else NA_real_, numeric(1), USE.NAMES = FALSE),
-        binary = vapply(PG_DATA, function(v) is.numeric(v) && length(stats::na.omit(v)) > 0 && all(stats::na.omit(v) %in% c(0, 1)), logical(1), USE.NAMES = FALSE)
+        binary = vapply(PG_DATA, function(v) is.numeric(v) && length(stats::na.omit(v)) > 0 && all(stats::na.omit(v) %in% c(0, 1)), logical(1), USE.NAMES = FALSE),
+        has_na = vapply(PG_DATA, anyNA, logical(1), USE.NAMES = FALSE),
+        group_ok = "group" %in% names(PG_DATA) && all(PG_DATA[["group"]] %in% c("treatment", "control")) &&
+          all(c("treatment", "control") %in% PG_DATA[["group"]])
       ), auto_unbox = TRUE, na = "null", digits = NA)`);
       const meta = JSON.parse(json);
       columns = meta.cols.map((name, i) => ({
         name, numeric: meta.numeric[i], min: meta.mins[i], max: meta.maxs[i], binary: meta.binary[i],
+        hasNa: meta.has_na[i],
       }));
+      // a power goal needs a 'group' arm column; note whether the data already
+      // has a usable one (only 'treatment'/'control', both present)
+      groupOk = !!meta.group_ok;
+      // the per-arm cluster lists belong to the old data; any reply still in
+      // flight is for it too, so bump the generation to discard it
+      clusterOk = Object.create(null); clusterPending = new Set(); schemaGen++;
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
       // a new dataset/CSV has different components, so drop any designer costs
       // and let the budget field re-default to the new cost scale
@@ -540,6 +591,9 @@
       // start fixed time effects off: a different dataset has a different (or no)
       // 'period' column, so a carried-over tick and value would be stale
       $("time-effects").checked = false; $("te-value").value = "";
+      // likewise start the power goal off at its defaults (its arm and cluster
+      // columns are dataset-specific)
+      resetPowerControls();
       updateDesignerNote();
       buildModelControls();
     }
@@ -630,6 +684,8 @@
     function applyRestore(r) {
       if (r.otype === "binary" || r.otype === "continuous") {
         setSeg("otype", r.otype);
+        // the restored outcome type decides whether a power goal is offered
+        syncPower();
         $("otype-auto").textContent = "(manual)";
         updateGoalRange();
       }
@@ -687,6 +743,26 @@
         const cb = document.querySelector(`#covariates input[value="${CSS.escape(name)}"]`);
         if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
       });
+      // Power goal: the arm and cluster selects were rebuilt with the schema, so
+      // set the shared values (a column no longer offered is skipped) and re-sync.
+      // A restored continuous outcome forces it back off in syncPower.
+      if (r.power) {
+        const p = r.power;
+        const offered = (id, v) => v != null && Array.from($(id).options).some((o) => o.value === v);
+        $("power-on").checked = true;
+        if (p.mode === "both" || p.mode === "power") setSeg("pmode", p.mode);
+        if (Number.isFinite(p.goal)) $("pgoal").value = p.goal;
+        // set the arm; its cluster list is only computed after boot (boot calls
+        // syncPower), so the shared cluster column waits in pendingCid below
+        if (offered("parm", p.arm)) $("parm").value = p.arm;
+        if (Number.isFinite(p.nc)) $("pnc").value = p.nc;
+        if (Number.isFinite(p.pc)) $("ppc").value = p.pc;
+        if (p.approach === "conditional" || p.approach === "unconditional") $("papp").value = p.approach;
+        if (Number.isFinite(p.icc)) $("picc").value = p.icc;
+        // renderPowerSelects selects it once the arm's list arrives, if valid
+        if (p.cid) pendingCid = p.cid;
+        syncPower();
+      }
       // A shared budget is the user's own choice, so pin it (mark it dirty so the
       // auto-default can't overwrite it) and fill the field.
       if (r.budget != null && Number.isFinite(r.budget) && r.budget > 0) {
@@ -697,9 +773,9 @@
       // the range to defaults for the new param), then restore the shared range
       // and step count. Left untouched when the link omits them.
       if (r.sweep) {
-        if (r.sweep.param === "outcome_goal" || r.sweep.param === "cost_multiplier") {
-          $("sens-param").value = r.sweep.param;
-        }
+        // only a sweep option the restored power settings leave enabled
+        const sopt = Array.from($("sens-param").options).find((o) => o.value === r.sweep.param);
+        if (sopt && !sopt.disabled) $("sens-param").value = r.sweep.param;
         if (Number.isFinite(r.sweep.from)) $("sens-from").value = r.sweep.from;
         if (Number.isFinite(r.sweep.to)) $("sens-to").value = r.sweep.to;
         if (Number.isFinite(r.sweep.steps)) $("sens-steps").value = r.sweep.steps;
@@ -872,6 +948,10 @@
       // covariates on the outcome and the other roles
       syncTimeEffects();
       renderAdditionalCovariateChips();
+      // the power arm/cluster selects exclude the outcome, and a power goal is
+      // offered only for a binary outcome
+      renderPowerSelects();
+      syncPower();
       // the sweep's default range keys off the goal, which just re-ranged
       setSensDefaults();
     }
@@ -914,6 +994,8 @@
       // re-renders the covariate chips and re-syncs the time-effects control)
       document.querySelectorAll("#covariates input:checked").forEach((cb) => { cb.checked = false; });
       $("time-effects").checked = false; $("te-value").value = "";
+      // and the power goal, back to its defaults (onOutcomeChanged re-syncs it)
+      resetPowerControls();
       // drop any designer cost overrides so Reset restores the linear baseline
       customCosts = {};
       // let the budget field auto-fill from the reset costs again
@@ -1104,6 +1186,159 @@
       $("time-effects-config").style.display = timeEffectsOn() ? "block" : "none";
     }
 
+    // ---- power goal ------------------------------------------------------------
+    // A finite number from an input, else null. A blank box is "not set" rather
+    // than Number("") === 0.
+    function inputNum(id) {
+      const v = $(id).value;
+      return v != null && String(v).trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null;
+    }
+    // arm-select value meaning "use the data's own 'group' column"
+    const GROUP_ARM = "__group__";
+    const hasGroupColumn = () => columns.some((c) => c.name === "group");
+    // lago_optimization() supports a power goal for binary outcomes only
+    function powerSupported() { return $("otype").dataset.value === "binary"; }
+    function powerOn() { return powerSupported() && $("power-on").checked; }
+
+    // Rebuild the treatment-arm and cluster-column selects, keeping the current
+    // choice while it is still offered. An existing 'group' column is used as is
+    // (never overwritten); otherwise the arm is derived from a binary column
+    // (1 = treatment), preferring pre_post as the package tests do.
+    function renderPowerSelects() {
+      const outcomeName = $("outcome").value;
+      const addOpt = (sel, value, label) => {
+        const o = document.createElement("option");
+        o.value = value; o.textContent = label; sel.appendChild(o);
+      };
+      const pick = (sel, prev, preferred) => {
+        const vals = Array.from(sel.options).map((o) => o.value);
+        sel.value = vals.includes(prev) ? prev : vals.includes(preferred) ? preferred : (vals[0] || "");
+      };
+      const arm = $("parm"), prevArm = arm.value;
+      arm.innerHTML = "";
+      // an arm column needs no missing values and both 0 and 1: NA arms are
+      // rejected by the package, and an empty arm makes its power calculation
+      // error or return a meaningless target
+      if (hasGroupColumn()) addOpt(arm, GROUP_ARM, "existing 'group' column");
+      else columns.filter((c) => c.binary && !c.hasNa && c.min === 0 && c.max === 1 && c.name !== outcomeName)
+        .forEach((c) => addOpt(arm, c.name, c.name + " (1 = treatment)"));
+      pick(arm, prevArm, "pre_post");
+      // the cluster (center) column must have at least two distinct non-missing
+      // centers in each arm (the package's check), which also rules out the arm
+      const okCluster = new Set(clusterOk[arm.value] || []);
+      const notCluster = new Set([outcomeName, "group", arm.value]);
+      const cid = $("pcid"), prevCid = cid.value;
+      // a new arm's list is computed on demand; keep the current choice pending
+      // so it is reselected once the list arrives, if still valid
+      if (!(arm.value in clusterOk) && prevCid) pendingCid = prevCid;
+      cid.innerHTML = "";
+      const valid = columns.filter((c) => okCluster.has(c.name) && !notCluster.has(c.name)).map((c) => c.name);
+      // no silent default: an arbitrary column would count each value as a
+      // center. Preselect only the previous choice, a Share-restored column or
+      // site_name, else leave "choose…" and let Run wait with a hint.
+      if (valid.length) addOpt(cid, "", "choose…");
+      valid.forEach((n) => addOpt(cid, n, n));
+      cid.value = valid.includes(prevCid) ? prevCid : valid.includes(pendingCid) ? pendingCid
+        : valid.includes("site_name") ? "site_name" : "";
+      if (arm.value in clusterOk) pendingCid = null;
+    }
+
+    // Why the power settings can't run yet, or "" when they can. While non-empty
+    // the power args are not emitted and Run / sweep / budget are disabled.
+    function powerProblem() {
+      if (!powerOn()) return "";
+      // the package's power calculation uses every outcome row, so an NA outcome
+      // makes it error (unconditional) or silently drop the power goal
+      // (conditional); require a complete outcome column
+      const oc = columns.find((c) => c.name === $("outcome").value);
+      if (oc && oc.hasNa) return "a power goal needs an outcome column with no missing values";
+      const arm = $("parm").value;
+      if (!arm) return "a power goal needs a binary column (1 = treatment) or a 'group' column to define the arms";
+      if (arm === GROUP_ARM && !groupOk) return "the 'group' column must hold only 'treatment' and 'control', with both present";
+      const pg = inputNum("pgoal");
+      if (pg === null || pg < 0.05 || pg >= 1) return "the power goal must be at least 0.05 and below 1";
+      const nc = inputNum("pnc"), pc = inputNum("ppc");
+      if (nc === null || nc <= 0 || pc === null || pc <= 0) return "enter the next stage's centers and patients per center";
+      if ($("intent").dataset.value !== "maximize") return "a power goal needs Direction = Maximize";
+      const icc = inputNum("picc");
+      // a number input reads back "" for malformed text (e.g. "0,05"), so check
+      // badInput rather than silently treating it as no ICC
+      if ($("picc").validity.badInput || (icc !== null && (icc < 0 || icc >= 1))) return "the ICC must be in [0, 1)";
+      if (icc !== null && icc > 0 && !$("pcid").value) {
+        if (!(arm in clusterOk)) return "checking which columns can identify the centers…";
+        return $("pcid").options.length
+          ? "choose the cluster (center) column for the ICC"
+          : "no column has at least two centers in each arm, so an ICC can't be used with this arm";
+      }
+      return "";
+    }
+
+    // Show the power section only for a binary outcome (forcing it off
+    // otherwise), its settings only while on, and the cluster column only for a
+    // non-zero ICC. "Power goal only" leaves the outcome goal slider unused.
+    function syncPower() {
+      const sup = powerSupported();
+      $("power-wrap").style.display = sup ? "block" : "none";
+      if (!sup) $("power-on").checked = false;
+      const on = powerOn();
+      $("power-config").style.display = on ? "block" : "none";
+      const icc = inputNum("picc");
+      $("pcid-wrap").style.display = on && icc !== null && icc > 0 ? "" : "none";
+      const powerOnly = on && $("pmode").dataset.value === "power";
+      $("goal").disabled = powerOnly;
+      // the sweep can vary the power goal only while one is set, and in "power
+      // goal only" mode not the outcome goal (each step would add it back)
+      const sp = $("sens-param");
+      sp.querySelector('option[value="power_goal"]').disabled = !on;
+      sp.querySelector('option[value="outcome_goal"]').disabled = powerOnly;
+      if (!on && sp.value === "power_goal") { sp.value = "outcome_goal"; setSensDefaults(); }
+      else if (powerOnly && sp.value === "outcome_goal") { sp.value = "power_goal"; setSensDefaults(); }
+      $("power-hint").textContent = powerProblem();
+      ensureClusterList();
+    }
+
+    // With a non-zero ICC, find which columns can identify the stage-1 centers
+    // for the selected arm: at least two distinct non-missing values in each arm,
+    // matching both of the package's checks. One small R call per arm, cached,
+    // and only when an ICC needs it, so loading data stays cheap.
+    async function ensureClusterList() {
+      const arm = $("parm").value, icc = inputNum("picc");
+      if (!bootReady || !powerOn() || !arm || !(icc > 0) || arm in clusterOk || clusterPending.has(arm)) return;
+      const gen = schemaGen;
+      clusterPending.add(arm);
+      const tr = arm === GROUP_ARM ? 'PG_DATA[["group"]] %in% "treatment"' : `PG_DATA[[${rstr(arm)}]] == 1`;
+      let list = [];
+      try {
+        list = JSON.parse(await webR.evalRString(`local({ tr <- ${tr}; jsonlite::toJSON(I(names(PG_DATA)[vapply(PG_DATA, ` +
+          `function(v) length(unique(v[tr & !is.na(v)])) >= 2 && length(unique(v[!tr & !is.na(v)])) >= 2, logical(1))])) })`));
+      } catch (e) { list = []; }
+      if (gen !== schemaGen) return;   // the dataset changed while this ran
+      clusterPending.delete(arm);
+      clusterOk[arm] = list;
+      renderPowerSelects(); syncPower(); updateRCode(); updateRunEnabled();
+    }
+
+    function resetPowerControls() {
+      $("power-on").checked = false;
+      setSeg("pmode", "both");
+      $("pgoal").value = 0.8; $("pnc").value = 10; $("ppc").value = 30;
+      $("papp").value = "unconditional"; $("picc").value = "";
+      $("parm").value = ""; $("pcid").value = ""; pendingCid = null;
+      $("goal").disabled = false;
+    }
+
+    // R that builds the 'group' arm column a power goal needs from the chosen
+    // binary column. Empty when the data's own 'group' column is used, or when
+    // the power goal is off or incomplete.
+    function powerPreamble() {
+      if (!powerOn() || powerProblem()) return "";
+      const arm = $("parm").value;
+      if (arm === GROUP_ARM) return "";
+      // a copy, so the shared PG_DATA never keeps a 'group' column (the package
+      // runs its overall test whenever one exists, even with no power goal)
+      return `PG_POWER <- PG_DATA\nPG_POWER$group <- ifelse(PG_POWER[[${rstr(arm)}]] == 1, "treatment", "control")\n`;
+    }
+
     // The ticked interaction terms as {a, b, term} where term is "a:b" (the R
     // formula/column name the package expects). Only pairs whose two components
     // are still ticked survive, since the chips are rebuilt from the components.
@@ -1173,7 +1408,8 @@
       const mains = rows.map((r) => r.name);
       const interTerms = selectedInteractions().map((x) => x.term);
       const args = [
-        `  data = PG_DATA`,
+        // the power goal's derived-arm copy when one is built, else the data
+        `  data = ${powerPreamble() ? "PG_POWER" : "PG_DATA"}`,
         `  outcome_name = ${rstr($("outcome").value)}`,
         `  outcome_type = ${rstr($("otype").dataset.value)}`,
         `  intervention_components = ${rchar(interTerms.length ? mains.concat(interTerms) : mains)}`,
@@ -1211,6 +1447,24 @@
         args.push(`  include_time_effects = TRUE`);
         args.push(`  time_effect_optimization_value = ${Number($("te-value").value)}`);
       }
+      // optional power goal (binary outcomes): the package converts it to the
+      // outcome level the next stage needs and targets max(that, outcome_goal).
+      // "Power goal only" drops the outcome goal. Emitted only when complete.
+      if (powerOn() && !powerProblem()) {
+        if ($("pmode").dataset.value === "power") {
+          const i = args.findIndex((a) => a.startsWith("  outcome_goal ="));
+          if (i >= 0) args.splice(i, 1);
+        }
+        args.push(`  power_goal = ${inputNum("pgoal")}`);
+        args.push(`  num_centers_in_next_stage = ${inputNum("pnc")}`);
+        args.push(`  patients_per_center_in_next_stage = ${inputNum("ppc")}`);
+        if ($("papp").value === "conditional") args.push(`  power_goal_approach = "conditional"`);
+        const icc = inputNum("picc");
+        if (icc !== null) {
+          args.push(`  icc = ${icc}`);
+          if (icc > 0) args.push(`  power_goal_cluster_id = ${rstr($("pcid").value)}`);
+        }
+      }
       args.push(
         `  confidence_set_grid_step_size = ${rnum(rows.map((r) => {
           // Roughly 20 grid steps across each component's range, so a wide
@@ -1229,18 +1483,18 @@
     function buildCall() {
       const args = optimizationArgs();
       if (!args) return { ok: false, msg: "pick at least one component" };
-      return { ok: true, call: `${interactionPreamble()}res <- lago_optimization(\n${args}\n)` };
+      return { ok: true, call: `${interactionPreamble()}${powerPreamble()}res <- lago_optimization(\n${args}\n)` };
     }
 
     // Build a lago_sensitivity() call that re-runs the current optimization
-    // across `values` of `parameter` ("outcome_goal" or "cost_multiplier"). It
-    // forwards the same arguments as the run (confidence set is forced off
-    // inside lago_sensitivity, so the sweep stays fast). Returns null when no
-    // component is ready.
+    // across `values` of `parameter` ("outcome_goal", "power_goal" or
+    // "cost_multiplier"). It forwards the same arguments as the run (the
+    // confidence set is forced off inside lago_sensitivity, so the sweep stays
+    // fast). Returns null when no component is ready.
     function buildSensitivityCall(parameter, values) {
       const args = optimizationArgs();
       if (!args) return null;
-      return `${interactionPreamble()}sens <- lago_sensitivity(\n${args},\n` +
+      return `${interactionPreamble()}${powerPreamble()}sens <- lago_sensitivity(\n${args},\n` +
         `  parameter = ${rstr(parameter)},\n` +
         `  values = ${rnum(values)}\n)`;
     }
@@ -1254,7 +1508,7 @@
     function buildBudgetCall(budget) {
       const args = optimizationArgs();
       if (!args) return null;
-      return `${interactionPreamble()}bud <- lago_budget(\n${args},\n` +
+      return `${interactionPreamble()}${powerPreamble()}bud <- lago_budget(\n${args},\n` +
         `  budget = ${Number(budget)},\n  n_grid = 8\n)`;
     }
 
@@ -1302,6 +1556,12 @@
         // shared: they need an uploaded CSV with a 'period' column, and sharing
         // is offered only for the bundled datasets.
         covariates: selectedAdditionalCovariates(),
+        // the power goal settings, only while one is on
+        power: powerOn() ? {
+          mode: $("pmode").dataset.value, goal: $("pgoal").value, arm: $("parm").value,
+          nc: $("pnc").value, pc: $("ppc").value, approach: $("papp").value,
+          icc: $("picc").value, cid: $("pcid").value || pendingCid || "",
+        } : null,
         // only share a budget the user actually typed; otherwise let the opened
         // link auto-fill its own default from the (possibly rescaled) costs
         budget: budgetDirty && Number.isFinite(budgetVal) && budgetVal > 0 ? budgetVal : null,
@@ -1402,11 +1662,17 @@
 
     // Fill the sweep from/to with a sensible default range for the chosen
     // parameter: a band around the current outcome goal (kept inside the goal
-    // slider's range), or 0.5x-1.5x for the cost multiplier.
+    // slider's range), a band around the power goal (kept inside [0.05, 0.99]),
+    // or 0.5x-1.5x for the cost multiplier.
     function setSensDefaults() {
       const round3 = (v) => Math.round(v * 1000) / 1000;
       if ($("sens-param").value === "cost_multiplier") {
         $("sens-from").value = 0.5; $("sens-to").value = 1.5;
+      } else if ($("sens-param").value === "power_goal") {
+        // a band around the current power goal, kept inside [0.05, 1)
+        const pg = inputNum("pgoal") ?? 0.8;
+        $("sens-from").value = round3(Math.max(0.05, pg - 0.15));
+        $("sens-to").value = round3(Math.min(0.99, pg + 0.15));
       } else {
         const g = Number($("goal").value);
         const gmin = Number($("goal").min), gmax = Number($("goal").max);
@@ -1450,6 +1716,9 @@
       if (steps > 15) steps = 15;
       if (param === "cost_multiplier" && (from <= 0 || to <= 0)) {
         $("sens-hint").textContent = "cost multiplier must be positive"; return;
+      }
+      if (param === "power_goal" && (from < 0.05 || from >= 1 || to < 0.05 || to >= 1)) {
+        $("sens-hint").textContent = "power goals must be at least 0.05 and below 1"; return;
       }
       const values = linspace(from, to, steps).map((v) => Math.round(v * 1e6) / 1e6);
       const call = buildSensitivityCall(param, values);
@@ -1562,7 +1831,8 @@
         el.textContent = anyReachable
           ? "No intervention fits a budget of " + fmt(data.budget) +
             " (the cheapest reachable option costs more). Try a larger budget."
-          : "No reachable intervention was found for these settings. Check the outcome, components, bounds and costs.";
+          : "No reachable intervention was found for these settings. Check the outcome, components, bounds and costs" +
+            (powerOn() ? ", and the power settings." : ".");
         return;
       }
       const comps = data.components || [];
@@ -1711,14 +1981,28 @@
     // Segmented toggles set their choice on the container's dataset. The outcome
     // type additionally re-ranges the goal and marks that the user overrode the
     // auto-detection.
-    ["intent", "otype"].forEach((id) => {
+    ["intent", "otype", "pmode"].forEach((id) => {
       $(id).querySelectorAll("button").forEach((btn) => {
         btn.addEventListener("click", () => {
           setSeg(id, btn.dataset.value);
           if (id === "otype") { $("otype-auto").textContent = "(manual)"; updateGoalRange(); }
+          // the outcome type gates the power goal, the direction and mode feed
+          // its checks and the outcome-goal slider state
+          syncPower();
         });
       });
     });
+
+    // Turning the power goal on selects Maximize (the package rejects a power
+    // goal with minimize); any power input re-checks the settings and hint.
+    $("power-on").addEventListener("change", () => {
+      if ($("power-on").checked && powerSupported()) setSeg("intent", "maximize");
+    });
+    ["input", "change"].forEach((evt) => $("power-wrap").addEventListener(evt, (e) => {
+      // the cluster options exclude the arm column, so rebuild them on an arm change
+      if (e.target.id === "parm") renderPowerSelects();
+      syncPower();
+    }));
 
     // Keep the R-code panel and the Run button in sync with any control change
     // in the model panel (component ticks, sliders, steppers, goal, toggles).
