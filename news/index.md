@@ -2,6 +2,28 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed an outcome goal or a power goal failing when the outcome column
+  has missing values. The check of the outcome goal’s direction compared
+  it against the outcome mean without removing missing values, so any
+  missing outcome stopped
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  with “missing value where TRUE/FALSE needed”. The power calculation
+  counted a row with a missing outcome toward its arm’s size but made
+  the arm’s sum missing, so the default unconditional approach failed
+  the same way and the conditional approach silently returned a
+  power-implied outcome of 0, which dropped the power goal. Both now use
+  only rows with an observed outcome, as the final
+  treatment-versus-control test does, and a power goal now needs a
+  `group` column with both arms present and an observed outcome in each.
+
+- Fixed the in-browser playground misreading a column named like a
+  built-in JavaScript property (for example `constructor` or
+  `toString`). Ticked as an intervention component, it made the
+  generated R code, Run, the sensitivity sweep and the budget search
+  fail, and its bounds and unit cost came up collapsed or blank instead
+  of the column’s defaults. As a center characteristic, its held-at
+  value came up blank and was left out of the call.
+
 - The in-browser playground now supports a power goal (binary outcomes):
   tick “Power goal” to plan for the next stage’s statistical power
   alongside, or instead of, the outcome goal, matching
@@ -13,15 +35,15 @@
   “treatment” and “control” with both present), otherwise from a
   complete 0/1 column you pick (`pre_post` for `BB_data`, as in the
   package tests), and the shown R code includes the lines that build it
-  on a copy of the data. Direction must be Maximize, the outcome column
-  must have no missing values, and Run stays disabled with a hint until
-  the power settings are complete. The ICC cluster column list offers
-  only columns with at least two non-missing centers in each arm,
-  checked when an ICC is entered. The sensitivity sweep can vary the
-  power goal, and the budget search and Share link carry the settings.
-  On `BB_data` the stage-1 data already powers the comparison, so the
-  power goal alone recommends no intervention, and the printed result
-  reports the power-implied outcome.
+  on a copy of the data. Direction must be Maximize, and Run stays
+  disabled with a hint until the power settings are complete. The ICC
+  cluster column list offers only columns with at least two non-missing
+  centers with an observed outcome in each arm, checked when an ICC is
+  entered. The sensitivity sweep can vary the power goal, and the budget
+  search and Share link carry the settings. On `BB_data` the stage-1
+  data already powers the comparison, so the power goal alone recommends
+  no intervention, and the printed result reports the power-implied
+  outcome.
 
 - The in-browser playground now has an optional “Additional covariates”
   section: tick any columns (numeric or not, for example a site or arm

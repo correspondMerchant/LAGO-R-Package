@@ -301,13 +301,17 @@
     // does the loaded data already have a usable 'group' (treatment/control)
     // column for a power goal? Set by refreshSchema.
     let groupOk = false;
-    // arm -> columns usable as the ICC cluster id, computed lazily per arm by
-    // ensureClusterList(). schemaGen discards a reply for a replaced dataset.
+    // (arm, outcome) -> columns usable as the ICC cluster id, computed lazily by
+    // ensureClusterList() and keyed by clusterKey(). schemaGen discards a reply
+    // for a replaced dataset.
     // pendingCid is a cluster column to reselect once the selected arm's list
     // arrives: a Share-restored one, or the user's choice carried across a
     // switch to an arm whose list has not loaded yet.
     // (prototype-free, so a column named e.g. "constructor" is just a key)
     let clusterOk = Object.create(null), clusterPending = new Set(), schemaGen = 0, pendingCid = null;
+    // the cluster check depends on the outcome (rows with a missing outcome are
+    // not counted), so the cache key pairs the arm with the current outcome
+    const clusterKey = (arm) => arm + "\u0001" + $("outcome").value;
     // Set whenever the next schema build should (re)prefill a runnable example:
     // true on first load and after a dataset switch, so each bundled dataset lands
     // on a configuration whose model actually fits and Run/sweep work out of box.
@@ -370,7 +374,9 @@
     // Cost functions shaped in the cost designer and sent back (postMessage),
     // keyed by component name. When present for a ticked component they REPLACE
     // its linear unit cost in the optimization's cost_list_of_vectors.
-    let customCosts = {};
+    // prototype-free: keys are column names, and one named like an Object
+    // member (e.g. "constructor") must read as absent, not as that member
+    let customCosts = Object.create(null);
 
     // Where the current data came from: a bundled dataset (shareable via URL) or
     // an uploaded CSV (whose data cannot be put in a share link).
@@ -424,7 +430,7 @@
       btn.textContent = "clear all";
       btn.style.cssText = "padding:2px 8px; font-size:.8rem;";
       btn.addEventListener("click", () => {
-        customCosts = {};
+        customCosts = Object.create(null);
         updateDesignerNote();
         updateRCode();
       });
@@ -586,7 +592,7 @@
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
       // a new dataset/CSV has different components, so drop any designer costs
       // and let the budget field re-default to the new cost scale
-      customCosts = {};
+      customCosts = Object.create(null);
       budgetDirty = false;
       // start fixed time effects off: a different dataset has a different (or no)
       // 'period' column, so a carried-over tick and value would be stale
@@ -903,7 +909,7 @@
     function renderCenterCharConfig() {
       const box = $("center-char-config");
       const chosen = selectedCenterCharNames();
-      const prev = {};
+      const prev = Object.create(null); // keyed by column name
       box.querySelectorAll(".cc-row").forEach((r) => { prev[r.dataset.cc] = r.querySelector(".cc-val").value; });
       box.innerHTML = "";
       chosen.forEach((name) => {
@@ -997,7 +1003,7 @@
       // and the power goal, back to its defaults (onOutcomeChanged re-syncs it)
       resetPowerControls();
       // drop any designer cost overrides so Reset restores the linear baseline
-      customCosts = {};
+      customCosts = Object.create(null);
       // let the budget field auto-fill from the reset costs again
       budgetDirty = false;
       updateDesignerNote();
@@ -1034,7 +1040,7 @@
       const chosen = selectedComponents();
       // Snapshot any already-tuned bounds/cost so rebuilding (e.g. after the
       // outcome column changes) does not throw the user's edits away.
-      const prev = {};
+      const prev = Object.create(null); // keyed by column name
       box.querySelectorAll(".comp-row").forEach((r) => {
         prev[r.dataset.comp] = {
           lb: r.querySelector(".lb").value,
@@ -1216,21 +1222,21 @@
       };
       const arm = $("parm"), prevArm = arm.value;
       arm.innerHTML = "";
-      // an arm column needs no missing values and both 0 and 1: NA arms are
-      // rejected by the package, and an empty arm makes its power calculation
-      // error or return a meaningless target
+      // an arm column needs no missing values and both 0 and 1: the package
+      // rejects NA arms and an arm with no observed outcome
       if (hasGroupColumn()) addOpt(arm, GROUP_ARM, "existing 'group' column");
       else columns.filter((c) => c.binary && !c.hasNa && c.min === 0 && c.max === 1 && c.name !== outcomeName)
         .forEach((c) => addOpt(arm, c.name, c.name + " (1 = treatment)"));
       pick(arm, prevArm, "pre_post");
       // the cluster (center) column must have at least two distinct non-missing
-      // centers in each arm (the package's check), which also rules out the arm
-      const okCluster = new Set(clusterOk[arm.value] || []);
+      // centers with an observed outcome in each arm (the package's check),
+      // which also rules out the arm
+      const okCluster = new Set(clusterOk[clusterKey(arm.value)] || []);
       const notCluster = new Set([outcomeName, "group", arm.value]);
       const cid = $("pcid"), prevCid = cid.value;
       // a new arm's list is computed on demand; keep the current choice pending
       // so it is reselected once the list arrives, if still valid
-      if (!(arm.value in clusterOk) && prevCid) pendingCid = prevCid;
+      if (!(clusterKey(arm.value) in clusterOk) && prevCid) pendingCid = prevCid;
       cid.innerHTML = "";
       const valid = columns.filter((c) => okCluster.has(c.name) && !notCluster.has(c.name)).map((c) => c.name);
       // no silent default: an arbitrary column would count each value as a
@@ -1240,18 +1246,13 @@
       valid.forEach((n) => addOpt(cid, n, n));
       cid.value = valid.includes(prevCid) ? prevCid : valid.includes(pendingCid) ? pendingCid
         : valid.includes("site_name") ? "site_name" : "";
-      if (arm.value in clusterOk) pendingCid = null;
+      if (clusterKey(arm.value) in clusterOk) pendingCid = null;
     }
 
     // Why the power settings can't run yet, or "" when they can. While non-empty
     // the power args are not emitted and Run / sweep / budget are disabled.
     function powerProblem() {
       if (!powerOn()) return "";
-      // the package's power calculation uses every outcome row, so an NA outcome
-      // makes it error (unconditional) or silently drop the power goal
-      // (conditional); require a complete outcome column
-      const oc = columns.find((c) => c.name === $("outcome").value);
-      if (oc && oc.hasNa) return "a power goal needs an outcome column with no missing values";
       const arm = $("parm").value;
       if (!arm) return "a power goal needs a binary column (1 = treatment) or a 'group' column to define the arms";
       if (arm === GROUP_ARM && !groupOk) return "the 'group' column must hold only 'treatment' and 'control', with both present";
@@ -1265,10 +1266,10 @@
       // badInput rather than silently treating it as no ICC
       if ($("picc").validity.badInput || (icc !== null && (icc < 0 || icc >= 1))) return "the ICC must be in [0, 1)";
       if (icc !== null && icc > 0 && !$("pcid").value) {
-        if (!(arm in clusterOk)) return "checking which columns can identify the centers…";
+        if (!(clusterKey(arm) in clusterOk)) return "checking which columns can identify the centers…";
         return $("pcid").options.length
           ? "choose the cluster (center) column for the ICC"
-          : "no column has at least two centers in each arm, so an ICC can't be used with this arm";
+          : "no column has at least two centers with an observed outcome in each arm, so an ICC can't be used with this arm";
       }
       return "";
     }
@@ -1298,23 +1299,24 @@
     }
 
     // With a non-zero ICC, find which columns can identify the stage-1 centers
-    // for the selected arm: at least two distinct non-missing values in each arm,
-    // matching both of the package's checks. One small R call per arm, cached,
-    // and only when an ICC needs it, so loading data stays cheap.
+    // for the selected arm: at least two distinct non-missing values in each
+    // arm among rows with an observed outcome, the rows the package counts. One
+    // small R call per arm and outcome, cached, and only when an ICC needs it.
     async function ensureClusterList() {
-      const arm = $("parm").value, icc = inputNum("picc");
-      if (!bootReady || !powerOn() || !arm || !(icc > 0) || arm in clusterOk || clusterPending.has(arm)) return;
+      const arm = $("parm").value, icc = inputNum("picc"), key = clusterKey(arm);
+      if (!bootReady || !powerOn() || !arm || !(icc > 0) || key in clusterOk || clusterPending.has(key)) return;
       const gen = schemaGen;
-      clusterPending.add(arm);
+      clusterPending.add(key);
       const tr = arm === GROUP_ARM ? 'PG_DATA[["group"]] %in% "treatment"' : `PG_DATA[[${rstr(arm)}]] == 1`;
+      const ok = `!is.na(PG_DATA[[${rstr($("outcome").value)}]])`;
       let list = [];
       try {
-        list = JSON.parse(await webR.evalRString(`local({ tr <- ${tr}; jsonlite::toJSON(I(names(PG_DATA)[vapply(PG_DATA, ` +
-          `function(v) length(unique(v[tr & !is.na(v)])) >= 2 && length(unique(v[!tr & !is.na(v)])) >= 2, logical(1))])) })`));
+        list = JSON.parse(await webR.evalRString(`local({ tr <- ${tr}; ok <- ${ok}; jsonlite::toJSON(I(names(PG_DATA)[vapply(PG_DATA, ` +
+          `function(v) length(unique(v[tr & ok & !is.na(v)])) >= 2 && length(unique(v[!tr & ok & !is.na(v)])) >= 2, logical(1))])) })`));
       } catch (e) { list = []; }
       if (gen !== schemaGen) return;   // the dataset changed while this ran
-      clusterPending.delete(arm);
-      clusterOk[arm] = list;
+      clusterPending.delete(key);
+      clusterOk[key] = list;
       renderPowerSelects(); syncPower(); updateRCode(); updateRunEnabled();
     }
 
