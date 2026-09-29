@@ -214,3 +214,20 @@ test_that("the icc center check does not count a missing center id", {
     "fewer than two distinct power_goal_cluster_id centers with an observed"
   )
 })
+
+test_that("a direct caller gets the function-level icc center error", {
+  # validate_inputs() catches this first for lago_optimization(), so only a
+  # direct call reaches the guard inside get_power_desired_outcome()
+  small <- make_small_clustered()
+  coeff <- small_coeff(small)
+  small$center[small$group == "treatment"] <- "t1"
+  expect_error(
+    get_power_desired_outcome(
+      data = small, intervention_components_coeff = coeff, power_goal = 0.8,
+      power_goal_approach = "unconditional", num_centers_in_next_stage = 20,
+      patients_per_center_in_next_stage = 20, outcome_name = "y",
+      icc = 0.03, power_goal_cluster_id = "center"
+    ),
+    "at least two centers with an observed"
+  )
+})
