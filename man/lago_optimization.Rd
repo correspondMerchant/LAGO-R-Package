@@ -260,11 +260,11 @@ together at the same time.
 Default value without user specification: FALSE for individual level data,
 TRUE for center level data.}
 
-\item{center_effects_optimization_values}{A numeric vector. The center of
-interest that will be used for center-specific LAGO optimization. This is
-only used when include_center_effects is set to TRUE. If not specified,
-the LAGO optimization will be carried out for a weighted average of all
-centers.}
+\item{center_effects_optimization_values}{A character string. The name of
+the center of interest (one of the values of the 'center' column) that will
+be used for center-specific LAGO optimization. This is only used when
+include_center_effects is set to TRUE. If not specified, the LAGO
+optimization will be carried out for a weighted average of all centers.}
 
 \item{include_time_effects}{A boolean. Specifies whether the fixed time
 effects should be included in the outcome model. If set to TRUE, please
