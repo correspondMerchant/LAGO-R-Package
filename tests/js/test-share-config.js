@@ -7,14 +7,14 @@
 //   1. buildShareQuery -> parseShareQuery round-trips the whole configuration
 //      (dataset, outcome, otype, components, bounds, costs, goal, intent, plus
 //      the optional center characteristics, interaction terms, additional
-//      covariates, power goal, budget, and sweep settings),
+//      covariates, fixed center effects, power goal, budget, and sweep settings),
 //   2. linearUnitCost / isDesignerCost classify cost vectors correctly, which is
 //      what decides on restore whether a component gets a linear unit cost or a
 //      designer coefficient vector,
 //   3. a query carrying no configuration parses to null; a truncated numeric
 //      list (lower/upper/costs/ccval) degrades to a non-finite entry the caller
 //      skips rather than a forced 0; and an omitted optional field (cc/ccval/
-//      int/cov/pw/budget/sweep) degrades to []/null so the opener keeps its own
+//      int/cov/ce/pw/budget/sweep) degrades to []/null so the opener keeps its own
 //      default.
 
 var assert = require("assert");
@@ -228,5 +228,25 @@ eq(m.parseShareQuery("?" + m.buildShareQuery(Object.assign({}, pwBase, {
   power: { mode: "power", goal: 0.8, arm: "pre_post", nc: 10, pc: 30, approach: "unconditional", icc: "", cid: "" },
   sweep: { param: "power_goal", from: 0.65, to: 0.95, steps: 5 },
 }))).sweep, { param: "power_goal", from: 0.65, to: 0.95, steps: 5 }, "a power-goal sweep round-trips");
+
+// ---- 8. fixed center effects round-trip and omission ----
+var ceOne = m.parseShareQuery("?" + m.buildShareQuery(Object.assign({}, pwBase, {
+  centerEffects: { col: "site_name", forCenter: "Auras" },
+})));
+eq(ceOne.centerEffects, { col: "site_name", forCenter: "Auras" }, "center effects for one center round-trip");
+var ceAvg = m.buildShareQuery(Object.assign({}, pwBase, { centerEffects: { col: "site_name", forCenter: "" } }));
+ok(ceAvg.indexOf("cefor=") === -1, "the average center sends no center name");
+eq(m.parseShareQuery("?" + ceAvg).centerEffects, { col: "site_name", forCenter: null },
+  "average-center effects round-trip with a null center");
+eq(m.parseShareQuery("?" + m.buildShareQuery(pwBase)).centerEffects, null,
+  "no center effects -> null (the opener leaves them off)");
+eq(m.parseShareQuery("?outcome=o&ce=1").centerEffects, { col: null, forCenter: null },
+  "ce=1 with no column parses to an unchosen column (the opener uses its default)");
+eq(m.parseShareQuery("?outcome=o&cecol=site_name").centerEffects, null,
+  "center fields without ce=1 -> null");
+var ceName = m.parseShareQuery("?" + m.buildShareQuery(Object.assign({}, pwBase, {
+  centerEffects: { col: "site name", forCenter: "A&B, C" },
+})));
+eq(ceName.centerEffects.forCenter, "A&B, C", "a center name with & and a comma round-trips");
 
 console.log("share-config round-trip: " + pass + " assertions passed");
