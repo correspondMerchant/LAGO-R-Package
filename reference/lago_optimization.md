@@ -316,11 +316,11 @@ lago_optimization(
 
 - center_effects_optimization_values:
 
-  A numeric vector. The center of interest that will be used for
-  center-specific LAGO optimization. This is only used when
-  include_center_effects is set to TRUE. If not specified, the LAGO
-  optimization will be carried out for a weighted average of all
-  centers.
+  A character string. The name of the center of interest (one of the
+  values of the 'center' column) that will be used for center-specific
+  LAGO optimization. This is only used when include_center_effects is
+  set to TRUE. If not specified, the LAGO optimization will be carried
+  out for a weighted average of all centers.
 
 - include_time_effects:
 

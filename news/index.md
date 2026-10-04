@@ -2,6 +2,32 @@
 
 ## LAGOtrials 1.1.0
 
+- The in-browser playground now supports fixed center effects: tick
+  “Fixed center effects” to adjust the outcome model for each center,
+  matching
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)’s
+  `include_center_effects`, and choose whether to optimize for the
+  size-weighted average center or for one named center
+  (`center_effects_optimization_values`). The center column comes from
+  the data’s own `center` column when it has one, used as is, otherwise
+  from a column you pick (`site_name` for `BB_data`), and the shown R
+  code includes the line that builds it on a copy of the data. Fixed
+  center effects replace center characteristics, which the package
+  cannot fit together, and the center column is not offered as a
+  component or an additional covariate. The sensitivity sweep, budget
+  search and Share link carry the setting. For now, with a continuous
+  outcome, fixed center effects need the outcome, components,
+  covariates, center column and (with fixed time effects) the period
+  column to have no missing values, because the package’s confidence set
+  cannot yet use incomplete rows there. For any outcome, every center
+  needs at least one row where all the model columns are observed, since
+  otherwise that center cannot be fitted.
+
+- The documentation of `center_effects_optimization_values` now says it
+  is a single center name (a character string), which is what
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  has always required, rather than a numeric vector.
+
 - Fixed an outcome goal or a power goal failing when the outcome column
   has missing values. The check of the outcome goal’s direction compared
   it against the outcome mean without removing missing values, so any

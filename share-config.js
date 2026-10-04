@@ -11,7 +11,8 @@
 // cost, encoded as its full coefficient vector, so both round-trip. The center
 // characteristics (one repeated `cc` name each, values comma-joined in `ccval`),
 // the interaction terms (one repeated `int` per "a:b" term), the additional
-// covariates (one repeated `cov` per column), the power goal (`pw=1` plus
+// covariates (one repeated `cov` per column), fixed center effects (`ce=1`,
+// `cecol`, `cefor`), the power goal (`pw=1` plus
 // `pmode`, `pgoal`, `parm`, `pnc`, `ppc`, `papp`, `picc`, `pcid`), a user-set
 // `budget`, and the sweep settings (`sparam`, `sfrom`, `sto`, `ssteps`) ride
 // along too, so a link restores the whole page and not just the core
@@ -73,6 +74,8 @@
       centerCharValues: toNums(q.get("ccval")),
       interactions: q.getAll("int"),
       covariates: q.getAll("cov"),
+      // fixed center effects, present only when the link turned them on
+      centerEffects: q.get("ce") === "1" ? { col: q.get("cecol"), forCenter: q.get("cefor") } : null,
       // the power goal settings, present only when the link turned one on
       power: q.get("pw") === "1" ? {
         mode: q.get("pmode"),
@@ -97,12 +100,13 @@
   // Build the query string (without the leading "?") from a configuration:
   // { dataset, outcome, otype, rows: [{ name, lb, ub, costVec }], goal, intent,
   //   centerChars: [{ name, value }], interactions: ["a:b"], covariates: [name],
+  //   centerEffects: { col, forCenter } | null,
   //   power: { mode, goal, arm, nc, pc, approach, icc, cid } | null,
   //   budget, sweep: { param, from, to, steps } }.
   // costVec is the component's full coefficient vector ([0, unitCost] for a
-  // linear cost). centerChars, interactions, covariates, power, budget and
-  // sweep are optional (omitted params just restore defaults). Inverse of
-  // parseShareQuery.
+  // linear cost). centerChars, interactions, covariates, centerEffects, power,
+  // budget and sweep are optional (omitted params just restore defaults).
+  // Inverse of parseShareQuery.
   function buildShareQuery(config) {
     var p = new URLSearchParams();
     p.set("dataset", config.dataset);
@@ -131,6 +135,13 @@
     (config.interactions || []).forEach(function (t) { p.append("int", t); });
     // additional covariates: a repeated `cov` per column name.
     (config.covariates || []).forEach(function (name) { p.append("cov", name); });
+    // fixed center effects: `ce=1`, the center column and, for one center, its name
+    var ce = config.centerEffects;
+    if (ce) {
+      p.set("ce", "1");
+      if (ce.col) p.set("cecol", ce.col);
+      if (ce.forCenter) p.set("cefor", ce.forCenter);
+    }
     // power goal: `pw=1` plus its settings; blank numeric fields are omitted so
     // the opener keeps its defaults, and the ICC cluster column only rides along
     // with a non-zero ICC.

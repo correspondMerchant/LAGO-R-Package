@@ -49,6 +49,13 @@ at set values)
 Additional covariates (optional — extra columns to adjust the outcome
 model for)
 
+Fixed center effects (optional — adjust the outcome model for each
+center; replaces center characteristics)
+
+Center column
+
+Optimize for
+
 Fixed time effects (the data has a ‘period’ column)
 
 optimize for period
@@ -123,11 +130,10 @@ webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing
 you load or type leaves your browser. The confidence-set plot is drawn
 for one- or two-component interventions (three or more still get the
 cost curves and the full console summary). This playground exposes the
-common options; for the rest — center fixed effects, a custom GLM
-family/link, center weights, and more — call `lago_optimization()` in R
-(copy the snippet above as a starting point). To shape the per-component
-cost functions themselves (including non-linear ones), use the
-interactive [cost
+common options; for the rest — a custom GLM family/link, custom center
+weights, and more — call `lago_optimization()` in R (copy the snippet
+above as a starting point). To shape the per-component cost functions
+themselves (including non-linear ones), use the interactive [cost
 designer](https://correspondmerchant.github.io/LAGO-R-Package/visualize-cost/).
 See the [package
 documentation](https://correspondmerchant.github.io/LAGO-R-Package/index.md)

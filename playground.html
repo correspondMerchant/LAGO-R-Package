@@ -163,6 +163,16 @@
       <label id="covariates-label" style="display:block;margin-top:14px;">Additional covariates <span class="hint" style="font-weight:400;">(optional &mdash; extra columns to adjust the outcome model for)</span></label>
       <div id="covariates" role="group" aria-labelledby="covariates-label"></div>
 
+      <div id="center-effects-wrap" style="margin-top:14px;">
+        <label style="display:block;font-weight:600;"><input type="checkbox" id="center-effects" style="width:auto;"> Fixed center effects <span class="hint" style="font-weight:400;">(optional &mdash; adjust the outcome model for each center; replaces center characteristics)</span></label>
+        <div id="center-effects-config" style="display:none;margin-top:6px;">
+          <div class="row">
+            <div class="field"><label for="ce-col">Center column</label><select id="ce-col"></select></div>
+            <div class="field"><label for="ce-for">Optimize for</label><select id="ce-for"></select></div>
+          </div>
+        </div>
+      </div>
+
       <div id="time-effects-wrap" style="display:none;margin-top:14px;">
         <label style="display:block;font-weight:600;"><input type="checkbox" id="time-effects" style="width:auto;"> Fixed time effects <span class="hint" style="font-weight:400;">(the data has a &lsquo;period&rsquo; column)</span></label>
         <div id="time-effects-config" style="display:none;margin-top:6px;">
@@ -259,8 +269,8 @@
     <p class="note">
       webR runs a WebAssembly build of R (4.6.0) entirely client-side; nothing you load or type leaves your browser. The
       confidence-set plot is drawn for one- or two-component interventions (three or more still get the cost curves and the
-      full console summary). This playground exposes the common options; for the rest &mdash; center fixed effects, a
-      custom GLM family/link, center weights, and more &mdash; call
+      full console summary). This playground exposes the common options; for the rest &mdash; a custom GLM
+      family/link, custom center weights, and more &mdash; call
       <code>lago_optimization()</code> in R (copy the snippet above as a starting point). To shape the per-component cost
       functions themselves (including non-linear ones), use the interactive <a href="./visualize-cost/">cost designer</a>.
       See the <a href="./index.html">package documentation</a> for the complete API.
@@ -347,16 +357,15 @@
       const teBad = timeEffectsOn() && !timeEffectValueOk();
       // a power goal that is on but incomplete/invalid blocks a runnable call too
       const pProblem = powerProblem();
-      const runnable = ok && !teBad && !pProblem;
+      const cProblem = centerProblem();
+      const runnable = ok && !teBad && !pProblem && !cProblem;
       $("run").disabled = !runnable || running;
       // the cost designer hand-off needs at least one component too (it does not
       // use time effects, so a missing period value does not block it)
       $("open-designer").disabled = !ok;
       // sharing needs components AND a bundled dataset (a CSV can't go in a URL)
       $("share-link").disabled = !ok || currentSource.type !== "bundled";
-      // the sensitivity sweep and budget search re-run the current optimization,
-      // so they need a component, valid time-effect and power settings, and a
-      // free thread
+      // the sweep and budget re-run the optimization, so they need every run gate
       $("sens-run").disabled = !runnable || running;
       $("bud-run").disabled = !runnable || running;
       // keep a sensible default budget in the field until the user edits it
@@ -368,6 +377,8 @@
         ? "enter the period value to optimize at, or untick fixed time effects"
         : pProblem
         ? pProblem
+        : cProblem
+        ? cProblem
         : "";
     }
 
@@ -535,6 +546,7 @@
       bootReady = true;
       // a Share-restored ICC needs its cluster list, which waits for boot
       syncPower();
+      syncCenterEffects();
       updateRunEnabled();
     }
 
@@ -589,6 +601,8 @@
       // the per-arm cluster lists belong to the old data; any reply still in
       // flight is for it too, so bump the generation to discard it
       clusterOk = Object.create(null); clusterPending = new Set(); schemaGen++;
+      centerNames = Object.create(null); centerPatterns = Object.create(null);
+      centerHasNa = Object.create(null); centerPending = new Set();
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
       // a new dataset/CSV has different components, so drop any designer costs
       // and let the budget field re-default to the new cost scale
@@ -600,6 +614,7 @@
       // likewise start the power goal off at its defaults (its arm and cluster
       // columns are dataset-specific)
       resetPowerControls();
+      resetCenterEffects();
       updateDesignerNote();
       buildModelControls();
     }
@@ -724,6 +739,18 @@
         const cb = document.querySelector(`#interactions input[value="${CSS.escape(term)}"]`);
         if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); }
       });
+      // Fixed center effects: restored first, as they replace center characteristics.
+      if (r.centerEffects) {
+        $("center-effects").checked = true;
+        renderCenterEffectSelects();
+        const ce = r.centerEffects;
+        if (ce.col && Array.from($("ce-col").options).some((o) => o.value === ce.col)) $("ce-col").value = ce.col;
+        // names load after boot, so the chosen center waits in pendingCenterFor
+        if (ce.forCenter && ce.col && $("ce-col").value === ce.col) {
+          pendingCenterFor = { col: centerSource(), name: ce.forCenter };
+        }
+        onCenterEffectsChanged();
+      }
       // Center characteristics: ticking the components above already re-rendered
       // the chips, so only columns still eligible (numeric, not the outcome, not
       // a component) have a chip to tick. Tick the shared ones (which builds a
@@ -812,10 +839,13 @@
       const checked = new Set(selectedComponents());
       const outcomeName = $("outcome").value;
       comps.innerHTML = "";
+      // the center column identifies centers, so it is not a component
+      const ceCol = centerEffectsOn() ? centerSource() : "";
       // when fixed time effects are on, 'period' is the time factor, not an
       // intervention knob, so it cannot also be a component
       const eligible = columns.filter(
-        (c) => c.numeric && c.name !== outcomeName && !(timeEffectsOn() && c.name === "period")
+        (c) => c.numeric && c.name !== outcomeName && !(timeEffectsOn() && c.name === "period") &&
+          c.name !== ceCol
       );
       if (!eligible.length) {
         comps.innerHTML =
@@ -843,6 +873,7 @@
           renderCenterCharChips();
           // additional-covariate eligibility excludes components too
           renderAdditionalCovariateChips();
+          renderCenterEffectSelects();
           updateRunEnabled();
         });
         comps.appendChild(chip);
@@ -870,6 +901,12 @@
     // can't inject markup.
     function renderCenterCharChips() {
       const box = $("center-chars");
+      // the package cannot fit center characteristics alongside fixed center effects
+      if (centerEffectsOn()) {
+        box.innerHTML = '<p class="hint" style="margin:0;">Not available with fixed center effects.</p>';
+        renderCenterCharConfig();
+        return;
+      }
       const checked = new Set(selectedCenterCharNames());
       const outcomeName = $("outcome").value;
       const comps = new Set(selectedComponents());
@@ -958,6 +995,9 @@
       // offered only for a binary outcome
       renderPowerSelects();
       syncPower();
+      // the center column cannot be the outcome
+      renderCenterEffectSelects();
+      syncCenterEffects();
       // the sweep's default range keys off the goal, which just re-ranged
       setSensDefaults();
     }
@@ -1002,6 +1042,7 @@
       $("time-effects").checked = false; $("te-value").value = "";
       // and the power goal, back to its defaults (onOutcomeChanged re-syncs it)
       resetPowerControls();
+      resetCenterEffects();
       // drop any designer cost overrides so Reset restores the linear baseline
       customCosts = Object.create(null);
       // let the budget field auto-fill from the reset costs again
@@ -1132,8 +1173,8 @@
     }
 
     // Additional-covariate chips: any column that is not the outcome and not
-    // already playing another role (component, center characteristic, or, when
-    // fixed time effects are on, the 'period' column). Unlike components and
+    // already playing another role (component, center characteristic, the center
+    // column, or, with fixed time effects, the 'period' column). Unlike components and
     // center characteristics these may be non-numeric (e.g. a site or arm
     // label). Built with the DOM so a CSV column name cannot inject markup.
     function renderAdditionalCovariateChips() {
@@ -1145,6 +1186,7 @@
         ...selectedCenterCharNames(),
       ]);
       if (timeEffectsOn()) claimed.add("period");
+      if (centerEffectsOn() && centerSource()) claimed.add(centerSource());
       box.innerHTML = "";
       const eligible = columns.filter((c) => !claimed.has(c.name));
       if (!eligible.length) {
@@ -1190,6 +1232,142 @@
       $("time-effects-wrap").style.display = has ? "block" : "none";
       if (!has) $("time-effects").checked = false;
       $("time-effects-config").style.display = timeEffectsOn() ? "block" : "none";
+    }
+
+    // ---- fixed center effects ----------------------------------------------------
+    // ce-col value meaning "use the data's own 'center' column"
+    const CENTER_COL = "__center__";
+    // column -> sorted center names, loaded lazily by ensureCenterNames()
+    let centerNames = Object.create(null), centerPending = new Set(), pendingCenterFor = null;
+    // column -> per center (level order) its rows' "|"-joined NA columns ("" = complete)
+    let centerPatterns = Object.create(null);
+    // column -> whether it has a true NA (NaN is a factor level, so it is a real center)
+    let centerHasNa = Object.create(null);
+    // the column the optimize-for choice belongs to; pendingCenterFor is { col, name }
+    let centerForCol = null;
+    const hasCenterColumn = () => columns.some((c) => c.name === "center");
+    function centerEffectsOn() { return $("center-effects").checked; }
+    // the column that identifies centers ("center" for the data's own), "" while unchosen
+    function centerSource() {
+      const v = $("ce-col").value;
+      return v === CENTER_COL ? "center" : v;
+    }
+
+    // Rebuild the center-column and optimize-for selects, keeping valid choices.
+    function renderCenterEffectSelects() {
+      const addOpt = (sel, value, label) => {
+        const o = document.createElement("option");
+        o.value = value; o.textContent = label; sel.appendChild(o);
+      };
+      const col = $("ce-col"), prev = col.value;
+      const taken = new Set([$("outcome").value, ...selectedComponents()]);
+      if (timeEffectsOn()) taken.add("period");
+      col.innerHTML = "";
+      if (hasCenterColumn()) addOpt(col, CENTER_COL, "existing 'center' column");
+      else {
+        const valid = columns.filter((c) => !taken.has(c.name)).map((c) => c.name);
+        // no silent default: an arbitrary column would make every value a center
+        if (valid.length && !valid.includes("site_name")) addOpt(col, "", "choose…");
+        valid.forEach((n) => addOpt(col, n, n));
+      }
+      const vals = Array.from(col.options).map((o) => o.value);
+      col.value = prev && vals.includes(prev) ? prev
+        : hasCenterColumn() ? CENTER_COL : vals.includes("site_name") ? "site_name" : "";
+      const src = centerSource(), f = $("ce-for");
+      // a choice for another column never carries over, since labels like "6" can repeat
+      const prevFor = centerForCol === src ? f.value : "";
+      if (pendingCenterFor && pendingCenterFor.col !== src) pendingCenterFor = null;
+      const names = centerNames[src];
+      // keep a chosen center pending while this column's names load
+      if (!names && prevFor) pendingCenterFor = { col: src, name: prevFor };
+      f.innerHTML = "";
+      addOpt(f, "", "average center (weighted by size)");
+      (names || []).filter((n) => n !== "").forEach((n) => addOpt(f, n, n));
+      const fv = Array.from(f.options).map((o) => o.value);
+      const want = pendingCenterFor ? pendingCenterFor.name : null;
+      // a pending center (restored or carried) outranks the "" average value
+      f.value = fv.includes(want) ? want : fv.includes(prevFor) ? prevFor : "";
+      if (names) pendingCenterFor = null;
+      centerForCol = src;
+      // a fallback center column re-claims chips and needs its own names
+      if (centerEffectsOn() && col.value !== prev) {
+        renderComponentChips(); renderAdditionalCovariateChips(); ensureCenterNames();
+      }
+    }
+
+    // Why fixed center effects can't run yet, or "" when they can.
+    function centerProblem() {
+      if (!centerEffectsOn()) return "";
+      const src = centerSource();
+      if (!src) return "choose the column that identifies the centers";
+      if (src === $("outcome").value || selectedComponents().includes(src)) {
+        return "the center column is also the outcome or a component";
+      }
+      // the package's continuous-outcome confidence set cannot yet use incomplete rows
+      if ($("otype").dataset.value === "continuous") {
+        const used = [$("outcome").value, ...selectedComponents(), ...selectedAdditionalCovariates()];
+        if (timeEffectsOn()) used.push("period");
+        if (used.some((n) => (columns.find((c) => c.name === n) || {}).hasNa) || centerHasNa[src]) {
+          return "with a continuous outcome, fixed center effects need model columns without missing values";
+        }
+      }
+      if (!(src in centerNames)) return "checking the centers…";
+      if (centerNames[src].length < 2) return "fixed center effects need at least two centers";
+      // glm() drops a center with no fully observed row (a package limit)
+      const used = new Set([$("outcome").value, ...selectedComponents(), ...selectedAdditionalCovariates()]);
+      if (timeEffectsOn()) used.add("period");
+      const pats = centerPatterns[src] || [], names = centerNames[src];
+      // patterns line up with the names by position; an empty list must never gate
+      const i = names.findIndex((n, k) => Array.isArray(pats[k]) && pats[k].length &&
+        pats[k].every((p) => p.split("|").some((c) => c && used.has(c))));
+      if (i >= 0) {
+        const label = names[i] === "" ? "(blank)" : names[i];
+        return `center "${label}" has no row with every model column observed, so it cannot be fitted`;
+      }
+      return "";
+    }
+
+    function syncCenterEffects() {
+      $("center-effects-config").style.display = centerEffectsOn() ? "block" : "none";
+      ensureCenterNames();
+    }
+
+    // Load the chosen column's distinct centers once (one small R call, cached).
+    async function ensureCenterNames() {
+      const src = centerSource();
+      if (!bootReady || !centerEffectsOn() || !src || src in centerNames || centerPending.has(src)) return;
+      const gen = schemaGen;
+      centerPending.add(src);
+      let info = { names: [], patterns: [], na: false };
+      try {
+        info = JSON.parse(await webR.evalRString(`local({ g <- factor(PG_DATA[[${rstr(src)}]]); ` +
+          `nc <- names(PG_DATA)[vapply(PG_DATA, anyNA, logical(1))]; pats <- list(); ` +
+          `if (length(nc)) { m <- is.na(PG_DATA[nc]); ` +
+          `key <- apply(m, 1, function(r) paste(nc[r], collapse = "|")); ` +
+          `pats <- unname(lapply(split(key, g), function(k) I(unique(k)))) }; ` +
+          `jsonlite::toJSON(list(names = I(levels(g)), patterns = pats, na = anyNA(g)), auto_unbox = TRUE) })`));
+      } catch (e) { info = { names: [], patterns: [], na: false }; }
+      if (gen !== schemaGen) return;   // the dataset changed while this ran
+      centerPending.delete(src);
+      centerNames[src] = info.names || [];
+      centerPatterns[src] = Array.isArray(info.patterns) ? info.patterns : [];
+      centerHasNa[src] = info.na === true;
+      renderCenterEffectSelects(); syncCenterEffects(); updateRCode(); updateRunEnabled();
+    }
+
+    function resetCenterEffects() {
+      $("center-effects").checked = false;
+      $("ce-col").value = ""; $("ce-for").value = ""; pendingCenterFor = null; centerForCol = null;
+    }
+
+    // Center effects change which columns each role may use, so rebuild every chip group.
+    function onCenterEffectsChanged() {
+      renderCenterEffectSelects(); syncCenterEffects();
+      renderComponentChips(); renderCompConfig();
+      renderInteractionChips();
+      renderCenterCharChips();
+      renderAdditionalCovariateChips();
+      updateRCode(); updateRunEnabled();
     }
 
     // ---- power goal ------------------------------------------------------------
@@ -1329,16 +1507,18 @@
       $("goal").disabled = false;
     }
 
-    // R that builds the 'group' arm column a power goal needs from the chosen
-    // binary column. Empty when the data's own 'group' column is used, or when
-    // the power goal is off or incomplete.
-    function powerPreamble() {
-      if (!powerOn() || powerProblem()) return "";
+    // R for PG_RUN, a copy with a derived 'group' or 'center' column, else "".
+    function dataPreamble() {
+      const lines = [];
       const arm = $("parm").value;
-      if (arm === GROUP_ARM) return "";
-      // a copy, so the shared PG_DATA never keeps a 'group' column (the package
-      // runs its overall test whenever one exists, even with no power goal)
-      return `PG_POWER <- PG_DATA\nPG_POWER$group <- ifelse(PG_POWER[[${rstr(arm)}]] == 1, "treatment", "control")\n`;
+      if (powerOn() && !powerProblem() && arm !== GROUP_ARM) {
+        lines.push(`PG_RUN$group <- ifelse(PG_RUN[[${rstr(arm)}]] == 1, "treatment", "control")`);
+      }
+      const src = centerSource();
+      if (centerEffectsOn() && !centerProblem() && src !== "center") {
+        lines.push(`PG_RUN$center <- factor(PG_RUN[[${rstr(src)}]])`);
+      }
+      return lines.length ? "PG_RUN <- PG_DATA\n" + lines.join("\n") + "\n" : "";
     }
 
     // The ticked interaction terms as {a, b, term} where term is "a:b" (the R
@@ -1410,8 +1590,8 @@
       const mains = rows.map((r) => r.name);
       const interTerms = selectedInteractions().map((x) => x.term);
       const args = [
-        // the power goal's derived-arm copy when one is built, else the data
-        `  data = ${powerPreamble() ? "PG_POWER" : "PG_DATA"}`,
+        // the PG_RUN copy when dataPreamble() derives a column, else the data
+        `  data = ${dataPreamble() ? "PG_RUN" : "PG_DATA"}`,
         `  outcome_name = ${rstr($("outcome").value)}`,
         `  outcome_type = ${rstr($("otype").dataset.value)}`,
         `  intervention_components = ${rchar(interTerms.length ? mains.concat(interTerms) : mains)}`,
@@ -1437,6 +1617,11 @@
       if (ccs.length) {
         args.push(`  center_characteristics = ${rchar(ccs.map((c) => c.name))}`);
         args.push(`  center_characteristics_optimization_values = ${rnum(ccs.map((c) => c.value))}`);
+      }
+      if (centerEffectsOn() && !centerProblem()) {
+        args.push(`  include_center_effects = TRUE`);
+        const cf = $("ce-for").value;
+        if (cf) args.push(`  center_effects_optimization_values = ${rstr(cf)}`);
       }
       // optional additional covariates: extra columns adjusted for in the outcome
       // model, with no optimization value of their own.
@@ -1485,7 +1670,7 @@
     function buildCall() {
       const args = optimizationArgs();
       if (!args) return { ok: false, msg: "pick at least one component" };
-      return { ok: true, call: `${interactionPreamble()}${powerPreamble()}res <- lago_optimization(\n${args}\n)` };
+      return { ok: true, call: `${interactionPreamble()}${dataPreamble()}res <- lago_optimization(\n${args}\n)` };
     }
 
     // Build a lago_sensitivity() call that re-runs the current optimization
@@ -1496,7 +1681,7 @@
     function buildSensitivityCall(parameter, values) {
       const args = optimizationArgs();
       if (!args) return null;
-      return `${interactionPreamble()}${powerPreamble()}sens <- lago_sensitivity(\n${args},\n` +
+      return `${interactionPreamble()}${dataPreamble()}sens <- lago_sensitivity(\n${args},\n` +
         `  parameter = ${rstr(parameter)},\n` +
         `  values = ${rnum(values)}\n)`;
     }
@@ -1510,7 +1695,7 @@
     function buildBudgetCall(budget) {
       const args = optimizationArgs();
       if (!args) return null;
-      return `${interactionPreamble()}${powerPreamble()}bud <- lago_budget(\n${args},\n` +
+      return `${interactionPreamble()}${dataPreamble()}bud <- lago_budget(\n${args},\n` +
         `  budget = ${Number(budget)},\n  n_grid = 8\n)`;
     }
 
@@ -1558,6 +1743,9 @@
         // shared: they need an uploaded CSV with a 'period' column, and sharing
         // is offered only for the bundled datasets.
         covariates: selectedAdditionalCovariates(),
+        centerEffects: centerEffectsOn()
+          ? { col: $("ce-col").value, forCenter: $("ce-for").value || (pendingCenterFor || {}).name || "" }
+          : null,
         // the power goal settings, only while one is on
         power: powerOn() ? {
           mode: $("pmode").dataset.value, goal: $("pgoal").value, arm: $("parm").value,
@@ -1972,8 +2160,13 @@
       renderInteractionChips();
       renderCenterCharChips();
       renderAdditionalCovariateChips();
+      renderCenterEffectSelects();
       updateRCode(); updateRunEnabled();
     });
+
+    $("center-effects").addEventListener("change", onCenterEffectsChanged);
+    // a new center column frees the old one and needs its own list of centers
+    $("ce-col").addEventListener("change", onCenterEffectsChanged);
 
     // Goal slider readout; changing the outcome re-detects type, components and
     // the goal range.
