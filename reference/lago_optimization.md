@@ -279,10 +279,18 @@ lago_optimization(
   calculating recommended interventions that satisfy the outcome goal
   for an (weighted) average center. The weights need to sum up to 1, and
   must all be non-negative and finite. A weight of 0 is allowed and
-  excludes that center from the average. Default value without user
-  specification: For each center, calculate what percentage its sample
-  size is of the total samples across all facilities - this percentage
-  serves as that center's weight.
+  excludes that center from the average. A center with no row where
+  every model variable and the row's glm weight (center_sample_size for
+  center level data) are observed is left out of the fit, so its weight
+  must be 0. The weights follow the order of the centers: the levels of
+  a factor column once unused levels are dropped (an explicit NA level
+  included), and the sorted values otherwise. Default value without user
+  specification: For each center the model fitted, calculate what
+  percentage its sample size (all of its rows, or its center_sample_size
+  for center level data) is of the total over those centers, and use
+  that percentage as the center's weight. A center the model could not
+  fit is left out, with a warning. For center level data, a center with
+  no center_sample_size at all is refused instead.
 
 - optimization_grid_search_step_size:
 
@@ -320,7 +328,10 @@ lago_optimization(
   values of the 'center' column) that will be used for center-specific
   LAGO optimization. This is only used when include_center_effects is
   set to TRUE. If not specified, the LAGO optimization will be carried
-  out for a weighted average of all centers.
+  out for a weighted average of the centers the model fitted (see
+  center_weights_for_outcome_goal). The center must have a row where
+  every model variable and the row's glm weight (center_sample_size for
+  center level data) are observed.
 
 - include_time_effects:
 

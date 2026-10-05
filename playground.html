@@ -601,8 +601,7 @@
       // the per-arm cluster lists belong to the old data; any reply still in
       // flight is for it too, so bump the generation to discard it
       clusterOk = Object.create(null); clusterPending = new Set(); schemaGen++;
-      centerNames = Object.create(null); centerPatterns = Object.create(null);
-      centerHasNa = Object.create(null); centerPending = new Set();
+      centerNames = Object.create(null); centerPatterns = Object.create(null); centerPending = new Set();
       $("data-info").textContent = `${sourceLabel}: ${meta.nrow} rows, ${meta.ncol} columns.`;
       // a new dataset/CSV has different components, so drop any designer costs
       // and let the budget field re-default to the new cost scale
@@ -1241,8 +1240,6 @@
     let centerNames = Object.create(null), centerPending = new Set(), pendingCenterFor = null;
     // column -> per center (level order) its rows' "|"-joined NA columns ("" = complete)
     let centerPatterns = Object.create(null);
-    // column -> whether it has a true NA (NaN is a factor level, so it is a real center)
-    let centerHasNa = Object.create(null);
     // the column the optimize-for choice belongs to; pendingCenterFor is { col, name }
     let centerForCol = null;
     const hasCenterColumn = () => columns.some((c) => c.name === "center");
@@ -1303,26 +1300,19 @@
       if (src === $("outcome").value || selectedComponents().includes(src)) {
         return "the center column is also the outcome or a component";
       }
-      // the package's continuous-outcome confidence set cannot yet use incomplete rows
-      if ($("otype").dataset.value === "continuous") {
-        const used = [$("outcome").value, ...selectedComponents(), ...selectedAdditionalCovariates()];
-        if (timeEffectsOn()) used.push("period");
-        if (used.some((n) => (columns.find((c) => c.name === n) || {}).hasNa) || centerHasNa[src]) {
-          return "with a continuous outcome, fixed center effects need model columns without missing values";
-        }
-      }
       if (!(src in centerNames)) return "checking the centers…";
-      if (centerNames[src].length < 2) return "fixed center effects need at least two centers";
-      // glm() drops a center with no fully observed row (a package limit)
+      // glm() leaves out a center with no fully observed row, so the package skips it
       const used = new Set([$("outcome").value, ...selectedComponents(), ...selectedAdditionalCovariates()]);
       if (timeEffectsOn()) used.add("period");
       const pats = centerPatterns[src] || [], names = centerNames[src];
       // patterns line up with the names by position; an empty list must never gate
-      const i = names.findIndex((n, k) => Array.isArray(pats[k]) && pats[k].length &&
-        pats[k].every((p) => p.split("|").some((c) => c && used.has(c))));
-      if (i >= 0) {
-        const label = names[i] === "" ? "(blank)" : names[i];
-        return `center "${label}" has no row with every model column observed, so it cannot be fitted`;
+      const left = (k) => Array.isArray(pats[k]) && pats[k].length &&
+        pats[k].every((p) => p.split("|").some((c) => c && used.has(c)));
+      const fitted = names.filter((n, k) => !left(k));
+      if (fitted.length < 2) return "fixed center effects need at least two centers with a fully observed row";
+      const cf = $("ce-for").value;
+      if (cf && !fitted.includes(cf)) {
+        return `center "${cf}" has no row with every model column observed, so it cannot be optimized for`;
       }
       return "";
     }
@@ -1338,20 +1328,19 @@
       if (!bootReady || !centerEffectsOn() || !src || src in centerNames || centerPending.has(src)) return;
       const gen = schemaGen;
       centerPending.add(src);
-      let info = { names: [], patterns: [], na: false };
+      let info = { names: [], patterns: [] };
       try {
         info = JSON.parse(await webR.evalRString(`local({ g <- factor(PG_DATA[[${rstr(src)}]]); ` +
           `nc <- names(PG_DATA)[vapply(PG_DATA, anyNA, logical(1))]; pats <- list(); ` +
           `if (length(nc)) { m <- is.na(PG_DATA[nc]); ` +
           `key <- apply(m, 1, function(r) paste(nc[r], collapse = "|")); ` +
           `pats <- unname(lapply(split(key, g), function(k) I(unique(k)))) }; ` +
-          `jsonlite::toJSON(list(names = I(levels(g)), patterns = pats, na = anyNA(g)), auto_unbox = TRUE) })`));
-      } catch (e) { info = { names: [], patterns: [], na: false }; }
+          `jsonlite::toJSON(list(names = I(levels(g)), patterns = pats)) })`));
+      } catch (e) { info = { names: [], patterns: [] }; }
       if (gen !== schemaGen) return;   // the dataset changed while this ran
       centerPending.delete(src);
       centerNames[src] = info.names || [];
       centerPatterns[src] = Array.isArray(info.patterns) ? info.patterns : [];
-      centerHasNa[src] = info.na === true;
       renderCenterEffectSelects(); syncCenterEffects(); updateRCode(); updateRunEnabled();
     }
 

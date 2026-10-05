@@ -2,6 +2,57 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed results that used rows the outcome model never fitted.
+  [`glm()`](https://rdrr.io/r/stats/glm.html) drops a row with a missing
+  value in any model variable, but the confidence set was computed over
+  every row, and the center weights covered every center in the data.
+  With a continuous outcome and missing values the confidence set came
+  back empty or wrong, with or without fixed center or time effects, and
+  in some cases the call failed (for example with fixed center effects
+  and a missing covariate, or a missing period with fixed time effects),
+  so such results should be recomputed. A center whose every row has a
+  missing model variable still got a weight:
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  failed when it computed the confidence set, and otherwise (without the
+  confidence set, after shrinking, and in
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  and
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md))
+  it returned results with mismatched center weights, silently or with
+  at most R’s generic “longer object length” warning (none when the
+  number of centers is a multiple of the number fitted), so every run
+  with such a center should be recomputed. The confidence set now uses
+  the rows the model was fitted on, and the center weights now cover
+  only the centers it fitted. A center the model could not fit is left
+  out of the default weights with a warning that names it (the other
+  centers are still sized by all of their rows, and the shrinking target
+  and default grid steps still use every row, since the stage-1
+  intervention was delivered either way), and naming it in
+  `center_effects_optimization_values`, or giving it a non-zero weight
+  in `center_weights_for_outcome_goal`, is refused with a message that
+  names it. A factor `center` column with unused levels no longer shifts
+  the default weights onto the wrong centers, and an explicit `NA`
+  center level (as from [`addNA()`](https://rdrr.io/r/base/factor.html))
+  is kept as a center when another center is left out (a continuous
+  outcome’s confidence set still cannot use an explicit `NA` level that
+  a fitted row has in the center or period column, or as a non-reference
+  level of any other factor column, and now says so instead of reporting
+  a missing cluster id or returning an empty set), and a row with a
+  missing center no longer counts as a facility when checking
+  `center_weights_for_outcome_goal`. For center level data, a center
+  with no `center_sample_size` on any row is refused with a message that
+  names it when the default weights are computed, and a center whose
+  size is missing on only some rows is sized by its first observed
+  value.
+
+- Fixed
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  failing for a continuous outcome when the data is a tibble, such as
+  the bundled `BB_data`. With the identity link it failed with
+  “undefined columns selected” when fixed center or time effects were
+  included, and with the logit link it failed with “Not compatible with
+  requested type” with or without them.
+
 - The in-browser playground now supports fixed center effects: tick
   “Fixed center effects” to adjust the outcome model for each center,
   matching
@@ -15,13 +66,10 @@
   center effects replace center characteristics, which the package
   cannot fit together, and the center column is not offered as a
   component or an additional covariate. The sensitivity sweep, budget
-  search and Share link carry the setting. For now, with a continuous
-  outcome, fixed center effects need the outcome, components,
-  covariates, center column and (with fixed time effects) the period
-  column to have no missing values, because the package’s confidence set
-  cannot yet use incomplete rows there. For any outcome, every center
-  needs at least one row where all the model columns are observed, since
-  otherwise that center cannot be fitted.
+  search and Share link carry the setting. A center with no row where
+  all the model columns are observed is left out of the fit, and the
+  page asks for another center if you chose it as the one to optimize
+  for.
 
 - The documentation of `center_effects_optimization_values` now says it
   is a single center name (a character string), which is what

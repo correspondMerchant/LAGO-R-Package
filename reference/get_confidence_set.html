@@ -87,7 +87,9 @@ for the recommended interventions</p>
 
 <dl><dt id="arg-predictors-data">predictors_data<a class="anchor" aria-label="anchor" href="#arg-predictors-data"></a></dt>
 <dd><p>A data.frame. The input data containing
-the intervention components and center characteristics.</p></dd>
+the intervention components and center characteristics. For a continuous
+outcome its rows must be the rows fitted_model was fitted on (drop the rows
+in stats::na.action(fitted_model)).</p></dd>
 
 
 <dt id="arg-include-center-effects">include_center_effects<a class="anchor" aria-label="anchor" href="#arg-include-center-effects"></a></dt>
@@ -146,7 +148,7 @@ components in the presence of interaction terms.</p></dd>
 
 <dt id="arg-outcome-data">outcome_data<a class="anchor" aria-label="anchor" href="#arg-outcome-data"></a></dt>
 <dd><p>A vector. The input data containing the outcome
-of interest.</p></dd>
+of interest, one value per fitted row for a continuous outcome.</p></dd>
 
 
 <dt id="arg-fitted-model">fitted_model<a class="anchor" aria-label="anchor" href="#arg-fitted-model"></a></dt>
@@ -205,7 +207,8 @@ the confidence set calculations.</p></dd>
 
 <dt id="arg-cluster-id">cluster_id<a class="anchor" aria-label="anchor" href="#arg-cluster-id"></a></dt>
 <dd><p>A list or NULL. Specifies the columns of data that will be
-used as clustering effects when the "outcome_type" is continuous.</p></dd>
+used as clustering effects when the "outcome_type" is continuous, with one
+entry per fitted row.</p></dd>
 
 
 <dt id="arg-cost-list-of-vectors">cost_list_of_vectors<a class="anchor" aria-label="anchor" href="#arg-cost-list-of-vectors"></a></dt>

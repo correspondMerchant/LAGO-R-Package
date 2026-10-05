@@ -38,7 +38,9 @@ get_confidence_set(
 - predictors_data:
 
   A data.frame. The input data containing the intervention components
-  and center characteristics.
+  and center characteristics. For a continuous outcome its rows must be
+  the rows fitted_model was fitted on (drop the rows in
+  stats::na.action(fitted_model)).
 
 - include_center_effects:
 
@@ -97,7 +99,8 @@ get_confidence_set(
 
 - outcome_data:
 
-  A vector. The input data containing the outcome of interest.
+  A vector. The input data containing the outcome of interest, one value
+  per fitted row for a continuous outcome.
 
 - fitted_model:
 
@@ -154,7 +157,8 @@ get_confidence_set(
 - cluster_id:
 
   A list or NULL. Specifies the columns of data that will be used as
-  clustering effects when the "outcome_type" is continuous.
+  clustering effects when the "outcome_type" is continuous, with one
+  entry per fitted row.
 
 - cost_list_of_vectors:
 
