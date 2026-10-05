@@ -32,7 +32,9 @@ get_confidence_set(
 }
 \arguments{
 \item{predictors_data}{A data.frame. The input data containing
-the intervention components and center characteristics.}
+the intervention components and center characteristics. For a continuous
+outcome its rows must be the rows fitted_model was fitted on (drop the rows
+in stats::na.action(fitted_model)).}
 
 \item{include_center_effects}{A boolean. Specifies whether the fixed effects
 should be included in the outcome model.}
@@ -73,7 +75,7 @@ interaction terms in the intervention components.}
 components in the presence of interaction terms.}
 
 \item{outcome_data}{A vector. The input data containing the outcome
-of interest.}
+of interest, one value per fitted row for a continuous outcome.}
 
 \item{fitted_model}{A glm(). The fitted glm() outcome model.}
 
@@ -110,7 +112,8 @@ center_characteristics.}
 the confidence set calculations.}
 
 \item{cluster_id}{A list or NULL. Specifies the columns of data that will be
-used as clustering effects when the "outcome_type" is continuous.}
+used as clustering effects when the "outcome_type" is continuous, with one
+entry per fitted row.}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. The cost vectors
 used in the LAGO optimization.}

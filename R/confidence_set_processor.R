@@ -35,6 +35,9 @@ confidence_set_processor <- function(
       "please consider changing the confidence set step size. \n"
     ))
   }
+  # use exactly the rows glm() fitted, which excludes rows with a missing model variable
+  omitted <- stats::na.action(model)
+  if (length(omitted) > 0) data <- data[-as.integer(omitted), , drop = FALSE]
   predictors_list <- c(
     if (include_center_effects) "center",
     if (include_time_effects) "period",
@@ -43,6 +46,25 @@ confidence_set_processor <- function(
     if (!is.null(center_characteristics)) center_characteristics
   )
   predictors_list <- gsub("`", "", predictors_list)
+
+  # a used NA level breaks the cluster ids, and elsewhere a non-reference level's == dummy
+  cluster_cols <- c(
+    if (include_center_effects) "center",
+    if (include_time_effects) "period"
+  )
+  na_level <- Filter(function(col) {
+    if (!is.factor(data[[col]])) return(FALSE)
+    lv <- levels(droplevels(data[[col]]))
+    if (col %in% cluster_cols) anyNA(lv) else anyNA(lv[-1])
+  }, predictors_list)
+  if (outcome_type == "continuous" && length(na_level) > 0) {
+    stop(paste0(
+      "The confidence set of a continuous outcome cannot use an explicit NA ",
+      "level (as from addNA()) in the column(s) ",
+      paste0("'", na_level, "'", collapse = ", "), ". Give that level a ",
+      "name, or set include_confidence_set = FALSE."
+    ))
+  }
 
   # convert columns of the fixed effects to factor type
   if (include_center_effects || include_time_effects) {
@@ -78,7 +100,8 @@ confidence_set_processor <- function(
     intervention_components = intervention_components,
     include_interaction_terms = include_interaction_terms,
     main_components = main_components,
-    outcome_data = data[, outcome_name],
+    # [[ ]] gives a vector for a tibble too, where data[, name] keeps a one-column tibble
+    outcome_data = data[[outcome_name]],
     fitted_model = model,
     link = family_object$link,
     outcome_goal = outcome_goal,

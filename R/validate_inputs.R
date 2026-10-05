@@ -302,6 +302,8 @@ validate_inputs <- function(
         "to the factor type."
       ))
     }
+    # one level per center present, as glm() drops unused levels (align handles lost ones)
+    data$center <- droplevels(data$center)
   }
 
   # preliminary check for center_weights_for_outcome_goal
@@ -320,7 +322,8 @@ validate_inputs <- function(
     }
     # check if center_weights_for_outcome_goal has the same length as the
     # number of facilities provided in the input data
-    n_facilities <- length(unique(data$center))
+    # the centers present (a missing center id is not a facility)
+    n_facilities <- nlevels(data$center)
     if (length(center_weights_for_outcome_goal) != n_facilities) {
       stop(paste(
         "The length of center_weights_for_outcome_goal must match",
@@ -335,11 +338,20 @@ validate_inputs <- function(
       # then we calculate the default values for center weights
       if (is.null(center_effects_optimization_values)) {
         if (input_data_structure == "center_level") {
+          # each center's size is its first observed center_sample_size
           center_sizes <- tapply(
             data$center_sample_size,
             data$center,
-            function(x) x[1]
+            function(x) x[!is.na(x)][1]
           )
+          no_size <- names(center_sizes)[is.na(center_sizes)]
+          if (length(no_size) > 0) {
+            stop(paste0(
+              "center_sample_size is missing for every row of the center(s) ",
+              paste0("'", no_size, "'", collapse = ", "), ", so they have no ",
+              "size to weight them by. Fill in their sample size, or drop them."
+            ))
+          }
           total_sample_size <- sum(center_sizes)
         } else if (input_data_structure == "individual_level") {
           total_sample_size <- sum(as.numeric(table(data$center)))
@@ -368,8 +380,10 @@ validate_inputs <- function(
                         must be one of the centers."
           ))
         }
-        center_weights_for_outcome_goal <- ifelse(sort(unique(data$center)) ==
-          center_effects_optimization_values, 1, 0)
+        # by level, so an explicit NA level keeps its place among the centers
+        center_weights_for_outcome_goal <- as.numeric(
+          levels(data$center) %in% center_effects_optimization_values
+        )
       }
     } else {
       center_weights_for_outcome_goal <- 1
@@ -414,10 +428,11 @@ validate_inputs <- function(
     # introduced here.
     #
     # Done once, here, where the weights are validated, so nothing downstream
-    # needs to know: this is the only place lago_optimization() obtains them,
-    # whether from the caller, from the center sample sizes, or from a single
-    # named center, and the value returned from here is what every optimizer,
-    # the shrinking method and the confidence set are all given.
+    # needs to know: this is where lago_optimization() obtains them, whether
+    # from the caller, from the center sample sizes, or from a single named
+    # center. After the fit, align_center_weights_to_fit() keeps only the
+    # centers glm() fitted (renormalizing when it drops one), and that vector
+    # is what every optimizer, the shrinking method and the confidence set get.
     #
     # Silently, deliberately. The correction is at most 0.1% of a weight and is
     # what the caller already asked for by passing something the tolerance
@@ -1322,8 +1337,10 @@ refuse_invalid_center_weights <- function(center_weights_for_outcome_goal) {
 #' are not inconsistent: both entry points refuse exactly the same vectors, in
 #' the same words. What differs is what happens to a vector inside the
 #' tolerance, and there validate_inputs() can do more because it OWNS the
-#' weights -- it is where they are derived, and every consumer is handed the
-#' value it returns. get_confidence_set() is handed weights an optimization has
+#' weights -- it is where they are derived and normalised, and lago_optimization()
+#' only narrows them afterwards to the centers glm() fitted, through
+#' align_center_weights_to_fit(), which renormalises when it drops one.
+#' get_confidence_set() is handed weights an optimization has
 #' already run with, and is documented as computing the interval at those
 #' weights, so renormalising them there would report an interval for a
 #' different weighting than the point estimate it is printed beside. That is the
@@ -1337,8 +1354,9 @@ refuse_invalid_center_weights <- function(center_weights_for_outcome_goal) {
 #' the last place and moves the interval. So renormalising in the name of
 #' matching the other entry point would change the numbers of runs that are
 #' already correct, and refusing changes none of them: every internal path
-#' arrives with a sum of exactly 1, because validate_inputs() has already
-#' normalised it.
+#' arrives with a sum of 1 to within rounding, because validate_inputs() has
+#' already normalised it and align_center_weights_to_fit() renormalises it when
+#' it drops a center.
 #'
 #' The tolerance is validate_inputs()' own 0.001 rather than a tighter one.
 #' It is documented, callers rely on it, and it is what says the input was MEANT

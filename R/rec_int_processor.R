@@ -176,6 +176,7 @@ rec_int_processor <- function(
   step_size_results <- numeric(length(components_for_step_size))
   for (i in seq_along(components_for_step_size)) {
     current_intervention <- gsub("`", "", components_for_step_size[i])
+    # the intervention's full range, which does not depend on the fitted rows
     current_range <- range(data[[current_intervention]], na.rm = TRUE)
     step_size_results[i] <- (current_range[2] - current_range[1]) * (1 / 20)
   }
