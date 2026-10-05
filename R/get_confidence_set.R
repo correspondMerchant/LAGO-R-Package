@@ -4,7 +4,9 @@
 #' for the recommended interventions
 #'
 #' @param predictors_data A data.frame. The input data containing
-#' the intervention components and center characteristics.
+#' the intervention components and center characteristics. For a continuous
+#' outcome its rows must be the rows fitted_model was fitted on (drop the rows
+#' in stats::na.action(fitted_model)).
 #' @param include_center_effects A boolean. Specifies whether the fixed effects
 #' should be included in the outcome model.
 #' @param center_weights_for_outcome_goal A numeric vector. Specifies the
@@ -36,7 +38,7 @@
 #' @param main_components A character vector. Specifies the main intervention
 #' components in the presence of interaction terms.
 #' @param outcome_data A vector. The input data containing the outcome
-#' of interest.
+#' of interest, one value per fitted row for a continuous outcome.
 #' @param fitted_model A glm(). The fitted glm() outcome model.
 #' @param link A character string. The link function the interval is computed
 #' on, either "logit" or "identity". These are the only links the outcome
@@ -62,7 +64,8 @@
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
 #' @param cluster_id A list or NULL. Specifies the columns of data that will be
-#' used as clustering effects when the "outcome_type" is continuous.
+#' used as clustering effects when the "outcome_type" is continuous, with one
+#' entry per fitted row.
 #' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
 #' used in the LAGO optimization.
 #' @param rec_int A numeric vector, the recommended interventions calculated
@@ -222,8 +225,9 @@ get_confidence_set <- function(
   # weighted MEAN only when the weights sum to 1, and 16 weights of 12/16 scale
   # every reported outcome by 12 -- an interval of 1.406 to 2.147 for an outcome
   # that is a proportion. Refused rather than renormalised, unlike
-  # validate_inputs(), which owns the weights and can normalise them once for
-  # every consumer; this function is handed the weights an optimization has
+  # validate_inputs(), which owns the weights and normalises them before any
+  # consumer (align_center_weights_to_fit() renormalises when it drops a
+  # center); this function is handed the weights an optimization has
   # already run with and reports the interval AT them, so rescaling them here
   # would report an interval for a different weighting than the point estimate
   # printed beside it. Both entry points refuse the same vectors in the same
@@ -803,6 +807,15 @@ get_confidence_set <- function(
       n <- nrow(X)
       n_params <- ncol(X)
       fitted_values <- model$fitted.values
+      # the rows must be the fitted ones (glm() drops a row with a missing value)
+      if (n != length(fitted_values) || NROW(outcome_data) != length(fitted_values)) {
+        stop(paste0(
+          "predictors_data and outcome_data must hold the ", length(fitted_values),
+          " rows the model was fitted on, but they have ", n, " and ",
+          NROW(outcome_data), " rows. Drop the rows listed in ",
+          "stats::na.action(fitted_model) first."
+        ))
+      }
 
       # An NA cluster id has no defined cluster to fold its rows into, so it is
       # refused here rather than silently mishandled. The logit path builds
@@ -831,6 +844,13 @@ get_confidence_set <- function(
               "cluster id has no cluster to fold its rows into. Drop the rows ",
               "with a missing cluster id, or assign them a cluster, before ",
               "computing the confidence set."
+            ))
+          }
+          if (length(cid) != length(fitted_values)) {
+            stop(paste0(
+              "cluster_id must have one entry per fitted row (", length(fitted_values),
+              "), but has ", length(cid), ". Drop the rows listed in ",
+              "stats::na.action(fitted_model) first."
             ))
           }
         }
@@ -1527,7 +1547,9 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
       "'time_effect_optimization_value' (", wanted, ") is not one of the ",
       "periods the outcome model was fitted on, which are ",
       paste(period_levels, collapse = ", "),
-      ". It must be one of the values of the 'period' column."
+      ". It must be a period with a row the outcome model could use (one with ",
+      "every model variable and its glm weight observed). Pick another period, ",
+      "or fill in the missing values."
     ))
   }
   indicator <- rep(0, length(time_effect_names))

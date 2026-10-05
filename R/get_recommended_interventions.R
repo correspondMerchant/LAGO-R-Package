@@ -481,6 +481,7 @@ get_recommended_interventions <- function(
     }
     # drop = FALSE keeps a one-column selection as a data.frame; without it,
     # data[, single_col] collapses to a vector and colMeans() errors.
+    # every row counts here, since the stage-1 intervention was delivered either way
     observed_mean_int_values <- colMeans(
       data[, all_components, drop = FALSE],
       na.rm = TRUE
