@@ -454,6 +454,40 @@ test_that("a direct confidence-set call with unfitted rows is refused", {
   )
 })
 
+test_that("a direct confidence-set call with a short cluster id is refused", {
+  d <- as.data.frame(bb_center())
+  opt <- suppressWarnings(rows_run(
+    d,
+    outcome_name = "leadership_updt", outcome_type = "continuous",
+    outcome_goal = 0.93, include_confidence_set = FALSE
+  ))
+  preds <- c("coaching_updt", "launch_duration")
+  expect_error(
+    get_confidence_set(
+      predictors_data = d[, preds], outcome_data = d$leadership_updt,
+      fitted_model = opt$model, link = "identity", outcome_goal = 0.93,
+      outcome_type = "continuous", intervention_components = preds,
+      intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(40, 3),
+      confidence_set_grid_step_size = c(10, 1),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)), rec_int = opt$rec_int,
+      cluster_id = list(d$center[-1])
+    ),
+    "one entry per fitted row"
+  )
+})
+
+test_that("weights that cannot be matched to centers are an internal error", {
+  d <- with_lost()
+  d$center <- factor(d$center)
+  model <- glm(
+    pp3_oxytocin_mother ~ cov + center, data = d, family = binomial()
+  )
+  expect_error(
+    align_center_weights_to_fit(c(0.5, 0.5), data = d, model = model),
+    "Internal error: 2 center weights for 36 centers"
+  )
+})
+
 # center level data whose components vary independently within each center
 center_level <- function() {
   set.seed(3)
