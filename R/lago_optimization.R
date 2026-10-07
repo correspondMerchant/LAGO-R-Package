@@ -5,6 +5,14 @@
 #' the confidence set for the recommended interventions, and prints the output.
 #' This is the main entry point of the package.
 #'
+#' Categorical predictors in the outcome model always use treatment contrasts.
+#' This includes factors, ordered factors, character columns and logical columns.
+#' This coding overrides global contrast options and contrast attributes supplied
+#' on the input columns, without changing the input data or global options.
+#' The reference is the first retained factor level, the first sorted character
+#' value, or FALSE for a logical column. Ordered covariates keep their level order
+#' but do not use polynomial contrasts. Numeric predictors keep their values.
+#'
 #' @param data A data.frame. The input dataset containing the variables of
 #' interest.
 #' @param outcome_name A character string. The name of the column in the dataset
@@ -93,6 +101,10 @@
 #' intervention for a center whose characteristics equal these values?". Must
 #' be provided when center_characteristics is used, must be numeric, and must
 #' have the same length and order as center_characteristics.
+#' For a categorical characteristic with two levels, use 0 for the reference
+#' level and 1 for the other level. For a logical characteristic, these values
+#' select FALSE and TRUE. Categorical characteristics with more than two levels
+#' are not supported. Recode them as separate numeric indicator columns.
 #' For example, with center_characteristics = c("birth_volume_100"), setting
 #' center_characteristics_optimization_values = c(1.75) computes the
 #' recommended intervention for a center with birth_volume_100 = 1.75.
@@ -149,7 +161,11 @@
 #' @param additional_covariates A character vector. The names of the columns in
 #' the dataset that represent additional covariates that need to be included
 #' in the outcome model. This includes interaction terms or any other additional
-#' covariates.
+#' covariates. For recommendations and confidence output, numeric covariates
+#' are held at 0 and categorical covariates are held at their reference level.
+#' Set a factor's level order before calling this function to choose its
+#' reference level. Categorical additional covariates can have more than two
+#' levels.
 #' For example: c("component2xcomponent4").
 #' @param optimization_method A character string. Specifies the method used for
 #' LAGO optimization. Must be either "numerical" or "grid_search".

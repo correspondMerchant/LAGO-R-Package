@@ -125,9 +125,17 @@ outcome_model_fitting <- function(
       "' has one. Fill in the missing values", turn_off(term), "."
     ))
   }
-  # one effect per center and period, as rec_int_processor() reads them, under any coding
-  effect_contrasts <- if (length(effects) > 0) {
-    stats::setNames(rep(list("contr.treatment"), length(effects)), effects)
+  # Categorical predictors use the first level as their reference.
+  predictors <- all.vars(stats::delete.response(stats::terms(formula)))
+  categorical_predictors <- Filter(function(term) {
+    column <- data[[term]]
+    is.factor(column) || is.character(column) || is.logical(column)
+  }, predictors)
+  effect_contrasts <- if (length(categorical_predictors) > 0) {
+    stats::setNames(
+      rep(list("contr.treatment"), length(categorical_predictors)),
+      categorical_predictors
+    )
   }
   # capture any warnings glm() emits during fitting (e.g. "fitted
   # probabilities numerically 0 or 1 occurred", which signals separation) so
@@ -171,7 +179,7 @@ outcome_model_fitting <- function(
   # object makes the printed Call show the real model and be identical across R
   # versions.
   model$call$formula <- formula
-  # likewise the real contrasts, and none when there are no center or period effects
+  # Record the fitted coding, or none when every predictor is numeric.
   model$call$contrasts <- effect_contrasts
 
   # refuse a rank-deficient fit up front, but only when the aliasing lands on a
