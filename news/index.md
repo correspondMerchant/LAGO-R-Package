@@ -2,6 +2,18 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed recommendations and confidence output that depended on global
+  contrast options or polynomial coding of ordered covariates. Every
+  categorical predictor in the outcome model now uses treatment
+  contrasts, including factor, ordered factor, character and logical
+  covariates and center characteristics. This overrides explicit
+  contrast attributes without changing input data or global options.
+  Additional categorical covariates are held at their reference level.
+  For a categorical center characteristic with two levels, optimization
+  values 0 and 1 select the reference and other level. Numeric
+  predictors and the existing center and period checks are unchanged.
+  Results from affected runs should be recomputed.
+
 - Fixed wrong results when the `center` or `period` column was not coded
   with one effect per level. [`glm()`](https://rdrr.io/r/stats/glm.html)
   fits an ordered factor with polynomial contrasts, and a global
