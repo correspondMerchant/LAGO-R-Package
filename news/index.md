@@ -2,6 +2,33 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed wrong results when the `center` or `period` column was not coded
+  with one effect per level. [`glm()`](https://rdrr.io/r/stats/glm.html)
+  fits an ordered factor with polynomial contrasts, and a global
+  `options(contrasts = ...)` such as `contr.sum` changes the coding of
+  every factor, but the package read the resulting coefficients as one
+  effect per center or period. With fixed center effects, a binary
+  outcome or any run without the confidence set returned a wrong
+  recommendation and estimate without any error, and a continuous
+  outcome failed when it computed the confidence set. With fixed time
+  effects an ordered period was refused except at its first level, and
+  under a global coding such as `contr.sum` or `contr.helmert` whether a
+  period was refused depended on its label. A period that was not
+  refused could give a wrong result in the same way. The outcome model
+  now always fits `center` and `period` with treatment contrasts, and an
+  ordered `center` or `period` is converted to an unordered factor with
+  the same levels, with a message. Results from such runs should be
+  recomputed.
+
+- Fixed center or time effects with fewer than two centers (or periods)
+  are now refused with a message that says whether the data has no
+  observed period, only one center (or period), or only one with a row
+  the outcome model can use, and names that level, instead of failing
+  inside [`glm()`](https://rdrr.io/r/stats/glm.html) with “contrasts can
+  be applied only to factors with 2 or more levels”. A fit with center
+  or time effects where no row is usable at all is refused with a
+  message that says so.
+
 - Fixed results that used rows the outcome model never fitted.
   [`glm()`](https://rdrr.io/r/stats/glm.html) drops a row with a missing
   value in any model variable, but the confidence set was computed over
