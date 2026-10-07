@@ -302,6 +302,15 @@ validate_inputs <- function(
         "to the factor type."
       ))
     }
+    # an unordered factor, so it is treated as center labels and not as a scale
+    if (is.ordered(data$center)) {
+      class(data$center) <- "factor"
+      message(paste(
+        "'center' column is an ordered factor. It has been converted to an",
+        "unordered factor with the same levels, so the model fits one effect",
+        "per center."
+      ))
+    }
     # one level per center present, as glm() drops unused levels (align handles lost ones)
     data$center <- droplevels(data$center)
   }
@@ -485,6 +494,15 @@ validate_inputs <- function(
         "'period' column is not a factor type. To ensure",
         "the correct model fit, it has been converted",
         "to the factor type."
+      ))
+    }
+    # an unordered factor, so it is treated as period labels and not as a scale
+    if (is.ordered(data$period)) {
+      class(data$period) <- "factor"
+      message(paste(
+        "'period' column is an ordered factor. It has been converted to an",
+        "unordered factor with the same levels, so the model fits one effect",
+        "per period."
       ))
     }
   }

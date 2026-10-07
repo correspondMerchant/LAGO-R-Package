@@ -25,6 +25,110 @@ outcome_model_fitting <- function(
   formula <- as.formula(
     paste(outcome_name, "~", paste(covariates, collapse = " + "))
   )
+  # glm() needs two centers (or periods) with a usable row, else it fails on contrasts
+  effects <- c(
+    if (include_center_effects) "center",
+    if (include_time_effects) "period"
+  )
+  # quiet, since the real fit below builds the same frame and reports its warnings
+  frame <- if (length(effects) > 0) {
+    tryCatch(
+      suppressWarnings(glm(formula,
+        data = data, family = family_object, weights = weights,
+        method = "model.frame"
+      )),
+      error = function(e) NULL
+    )
+  }
+  effects_need <- function(term) {
+    paste0(
+      "Fixed ", if (term == "center") "center" else "time", " effects need at ",
+      "least two ", term, "s"
+    )
+  }
+  # center level data always fits center effects, so turning them off is no remedy
+  turn_off <- function(term) {
+    if (term == "center" && input_data_structure == "center_level") {
+      ""
+    } else {
+      paste0(
+        ", or set include_", if (term == "center") "center" else "time",
+        "_effects = FALSE"
+      )
+    }
+  }
+  no_usable_row <- paste0(
+    "No row has every model variable and its glm weight (center_sample_size ",
+    "for center level data) observed"
+  )
+  unusable <- !is.null(frame) && nrow(frame) == 0
+  # the rows glm() would keep with one effect left out (only on the refusal paths)
+  frame_without <- function(term) {
+    tryCatch(
+      suppressWarnings(glm(stats::update(formula, paste(". ~ . -", term)),
+        data = data, family = family_object, weights = weights,
+        method = "model.frame"
+      )),
+      error = function(e) NULL
+    )
+  }
+  # too few levels in the data at all, whatever the na.action keeps
+  for (term in if (is.null(frame)) character(0) else effects) {
+    in_data <- levels(droplevels(as.factor(data[[term]])))
+    if (length(in_data) >= 2) next
+    # whether the other variables still have no usable row once this term is out
+    rest <- if (unusable) frame_without(term)
+    stop(paste0(
+      effects_need(term),
+      if (length(in_data) == 0) {
+        paste0(
+          ", but the data has no observed ", term, ". Fill in the ", term,
+          " column"
+        )
+      } else {
+        paste0(
+          ", but the data has only the ", term, " '", in_data,
+          "'. Add data from another ", term
+        )
+      },
+      turn_off(term), ".",
+      if (!is.null(rest) && nrow(rest) == 0) {
+        paste0(" ", no_usable_row, " either, so fill those in too.")
+      } else {
+        ""
+      }
+    ))
+  }
+  if (unusable) {
+    # an effect can be turned off instead when that leaves a fit the checks below pass
+    helps <- Filter(function(term) {
+      rest <- if (nzchar(turn_off(term))) frame_without(term)
+      !is.null(rest) && nrow(rest) > 0 && all(vapply(
+        setdiff(effects, term),
+        function(other) length(levels(as.factor(rest[[other]]))) >= 2,
+        logical(1)
+      ))
+    }, effects)
+    stop(paste0(
+      no_usable_row, ", so the outcome model cannot be fitted. Fill in the ",
+      "missing values", paste0(vapply(helps, turn_off, ""), collapse = ""), "."
+    ))
+  }
+  # the levels glm() would code, so a true NA kept by na.pass is not a level
+  for (term in if (is.null(frame)) character(0) else effects) {
+    used <- levels(as.factor(frame[[term]]))
+    if (length(used) >= 2) next
+    stop(paste0(
+      effects_need(term), " with a row the outcome model can use (one with ",
+      "every model variable and its glm weight, which is center_sample_size ",
+      "for center level data, observed), but only the ", term, " '", used,
+      "' has one. Fill in the missing values", turn_off(term), "."
+    ))
+  }
+  # one effect per center and period, as rec_int_processor() reads them, under any coding
+  effect_contrasts <- if (length(effects) > 0) {
+    stats::setNames(rep(list("contr.treatment"), length(effects)), effects)
+  }
   # capture any warnings glm() emits during fitting (e.g. "fitted
   # probabilities numerically 0 or 1 occurred", which signals separation) so
   # they can be surfaced as fit diagnostics instead of being swallowed. The
@@ -37,7 +141,8 @@ outcome_model_fitting <- function(
           formula,
           data = data,
           family = family_object,
-          weights = weights
+          weights = weights,
+          contrasts = effect_contrasts
         )
       },
       error = function(e) {
@@ -66,6 +171,8 @@ outcome_model_fitting <- function(
   # object makes the printed Call show the real model and be identical across R
   # versions.
   model$call$formula <- formula
+  # likewise the real contrasts, and none when there are no center or period effects
+  model$call$contrasts <- effect_contrasts
 
   # refuse a rank-deficient fit up front, but only when the aliasing lands on a
   # coefficient the optimization actually reads. glm() returns NA for a

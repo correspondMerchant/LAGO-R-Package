@@ -98,7 +98,9 @@
 #' recommended intervention for a center with birth_volume_100 = 1.75.
 #' @param include_center_effects A boolean. Specifies whether the fixed effects
 #' should be included in the outcome model. If set to TRUE, please make sure
-#' that the input data has a 'center' column to identify the centers.
+#' that the input data has a 'center' column to identify the centers. An
+#' ordered factor is converted to an unordered one, so each center gets its own
+#' effect, and at least two centers need a row the outcome model can use.
 #' Note, include_center_effects and center_characteristics cannot be used
 #' together at the same time.
 #' Default value without user specification: FALSE for individual level data,
@@ -114,7 +116,9 @@
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model. If set to TRUE, please
 #' make sure that the input data has a 'period' column to identify the time
-#' periods.
+#' periods. An ordered factor is converted to an unordered one, so each period
+#' gets its own effect, and at least two periods need a row the outcome model
+#' can use.
 #' Default value without user specification: FALSE.
 #' @param include_interaction_terms A boolean. Specifies whether there are
 #' interaction terms in the intervention components. Please make sure the
