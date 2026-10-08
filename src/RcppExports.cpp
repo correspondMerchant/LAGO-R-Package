@@ -11,8 +11,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // sandwich_cluster_logit_accumulate
-List sandwich_cluster_logit_accumulate(NumericMatrix X, IntegerVector cluster_index, int n_clusters, NumericVector fitted_values, NumericVector outcome);
-RcppExport SEXP _LAGOtrials_sandwich_cluster_logit_accumulate(SEXP XSEXP, SEXP cluster_indexSEXP, SEXP n_clustersSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP) {
+List sandwich_cluster_logit_accumulate(NumericMatrix X, IntegerVector cluster_index, int n_clusters, NumericVector fitted_values, NumericVector outcome, Nullable<NumericVector> prior_weights);
+RcppExport SEXP _LAGOtrials_sandwich_cluster_logit_accumulate(SEXP XSEXP, SEXP cluster_indexSEXP, SEXP n_clustersSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP, SEXP prior_weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -21,27 +21,29 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type n_clusters(n_clustersSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type fitted_values(fitted_valuesSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type outcome(outcomeSEXP);
-    rcpp_result_gen = Rcpp::wrap(sandwich_cluster_logit_accumulate(X, cluster_index, n_clusters, fitted_values, outcome));
+    Rcpp::traits::input_parameter< Nullable<NumericVector> >::type prior_weights(prior_weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sandwich_cluster_logit_accumulate(X, cluster_index, n_clusters, fitted_values, outcome, prior_weights));
     return rcpp_result_gen;
 END_RCPP
 }
 // sandwich_hc0_logit_accumulate
-List sandwich_hc0_logit_accumulate(NumericMatrix X, NumericVector fitted_values, NumericVector outcome);
-RcppExport SEXP _LAGOtrials_sandwich_hc0_logit_accumulate(SEXP XSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP) {
+List sandwich_hc0_logit_accumulate(NumericMatrix X, NumericVector fitted_values, NumericVector outcome, Nullable<NumericVector> prior_weights);
+RcppExport SEXP _LAGOtrials_sandwich_hc0_logit_accumulate(SEXP XSEXP, SEXP fitted_valuesSEXP, SEXP outcomeSEXP, SEXP prior_weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type X(XSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type fitted_values(fitted_valuesSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type outcome(outcomeSEXP);
-    rcpp_result_gen = Rcpp::wrap(sandwich_hc0_logit_accumulate(X, fitted_values, outcome));
+    Rcpp::traits::input_parameter< Nullable<NumericVector> >::type prior_weights(prior_weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sandwich_hc0_logit_accumulate(X, fitted_values, outcome, prior_weights));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_LAGOtrials_sandwich_cluster_logit_accumulate", (DL_FUNC) &_LAGOtrials_sandwich_cluster_logit_accumulate, 5},
-    {"_LAGOtrials_sandwich_hc0_logit_accumulate", (DL_FUNC) &_LAGOtrials_sandwich_hc0_logit_accumulate, 3},
+    {"_LAGOtrials_sandwich_cluster_logit_accumulate", (DL_FUNC) &_LAGOtrials_sandwich_cluster_logit_accumulate, 6},
+    {"_LAGOtrials_sandwich_hc0_logit_accumulate", (DL_FUNC) &_LAGOtrials_sandwich_hc0_logit_accumulate, 4},
     {NULL, NULL, 0}
 };
 

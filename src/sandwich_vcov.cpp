@@ -19,6 +19,21 @@
 #include <vector>
 using namespace Rcpp;
 
+static NumericVector checked_prior_weights(Nullable<NumericVector> prior_weights, int n) {
+  if (prior_weights.isNull()) return NumericVector(0);
+  NumericVector weights(prior_weights);
+  if (weights.size() != n) {
+    stop("sandwich kernel: prior_weights must have length nrow(X) (%d); got %d.",
+         n, (int) weights.size());
+  }
+  for (int i = 0; i < n; ++i) {
+    if (!R_FINITE(weights[i]) || weights[i] < 0) {
+      stop("sandwich kernel: prior_weights must be finite and nonnegative.");
+    }
+  }
+  return weights;
+}
+
 // Clustered logit sandwich accumulation (Cameron-Gelbach-Miller building block).
 //
 // Per cluster c:
@@ -39,7 +54,8 @@ List sandwich_cluster_logit_accumulate(NumericMatrix X,
                                        IntegerVector cluster_index,
                                        int n_clusters,
                                        NumericVector fitted_values,
-                                       NumericVector outcome) {
+                                       NumericVector outcome,
+                                       Nullable<NumericVector> prior_weights = R_NilValue) {
   int n = X.nrow();
   int p = X.ncol();
 
@@ -84,8 +100,11 @@ List sandwich_cluster_logit_accumulate(NumericMatrix X,
   std::vector<double> score(static_cast<std::size_t>(n_clusters) * p, 0.0);
 
   std::vector<double> ddb(p);
+  bool weighted = prior_weights.isNotNull();
+  NumericVector weights = checked_prior_weights(prior_weights, n);
 
   for (int i = 0; i < n; ++i) {
+    if (weighted && weights[i] == 0) continue;
     double p_i = fitted_values[i];
     double w = p_i * (1.0 - p_i);
     double resid = outcome[i] - p_i;
@@ -96,11 +115,11 @@ List sandwich_cluster_logit_accumulate(NumericMatrix X,
     std::size_t hbase = static_cast<std::size_t>(c) * p * p;
     std::size_t sbase = static_cast<std::size_t>(c) * p;
     for (int a = 0; a < p; ++a) {
-      score[sbase + a] += ddb[a] * resid;
+      score[sbase + a] += weighted ? weights[i] * ddb[a] * resid : ddb[a] * resid;
       double da = ddb[a];
       std::size_t row = hbase + static_cast<std::size_t>(a) * p;
       for (int b = 0; b < p; ++b) {
-        hess[row + b] += da * ddb[b];
+        hess[row + b] += weighted ? weights[i] * da * ddb[b] : da * ddb[b];
       }
     }
   }
@@ -135,7 +154,8 @@ List sandwich_cluster_logit_accumulate(NumericMatrix X,
 // [[Rcpp::export]]
 List sandwich_hc0_logit_accumulate(NumericMatrix X,
                                     NumericVector fitted_values,
-                                    NumericVector outcome) {
+                                    NumericVector outcome,
+                                    Nullable<NumericVector> prior_weights = R_NilValue) {
   int n = X.nrow();
   int p = X.ncol();
   double nn = static_cast<double>(n);
@@ -154,8 +174,11 @@ List sandwich_hc0_logit_accumulate(NumericMatrix X,
   NumericMatrix J(p, p);
   NumericMatrix V(p, p);
   std::vector<double> ddb(p);
+  bool weighted = prior_weights.isNotNull();
+  NumericVector weights = checked_prior_weights(prior_weights, n);
 
   for (int i = 0; i < n; ++i) {
+    if (weighted && weights[i] == 0) continue;
     double p_i = fitted_values[i];
     double w = p_i * (1.0 - p_i);
     double resid = outcome[i] - p_i;
@@ -167,9 +190,10 @@ List sandwich_hc0_logit_accumulate(NumericMatrix X,
       double da = ddb[a];
       for (int b = 0; b < p; ++b) {
         double jab = da * ddb[b];
-        J(a, b) += jab / nn;
-        // matches R: v_i = ddb_i %*% (r2) %*% t(ddb_i), i.e. ddb_a * r2 * ddb_b
-        V(a, b) += (da * r2 * ddb[b]) / nn;
+        J(a, b) += weighted ? weights[i] * jab / nn : jab / nn;
+        // Each weighted score contributes one prior weight.
+        V(a, b) += weighted ? (weights[i] * weights[i] * da * r2 * ddb[b]) / nn :
+          (da * r2 * ddb[b]) / nn;
       }
     }
   }

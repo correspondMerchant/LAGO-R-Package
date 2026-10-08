@@ -39,7 +39,11 @@
 #' components in the presence of interaction terms.
 #' @param outcome_data A vector. The input data containing the outcome
 #' of interest, one value per fitted row for a continuous outcome.
-#' @param fitted_model A glm(). The fitted glm() outcome model.
+#' @param fitted_model A glm(). The fitted glm() outcome model. Continuous
+#' covariance uses its actual prior.weights in fitted row order, not the
+#' working weights or the original weights argument. A NULL prior.weights
+#' field falls back to unit weights for direct calls. Otherwise it must be a
+#' finite nonnegative numeric vector with one entry per fitted row.
 #' @param link A character string. The link function the interval is computed
 #' on, either "logit" or "identity". These are the only links the outcome
 #' machinery implements, see supported_outcome_links().
@@ -96,6 +100,36 @@
 #'     never one of its rows, and need not be a grid intervention at all.
 #'     NULL when no grid intervention qualifies>
 #' )
+#'
+#' @details
+#' Continuous covariance treats fitted prior weights as relative observation
+#' weights. Scaling all weights by the same positive constant leaves the
+#' covariance unchanged for a fixed fit. Zero weight rows contribute nothing,
+#' but fitted row and cluster validation still includes them. Singular weighted
+#' bread is refused without regularization.
+#'
+#' For the identity link without clusters, the bread is the inverse of
+#' \eqn{X^T W X}. The residual scale is \eqn{\sum_i w_i (y_i - \mu_i)^2}
+#' divided by the positive weight row count minus the design column count.
+#' This denominator must be positive. For a full rank Gaussian identity fit,
+#' this is the usual estimated dispersion covariance. With clusters, the
+#' score for each row is \eqn{w_i x_i (y_i - \mu_i)}.
+#'
+#' For the logit link, the existing Gauss Newton sandwich is retained. Set
+#' \eqn{d_i = \mu_i (1 - \mu_i) x_i}. The bread is the inverse of
+#' \eqn{\sum_i w_i d_i d_i^T} and the row score is
+#' \eqn{w_i d_i (y_i - \mu_i)}. Without clusters the meat is the sum of row
+#' score outer products (HC0). With clusters, for either link, the meat is the
+#' sum of cluster score outer products (CR0). Two clustering dimensions use
+#' the first covariance plus the second minus the intersection covariance.
+#' No finite sample correction is added.
+#'
+#' These formulas extend the existing continuous covariance definition. They
+#' are not a frequency weight or survey design variance. In particular, the
+#' existing continuous quasibinomial covariance does not use that family's
+#' variance function, so this weight extension does not make it a general GLM
+#' covariance. Binary outcomes continue to use stats::vcov(fitted_model).
+#' Center weights for the outcome goal are separate from observation weights.
 #'
 #' @import stats
 #' @importFrom rje expit logit
@@ -767,7 +801,8 @@ get_confidence_set <- function(
         # identical and a singular J still errors here exactly as before (no
         # silent regularization).
         acc <- sandwich_cluster_logit_accumulate(
-          X, cluster_index, n_clusters, fitted_values, outcome
+          X, cluster_index, n_clusters, fitted_values, outcome,
+          prior_weights = if (unit_weights) NULL else prior_weights
         )
 
         bread <- solve(acc$J)
@@ -779,9 +814,17 @@ get_confidence_set <- function(
                                                    cluster_id,
                                                    outcome,
                                                    fitted_values) {
-        residuals <- outcome - fitted_values
-        # Bread matrix for linear model: (X'X)^(-1)
-        bread <- solve(t(X) %*% X)
+        if (unit_weights) {
+          residuals <- outcome - fitted_values
+          bread <- solve(t(X) %*% X)
+        } else {
+          positive <- prior_weights > 0
+          X_positive <- X[positive, , drop = FALSE]
+          residuals <- numeric(nrow(X))
+          residuals[positive] <- prior_weights[positive] *
+            (outcome[positive] - fitted_values[positive])
+          bread <- solve(t(X_positive) %*% (prior_weights[positive] * X_positive))
+        }
 
         # Initialize cluster sum
         n_params <- ncol(X)
@@ -791,6 +834,7 @@ get_confidence_set <- function(
 
         for (c in clusters) {
           cluster_idx <- which(cluster_id == c)
+          if (!unit_weights) cluster_idx <- cluster_idx[prior_weights[cluster_idx] > 0]
           X_c <- X[cluster_idx, , drop = FALSE]
           e_c <- residuals[cluster_idx]
 
@@ -856,15 +900,40 @@ get_confidence_set <- function(
         }
       }
 
+      prior_weights <- model$prior.weights
+      if (is.null(prior_weights)) prior_weights <- rep(1, n)
+      if (!is.numeric(prior_weights) || is.complex(prior_weights) ||
+        !is.null(dim(prior_weights)) || length(prior_weights) != n ||
+        any(!is.finite(prior_weights)) || any(prior_weights < 0)) {
+        stop(paste0(
+          "fitted_model$prior.weights must be a finite nonnegative numeric ",
+          "vector with one entry per fitted row."
+        ))
+      }
+      unit_weights <- all(prior_weights == 1)
+
       if (is.null(cluster_ids)) {
         # Non-clustered case
         # no fixed center effects or fixed time effects
         if (link == "identity") {
-          # For identity link (linear model):
-          # sigma^2 = sum of squared residuals / (n - n_params)
-          residuals <- outcome_data - fitted_values
-          sigma2 <- sum(residuals^2) / (n - n_params)
-          bread <- solve(t(X) %*% X)
+          positive <- prior_weights > 0
+          residual_df <- sum(positive) - n_params
+          if (residual_df <= 0) {
+            stop(paste0(
+              "Continuous identity covariance requires positive residual ",
+              "degrees of freedom among positive weight rows."
+            ))
+          }
+          if (unit_weights) {
+            residuals <- outcome_data - fitted_values
+            sigma2 <- sum(residuals^2) / (n - n_params)
+            bread <- solve(t(X) %*% X)
+          } else {
+            X_positive <- X[positive, , drop = FALSE]
+            residuals <- outcome_data[positive] - fitted_values[positive]
+            sigma2 <- sum(prior_weights[positive] * residuals^2) / residual_df
+            bread <- solve(t(X_positive) %*% (prior_weights[positive] * X_positive))
+          }
           vcov_matrix <- bread * sigma2
         } else {
           # logistic-like approach
@@ -875,7 +944,10 @@ get_confidence_set <- function(
           # solve() and the final bread %*% V %*% t(bread) stay in R so the
           # inversion is byte-for-byte identical and a singular J errors here
           # exactly as it did before.
-          acc <- sandwich_hc0_logit_accumulate(X, fitted_values, outcome_data)
+          acc <- sandwich_hc0_logit_accumulate(
+            X, fitted_values, outcome_data,
+            prior_weights = if (unit_weights) NULL else prior_weights
+          )
 
           bread <- solve(acc$J)
           vcov_matrix <- (bread %*% acc$V %*% t(bread)) / n
