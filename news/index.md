@@ -2,6 +2,24 @@
 
 ## LAGOtrials 1.1.0
 
+- Continuous confidence covariance now uses the actual fitted model’s
+  prior weights. Identity covariance uses weighted bread and residual
+  scores, with estimated residual scale divided by the positive weight
+  row count minus the design column count when no clusters are present.
+  Logit covariance retains the existing Gauss Newton bread and HC0 or
+  CR0 sandwich, now with weighted scores. Both clustering dimensions and
+  their intersection use the same fitted weights. Weights are relative
+  observation weights, so a common positive rescaling leaves covariance
+  unchanged for a fixed fit. Zero weight rows contribute nothing,
+  malformed fitted weights are refused, and unclustered identity
+  covariance requires positive residual degrees of freedom. Binary
+  covariance and existing finite unit weight results are unchanged. This
+  extends the existing continuous formulas, not a frequency weight,
+  survey design or general GLM covariance. The existing continuous
+  quasibinomial family variance mismatch and the input column named
+  weights overriding the fitting argument are not changed. Results from
+  continuous fits with nonconstant weights should be recomputed.
+
 - Fixed recommendations and confidence output that depended on global
   contrast options or polynomial coding of ordered covariates. Every
   categorical predictor in the outcome model now uses treatment

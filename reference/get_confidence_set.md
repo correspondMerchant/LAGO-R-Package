@@ -104,7 +104,11 @@ get_confidence_set(
 
 - fitted_model:
 
-  A glm(). The fitted glm() outcome model.
+  A glm(). The fitted glm() outcome model. Continuous covariance uses
+  its actual prior.weights in fitted row order, not the working weights
+  or the original weights argument. A NULL prior.weights field falls
+  back to unit weights for direct calls. Otherwise it must be a finite
+  nonnegative numeric vector with one entry per fitted row.
 
 - link:
 
@@ -195,6 +199,38 @@ interventions whose confidence interval covers the outcome goal, with
 their interval bounds and cost. rec_int is never one of its rows, and
 need not be a grid intervention at all. NULL when no grid intervention
 qualifies\> )
+
+## Details
+
+Continuous covariance treats fitted prior weights as relative
+observation weights. Scaling all weights by the same positive constant
+leaves the covariance unchanged for a fixed fit. Zero weight rows
+contribute nothing, but fitted row and cluster validation still includes
+them. Singular weighted bread is refused without regularization.
+
+For the identity link without clusters, the bread is the inverse of
+\\X^T W X\\. The residual scale is \\\sum_i w_i (y_i - \mu_i)^2\\
+divided by the positive weight row count minus the design column count.
+This denominator must be positive. For a full rank Gaussian identity
+fit, this is the usual estimated dispersion covariance. With clusters,
+the score for each row is \\w_i x_i (y_i - \mu_i)\\.
+
+For the logit link, the existing Gauss Newton sandwich is retained. Set
+\\d_i = \mu_i (1 - \mu_i) x_i\\. The bread is the inverse of \\\sum_i
+w_i d_i d_i^T\\ and the row score is \\w_i d_i (y_i - \mu_i)\\. Without
+clusters the meat is the sum of row score outer products (HC0). With
+clusters, for either link, the meat is the sum of cluster score outer
+products (CR0). Two clustering dimensions use the first covariance plus
+the second minus the intersection covariance. No finite sample
+correction is added.
+
+These formulas extend the existing continuous covariance definition.
+They are not a frequency weight or survey design variance. In
+particular, the existing continuous quasibinomial covariance does not
+use that family's variance function, so this weight extension does not
+make it a general GLM covariance. Binary outcomes continue to use
+stats::vcov(fitted_model). Center weights for the outcome goal are
+separate from observation weights.
 
 ## See also
 
