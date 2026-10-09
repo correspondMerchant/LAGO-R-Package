@@ -77,7 +77,11 @@ components in the presence of interaction terms.}
 \item{outcome_data}{A vector. The input data containing the outcome
 of interest, one value per fitted row for a continuous outcome.}
 
-\item{fitted_model}{A glm(). The fitted glm() outcome model.}
+\item{fitted_model}{A glm(). The fitted glm() outcome model. Continuous
+covariance uses its actual prior.weights in fitted row order, not the
+working weights or the original weights argument. A NULL prior.weights
+field falls back to unit weights for direct calls. Otherwise it must be a
+finite nonnegative numeric vector with one entry per fitted row.}
 
 \item{link}{A character string. The link function the interval is computed
 on, either "logit" or "identity". These are the only links the outcome
@@ -151,6 +155,36 @@ List(
 \description{
 Internal function that calculates the confidence set
 for the recommended interventions
+}
+\details{
+Continuous covariance treats fitted prior weights as relative observation
+weights. Scaling all weights by the same positive constant leaves the
+covariance unchanged for a fixed fit. Zero weight rows contribute nothing,
+but fitted row and cluster validation still includes them. Singular weighted
+bread is refused without regularization.
+
+For the identity link without clusters, the bread is the inverse of
+\eqn{X^T W X}. The residual scale is \eqn{\sum_i w_i (y_i - \mu_i)^2}
+divided by the positive weight row count minus the design column count.
+This denominator must be positive. For a full rank Gaussian identity fit,
+this is the usual estimated dispersion covariance. With clusters, the
+score for each row is \eqn{w_i x_i (y_i - \mu_i)}.
+
+For the logit link, the existing Gauss Newton sandwich is retained. Set
+\eqn{d_i = \mu_i (1 - \mu_i) x_i}. The bread is the inverse of
+\eqn{\sum_i w_i d_i d_i^T} and the row score is
+\eqn{w_i d_i (y_i - \mu_i)}. Without clusters the meat is the sum of row
+score outer products (HC0). With clusters, for either link, the meat is the
+sum of cluster score outer products (CR0). Two clustering dimensions use
+the first covariance plus the second minus the intersection covariance.
+No finite sample correction is added.
+
+These formulas extend the existing continuous covariance definition. They
+are not a frequency weight or survey design variance. In particular, the
+existing continuous quasibinomial covariance does not use that family's
+variance function, so this weight extension does not make it a general GLM
+covariance. Binary outcomes continue to use stats::vcov(fitted_model).
+Center weights for the outcome goal are separate from observation weights.
 }
 \examples{
 # Normally reached through lago_optimization(include_confidence_set = TRUE).

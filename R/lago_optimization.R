@@ -87,7 +87,12 @@
 #' Default value without user specification:
 #' "identity" for continuous outcomes, "logit" for binary outcomes.
 #' @param weights A numeric vector. The weights argument of the glm()
-#' outcome model.
+#' outcome model. Continuous confidence covariance uses the actual fitted
+#' prior weights as relative observation weights, with zero weights excluded
+#' from covariance contributions and the identity residual degrees of freedom.
+#' See get_confidence_set() for the covariance formulas and family limits.
+#' This does not change model fitting. An input column named weights can still
+#' override this argument when glm() evaluates the model frame.
 #' @param center_characteristics A character vector. The names of the columns in
 #' the dataset that represent the center characteristics.
 #' Note, include_center_effects and center_characteristics cannot be used
