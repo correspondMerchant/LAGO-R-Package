@@ -2,6 +2,22 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed a data column named `weights` replacing the weights of the
+  outcome model. [`glm()`](https://rdrr.io/r/stats/glm.html) looked up
+  its `weights` argument in the data first, so such a column replaced
+  the `weights` argument of
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+  replaced `center_sample_size` for center level data, and weighted the
+  fit even when no weights were given. A row with a missing value in
+  that column was also dropped from the fit. The outcome model now
+  always uses the `weights` argument, or `center_sample_size` for center
+  level data, and a column named `weights` is used only where it is
+  named, such as an additional covariate. This also applies to
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  and
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md).
+  Results from data with a `weights` column should be recomputed.
+
 - Continuous confidence covariance now uses the actual fitted model’s
   prior weights. Identity covariance uses weighted bread and residual
   scores, with estimated residual scale divided by the positive weight
@@ -16,8 +32,7 @@
   covariance and existing finite unit weight results are unchanged. This
   extends the existing continuous formulas, not a frequency weight,
   survey design or general GLM covariance. The existing continuous
-  quasibinomial family variance mismatch and the input column named
-  weights overriding the fitting argument are not changed. Results from
+  quasibinomial family variance mismatch is not changed. Results from
   continuous fits with nonconstant weights should be recomputed.
 
 - Fixed recommendations and confidence output that depended on global
