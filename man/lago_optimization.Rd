@@ -196,8 +196,7 @@ outcome model. Continuous confidence covariance uses the actual fitted
 prior weights as relative observation weights, with zero weights excluded
 from covariance contributions and the identity residual degrees of freedom.
 See get_confidence_set() for the covariance formulas and family limits.
-This does not change model fitting. An input column named weights can still
-override this argument when glm() evaluates the model frame.}
+A data column named weights does not replace this argument.}
 
 \item{center_characteristics}{A character vector. The names of the columns in
 the dataset that represent the center characteristics.

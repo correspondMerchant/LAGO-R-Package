@@ -25,6 +25,21 @@ outcome_model_fitting <- function(
   formula <- as.formula(
     paste(outcome_name, "~", paste(covariates, collapse = " + "))
   )
+  # weights go in as a value, so a data column named weights cannot replace them
+  fit_glm <- function(formula, ...) {
+    tryCatch(
+      eval(bquote(glm(formula,
+        data = data, family = family_object, weights = .(weights), ...
+      ))),
+      error = function(e) {
+        # name the weights in an error rather than print their values
+        if (is.call(e$call) && !is.null(e$call$weights)) {
+          e$call$weights <- quote(weights)
+        }
+        stop(e)
+      }
+    )
+  }
   # glm() needs two centers (or periods) with a usable row, else it fails on contrasts
   effects <- c(
     if (include_center_effects) "center",
@@ -33,10 +48,7 @@ outcome_model_fitting <- function(
   # quiet, since the real fit below builds the same frame and reports its warnings
   frame <- if (length(effects) > 0) {
     tryCatch(
-      suppressWarnings(glm(formula,
-        data = data, family = family_object, weights = weights,
-        method = "model.frame"
-      )),
+      suppressWarnings(fit_glm(formula, method = "model.frame")),
       error = function(e) NULL
     )
   }
@@ -65,8 +77,8 @@ outcome_model_fitting <- function(
   # the rows glm() would keep with one effect left out (only on the refusal paths)
   frame_without <- function(term) {
     tryCatch(
-      suppressWarnings(glm(stats::update(formula, paste(". ~ . -", term)),
-        data = data, family = family_object, weights = weights,
+      suppressWarnings(fit_glm(
+        stats::update(formula, paste(". ~ . -", term)),
         method = "model.frame"
       )),
       error = function(e) NULL
@@ -145,13 +157,7 @@ outcome_model_fitting <- function(
   model <- withCallingHandlers(
     tryCatch(
       {
-        glm(
-          formula,
-          data = data,
-          family = family_object,
-          weights = weights,
-          contrasts = effect_contrasts
-        )
+        fit_glm(formula, contrasts = effect_contrasts)
       },
       error = function(e) {
         stop(paste("Error occurred during model fitting step:\n", e))
@@ -179,6 +185,8 @@ outcome_model_fitting <- function(
   # object makes the printed Call show the real model and be identical across R
   # versions.
   model$call$formula <- formula
+  # Name the weights rather than print every value.
+  model$call$weights <- quote(weights)
   # Record the fitted coding, or none when every predictor is numeric.
   model$call$contrasts <- effect_contrasts
 
