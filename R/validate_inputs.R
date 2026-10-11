@@ -292,6 +292,16 @@ validate_inputs <- function(
         "column to identify facilities."
       ))
     }
+    # refused here, as the center weights below would otherwise fail with an unclear message
+    if (all(is.na(data$center))) {
+      stop(paste0(
+        "Fixed center effects need at least two centers, but the data has no ",
+        "observed center. Fill in the center column",
+        if (input_data_structure != "center_level") {
+          ", or set include_center_effects = FALSE"
+        }, "."
+      ))
+    }
     # if "center" column of the input data is not a factor,
     # change it to factor and print a warning message
     if (!is.factor(data$center)) {

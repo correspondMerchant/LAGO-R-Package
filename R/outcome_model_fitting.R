@@ -129,6 +129,26 @@ outcome_model_fitting <- function(
   # the levels glm() would code, so a true NA kept by na.pass is not a level
   for (term in if (is.null(frame)) character(0) else effects) {
     used <- levels(as.factor(frame[[term]]))
+    # a level whose rows all have zero weight adds nothing to the fit
+    weighted <- frame[["(weights)"]]
+    if (length(used) >= 2 && !is.null(weighted)) {
+      kept <- levels(droplevels(as.factor(frame[[term]])[which(weighted > 0)]))
+      if (length(kept) < 2) {
+        stop(paste0(
+          effects_need(term), " with a row that has a positive glm weight ",
+          "(center_sample_size for center level data), but ",
+          if (length(kept) == 0) {
+            paste0("no row has one. Give the rows of at least two ", term, "s")
+          } else {
+            paste0(
+              "only the ", term, " '", kept, "' has one. Give the rows of ",
+              "another ", term
+            )
+          },
+          " a positive weight."
+        ))
+      }
+    }
     if (length(used) >= 2) next
     stop(paste0(
       effects_need(term), " with a row the outcome model can use (one with ",
