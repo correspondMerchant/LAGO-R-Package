@@ -44,6 +44,11 @@
 #' working weights or the original weights argument. A NULL prior.weights
 #' field falls back to unit weights for direct calls. Otherwise it must be a
 #' finite nonnegative numeric vector with one entry per fitted row.
+#' Every factor, character and logical predictor must be treatment coded with
+#' its first level as the reference and each coefficient named after its level,
+#' as lago_optimization() fits it. A model
+#' fitted with another coding, such as \code{contr.sum} or an ordered
+#' factor's \code{contr.poly}, is refused.
 #' @param link A character string. The link function the interval is computed
 #' on, either "logit" or "identity". These are the only links the outcome
 #' machinery implements, see supported_outcome_links().
@@ -271,6 +276,12 @@ get_confidence_set <- function(
     refuse_invalid_center_weights(center_weights_for_outcome_goal)
     refuse_non_unit_weight_sum(center_weights_for_outcome_goal)
   }
+  # a direct caller's model may code a factor another way, which the blocks below misread
+  refuse_non_treatment_coding(fitted_model, c(
+    if (include_center_effects) "center",
+    if (include_time_effects) "period",
+    additional_covariates, center_characteristics
+  ))
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
@@ -1468,6 +1479,63 @@ contrast_coef_names <- function(column, model) {
     suffixes <- as.character(seq_len(ncol(matrix)))
   }
   paste0(column, suffixes)
+}
+
+# Refuse a fitted model with a categorical predictor that is not treatment
+# coded with the first level as the reference and each coefficient named after
+# its level. The center and period blocks,
+# the held at 0 covariates, the center characteristic values and the continuous
+# design matrix all read the coefficients that way. outcome_model_fitting()
+# always fits that coding, so this only stops a direct caller's model. Only the
+# columns read here are checked, since the coefficient check reports any other.
+refuse_non_treatment_coding <- function(model, read_columns) {
+  columns <- intersect(names(model$contrasts), gsub("`", "", read_columns))
+  coding <- vapply(columns, function(column) {
+    contrast <- model$contrasts[[column]]
+    # a logical column is coded as the two-level factor FALSE/TRUE
+    levels <- model$xlevels[[column]]
+    if (is.null(levels)) levels <- c("FALSE", "TRUE")
+    rebuilt <- tryCatch(
+      {
+        # exclude = NULL keeps an explicit NA level, as from addNA()
+        x <- factor(levels, levels = levels, exclude = NULL)
+        attr(x, "contrasts") <- contrast
+        stats::contrasts(x)
+      },
+      error = function(e) NULL
+    )
+    treatment <- stats::contr.treatment(length(levels))
+    is_treatment <- is.matrix(rebuilt) &&
+      identical(dim(rebuilt), dim(treatment)) &&
+      all(unname(rebuilt) == unname(treatment))
+    # the period dummy is looked up by name, so each must be named after its level
+    if (is_treatment && identical(colnames(rebuilt), levels[-1])) {
+      ""
+    } else if (is.character(contrast) && length(contrast) == 1) {
+      contrast
+    } else if (is_treatment) {
+      "a treatment matrix whose columns are not named after the levels"
+    } else {
+      "a custom contrast matrix"
+    }
+  }, character(1))
+  wrong <- columns[nzchar(coding)]
+  if (length(wrong) == 0) {
+    return(invisible(NULL))
+  }
+  # backticks keep the refit hint valid R for a name such as `my grp`
+  hint_names <- ifelse(make.names(wrong) == wrong, wrong, paste0("`", wrong, "`"))
+  stop(paste0(
+    "The fitted model does not code ",
+    paste0(wrong, " (", coding[wrong], ")", collapse = ", "),
+    " the way get_confidence_set() reads every factor, character and logical ",
+    "predictor, which is treatment contrasts with the first level as the ",
+    "reference and each coefficient named after its level, so its result ",
+    "would be wrong. Refit the model with ",
+    "contrasts = list(",
+    paste0(hint_names, ' = "contr.treatment"', collapse = ", "),
+    "), as lago_optimization() does."
+  ))
 }
 
 # the coefficient name each center characteristic stands for, one per
