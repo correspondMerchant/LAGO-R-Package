@@ -2,6 +2,29 @@
 
 ## LAGOtrials 1.1.0
 
+- [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  now refuses a fitted model with a factor, character or logical
+  predictor that is not treatment coded with its first level as the
+  reference and each coefficient named after its level. Examples are a
+  model fitted with `contr.sum`, `contr.SAS`, a global
+  `options(contrasts = ...)` that sets another coding, the default
+  coding of an ordered factor, or a treatment matrix such as
+  `contr.treatment(3)` whose columns are not named after the levels. The
+  function reads every such predictor that way. For a binary outcome it
+  returned a wrong interval and confidence set without any error. A
+  treatment matrix whose columns are not named after the levels gave a
+  wrong result only for the period, whose dummy is found by its level
+  name, and is now refused for every column so that one rule applies.
+  For a continuous outcome it usually failed with a message about
+  unmatched columns, but it could also return a wrong interval without
+  any error, for example for a factor with levels 0 and 1. The new
+  message names each such column and shows how to refit the model.
+  Models fitted by
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  already use this coding, so its results are unchanged. Results from
+  direct calls with such a model should be recomputed after refitting
+  it.
+
 - Fixed a data column named `weights` replacing the weights of the
   outcome model. [`glm()`](https://rdrr.io/r/stats/glm.html) looked up
   its `weights` argument in the data first, so such a column replaced

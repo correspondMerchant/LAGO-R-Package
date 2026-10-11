@@ -108,7 +108,12 @@ get_confidence_set(
   its actual prior.weights in fitted row order, not the working weights
   or the original weights argument. A NULL prior.weights field falls
   back to unit weights for direct calls. Otherwise it must be a finite
-  nonnegative numeric vector with one entry per fitted row.
+  nonnegative numeric vector with one entry per fitted row. Every
+  factor, character and logical predictor must be treatment coded with
+  its first level as the reference and each coefficient named after its
+  level, as lago_optimization() fits it. A model fitted with another
+  coding, such as `contr.sum` or an ordered factor's `contr.poly`, is
+  refused.
 
 - link:
 
