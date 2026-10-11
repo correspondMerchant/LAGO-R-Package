@@ -329,8 +329,8 @@ test_that("confidence covariance follows the actual fit in a weights column coll
     fit <- LAGOtrials:::outcome_model_fitting(data = d, outcome_name = "y",
       family_object = gaussian(link), intervention_components = "x", weights = d$w,
       additional_covariates = "z", center_characteristics = NULL)$model
-    expect_equal(unname(fit$prior.weights), d$weights)
-    expect_false(isTRUE(all.equal(unname(fit$prior.weights), d$w)))
+    expect_equal(unname(fit$prior.weights), d$w)
+    expect_false(isTRUE(all.equal(unname(fit$prior.weights), d$weights)))
     for (clusters in list(NULL, list(d$c1), list(d$c1, d$c2))) {
       covariance <- weighted_confidence_oracle(fit, d, link, clusters)
       weighted_confidence_expect(weighted_confidence_call(d, fit, link, clusters),
