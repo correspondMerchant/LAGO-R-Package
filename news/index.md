@@ -2,6 +2,18 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed two unclear refusals for fixed center and time effects. An all
+  `NA` `center` column was refused with “values in
+  center_weights_for_outcome_goal must sum up to 1”, or with a message
+  about the length of `center_weights_for_outcome_goal` when the weights
+  were given. It is now refused with the same kind of message an all
+  `NA` `period` column gets. A center or period whose rows all have zero
+  weight counted as usable, so when no other center or period was left
+  the fit failed with a rank deficiency message that blamed collinear
+  predictors. Such a level no longer counts, and the message names the
+  center or period that still has a positively weighted row, if there is
+  one.
+
 - [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
   now refuses a fitted model with a factor, character or logical
   predictor that is not treatment coded with its first level as the
