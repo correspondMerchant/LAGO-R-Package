@@ -69,6 +69,11 @@ jobs:
           # from-source build.
           use-public-rspm: true
 
+      # A new CRAN release can come before its RSPM binary, and then curl
+      # builds from source, which needs the libcurl headers.
+      - name: Install system libraries for source builds
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
       - name: Install shinylive (pinned) and the app's bundled dependencies
         run: |
           set -euo pipefail
