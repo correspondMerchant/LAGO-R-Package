@@ -787,7 +787,7 @@ Treatments and Preventing Trial Failure Through Ongoing Learning.
 Biometrics, 81(2), ujaf061. <https://doi.org/10.1093/biomtc/ujaf061>
 
 A machine-readable citation is also provided in
-[CITATION.cff](https://correspondmerchant.github.io/LAGO-R-Package/CITATION.cff),
+[CITATION.cff](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/CITATION.cff),
 which powers the “Cite this repository” button on GitHub.
 
 ## How to get help
