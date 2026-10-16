@@ -306,7 +306,7 @@ validate_inputs <- function(
     # change it to factor and print a warning message
     if (!is.factor(data$center)) {
       data$center <- as.factor(data$center)
-      message(paste(
+      input_note(paste(
         "'center' column is not a factor type. To ensure",
         "the correct model fit, it has been converted",
         "to the factor type."
@@ -315,7 +315,7 @@ validate_inputs <- function(
     # an unordered factor, so it is treated as center labels and not as a scale
     if (is.ordered(data$center)) {
       class(data$center) <- "factor"
-      message(paste(
+      input_note(paste(
         "'center' column is an ordered factor. It has been converted to an",
         "unordered factor with the same levels, so the model fits one effect",
         "per center."
@@ -500,7 +500,7 @@ validate_inputs <- function(
     # change it to factor and print a warning message
     if (!is.factor(data$period)) {
       data$period <- as.factor(data$period)
-      message(paste(
+      input_note(paste(
         "'period' column is not a factor type. To ensure",
         "the correct model fit, it has been converted",
         "to the factor type."
@@ -509,7 +509,7 @@ validate_inputs <- function(
     # an unordered factor, so it is treated as period labels and not as a scale
     if (is.ordered(data$period)) {
       class(data$period) <- "factor"
-      message(paste(
+      input_note(paste(
         "'period' column is an ordered factor. It has been converted to an",
         "unordered factor with the same levels, so the model fits one effect",
         "per period."
@@ -789,7 +789,7 @@ validate_inputs <- function(
     }
     # check if default_cost_fxn_type is also provided
     if (!is.null(default_cost_fxn_type) && !quiet) {
-      print(paste(
+      input_note(paste(
         "When 'cost_list_of_vectors' is provided,",
         "'default_cost_fxn_type' is ignored."
       ))
@@ -863,7 +863,7 @@ validate_inputs <- function(
   if (!is.null(optimization_grid_search_step_size) &&
     optimization_method == "numerical") {
     optimization_method <- "grid_search"
-    message(paste(
+    input_note(paste(
       "'optimization_grid_search_step_size' was provided, so",
       "'optimization_method' has been switched to 'grid_search'.",
       "To use the numerical method instead, remove",
@@ -875,7 +875,7 @@ validate_inputs <- function(
   # check the number of intervention components
   if (optimization_method == "grid_search") {
     if (length(intervention_components) > 3) {
-      message(paste0(
+      input_note(paste0(
         "There are more than 3 intervention components, and the grid search ",
         "algorithm may take significant amount of time to run. ",
         "Please consider adjusting the step size, or switch to the ",
@@ -1180,7 +1180,7 @@ validate_inputs <- function(
     }
   } else if (!is.null(icc)) {
     # icc only affects the power calculation; without a power goal it is a no-op.
-    message("icc is ignored because no power_goal was provided.")
+    input_note("icc is ignored because no power_goal was provided.")
   }
 
   # check if power_goal_approach is a character type
@@ -1412,4 +1412,13 @@ refuse_non_unit_weight_sum <- function(center_weights_for_outcome_goal) {
     ))
   }
   invisible(NULL)
+}
+
+# Signal an input note, a message about how the inputs were read. A sweep shows
+# each one once rather than once per run. See show_each_input_note_once().
+input_note <- function(text) {
+  message(structure(
+    class = c("lago_input_note", "message", "condition"),
+    list(message = paste0(text, "\n"), call = NULL)
+  ))
 }

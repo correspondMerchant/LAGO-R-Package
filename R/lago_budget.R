@@ -184,6 +184,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   # recommended cost, estimated outcome and per-run status. lago_sensitivity()
   # warns when some runs fail; unreachable goals are expected here, so that
   # warning is muffled (genuine data/model warnings from each fit still show).
+  # each sweep validates the same inputs, so each input note is shown once overall
+  once <- show_each_input_note_once()
   sweep <- function(goals) {
     sens_args <- c(
       list(object = object), dots,
@@ -207,7 +209,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
           grepl("not estimated to be achievable", m)) {
           invokeRestart("muffleWarning")
         }
-      }
+      },
+      message = once
     )
     comps <- attr(sens, "component_names")
     ok <- sens$status == "ok" &

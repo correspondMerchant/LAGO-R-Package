@@ -285,6 +285,8 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   n <- length(values)
   runs <- vector("list", n)
   errors <- rep(NA_character_, n)
+  # every run validates the same inputs, so each input note is shown once
+  once <- show_each_input_note_once()
   for (i in seq_len(n)) {
     args <- dots
     if (cost_mode) {
@@ -300,7 +302,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
     args$quiet <- quiet
 
     res <- tryCatch(
-      do.call(lago_optimization, args),
+      withCallingHandlers(do.call(lago_optimization, args), message = once),
       error = function(e) e
     )
     if (inherits(res, "error")) {
@@ -549,4 +551,19 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
     ) +
     ggplot2::theme_minimal(base_size = 14)
   p
+}
+
+# Return a message handler that shows each distinct input note once and hides
+# later copies of the same text. Every other message, such as a note about one
+# run's power goal or the cli progress lines, is shown for every run.
+show_each_input_note_once <- function() {
+  seen <- character(0)
+  function(m) {
+    if (!inherits(m, "lago_input_note")) {
+      return(invisible(NULL))
+    }
+    text <- conditionMessage(m)
+    if (text %in% seen) invokeRestart("muffleMessage")
+    seen <<- c(seen, text)
+  }
 }
