@@ -5,6 +5,20 @@
 - [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
   and
   [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  are faster. No input they can sweep changes the outcome model, but
+  every run refitted it, which was most of the time of a sweep. A sweep
+  now fits the model once and reuses it for every run with identical
+  fitting inputs, and a budget search shares one fit across all of its
+  sweeps. A 25 value sensitivity sweep on `BB_data` went from 3.7 to 1.3
+  seconds, and a default budget search from 6.6 to 2.3 seconds. Results
+  are unchanged, and the warnings and messages from the fit are still
+  raised for every run. A single
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  call always fits its own model.
+
+- [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  and
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
   now show each message about how the inputs were read once per call,
   instead of once for every run of the sweep. Examples are the note that
   the `center` column was converted to a factor and the note that
