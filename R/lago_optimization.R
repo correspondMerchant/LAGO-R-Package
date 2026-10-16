@@ -414,7 +414,8 @@ lago_optimization <- function(
 
   if (!quiet) cli::cli_alert_info("Fitting the outcome model...")
   # fit the outcome model
-  outcome_model <- outcome_model_fitting(
+  # a sweep reuses an identical earlier fit, see cached_outcome_model_fitting()
+  outcome_model <- cached_outcome_model_fitting(
     data = data,
     input_data_structure = input_data_structure,
     outcome_name = outcome_name,

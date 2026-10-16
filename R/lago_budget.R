@@ -186,6 +186,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   # warning is muffled (genuine data/model warnings from each fit still show).
   # each sweep validates the same inputs, so each input note is shown once overall
   once <- show_each_input_note_once()
+  # every sweep fits the same outcome model, so they share one fit
+  if (open_fit_cache()) on.exit(close_fit_cache(), add = TRUE)
   sweep <- function(goals) {
     sens_args <- c(
       list(object = object), dots,
