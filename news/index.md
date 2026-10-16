@@ -2,6 +2,21 @@
 
 ## LAGOtrials 1.1.0
 
+- [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  and
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  now show each message about how the inputs were read once per call,
+  instead of once for every run of the sweep. Examples are the note that
+  the `center` column was converted to a factor and the note that
+  `optimization_method` was switched to grid search. A message is hidden
+  only when its text is exactly the same as one already shown. Other
+  messages, such as a note about one run’s power goal, and the progress
+  lines shown with `quiet = FALSE` still appear for every run. The note
+  that `default_cost_fxn_type` is ignored when `cost_list_of_vectors` is
+  given is now sent as a message like the other input notes, rather than
+  printed with [`print()`](https://rdrr.io/r/base/print.html), so it no
+  longer shows as `[1] "..."` in the output.
+
 - Fixed two unclear refusals for fixed center and time effects. An all
   `NA` `center` column was refused with “values in
   center_weights_for_outcome_goal must sum up to 1”, or with a message

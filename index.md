@@ -185,7 +185,7 @@ Typical output:
 
     ℹ Starting LAGO Optimization
     ℹ Validating inputs...
-    [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+    When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
     ✔ Done
     ℹ Assessing the cost function...
     ✔ Done
@@ -406,7 +406,7 @@ Output:
     ℹ Validating inputs...
     'center' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
     'period' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
-    [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+    When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
     ✔ Done
     ℹ Assessing the cost function...
     ✔ Done

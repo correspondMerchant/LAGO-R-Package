@@ -449,7 +449,7 @@ lago_optimization(
 )
 #> ℹ Starting LAGO Optimization
 #> ℹ Validating inputs...
-#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -544,7 +544,7 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -651,7 +651,7 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
