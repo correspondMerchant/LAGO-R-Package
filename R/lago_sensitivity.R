@@ -287,6 +287,8 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   errors <- rep(NA_character_, n)
   # every run validates the same inputs, so each input note is shown once
   once <- show_each_input_note_once()
+  # no swept input changes the outcome model, so the runs share one fit
+  if (open_fit_cache()) on.exit(close_fit_cache(), add = TRUE)
   for (i in seq_len(n)) {
     args <- dots
     if (cost_mode) {
