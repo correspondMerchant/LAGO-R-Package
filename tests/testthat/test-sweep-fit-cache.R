@@ -131,3 +131,33 @@ test_that("the cache tells apart fits with different inputs", {
   expect_identical(fits$n, 3)
   expect_identical(a, b)
 })
+
+test_that("a reused fit replays its messages and warnings in order", {
+  calls <- 0
+  local_mocked_bindings(outcome_model_fitting = function(...) {
+    calls <<- calls + 1
+    message("fit note")
+    warning("fit warning")
+    list(model = "stub")
+  })
+  seen <- character(0)
+  fit_twice <- function() {
+    for (i in 1:2) {
+      value <- LAGOtrials:::cached_outcome_model_fitting(family_object = binomial())
+      expect_identical(value, list(model = "stub"))
+    }
+  }
+  withCallingHandlers(
+    LAGOtrials:::with_fit_cache(fit_twice()),
+    message = function(m) {
+      seen <<- c(seen, paste("message:", sub("\n$", "", conditionMessage(m))))
+      invokeRestart("muffleMessage")
+    },
+    warning = function(w) {
+      seen <<- c(seen, paste("warning:", conditionMessage(w)))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_identical(calls, 1)
+  expect_identical(seen, rep(c("message: fit note", "warning: fit warning"), 2))
+})
