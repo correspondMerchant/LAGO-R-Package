@@ -128,7 +128,12 @@
 #' optimization will be carried out for a weighted average of the centers the
 #' model fitted (see center_weights_for_outcome_goal). The
 #' center must have a row where every model variable and the row's glm weight
-#' (center_sample_size for center level data) are observed.
+#' (center_sample_size for center level data) are observed. To select an
+#' explicit NA center level (as from \code{addNA()}), pass
+#' \code{NA_character_}. The string \code{"NA"} selects only a center whose
+#' label is the text NA. A center labeled with the text NA and an explicit NA
+#' level cannot be used together, since the model gives both the same
+#' coefficient name, so rename one of them.
 #' @param include_time_effects A boolean. Specifies whether the fixed time
 #' effects should be included in the outcome model. If set to TRUE, please
 #' make sure that the input data has a 'period' column to identify the time
