@@ -219,7 +219,8 @@ Typical output:
     ── Outcome model fit
 
     Call:
-    glm(formula = formula, family = family_object, data = data, weights = weights)
+    glm(formula = mpg ~ gear + qsec, family = family_object, data = data,
+        weights = weights)
 
     Coefficients:
                 Estimate Std. Error t value Pr(>|t|)
@@ -440,7 +441,9 @@ Output:
     ── Outcome model fit
 
     Call:
-    glm(formula = formula, family = family_object, data = data, weights = weights)
+    glm(formula = pp3_oxytocin_mother ~ center + period + coaching_updt +
+        launch_duration, family = family_object, data = data, weights = weights,
+        contrasts = list(center = "contr.treatment", period = "contr.treatment"))
 
     Coefficients:
                       Estimate Std. Error z value Pr(>|z|)

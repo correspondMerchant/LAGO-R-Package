@@ -2,6 +2,14 @@
 
 ## LAGOtrials 1.1.0
 
+- The documentation of
+  [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  now says that `center_weights_for_outcome_goal` has one weight per
+  center of the fitted model, in the order of its center levels, and the
+  documentation of `center_effects_optimization_values` now says that
+  `NA_character_` selects an explicit `NA` center level. The README
+  examples now show the outcome model’s actual printed call.
+
 - [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
   and
   [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)

@@ -51,13 +51,16 @@ get_confidence_set(
 
   A numeric vector. Specifies the weights that will be used for
   calculating recommended interventions that satisfy the outcome goal
-  for an (weighted) average center. The weights need to sum up to 1, and
-  must all be non-negative and finite. A weight of 0 is allowed and
-  excludes that center from the average. Only used, and only checked,
-  when include_center_effects is TRUE. A vector whose sum is not 1 is
-  refused here rather than renormalised: the interval is computed AT the
-  weights the optimization ran with, so rescaling them would report an
-  interval for a different weighting than the point estimate beside it.
+  for an (weighted) average center. There is one weight per center the
+  fitted model has, in the order of its center levels
+  (`fitted_model$xlevels$center`), so the first weight is for the
+  reference center. The weights need to sum up to 1, and must all be
+  non-negative and finite. A weight of 0 is allowed and excludes that
+  center from the average. Only used, and only checked, when
+  include_center_effects is TRUE. A vector whose sum is not 1 is refused
+  here rather than renormalised: the interval is computed AT the weights
+  the optimization ran with, so rescaling them would report an interval
+  for a different weighting than the point estimate beside it.
   lago_optimization() refuses the same vectors, and normalises within
   the tolerance the ones it accepts, so weights arriving from it always
   sum to 1.
