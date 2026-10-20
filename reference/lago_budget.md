@@ -112,6 +112,11 @@ An object of class \`"lago_budget"\`, a list with:
 
   The \`outcome_goal_intention\` used.
 
+- run_error:
+
+  The error of the first failed run when every run of a sweep failed,
+  otherwise \`NULL\`.
+
 ## Details
 
 The candidate outcome goals span the outcome's range: \`(0, 1)\` for a
@@ -133,7 +138,11 @@ If no reachable goal is affordable (the budget is below the cost of even
 the cheapest reachable intervention), the result has \`feasible =
 FALSE\` and \`NA\` recommendation fields. If every reachable goal is
 affordable, the budget does not bind (\`binding = FALSE\`) and the
-maximum reachable outcome is returned.
+maximum reachable outcome is returned. If \[lago_optimization()\] fails
+for every goal of a sweep, for example because the outcome model cannot
+be fitted, the result has \`feasible = FALSE\`, the warning and the
+printed result give the error of the first failed run, and \`run_error\`
+holds it.
 
 ## See also
 

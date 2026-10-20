@@ -168,6 +168,10 @@ the affordability boundary, so the effective resolution is finer than
   <dt>intention</dt>
 <dd><p>The `outcome_goal_intention` used.</p></dd>
 
+  <dt>run_error</dt>
+<dd><p>The error of the first failed run when every run of a
+  sweep failed, otherwise `NULL`.</p></dd>
+
 
 </dl></div>
     <div class="section level2">
@@ -188,7 +192,11 @@ affordability boundary to tighten the estimate.</p>
 <p>If no reachable goal is affordable (the budget is below the cost of even the
 cheapest reachable intervention), the result has `feasible = FALSE` and `NA`
 recommendation fields. If every reachable goal is affordable, the budget does
-not bind (`binding = FALSE`) and the maximum reachable outcome is returned.</p>
+not bind (`binding = FALSE`) and the maximum reachable outcome is returned.
+If [lago_optimization()] fails for every goal of a sweep, for example because
+the outcome model cannot be fitted, the result has `feasible = FALSE`, the
+warning and the printed result give the error of the first failed run, and
+`run_error` holds it.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
