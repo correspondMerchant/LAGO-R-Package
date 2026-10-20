@@ -382,21 +382,26 @@ validate_inputs <- function(
         # we set the weight for that specific center to 1, rest to 0
         if (!is.character(center_effects_optimization_values)) {
           stop(paste(
-            "center_effects_optimization_values
-                        must be a character."
+            "center_effects_optimization_values must be a character string",
+            "naming one center."
           ))
         }
         if (length(center_effects_optimization_values) != 1) {
-          stop(paste(
-            "center_effects_optimization_values
-                        must be a single value."
-          ))
+          stop("center_effects_optimization_values must be a single center name.")
         }
-        if (!center_effects_optimization_values %in%
-          unique(data$center)) {
-          stop(paste(
-            "center_effects_optimization_values
-                        must be one of the centers."
+        # the levels, so a missing center without an explicit NA level is not a center
+        if (!center_effects_optimization_values %in% levels(data$center)) {
+          missing_name <- is.na(center_effects_optimization_values)
+          stop(paste0(
+            "center_effects_optimization_values (",
+            if (missing_name) "NA_character_" else center_effects_optimization_values,
+            ") must be one of the centers in the 'center' column.",
+            if (missing_name) {
+              paste(
+                " To select the rows with a missing center, make them an",
+                "explicit level with addNA()."
+              )
+            }
           ))
         }
         # by level, so an explicit NA level keeps its place among the centers

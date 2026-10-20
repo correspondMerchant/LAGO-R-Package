@@ -169,6 +169,9 @@ outcome_model_fitting <- function(
       categorical_predictors
     )
   }
+  # na.pass keeps a row with a missing value and na.fail stops on it, and glm() then fails
+  refuse_unusable_na_action(fit_glm(formula, method = "model.frame", na.action = stats::na.pass))
+
   # capture any warnings glm() emits during fitting (e.g. "fitted
   # probabilities numerically 0 or 1 occurred", which signals separation) so
   # they can be surfaced as fit diagnostics instead of being swallowed. The
@@ -433,5 +436,34 @@ refuse_duplicate_coef_names <- function(model) {
     "when a column has both a level labeled with the text NA and an explicit NA ",
     "level (as from addNA()), or when a column name is another column's name ",
     "followed by one of its levels. Rename one of those levels or columns."
+  ))
+}
+
+# Refuse a global na.action of na.pass or na.fail when a model row has a
+# missing value. glm() fails on such a row with an error that does not name
+# the option, while na.omit and na.exclude drop it.
+refuse_unusable_na_action <- function(frame) {
+  action <- getOption("na.action")
+  name <- if (is.character(action) && length(action) == 1) {
+    action
+  } else if (identical(action, stats::na.pass)) {
+    "na.pass"
+  } else if (identical(action, stats::na.fail)) {
+    "na.fail"
+  }
+  if (is.null(name) || !name %in% c("na.pass", "na.fail")) {
+    return(invisible(NULL))
+  }
+  n_missing <- sum(!stats::complete.cases(frame))
+  if (n_missing == 0) {
+    return(invisible(NULL))
+  }
+  stop(paste0(
+    "The global option na.action is ", name, ", but ", n_missing,
+    if (n_missing == 1) " row has" else " rows have", " a missing value in a ",
+    "model variable or its glm weight. The outcome model needs ",
+    if (n_missing == 1) "that row" else "those rows",
+    " dropped, so set options(na.action = \"na.omit\") or ",
+    "options(na.action = \"na.exclude\"), or fill in the missing values."
   ))
 }
