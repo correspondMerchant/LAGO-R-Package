@@ -54,6 +54,10 @@
 #' cheapest reachable intervention), the result has `feasible = FALSE` and `NA`
 #' recommendation fields. If every reachable goal is affordable, the budget does
 #' not bind (`binding = FALSE`) and the maximum reachable outcome is returned.
+#' If [lago_optimization()] fails for every goal of a sweep, for example because
+#' the outcome model cannot be fitted, the result has `feasible = FALSE`, the
+#' warning and the printed result give the error of the first failed run, and
+#' `run_error` holds it.
 #'
 #' @return An object of class `"lago_budget"`, a list with:
 #' \describe{
@@ -74,6 +78,8 @@
 #'   `affordable`, `status`.}
 #'   \item{component_names}{The intervention component names.}
 #'   \item{intention}{The `outcome_goal_intention` used.}
+#'   \item{run_error}{The error of the first failed run when every run of a
+#'   sweep failed, otherwise `NULL`.}
 #' }
 #'
 #' @examples
@@ -186,6 +192,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   # warning is muffled (genuine data/model warnings from each fit still show).
   # each sweep validates the same inputs, so each input note is shown once overall
   once <- show_each_input_note_once()
+  run_error <- NULL
   # every sweep fits the same outcome model, so they share one fit
   if (open_fit_cache()) on.exit(close_fit_cache(), add = TRUE)
   sweep <- function(goals) {
@@ -214,6 +221,10 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       },
       message = once
     )
+    # every goal failing is a problem with the inputs, so keep its error to report
+    if (is.null(run_error) && nrow(sens) > 0 && all(sens$status == "error")) {
+      run_error <<- unname(attr(sens, "error_messages")[1])
+    }
     comps <- attr(sens, "component_names")
     ok <- sens$status == "ok" &
       is.finite(sens$rec_int_cost) & is.finite(sens$est_outcome_goal)
@@ -353,7 +364,12 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     } else {
       NA_real_
     }
-    if (n_reachable == 0L) {
+    if (n_reachable == 0L && !is.null(run_error)) {
+      warning(paste(
+        "No outcome goal in the searched range was reachable, because every",
+        "run of lago_optimization() failed. The first failed with:", run_error
+      ), call. = FALSE)
+    } else if (n_reachable == 0L) {
       warning(paste(
         "No outcome goal in the searched range was reachable, so no",
         "budget-constrained recommendation could be made. Check the model,",
@@ -384,6 +400,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   rownames(result$frontier) <- NULL
   result$component_names <- comps
   result$intention <- intention
+  result$run_error <- run_error
   class(result) <- "lago_budget"
   result
 }
@@ -417,6 +434,12 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
 print.lago_budget <- function(x, ...) {
   cli::cli_h2("LAGO budget-constrained optimization")
   cli::cli_text("Budget: {.val {x$budget}} ({x$intention}).")
+  if (!x$feasible && !is.null(x$run_error)) {
+    cli::cli_alert_warning(
+      "Every run of lago_optimization() failed, so no recommendation could be made: {x$run_error}"
+    )
+    return(invisible(x))
+  }
   if (!x$feasible) {
     cli::cli_alert_warning(
       "No reachable intervention fits this budget; increase the budget."

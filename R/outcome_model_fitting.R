@@ -189,6 +189,9 @@ outcome_model_fitting <- function(
     }
   )
 
+  # coefficients are read by name, so two with the same name cannot be told apart
+  refuse_duplicate_coef_names(model)
+
   # if model did not converge, stop the function
   if (!model$converged) {
     stop(paste(
@@ -400,4 +403,35 @@ diagnose_model_fit <- function(model,
   }
 
   invisible(NULL)
+}
+
+# Refuse a fit where two coefficients share a name. glm() names a dummy by
+# joining the column name and the level, so a level labeled with the text NA
+# and an explicit NA level (as from addNA()) both become, for example, centerNA,
+# and a factor visit with level 2 collides with a numeric column visit2. The
+# package reads coefficients by name, which then picks the wrong one.
+refuse_duplicate_coef_names <- function(model) {
+  names <- names(stats::coef(model))
+  duplicated_names <- unique(names[duplicated(names)])
+  if (length(duplicated_names) == 0) {
+    return(invisible(NULL))
+  }
+  mapping <- term_coef_names(model)
+  columns <- names(Filter(function(coefs) any(coefs %in% duplicated_names), mapping))
+  stop(paste0(
+    "The outcome model gives more than one coefficient the ",
+    if (length(duplicated_names) == 1) "name " else "names ",
+    paste(duplicated_names, collapse = ", "),
+    if (length(columns) > 0) {
+      paste0(
+        ", from the ", if (length(columns) == 1) "column " else "columns ",
+        paste(columns, collapse = ", ")
+      )
+    },
+    ". glm() names a factor coefficient by joining the column name and the ",
+    "level, so the package cannot tell these coefficients apart. This happens ",
+    "when a column has both a level labeled with the text NA and an explicit NA ",
+    "level (as from addNA()), or when a column name is another column's name ",
+    "followed by one of its levels. Rename one of those levels or columns."
+  ))
 }
