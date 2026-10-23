@@ -2,6 +2,23 @@
 
 ## LAGOtrials 1.1.0
 
+- Three input problems now get clearer refusals.
+  `center_effects_optimization_values = NA_character_` with a `center`
+  column that has missing values but no explicit `NA` level failed with
+  “values in center_weights_for_outcome_goal must sum up to 1”, and now
+  says that `NA_character_` is not one of the centers and how to make
+  the missing centers an explicit level with
+  [`addNA()`](https://rdrr.io/r/base/factor.html). The three refusals of
+  `center_effects_optimization_values` no longer print a line break and
+  a run of spaces in the middle of the sentence, and the one for an
+  unknown center names the value. A global
+  `options(na.action = "na.pass")` or `"na.fail"` with a missing value
+  in a model variable or its glm weight failed inside
+  [`glm()`](https://rdrr.io/r/stats/glm.html) with an error that did not
+  name the option, and is now refused up front with a message that says
+  to use `"na.omit"` or `"na.exclude"`. Data without missing values
+  still runs under either option.
+
 - Fixed wrong results when two coefficients of the outcome model got the
   same name. [`glm()`](https://rdrr.io/r/stats/glm.html) names a factor
   coefficient by joining the column name and the level, so a level
