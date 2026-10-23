@@ -2,6 +2,16 @@
 
 ## LAGOtrials 1.1.0
 
+- Fixed the in-browser playground treating a numeric `NaN` period as a
+  missing value when it checks which centers have a row the outcome
+  model can use. The package turns a numeric `period` column into a
+  factor, which keeps `NaN` as a level and its rows in the fit, so with
+  fixed center and time effects the playground could refuse to run, or
+  say a center could not be optimized for, when the package would fit
+  it. When `period` is used as a numeric intervention component or
+  covariate instead, a `NaN` still counts as missing, as it does in
+  [`glm()`](https://rdrr.io/r/stats/glm.html).
+
 - Three input problems now get clearer refusals.
   `center_effects_optimization_values = NA_character_` with a `center`
   column that has missing values but no explicit `NA` level failed with
