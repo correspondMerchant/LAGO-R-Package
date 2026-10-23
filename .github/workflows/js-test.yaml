@@ -4,8 +4,10 @@
 # the cost math copied into inst/js/lago-report.js (the interactive lago_report()
 # renderer). Both match their output against the R reference values.
 # tests/js/test-share-config.js checks the playground "Share link" encode/decode
-# round-trip in pkgdown/assets/share-config.js. Kept out of the R test suite so
-# R CMD check does not depend on a node interpreter.
+# round-trip in pkgdown/assets/share-config.js. tests/js/test-center-probe.js
+# checks the playground's center probe, and runs its R code, so this job also
+# sets up R with jsonlite. Kept out of the R test suite so R CMD check does not
+# depend on a node interpreter.
 on:
   push:
     branches: [main, master]
@@ -27,6 +29,15 @@ jobs:
         with:
           node-version: '20'
 
+      # the center probe test runs the playground's R code
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install jsonlite for the center probe test
+        # --no-init-file skips the profile setup-r writes the mirror to, so name it
+        run: Rscript --no-init-file -e 'install.packages("jsonlite", repos = "https://cloud.r-project.org")'
+
       - name: Run cost-curve math test
         run: node tests/js/test-cost-math.js
 
@@ -38,3 +49,6 @@ jobs:
 
       - name: Run share-link round-trip test
         run: node tests/js/test-share-config.js
+
+      - name: Run playground center probe test
+        run: node tests/js/test-center-probe.js

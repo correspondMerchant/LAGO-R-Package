@@ -1302,13 +1302,13 @@
       }
       if (!(src in centerNames)) return "checking the centers…";
       // glm() leaves out a center with no fully observed row, so the package skips it
-      const used = new Set([$("outcome").value, ...selectedComponents(), ...selectedAdditionalCovariates()]);
-      if (timeEffectsOn()) used.add("period");
+      const used = probeColumns(
+        [$("outcome").value, ...selectedComponents(), ...selectedAdditionalCovariates()],
+        timeEffectsOn()
+      );
       const pats = centerPatterns[src] || [], names = centerNames[src];
-      // patterns line up with the names by position; an empty list must never gate
-      const left = (k) => Array.isArray(pats[k]) && pats[k].length &&
-        pats[k].every((p) => p.split("|").some((c) => c && used.has(c)));
-      const fitted = names.filter((n, k) => !left(k));
+      // patterns line up with the names by position
+      const fitted = names.filter((n, k) => !centerLeftOut(pats[k], used));
       if (fitted.length < 2) return "fixed center effects need at least two centers with a fully observed row";
       const cf = $("ce-for").value;
       if (cf && !fitted.includes(cf)) {
@@ -1322,6 +1322,41 @@
       ensureCenterNames();
     }
 
+    // R code giving the centers of column src and, per center, the "|"-joined
+    // missing columns of each row pattern, so centerProblem() can tell which
+    // centers glm() would leave out. A NaN in a numeric period is reported as
+    // its own token, period:NaN, since whether glm() keeps that row depends on
+    // how period is used. No data column is named period:NaN, since read.csv()
+    // renames a NaN header.
+    function centerProbeCode(src) {
+      return `local({ g <- factor(PG_DATA[[${rstr(src)}]]); ` +
+        `nc <- names(PG_DATA)[vapply(PG_DATA, anyNA, logical(1))]; pats <- list(); ` +
+        `if (length(nc)) { m <- is.na(PG_DATA[nc]); ` +
+        `if ("period" %in% nc && is.numeric(PG_DATA$period)) { ` +
+        `nan <- is.nan(PG_DATA$period); m[, "period"] <- is.na(PG_DATA$period) & !nan; ` +
+        `m <- cbind(m, "period:NaN" = nan); nc <- c(nc, "period:NaN") }; ` +
+        `key <- apply(m, 1, function(r) paste(nc[r], collapse = "|")); ` +
+        `pats <- unname(lapply(split(key, g), function(k) I(unique(k)))) }; ` +
+        `jsonlite::toJSON(list(names = I(levels(g)), patterns = pats)) })`;
+    }
+
+    // The probe columns whose missing values make glm() drop a row. A NaN period
+    // is dropped only when period is a numeric model column. As the time factor
+    // the package makes it a factor, which keeps NaN as a level.
+    function probeColumns(modelColumns, timeEffects) {
+      const used = new Set(modelColumns);
+      if (used.has("period")) used.add("period:NaN");
+      if (timeEffects) used.add("period");
+      return used;
+    }
+
+    // Whether glm() leaves out a center: every one of its row patterns misses a
+    // used column. An empty list must never gate.
+    function centerLeftOut(patterns, used) {
+      return Array.isArray(patterns) && patterns.length > 0 &&
+        patterns.every((p) => p.split("|").some((c) => c && used.has(c)));
+    }
+
     // Load the chosen column's distinct centers once (one small R call, cached).
     async function ensureCenterNames() {
       const src = centerSource();
@@ -1330,12 +1365,7 @@
       centerPending.add(src);
       let info = { names: [], patterns: [] };
       try {
-        info = JSON.parse(await webR.evalRString(`local({ g <- factor(PG_DATA[[${rstr(src)}]]); ` +
-          `nc <- names(PG_DATA)[vapply(PG_DATA, anyNA, logical(1))]; pats <- list(); ` +
-          `if (length(nc)) { m <- is.na(PG_DATA[nc]); ` +
-          `key <- apply(m, 1, function(r) paste(nc[r], collapse = "|")); ` +
-          `pats <- unname(lapply(split(key, g), function(k) I(unique(k)))) }; ` +
-          `jsonlite::toJSON(list(names = I(levels(g)), patterns = pats)) })`));
+        info = JSON.parse(await webR.evalRString(centerProbeCode(src)));
       } catch (e) { info = { names: [], patterns: [] }; }
       if (gen !== schemaGen) return;   // the dataset changed while this ran
       centerPending.delete(src);
