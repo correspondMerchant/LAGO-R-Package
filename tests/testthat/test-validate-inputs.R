@@ -237,7 +237,7 @@ test_that("center_effects_optimization_values must be a single value", {
     center = factor(c(1, 1, 2, 2, 3, 3))
   )
   expect_error(suppressMessages(do.call(LAGOtrials:::validate_inputs, a)),
-    "must be a single value")
+    "must be a single center name")
 })
 
 test_that("center_effects_optimization_values must be an existing center", {
