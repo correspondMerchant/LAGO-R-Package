@@ -1,7 +1,7 @@
 # Formals of lago_optimization() that cannot be swept as a scalar numeric,
 # because they are the data, a character option, a boolean flag, a list, or a
 # vector-valued argument. Anything NOT in this set (e.g. outcome_goal,
-# power_goal, shrinkage_threshold, icc, time_effect_optimization_value,
+# power_goal, icc, time_effect_optimization_value,
 # num_centers_in_next_stage, patients_per_center_in_next_stage) is a scalar
 # numeric that a run can override with one element of `values`. Kept as an
 # explicit denylist so a new scalar numeric formal is sweepable without editing
@@ -69,7 +69,7 @@
 #' \enumerate{
 #'   \item The name of a scalar numeric argument of [lago_optimization()] that
 #'   affects the recommendation (for example `"outcome_goal"`, `"power_goal"`,
-#'   or `"shrinkage_threshold"`). Each run overrides that argument with one
+#'   or `"icc"`). Each run overrides that argument with one
 #'   element of `values`. Vector-valued arguments such as
 #'   `intervention_lower_bounds`, and confidence-set-only arguments such as
 #'   `confidence_set_alpha` (the confidence set is not computed during a sweep),
@@ -225,7 +225,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
         paste0(
           "`parameter` \"%s\" is not a scalar numeric argument and cannot be ",
           "swept. Sweep a scalar numeric argument such as \"outcome_goal\", ",
-          "\"power_goal\", or \"shrinkage_threshold\", or use ",
+          "\"power_goal\", or \"icc\", or use ",
           "\"cost_multiplier\"."
         ),
         parameter

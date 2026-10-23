@@ -102,7 +102,11 @@
 #'     lago_optimization() now warns when it does, so it is flagged rather than
 #'     silent, and the interval is still reported as computed for the same
 #'     reason as before. Not confined for a continuous outcome either, whose
-#'     range is not knowable here. NULL when that interval is not computable>,
+#'     range is not knowable here. The exception, for both outcome types, is
+#'     the weighted average center on the logit link, whose estimate is the
+#'     weighted mean of the centers' probabilities: its interval is the delta
+#'     method interval of that mean and is confined to [0, 1]. NULL when that
+#'     interval is not computable>,
 #'   cs = <data.frame of the grid interventions whose confidence interval
 #'     covers the outcome goal, with their interval bounds and cost. rec_int is
 #'     never one of its rows, and need not be a grid intervention at all.
@@ -603,6 +607,17 @@ get_confidence_set <- function(
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
 
+  # On the logit link the reported outcome of a weighted average center is the
+  # weighted mean of each center's probability, see get_outcome(). That is not
+  # expit() of the weighted mean linear predictor, so the interval is built for
+  # the reported quantity itself. A single named center has weight 1 and keeps
+  # the usual interval.
+  averaged_centers <- link == "logit" && include_center_effects &&
+    sum(center_weights_for_outcome_goal > 0) > 1
+  center_columns <- if (averaged_centers) {
+    match(center_effect_names, colnames(new_data))
+  }
+
   if (outcome_type == "binary") {
     # vcov() is indexed by the same coefficient names, so reorder it the same
     # way the coefficients were
@@ -632,7 +647,14 @@ get_confidence_set <- function(
     # point estimate the same run reported. The point estimate was always right,
     # since get_outcome() has keyed on the link all along; only the interval
     # was on the wrong scale.
-    if (link == "identity") {
+    if (averaged_centers) {
+      averaged <- weighted_center_probability(
+        new_data, model_coefs, model_vcov, center_columns,
+        center_weights_for_outcome_goal
+      )
+      pred_all <- averaged$estimate
+      se_pred_all <- averaged$se
+    } else if (link == "identity") {
       # the outcome IS the linear predictor, so the interval is already on the
       # outcome scale and the delta-method factor is the derivative of the
       # identity map, i.e. 1.
@@ -747,6 +769,10 @@ get_confidence_set <- function(
     # and is what this package has always reported for a binary outcome.
     # Changing that would move every binary logit number, which is not what is
     # wrong with either branch.
+    #
+    # The weighted average center on the logit link is the exception. Its
+    # interval is the delta method interval of the weighted mean probability,
+    # built by weighted_center_probability() and confined to [0, 1].
 
     # define the function to manually calculate var-cov matrix
     get_vcov <- function(predictors_data,
@@ -1104,7 +1130,14 @@ get_confidence_set <- function(
     std_er_all <- suppressWarnings({
       sqrt(rowSums((new_data %*% vcov_matrix) * new_data))
     })
-    if (any(is.nan(std_er_all))) {
+    averaged <- if (averaged_centers) {
+      weighted_center_probability(
+        new_data, as.matrix(model_coefs), vcov_matrix, center_columns,
+        center_weights_for_outcome_goal
+      )
+    }
+    # warn about the standard errors the interval actually uses
+    if (any(is.nan(if (averaged_centers) averaged$se else std_er_all))) {
       warning(paste0(
         "Warning: High uncertainty for the confidence set,",
         " please consider checking for multicollinearity or",
@@ -1116,7 +1149,14 @@ get_confidence_set <- function(
     lb_prob_all <- pred_all - critical_value * std_er_all
     ub_prob_all <- pred_all + critical_value * std_er_all
 
-    if (link == "identity") {
+    if (averaged_centers) {
+      # the delta method interval of the weighted mean probability, confined
+      # to [0, 1] in what is reported as the binary branch does
+      ci_prob_all <- cbind(
+        averaged$estimate - critical_value * averaged$se,
+        averaged$estimate + critical_value * averaged$se
+      )
+    } else if (link == "identity") {
       # For identity link, predictions are on the correct scale already.
       #
       # NOT clamped to [0, 1], unlike the binary branch above, because for a
@@ -1139,8 +1179,13 @@ get_confidence_set <- function(
       ci_prob_all <- expit(cbind(lb_prob_all, ub_prob_all))
     }
     # a continuous outcome has no range to confine a bound to, so what is
-    # reported is what was computed. See the note above.
-    reported_ci_prob_all <- ci_prob_all
+    # reported is what was computed. See the note above. The averaged logit
+    # interval is of a probability, so it is confined like the binary one.
+    reported_ci_prob_all <- if (averaged_centers) {
+      pmin(pmax(ci_prob_all, 0), 1)
+    } else {
+      ci_prob_all
+    }
   } else {
     # ci_prob_all is assigned in the two branches above and read by the shared
     # code below, so an unrecognised outcome type would reach that code with it
@@ -1712,4 +1757,29 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
     "coefficient(s) are ", paste(time_effect_names, collapse = ", "),
     ", plus the reference period, which has no coefficient of its own."
   ))
+}
+
+# The weighted mean over centers of the probability at each row of new_data, and
+# its delta method standard error. Each center's row has its own center dummy
+# set to 1 (none for the reference center) and the other center dummies set to
+# 0. The gradient of sum(w * p) is sum(w * p * (1 - p) * x).
+weighted_center_probability <- function(new_data, coefs, vcov_matrix,
+                                        center_columns, weights) {
+  design <- as.matrix(new_data)
+  design[, center_columns] <- 0
+  estimate <- numeric(nrow(design))
+  gradient <- matrix(0, nrow(design), ncol(design))
+  for (center in seq_along(weights)) {
+    if (weights[center] == 0) next
+    center_design <- design
+    if (center > 1) center_design[, center_columns[center - 1]] <- 1
+    p <- rje::expit(drop(center_design %*% coefs))
+    estimate <- estimate + weights[center] * p
+    gradient <- gradient + weights[center] * p * (1 - p) * center_design
+  }
+  # a negative variance, possible with two way clustering, gives NaN so the row is dropped
+  list(
+    estimate = estimate,
+    se = suppressWarnings(sqrt(rowSums((gradient %*% vcov_matrix) * gradient)))
+  )
 }

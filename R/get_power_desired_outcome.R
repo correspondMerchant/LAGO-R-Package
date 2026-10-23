@@ -7,7 +7,19 @@ get_power_desired_outcome <- function(
     patients_per_center_in_next_stage,
     outcome_name,
     icc = NULL,
-    power_goal_cluster_id = NULL) {
+    power_goal_cluster_id = NULL,
+    control_rate = NULL,
+    row_sizes = NULL) {
+  # The next-stage control arm gets no intervention, at the same planning values
+  # (center weights, characteristics, period) as the outcome goal. The caller
+  # passes that rate. expit(intercept), the default for direct callers, is the
+  # rate only on the logit link for a model without other terms.
+  if (is.null(control_rate)) {
+    control_rate <- rje::expit(intervention_components_coeff[1])
+  }
+  # patients per row: 1 for individual level data, center_sample_size for
+  # center level data, whose outcome is a proportion
+  if (is.null(row_sizes)) row_sizes <- rep(1, nrow(data))
   # ---------------------------------------------------------------------------
   # Design effects (issue #29). When icc is NULL the design effects are all 1
   # and every variance below reduces bit-for-bit to the independent-binomial
@@ -30,10 +42,10 @@ get_power_desired_outcome <- function(
   # kept, unlike in glm(). A missing outcome would otherwise count toward its
   # arm's size but make the arm's sum NA, which crashes the unconditional path
   # and makes the conditional path silently return 0 (dropping the goal).
-  data <- data[
-    !is.na(data[[outcome_name]]) & !is.na(data$group), ,
-    drop = FALSE
-  ]
+  # a center level row without center_sample_size is dropped, as glm() drops it
+  usable <- !is.na(data[[outcome_name]]) & !is.na(data$group) & !is.na(row_sizes)
+  data <- data[usable, , drop = FALSE]
+  row_sizes <- row_sizes[usable]
   # validate_inputs() checks this too; kept here for direct callers
   for (grp in c("control", "treatment")) {
     if (!any(data$group == grp)) {
@@ -62,14 +74,18 @@ get_power_desired_outcome <- function(
     if (is.null(power_goal_cluster_id)) {
       return(NA_real_)
     }
-    m <- as.numeric(table(arm_data[[power_goal_cluster_id]]))
-    m <- m[m > 0]
+    m <- as.numeric(tapply(arm_data$.lago_row_size, arm_data[[power_goal_cluster_id]], sum))
+    m <- m[!is.na(m) & m > 0]
     if (length(m) < 2) {
       return(NA_real_)
     }
     sum(m^2) / sum(m)
   }
 
+  # the patients and events of each arm, so a center level row counts its
+  # center_sample_size patients rather than one
+  data$.lago_row_size <- row_sizes
+  data$.lago_events <- row_sizes * data[[outcome_name]]
   ctl_stage1_all <- data[data$group == "control", ]
   int_stage1_all <- data[data$group == "treatment", ]
   m1_ctl <- size_biased_cluster_size(ctl_stage1_all)
@@ -131,15 +147,15 @@ get_power_desired_outcome <- function(
                              beta0) {
       n0_2 <- j / 2 * n2j
       n1_2 <- j / 2 * n2j
-      n0_1 <- nrow(ctl_data_stage1)
-      n1_1 <- nrow(int_data_stage1)
-      S0_1 <- sum(ctl_data_stage1[[outcome_name]])
-      S1_1 <- sum(int_data_stage1[[outcome_name]])
+      n0_1 <- sum(ctl_data_stage1$.lago_row_size)
+      n1_1 <- sum(int_data_stage1$.lago_row_size)
+      S0_1 <- sum(ctl_data_stage1$.lago_events)
+      S1_1 <- sum(int_data_stage1$.lago_events)
       N0 <- n0_1 + n0_2
       N1 <- n1_1 + n1_2
 
       S1_2 <- n1_2 * expit_part
-      S0_2 <- n0_2 * rje::expit(beta0)
+      S0_2 <- n0_2 * control_rate
 
       p1 <- (S1_1 + S1_2) / N1
       p0 <- (S0_1 + S0_2) / N0
@@ -204,7 +220,7 @@ get_power_desired_outcome <- function(
         return(1)
       }
 
-      ctl_percentage <- sum(ctl_data_stage1[[outcome_name]]) / nrow(ctl_data_stage1)
+      ctl_percentage <- sum(ctl_data_stage1$.lago_events) / sum(ctl_data_stage1$.lago_row_size)
       pos_grid_for_expit_part <- grid_for_expit_part[pos_diff_idx]
 
       return((pos_grid_for_expit_part[pos_grid_for_expit_part > ctl_percentage])[1])
@@ -222,7 +238,7 @@ get_power_desired_outcome <- function(
       patients_per_center_in_next_stage,
       data[data$group == "control", ],
       data[data$group == "treatment", ],
-      lower = rje::expit(intervention_components_coeff[1]),
+      lower = control_rate,
       upper = 1,
       n_points = 1000,
       intervention_components_coeff[1]
@@ -242,10 +258,10 @@ get_power_desired_outcome <- function(
                                          beta0) {
       n0_2 <- j / 2 * n2j
       n1_2 <- j / 2 * n2j
-      n0_1 <- nrow(ctl_data_stage1)
-      n1_1 <- nrow(int_data_stage1)
-      S0_1 <- sum(ctl_data_stage1[[outcome_name]])
-      S1_1 <- sum(int_data_stage1[[outcome_name]])
+      n0_1 <- sum(ctl_data_stage1$.lago_row_size)
+      n1_1 <- sum(int_data_stage1$.lago_row_size)
+      S0_1 <- sum(ctl_data_stage1$.lago_events)
+      S1_1 <- sum(int_data_stage1$.lago_events)
       N0 <- n0_1 + n0_2
       N1 <- n1_1 + n1_2
 
@@ -257,7 +273,7 @@ get_power_desired_outcome <- function(
 
       conditional_power_function <- function(expit_part) {
         S1_2 <- n1_2 * expit_part
-        S0_2 <- n0_2 * expit(beta0)
+        S0_2 <- n0_2 * control_rate
 
         p1 <- (S1_1 + S1_2) / N1
         p0 <- (S0_1 + S0_2) / N0
@@ -268,12 +284,12 @@ get_power_desired_outcome <- function(
         sqrt_part2 <- p0 * (1 - p0) * (de1_ctl * n0_1 + de2_ctl * n0_2) / N0^2
         z_alpha_sqrt_multiply_part <- z_alpha_over_2 * sqrt(sqrt_part1 + sqrt_part2)
 
-        mu_hat_x_2 <- n1_2 * expit_part / N1 - n0_2 * expit(beta0) / N0
+        mu_hat_x_2 <- n1_2 * expit_part / N1 - n0_2 * control_rate / N0
         # stage-2 prediction variance: stage-1 is conditioned on (fixed), so
         # only the stage-2 increment is clustered here. DE2 applied inside the
         # sqrt (guarding against a DE^2 error on this sd-form term).
         sigma_hat_x_2 <- sqrt(
-          de2_ctl * n0_2 * expit(beta0) * (1 - expit(beta0)) / N0^2 +
+          de2_ctl * n0_2 * control_rate * (1 - control_rate) / N0^2 +
             de2_int * n1_2 * expit_part * (1 - expit_part) / N1^2
         )
 
@@ -282,12 +298,13 @@ get_power_desired_outcome <- function(
       }
 
       suppressWarnings({
-        pwr_equation_values <- na.omit(
-          sapply(grid_for_expit_part, conditional_power_function)
-        )
+        pwr_equation_values <- sapply(grid_for_expit_part, conditional_power_function)
       })
 
-      all_possible_expit_part_values <- grid_for_expit_part[pwr_equation_values <= 0]
+      # NA points are skipped in place, so the values stay aligned with the grid
+      all_possible_expit_part_values <- grid_for_expit_part[
+        !is.na(pwr_equation_values) & pwr_equation_values <= 0
+      ]
 
       if (length(all_possible_expit_part_values) > 0) {
         final_expit_value <- all_possible_expit_part_values[1]
@@ -317,7 +334,7 @@ get_power_desired_outcome <- function(
       data[data$group == "control", ],
       data[data$group == "treatment", ],
       power_goal,
-      lower = rje::expit(intervention_components_coeff[1]),
+      lower = control_rate,
       upper = 1,
       n_points = 1000,
       intervention_components_coeff[1]

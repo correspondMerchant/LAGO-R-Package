@@ -146,7 +146,7 @@ def sensitivity(
     parameter : str
         What to vary. Either the name of a scalar numeric argument of
         ``lago_optimization()`` that affects the recommendation (for example
-        ``"outcome_goal"``, ``"power_goal"``, ``"shrinkage_threshold"``) or the
+        ``"outcome_goal"``, ``"power_goal"``, ``"icc"``) or the
         special string ``"cost_multiplier"`` (each run multiplies every cost
         coefficient by one element of ``values``; requires ``cost_list`` and all
         ``values`` positive).

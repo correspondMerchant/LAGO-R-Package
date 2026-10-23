@@ -16,12 +16,21 @@ shrinking_method <- function(
     center_cha,
     link,
     stage_1_intervention) {
-  beta_vec <- beta[-1]
   n_components <- ifelse(
     include_interaction_terms,
     length(main_components),
     length(intervention_components)
   )
+  # the position in beta of each main component's own coefficient, since beta
+  # follows intervention_components, which may list an interaction term first
+  coef_index <- if (include_interaction_terms) {
+    1 + match(gsub("`", "", main_components), gsub("`", "", intervention_components))
+  } else {
+    1 + seq_len(n_components)
+  }
+  # a main component only inside an interaction term has no coefficient of its own
+  beta_vec <- beta[coef_index]
+  beta_vec[is.na(coef_index)] <- 0
   recommended_values <- rep(0, n_components)
 
   # Helper function to create interaction vector
@@ -57,7 +66,7 @@ shrinking_method <- function(
 
     int_vector <- create_interaction_vector(x)
     beta_modified <- beta
-    beta_modified[current_component + 1] <- beta_value
+    beta_modified[coef_index[current_component]] <- beta_value
 
     return(get_outcome(
       center_weights_for_outcome_goal,
@@ -72,6 +81,11 @@ shrinking_method <- function(
 
   # Main optimization loop
   for (c in 1:n_components) {
+    # with a coefficient of 0 the shrinking formula keeps the stage-1 value
+    if (is.na(coef_index[c])) {
+      recommended_values[c] <- stage_1_intervention[c]
+      next
+    }
     other_indices <- setdiff(1:n_components, c)
     other_boundaries <- ifelse(beta_vec[other_indices] < 0,
       lo[other_indices],
@@ -81,12 +95,25 @@ shrinking_method <- function(
     # Fix X at upper boundary
     X_fixed <- up[c]
 
-    # Binary search for beta_max
-    left <- -100 # reasonable starting range for beta
-    right <- 100 # reasonable starting range for beta
+    # Binary search for beta_max, starting in [-100, 100]. The outcome rises
+    # with the coefficient, so a needed coefficient above 100, which depends on
+    # the outcome's units, doubles the top of the bracket until it holds it. A
+    # needed coefficient below -100 leaves no usable bracket either way.
+    left <- -100
+    right <- 100
+    for (k in 1:60) {
+      effect <- calculate_effect(
+        right, X_fixed, c,
+        other_boundaries, beta_vec[other_indices]
+      )
+      if (effect >= outcome_goal) break
+      right <- right * 2
+    }
 
     while (abs(right - left) > 1e-6) {
       mid <- (left + right) / 2
+      # at a very large scale the bracket can stop shrinking before 1e-6
+      if (mid <= left || mid >= right) break
       effect <- calculate_effect(
         mid, X_fixed, c,
         other_boundaries, beta_vec[other_indices]

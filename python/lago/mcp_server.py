@@ -246,7 +246,7 @@ def sensitivity(
     as EXACTLY ONE of `data_csv` or `data_records`), plus `parameter` and
     `values`. `parameter` is either the name of a scalar numeric optimization
     argument that affects the recommendation (for example `"outcome_goal"`,
-    `"power_goal"`, or `"shrinkage_threshold"`) or the special string
+    `"power_goal"`, or `"icc"`) or the special string
     `"cost_multiplier"` (each run scales every cost coefficient by one element
     of `values`; all values must be positive). `values` is a non-empty list of
     finite numbers, one run per element.

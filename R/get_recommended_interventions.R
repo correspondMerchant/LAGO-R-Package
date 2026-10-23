@@ -351,9 +351,8 @@ select_restart_within_bounds <- function(restart_points,
 #' is intended to be lower or higher than the average outcome.
 #' @param prev_recommended_interventions A numeric vector. Specifies the
 #' recommended interventions from the previous stage.
-#' @param shrinkage_threshold A numeric value. Specifies the threshold for
-#' shrinking the recommended intervention towards the recommended intervention
-#' from the previous stage.
+#' @param shrinkage_threshold A numeric value. Not used, see the
+#' lago_optimization() argument of the same name.
 #' @param power_goal A numeric value. Specifies the power goal, a desired
 #' power value between 0 and 1.
 #' @param power_goal_approach A character string. Specifies the approach used
@@ -380,6 +379,9 @@ select_restart_within_bounds <- function(restart_points,
 #' center-level effects and no longer names the term it came from. Used only to
 #' say which of the two causes stopped an optimization that could compute no
 #' outcome at all, since the two need opposite advice.
+#' @param input_data_structure A character string, "individual_level" or
+#' "center_level". For center level data the power goal counts each row's
+#' center_sample_size patients.
 #'
 #' @return List(
 #' est_rec_int = recommended interventions,
@@ -423,10 +425,21 @@ get_recommended_interventions <- function(
     outcome_name,
     icc = NULL,
     power_goal_cluster_id = NULL,
-    aliased_coef_names = character(0)) {
+    aliased_coef_names = character(0),
+    input_data_structure = "individual_level") {
   # check if power goal is null, if not, calculate the desired outcome
   # value needed to achieve the power goal
   if (!is.null(power_goal)) {
+    # the control arm's rate is the outcome with no intervention at the planning values
+    control_rate <- get_outcome(
+      center_weights_for_outcome_goal,
+      all_center_lvl_effects,
+      intervention_components_coeff,
+      c(1, rep(0, length(intervention_components_coeff) - 1)),
+      center_cha_coeff_vec,
+      center_characteristics_optimization_values,
+      link
+    )
     power_desired_outcome <- get_power_desired_outcome(
       data,
       intervention_components_coeff,
@@ -436,7 +449,9 @@ get_recommended_interventions <- function(
       patients_per_center_in_next_stage,
       outcome_name,
       icc = icc,
-      power_goal_cluster_id = power_goal_cluster_id
+      power_goal_cluster_id = power_goal_cluster_id,
+      control_rate = control_rate,
+      row_sizes = if (input_data_structure == "center_level") data$center_sample_size
     )
 
     effective_outcome_goal <- max(power_desired_outcome, outcome_goal)

@@ -27,7 +27,8 @@ rec_int_processor <- function(
     patients_per_center_in_next_stage,
     outcome_name,
     icc = NULL,
-    power_goal_cluster_id = NULL) {
+    power_goal_cluster_id = NULL,
+    input_data_structure = "individual_level") {
   # the coefficient names glm() gave each term of the model, so every
   # coefficient below is picked out by the term it came from rather than by
   # what its name happens to look like. A term's own name is in general NOT one
@@ -214,7 +215,8 @@ rec_int_processor <- function(
     outcome_name = outcome_name,
     icc = icc,
     power_goal_cluster_id = power_goal_cluster_id,
-    aliased_coef_names = aliased_coef_names
+    aliased_coef_names = aliased_coef_names,
+    input_data_structure = input_data_structure
   )
 
   list(

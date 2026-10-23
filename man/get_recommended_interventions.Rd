@@ -31,7 +31,8 @@ get_recommended_interventions(
   outcome_name,
   icc = NULL,
   power_goal_cluster_id = NULL,
-  aliased_coef_names = character(0)
+  aliased_coef_names = character(0),
+  input_data_structure = "individual_level"
 )
 }
 \arguments{
@@ -118,9 +119,8 @@ is intended to be lower or higher than the average outcome.}
 \item{prev_recommended_interventions}{A numeric vector. Specifies the
 recommended interventions from the previous stage.}
 
-\item{shrinkage_threshold}{A numeric value. Specifies the threshold for
-shrinking the recommended intervention towards the recommended intervention
-from the previous stage.}
+\item{shrinkage_threshold}{A numeric value. Not used, see the
+lago_optimization() argument of the same name.}
 
 \item{power_goal}{A numeric value. Specifies the power goal, a desired
 power value between 0 and 1.}
@@ -155,6 +155,10 @@ establish this for itself: an NA it sees has already been summed into the
 center-level effects and no longer names the term it came from. Used only to
 say which of the two causes stopped an optimization that could compute no
 outcome at all, since the two need opposite advice.}
+
+\item{input_data_structure}{A character string, "individual_level" or
+"center_level". For center level data the power goal counts each row's
+center_sample_size patients.}
 }
 \value{
 List(
