@@ -390,15 +390,12 @@ lago_optimization(
 
 - shrinkage_threshold:
 
-  A numeric value. The threshold for the shrinkage method to kick in.
-  This threshold represents the proportion of the distance between the
-  estimated outcome without intervention, and the outcome goal. If the
-  maximum reachable outcome is less than this value, the shrinkage
-  method from Section 5.1 of the Supplementary Materials of Nevo et
-  al. (2021) will be applied. If the maximum reachable outcome is
-  greater than this value, then the maximum reachable outcome will be
-  used as the outcome goal, and the shrinkage method will not be used.
-  Default value without user specification: 0.25.
+  A numeric value between 0 and 1. Not used, and kept so that existing
+  calls still run. When the outcome goal is not estimated to be
+  reachable within the bounds, the shrinkage method from Section 5.1 of
+  the Supplementary Materials of Nevo et al. (2021) is always applied,
+  whatever this value is. Default value without user specification:
+  0.25.
 
 - quiet:
 
@@ -718,7 +715,7 @@ lago_optimization(
 #> 
 #> ── Recommended intervention 
 #> coaching_updt: 38.9887
-#> launch_duration: 4.793
+#> launch_duration: 4.7929
 #> Cost: 104620
 #> Estimated outcome: 0.838
 #> 95% CI for the estimated outcome: not available (set include_confidence_set =

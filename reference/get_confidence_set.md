@@ -201,12 +201,15 @@ excludes its own estimate. That estimate leaving \[0, 1\] is a defect in
 its own right and not this one; lago_optimization() now warns when it
 does, so it is flagged rather than silent, and the interval is still
 reported as computed for the same reason as before. Not confined for a
-continuous outcome either, whose range is not knowable here. NULL when
-that interval is not computable\>, cs = \<data.frame of the grid
-interventions whose confidence interval covers the outcome goal, with
-their interval bounds and cost. rec_int is never one of its rows, and
-need not be a grid intervention at all. NULL when no grid intervention
-qualifies\> )
+continuous outcome either, whose range is not knowable here. The
+exception, for both outcome types, is the weighted average center on the
+logit link, whose estimate is the weighted mean of the centers'
+probabilities: its interval is the delta method interval of that mean
+and is confined to \[0, 1\]. NULL when that interval is not
+computable\>, cs = \<data.frame of the grid interventions whose
+confidence interval covers the outcome goal, with their interval bounds
+and cost. rec_int is never one of its rows, and need not be a grid
+intervention at all. NULL when no grid intervention qualifies\> )
 
 ## Details
 

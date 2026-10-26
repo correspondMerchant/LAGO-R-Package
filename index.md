@@ -6,6 +6,8 @@ LAGOtrials because the name `LAGO` was already taken on CRAN. Throughout
 this documentation “LAGO” refers to the statistical method and
 “LAGOtrials” refers to this package. (For continuity, the functions keep
 the `lago_` prefix and still return an object of class `"lago"`.)
+LAGOtrials is available on
+[CRAN](https://CRAN.R-project.org/package=LAGOtrials).
 
 The LAGOtrials R package bridges the gap between theoretical advances in
 Learn-As-you-GO (LAGO) and practical applications by providing a
@@ -51,12 +53,20 @@ interventions.
 
 ## How to install the R package
 
-- Method 1 (directly using RStudio):
+- Method 1, the released version from
+  [CRAN](https://CRAN.R-project.org/package=LAGOtrials):
+
+      install.packages("LAGOtrials")
+
+- Method 2, the development version from GitHub, which has the fixes
+  listed in
+  [NEWS](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/NEWS.md)
+  that are not on CRAN yet:
 
       install.packages("devtools")
       devtools::install_github("https://github.com/correspondMerchant/LAGO-R-Package")
 
-- Method 2: Clone this repo into RStudio, you can follow the directions
+- Method 3: Clone this repo into RStudio, you can follow the directions
   provided [in this
   video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 

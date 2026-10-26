@@ -2,6 +2,68 @@
 
 ## LAGOtrials 1.1.0
 
+CRAN release: 2026-10-24
+
+- Fixed the power goal using the control rate at center characteristic
+  value 0, the reference center and the reference period. The next-stage
+  control arm gets no intervention, and its rate was taken as `expit()`
+  of the model intercept, which is the rate only on the logit link when
+  the model has no other terms. On the identity link the intercept is
+  already the rate, so `expit()` of it was wrong even without other
+  terms. With center characteristics or fixed center effects, the
+  power-implied outcome and the recommendation then changed when a
+  characteristic was merely shifted by a constant or the reference
+  center was changed. In one example the raw characteristic gave a
+  power-implied outcome of 0.294, whose true power is 0.215 against a
+  goal of 0.8, while the centered one gave the correct 0.467. The
+  control rate is now the estimated outcome with no intervention at the
+  same planning values as the outcome goal: the center characteristic
+  values, the center weights or named center, and the period. Results
+  with a power goal and center characteristics, fixed center effects or
+  fixed time effects, or on the identity link, should be recomputed.
+
+- Fixed the power goal on center level data counting each row as one
+  patient and summing the proportions as the number of events. It now
+  counts each row’s `center_sample_size` patients and its events, as for
+  the same data at the patient level, including the stage-1 cluster
+  sizes used with `icc`. A row without `center_sample_size` is left out,
+  as [`glm()`](https://rdrr.io/r/stats/glm.html) leaves it out. In one
+  example the power-implied outcome was 0.399, with a true power of
+  0.889 against a goal of 0.8, and is now 0.343, the same as for the
+  patient level data.
+
+- Fixed the confidence interval and the confidence set of the weighted
+  average center on the logit link. The reported outcome is the weighted
+  mean of each center’s probability, but its interval was built for
+  `expit()` of the weighted mean linear predictor, a different quantity,
+  so the printed interval could exclude its own estimate, for example an
+  estimated outcome of 0.75 with an interval of 0.764 to 0.835. The
+  interval is now the delta method interval of the weighted mean
+  probability, for binary and continuous outcomes and for individual and
+  center level data. A single named center, and the identity link, are
+  unchanged. Confidence sets for the weighted average center on the
+  logit link should be recomputed.
+
+- Fixed three errors in the shrinking method used when the outcome goal
+  cannot be reached. With interaction terms it read each main
+  component’s coefficient by its position in `main_components`, so
+  listing an interaction term before a main component, or the main
+  components in another order than in `intervention_components`, gave a
+  different recommendation for the same model. It also searched for the
+  needed coefficient only up to 100, so an outcome on a large scale,
+  such as a weight in grams, gave a different recommendation than the
+  same outcome in kilograms. When a step of the search landed on the
+  goal exactly, the search also returned the lower end of its bracket
+  instead of that step, which could be far from the needed coefficient.
+  Results that used the shrinking method should be recomputed, most of
+  all those with interaction terms or with a needed coefficient above
+  100.
+
+- The documentation of `shrinkage_threshold` now says that it is not
+  used. The shrinking method is applied whenever the outcome goal is not
+  estimated to be reachable, which has been the behavior since the
+  threshold rule was removed.
+
 - Fixed the in-browser playground treating a numeric `NaN` period as a
   missing value when it checks which centers have a row the outcome
   model can use. The package turns a numeric `period` column into a
