@@ -521,7 +521,7 @@ test_that("a center-level center with no sample size is refused clearly", {
   )
 })
 
-test_that("a center-level center is sized by its first observed sample size", {
+test_that("a center-level center is sized by its observed sample sizes", {
   cl <- center_level()
   first <- which(cl$center == "c3")[1]
   cl$center_sample_size[first] <- NA

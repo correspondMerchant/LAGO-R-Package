@@ -30,9 +30,9 @@
 #' `unit_costs`).
 #' @param n_grid A single integer (>= 2) giving how many outcome goals to try
 #' across the outcome's range. Larger values give a finer, more precise answer
-#' at the cost of more optimization runs. A second refinement pass is run around
-#' the affordability boundary, so the effective resolution is finer than
-#' `n_grid` alone. Default 25.
+#' at the cost of more optimization runs. A second refinement pass tries
+#' `n_grid` more goals strictly inside the gap at the affordability boundary,
+#' so the effective resolution is finer than `n_grid` alone. Default 25.
 #' @param quiet A boolean forwarded to [lago_optimization()] via
 #' [lago_sensitivity()]. Defaults to `TRUE` so the search is not noisy.
 #'
@@ -46,9 +46,12 @@
 #' goals the recommendation actually delivers are considered). Among the reached
 #' goals whose recommended cost is at most `budget`, the one with the best
 #' estimated outcome is chosen (largest for `"maximize"`, smallest for
-#' `"minimize"`). The grid is extended in the improving direction until goals
-#' stop being reached or affordable, and a refinement sweep is then run near the
-#' affordability boundary to tighten the estimate.
+#' `"minimize"`). Goals that tie on the estimated outcome return the same
+#' intervention, and the one furthest in the improving direction is taken. The
+#' grid is extended in the improving direction until goals stop being reached
+#' or affordable, up to 30 times with a warning if that is not enough, and a
+#' refinement sweep is then run near the affordability boundary to tighten the
+#' estimate.
 #'
 #' If no reachable goal is affordable (the budget is below the cost of even the
 #' cheapest reachable intervention), the result has `feasible = FALSE` and `NA`
@@ -273,8 +276,9 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     # extending the grid to its cap for a large budget.
     isTRUE(row$reached && row$affordable)
   }
+  # the span doubles with each extension, so 30 covers about 1e9 times the range
   extensions <- 0L
-  while (extreme_ok_afford(fr) && extensions < 6L) {
+  while (extreme_ok_afford(fr) && extensions < 30L) {
     span <- diff(range(fr$outcome_goal))
     if (!is.finite(span) || span <= 0) span <- abs(fr$outcome_goal[1]) + 1
     if (maximize) {
@@ -289,6 +293,13 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     rownames(fr) <- NULL
     extensions <- extensions + 1L
   }
+  if (extreme_ok_afford(fr)) {
+    warning(paste(
+      "The goal grid was extended 30 times and its best goal is still reached",
+      "and affordable, so a better affordable outcome may exist. Check the",
+      "intervention bounds."
+    ), call. = FALSE)
+  }
 
   # index of the best affordable, reachable goal (best = largest outcome for
   # maximize, smallest for minimize).
@@ -300,7 +311,11 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     if (!length(aff)) {
       return(NA_integer_)
     }
-    aff[if (maximize) which.max(df$est_outcome[aff]) else which.min(df$est_outcome[aff])]
+    best <- if (maximize) max(df$est_outcome[aff]) else min(df$est_outcome[aff])
+    # goals that tie on the outcome all return the same intervention, so take
+    # the furthest one in the improving direction, where the refinement belongs
+    tied <- aff[df$est_outcome[aff] == best]
+    tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
   }
 
   bi <- best_idx(fr)
@@ -321,7 +336,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       lo <- min(fr$outcome_goal[bi], fr$outcome_goal[neighbor])
       hi <- max(fr$outcome_goal[bi], fr$outcome_goal[neighbor])
       if (hi > lo) {
-        fr2 <- sweep(seq(lo, hi, length.out = n_grid))
+        # only goals strictly inside the gap, so n_grid = 2 still refines it
+        fr2 <- sweep(seq(lo, hi, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)])
         fr <- rbind(fr, fr2)
         fr <- fr[order(fr$outcome_goal), , drop = FALSE]
         rownames(fr) <- NULL

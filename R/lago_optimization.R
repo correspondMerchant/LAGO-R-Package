@@ -163,7 +163,7 @@
 #' level included), and the sorted values otherwise.
 #' Default value without user specification:
 #' For each center the model fitted, calculate what percentage its sample size
-#' (all of its rows, or its center_sample_size for center level data) is of the
+#' (all of its rows, or the sum of its center_sample_size for center level data) is of the
 #' total over those centers, and use that percentage as the center's weight. A
 #' center the model could not fit is left out, with a warning. For center level
 #' data, a center with no center_sample_size at all is refused instead.
@@ -262,8 +262,8 @@
 #' recommended interventions,
 #' associated cost for the interventions,
 #' estimated outcome mean/probability for the intervention group,
-#' 95\% confidence set percentage,
-#' 95\% confidence set,
+#' confidence set percentage (at level 1 - confidence_set_alpha),
+#' confidence set,
 #' overall intervention test results (test_results), a list with the test
 #' statistic and p-value; NULL unless a valid 'group' column is supplied.
 #' The confidence set fields are only present when include_confidence_set = TRUE.)
@@ -617,7 +617,7 @@ lago_optimization <- function(
     intervention_upper_bounds = intervention_upper_bounds
   )
 
-  # The 95% confidence interval for the estimated outcome at the recommended
+  # The confidence interval for the estimated outcome at the recommended
   # intervention. get_confidence_set() reports it as its own field, computed at
   # the recommended intervention whether or not that interval covers the
   # outcome goal, so it is available even when the confidence set is empty.

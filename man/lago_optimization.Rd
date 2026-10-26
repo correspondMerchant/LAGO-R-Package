@@ -249,7 +249,7 @@ the levels of a factor column once unused levels are dropped (an explicit NA
 level included), and the sorted values otherwise.
 Default value without user specification:
 For each center the model fitted, calculate what percentage its sample size
-(all of its rows, or its center_sample_size for center level data) is of the
+(all of its rows, or the sum of its center_sample_size for center level data) is of the
 total over those centers, and use that percentage as the center's weight. A
 center the model could not fit is left out, with a warning. For center level
 data, a center with no center_sample_size at all is refused instead.}
@@ -334,8 +334,8 @@ List(
 recommended interventions,
 associated cost for the interventions,
 estimated outcome mean/probability for the intervention group,
-95\% confidence set percentage,
-95\% confidence set,
+confidence set percentage (at level 1 - confidence_set_alpha),
+confidence set,
 overall intervention test results (test_results), a list with the test
 statistic and p-value; NULL unless a valid 'group' column is supplied.
 The confidence set fields are only present when include_confidence_set = TRUE.)

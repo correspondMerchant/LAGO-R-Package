@@ -541,8 +541,11 @@ get_recommended_interventions <- function(
                                           shrinkage_threshold) {
       shrinking_method_used <- FALSE
       # create sequence grids for each intervention component
+      # each grid includes its upper bound, even when the step does not divide the range
       grids <- lapply(seq_along(cost_params), function(i) {
-        seq(lo[i], up[i], by = step_size[i])
+        grid <- seq(lo[i], up[i], by = step_size[i])
+        if (up[i] - grid[length(grid)] > 1e-8 * max(1, abs(up[i]))) grid <- c(grid, up[i])
+        grid
       })
       # create the full grid
       full_grid <- do.call(expand.grid, grids)
