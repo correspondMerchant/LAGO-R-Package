@@ -43,7 +43,7 @@ for the recommended interventions"><meta property="og:image" content="https://co
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>get_confidence_set</h1>
-      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/R/get_confidence_set.R" class="external-link"><code>R/get_confidence_set.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.0/R/get_confidence_set.R" class="external-link"><code>R/get_confidence_set.R</code></a></small>
       <div class="d-none name"><code>get_confidence_set.Rd</code></div>
     </div>
 
@@ -101,9 +101,6 @@ should be included in the outcome model.</p></dd>
 <dd><p>A numeric vector. Specifies the
 weights that will be used for calculating recommended interventions that
 satisfy the outcome goal for an (weighted) average center.
-There is one weight per center the fitted model has, in the order of its
-center levels (<code>fitted_model$xlevels$center</code>), so the first weight is
-for the reference center.
 The weights need to sum up to 1, and must all be non-negative and finite.
 A weight of 0 is allowed and excludes that center from the average. Only
 used, and only checked, when include_center_effects is TRUE. A vector whose
@@ -254,11 +251,7 @@ from the optimization step.</p></dd>
     lago_optimization() now warns when it does, so it is flagged rather than
     silent, and the interval is still reported as computed for the same
     reason as before. Not confined for a continuous outcome either, whose
-    range is not knowable here. The exception, for both outcome types, is
-    the weighted average center on the logit link, whose estimate is the
-    weighted mean of the centers' probabilities: its interval is the delta
-    method interval of that mean and is confined to [0, 1]. NULL when that
-    interval is not computable&gt;,
+    range is not knowable here. NULL when that interval is not computable&gt;,
   cs = &lt;data.frame of the grid interventions whose confidence interval
     covers the outcome goal, with their interval bounds and cost. rec_int is
     never one of its rows, and need not be a grid intervention at all.

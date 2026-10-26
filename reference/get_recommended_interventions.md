@@ -33,8 +33,7 @@ get_recommended_interventions(
   outcome_name,
   icc = NULL,
   power_goal_cluster_id = NULL,
-  aliased_coef_names = character(0),
-  input_data_structure = "individual_level"
+  aliased_coef_names = character(0)
 )
 ```
 
@@ -150,8 +149,9 @@ get_recommended_interventions(
 
 - shrinkage_threshold:
 
-  A numeric value. Not used, see the lago_optimization() argument of the
-  same name.
+  A numeric value. Specifies the threshold for shrinking the recommended
+  intervention towards the recommended intervention from the previous
+  stage.
 
 - power_goal:
 
@@ -201,12 +201,6 @@ get_recommended_interventions(
   the center-level effects and no longer names the term it came from.
   Used only to say which of the two causes stopped an optimization that
   could compute no outcome at all, since the two need opposite advice.
-
-- input_data_structure:
-
-  A character string, "individual_level" or "center_level". For center
-  level data the power goal counts each row's center_sample_size
-  patients.
 
 ## Value
 

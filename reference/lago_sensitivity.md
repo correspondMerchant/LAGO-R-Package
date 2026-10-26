@@ -52,11 +52,11 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
 
   1.  The name of a scalar numeric argument of \[lago_optimization()\]
       that affects the recommendation (for example \`"outcome_goal"\`,
-      \`"power_goal"\`, or \`"icc"\`). Each run overrides that argument
-      with one element of \`values\`. Vector-valued arguments such as
-      \`intervention_lower_bounds\`, and confidence-set-only arguments
-      such as \`confidence_set_alpha\` (the confidence set is not
-      computed during a sweep), are rejected.
+      \`"power_goal"\`, or \`"shrinkage_threshold"\`). Each run
+      overrides that argument with one element of \`values\`.
+      Vector-valued arguments such as \`intervention_lower_bounds\`, and
+      confidence-set-only arguments such as \`confidence_set_alpha\`
+      (the confidence set is not computed during a sweep), are rejected.
 
   2.  The special string \`"cost_multiplier"\`: each run multiplies
       every coefficient of every vector in the baseline

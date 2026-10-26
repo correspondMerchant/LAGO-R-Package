@@ -357,12 +357,7 @@ lago_optimization(
   out for a weighted average of the centers the model fitted (see
   center_weights_for_outcome_goal). The center must have a row where
   every model variable and the row's glm weight (center_sample_size for
-  center level data) are observed. To select an explicit NA center level
-  (as from [`addNA()`](https://rdrr.io/r/base/factor.html)), pass
-  `NA_character_`. The string `"NA"` selects only a center whose label
-  is the text NA. A center labeled with the text NA and an explicit NA
-  level cannot be used together, since the model gives both the same
-  coefficient name, so rename one of them.
+  center level data) are observed.
 
 - include_time_effects:
 
@@ -390,12 +385,15 @@ lago_optimization(
 
 - shrinkage_threshold:
 
-  A numeric value between 0 and 1. Not used, and kept so that existing
-  calls still run. When the outcome goal is not estimated to be
-  reachable within the bounds, the shrinkage method from Section 5.1 of
-  the Supplementary Materials of Nevo et al. (2021) is always applied,
-  whatever this value is. Default value without user specification:
-  0.25.
+  A numeric value. The threshold for the shrinkage method to kick in.
+  This threshold represents the proportion of the distance between the
+  estimated outcome without intervention, and the outcome goal. If the
+  maximum reachable outcome is less than this value, the shrinkage
+  method from Section 5.1 of the Supplementary Materials of Nevo et
+  al. (2021) will be applied. If the maximum reachable outcome is
+  greater than this value, then the maximum reachable outcome will be
+  used as the outcome goal, and the shrinkage method will not be used.
+  Default value without user specification: 0.25.
 
 - quiet:
 
@@ -451,7 +449,7 @@ lago_optimization(
 )
 #> ℹ Starting LAGO Optimization
 #> ℹ Validating inputs...
-#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
+#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -546,7 +544,7 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
+#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -653,7 +651,7 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
+#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -715,7 +713,7 @@ lago_optimization(
 #> 
 #> ── Recommended intervention 
 #> coaching_updt: 38.9887
-#> launch_duration: 4.7929
+#> launch_duration: 4.793
 #> Cost: 104620
 #> Estimated outcome: 0.838
 #> 95% CI for the estimated outcome: not available (set include_confidence_set =

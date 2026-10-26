@@ -65,7 +65,7 @@ the failed values afterwards.'><meta property="og:image" content="https://corres
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Sensitivity analysis for a LAGO recommendation</h1>
-      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/R/lago_sensitivity.R" class="external-link"><code>R/lago_sensitivity.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.0/R/lago_sensitivity.R" class="external-link"><code>R/lago_sensitivity.R</code></a></small>
       <div class="d-none name"><code>lago_sensitivity.Rd</code></div>
     </div>
 
@@ -117,7 +117,7 @@ overridden (see Details).</p></dd>
 <dt id="arg-parameter">parameter<a class="anchor" aria-label="anchor" href="#arg-parameter"></a></dt>
 <dd><p>A single character string naming what to vary. Two modes:</p><ol><li><p>The name of a scalar numeric argument of [lago_optimization()] that
   affects the recommendation (for example `"outcome_goal"`, `"power_goal"`,
-  or `"icc"`). Each run overrides that argument with one
+  or `"shrinkage_threshold"`). Each run overrides that argument with one
   element of `values`. Vector-valued arguments such as
   `intervention_lower_bounds`, and confidence-set-only arguments such as
   `confidence_set_alpha` (the confidence set is not computed during a sweep),
