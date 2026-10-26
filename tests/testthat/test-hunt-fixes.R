@@ -299,6 +299,17 @@ test_that("shrinking finishes for a needed coefficient far above 100", {
   expect_equal(unname(rec), oracle, tolerance = 1e-4)
 })
 
+test_that("the coefficient search stops when its bracket can no longer shrink", {
+  # a step at 7.2e10, where neighbouring doubles are more than 1e-6 apart, and
+  # an effect that never comes within 1e-6 of the goal
+  step <- 7.2e10
+  found <- LAGOtrials:::find_needed_coefficient(function(b) if (b < step) -1 else 1, 0)
+  expect_lt(found, step)
+  expect_gt(found, step * (1 - 1e-12))
+  # inside [-100, 100] the result is the usual bisection one
+  expect_equal(LAGOtrials:::find_needed_coefficient(function(b) b, 12.5), 12.5, tolerance = 1e-6)
+})
+
 test_that("shrinking keeps the stage-1 value of a component with no term of its own", {
   set.seed(2)
   d <- data.frame(a = stats::runif(200, 0, 4), b = stats::runif(200, 0, 4))
@@ -331,6 +342,8 @@ test_that("the shrunk recommendation does not depend on the order of the terms",
       intervention_upper_bounds = c(4, 4),
       cost_list_of_vectors = if (identical(mains, c("a", "b"))) list(c(0, 1), c(0, 2)) else list(c(0, 2), c(0, 1)),
       outcome_goal = 9, outcome_goal_intention = "maximize",
+      # grid search, since the numerical optimizer's restarts differ by platform
+      optimization_method = "grid_search", optimization_grid_search_step_size = c(0.2, 0.2),
       include_confidence_set = FALSE, quiet = TRUE
     ))
     stats::setNames(res$rec_int, mains)[c("a", "b")]

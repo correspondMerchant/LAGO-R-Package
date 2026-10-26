@@ -95,41 +95,9 @@ shrinking_method <- function(
     # Fix X at upper boundary
     X_fixed <- up[c]
 
-    # Binary search for beta_max, starting in [-100, 100]. The outcome rises
-    # with the coefficient, so a needed coefficient above 100, which depends on
-    # the outcome's units, doubles the top of the bracket until it holds it. A
-    # needed coefficient below -100 leaves no usable bracket either way.
-    left <- -100
-    right <- 100
-    for (k in 1:60) {
-      effect <- calculate_effect(
-        right, X_fixed, c,
-        other_boundaries, beta_vec[other_indices]
-      )
-      if (effect >= outcome_goal) break
-      right <- right * 2
-    }
-
-    while (abs(right - left) > 1e-6) {
-      mid <- (left + right) / 2
-      # at a very large scale the bracket can stop shrinking before 1e-6
-      if (mid <= left || mid >= right) break
-      effect <- calculate_effect(
-        mid, X_fixed, c,
-        other_boundaries, beta_vec[other_indices]
-      )
-
-      if (abs(effect - outcome_goal) < 1e-6) {
-        beta_max <- mid
-        break
-      } else if (effect < outcome_goal) {
-        left <- mid
-      } else {
-        right <- mid
-      }
-    }
-
-    beta_max <- left
+    beta_max <- find_needed_coefficient(function(b) {
+      calculate_effect(b, X_fixed, c, other_boundaries, beta_vec[other_indices])
+    }, outcome_goal)
 
     # beta_max is the coefficient this component would need, at its upper
     # bound, to reach the outcome goal on its own. The recommendation is an
@@ -179,4 +147,33 @@ shrinking_method <- function(
   }
 
   return(recommended_values)
+}
+
+# The coefficient at which effect_at(), which rises with it, reaches the goal,
+# by bisection. The search starts in [-100, 100]. A needed coefficient above
+# 100, which depends on the outcome's units, doubles the top of the bracket
+# until it holds it. A needed coefficient below -100 leaves no usable bracket
+# either way. Returns the midpoint that reaches the goal, or else the lower end
+# of the final bracket.
+find_needed_coefficient <- function(effect_at, outcome_goal) {
+  left <- -100
+  right <- 100
+  for (k in 1:60) {
+    if (effect_at(right) >= outcome_goal) break
+    right <- right * 2
+  }
+  while (abs(right - left) > 1e-6) {
+    mid <- (left + right) / 2
+    # at a very large scale the bracket can stop shrinking before 1e-6
+    if (mid <= left || mid >= right) break
+    effect <- effect_at(mid)
+    if (abs(effect - outcome_goal) < 1e-6) {
+      return(mid)
+    } else if (effect < outcome_goal) {
+      left <- mid
+    } else {
+      right <- mid
+    }
+  }
+  left
 }
