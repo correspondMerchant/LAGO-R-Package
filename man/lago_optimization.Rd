@@ -314,14 +314,11 @@ interventions from a previous stage of the LAGO optimization. If provided,
 this will be used in the shrinking method (see Section 5.1 of the
 Supplementary material of Nevo et al. (2021) for details).}
 
-\item{shrinkage_threshold}{A numeric value. The threshold for the shrinkage
-method to kick in. This threshold represents the proportion of the distance
-between the estimated outcome without intervention, and the outcome goal. If
-the maximum reachable outcome is less than this value, the shrinkage method
-from Section 5.1 of the Supplementary Materials of Nevo et al. (2021)
-will be applied. If the maximum reachable outcome is greater than this value,
-then the maximum reachable outcome will be used as the outcome goal, and the
-shrinkage method will not be used.
+\item{shrinkage_threshold}{A numeric value between 0 and 1. Not used, and
+kept so that existing calls still run. When the outcome goal is not
+estimated to be reachable within the bounds, the shrinkage method from
+Section 5.1 of the Supplementary Materials of Nevo et al. (2021) is always
+applied, whatever this value is.
 Default value without user specification: 0.25.}
 
 \item{quiet}{A boolean. If TRUE, suppresses the progress messages, the paced

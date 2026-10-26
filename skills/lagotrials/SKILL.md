@@ -18,11 +18,15 @@ the optimal intervention.
 Package name is `LAGOtrials` (install/`library()`), but the function names use
 the `lago_` prefix and the result object has class `"lago"`.
 
-Install (not yet on CRAN):
+Install from CRAN (https://CRAN.R-project.org/package=LAGOtrials):
+```r
+install.packages("LAGOtrials")
+library(LAGOtrials)
+```
+The development version, with fixes not yet on CRAN:
 ```r
 # install.packages("devtools")
 devtools::install_github("correspondMerchant/LAGO-R-Package")
-library(LAGOtrials)
 ```
 
 Four exported functions:

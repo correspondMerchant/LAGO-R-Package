@@ -1,5 +1,6 @@
 
 <p align="center">
+  <a href="https://CRAN.R-project.org/package=LAGOtrials"><img src="https://www.r-pkg.org/badges/version/LAGOtrials" alt="CRAN status"></a>
   <a href="https://www.repostatus.org/#active"><img src="https://www.repostatus.org/badges/latest/active.svg" alt="Project Status: Active"></a>
   <a href="https://lifecycle.r-lib.org/articles/stages.html#stable"><img src="https://img.shields.io/badge/lifecycle-stable-brightgreen.svg" alt="Lifecycle: stable"></a>
   <a href="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml"><img src="https://github.com/correspondMerchant/LAGO-R-Package/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a>
@@ -10,7 +11,7 @@
 
 # LAGOtrials <img src="man/figures/logo.png" align="right" height="139" alt="LAGOtrials hex logo" />
 
-**LAGOtrials** is the R package that implements the Learn-As-you-GO (LAGO) method. The method is called LAGO; the package is called LAGOtrials because the name `LAGO` was already taken on CRAN. Throughout this documentation "LAGO" refers to the statistical method and "LAGOtrials" refers to this package. (For continuity, the functions keep the `lago_` prefix and still return an object of class `"lago"`.)
+**LAGOtrials** is the R package that implements the Learn-As-you-GO (LAGO) method. The method is called LAGO; the package is called LAGOtrials because the name `LAGO` was already taken on CRAN. Throughout this documentation "LAGO" refers to the statistical method and "LAGOtrials" refers to this package. (For continuity, the functions keep the `lago_` prefix and still return an object of class `"lago"`.) LAGOtrials is available on [CRAN](https://CRAN.R-project.org/package=LAGOtrials).
 
 The LAGOtrials R package bridges the gap between theoretical advances in Learn-As-you-GO (LAGO) and practical applications by providing a standardized solution for:
 1) fitting the outcome models for both binary and continuous outcomes, including support for fixed center effects/center characteristics and fixed time effects,
@@ -36,12 +37,16 @@ The LAGOtrials R package bridges the gap between theoretical advances in Learn-A
 
 
 ## How to install the R package
-- Method 1 (directly using RStudio):
+- Method 1, the released version from [CRAN](https://CRAN.R-project.org/package=LAGOtrials):
+  ```
+  install.packages("LAGOtrials")
+  ```
+- Method 2, the development version from GitHub, which has the fixes listed in [NEWS](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/NEWS.md) that are not on CRAN yet:
   ```
   install.packages("devtools")
   devtools::install_github("https://github.com/correspondMerchant/LAGO-R-Package")
   ```
-- Method 2: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
+- Method 3: Clone this repo into RStudio, you can follow the directions provided [in this video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
 Not ready to install? Try the package in your browser on the [live demo page](https://correspondmerchant.github.io/LAGO-R-Package/live-demo.html), or design an optimization interactively with the [guided playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html).
 

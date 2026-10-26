@@ -14,7 +14,9 @@ In other words: this gives Python users LAGOtrials's API in Python syntax. It is
 **not** an R-free install of LAGOtrials. You must have:
 
 - a working R installation (rpy2 must be able to reach it, i.e. `R_HOME` set),
-- the `LAGOtrials` R package installed in that R,
+- the `LAGOtrials` R package installed in that R, from
+  [CRAN](https://CRAN.R-project.org/package=LAGOtrials) with
+  `install.packages("LAGOtrials")` or the development version from GitHub,
 - `rpy2` and `pandas` installed for Python.
 
 `visualize_cost()` **opens a browser and BLOCKS** until you close the app (it

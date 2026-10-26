@@ -328,7 +328,7 @@
       Fixed time effects: FALSE
       Outcome goal: not specified
       Power goal: 0.8
-      Effective outcome goal (max of outcome goal and power-implied outcome): 0.2986
+      Effective outcome goal (max of outcome goal and power-implied outcome): 0.2982
       Intervention component costs: c(0, 1700), c(0, 8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
@@ -395,7 +395,7 @@
       Fixed time effects: FALSE
       Outcome goal: not specified
       Power goal: 0.8
-      Effective outcome goal (max of outcome goal and power-implied outcome): 0.2986
+      Effective outcome goal (max of outcome goal and power-implied outcome): 0.2982
       Intervention component costs: c(0, 1700), c(0, 8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
