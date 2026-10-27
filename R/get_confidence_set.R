@@ -77,7 +77,8 @@
 #' the confidence set calculations.
 #' @param cluster_id A list or NULL. Specifies the columns of data that will be
 #' used as clustering effects when the "outcome_type" is continuous, with one
-#' entry per fitted row.
+#' entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
+#' center and time effects already model the centers and periods.
 #' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
 #' used in the LAGO optimization.
 #' @param rec_int A numeric vector, the recommended interventions calculated
@@ -953,45 +954,8 @@ get_confidence_set <- function(
       unit_weights <- all(prior_weights == 1)
 
       if (is.null(cluster_ids)) {
-        # Non-clustered case
-        # no fixed center effects or fixed time effects
-        if (link == "identity") {
-          positive <- prior_weights > 0
-          residual_df <- sum(positive) - n_params
-          if (residual_df <= 0) {
-            stop(paste0(
-              "Continuous identity covariance requires positive residual ",
-              "degrees of freedom among positive weight rows."
-            ))
-          }
-          if (unit_weights) {
-            residuals <- outcome_data - fitted_values
-            sigma2 <- sum(residuals^2) / (n - n_params)
-            bread <- solve(t(X) %*% X)
-          } else {
-            X_positive <- X[positive, , drop = FALSE]
-            residuals <- outcome_data[positive] - fitted_values[positive]
-            sigma2 <- sum(prior_weights[positive] * residuals^2) / residual_df
-            bread <- solve(t(X_positive) %*% (prior_weights[positive] * X_positive))
-          }
-          vcov_matrix <- bread * sigma2
-        } else {
-          # logistic-like approach
-          # no fixed center effects or fixed time effects.
-          # The compiled kernel does ONLY the per-observation accumulation of
-          # the HC0 form: J = sum_i (ddb_i ddb_i^T)/n and
-          # V = sum_i (ddb_i (y_i - p_i)^2 ddb_i^T)/n. As in the clustered path,
-          # solve() and the final bread %*% V %*% t(bread) stay in R so the
-          # inversion is byte-for-byte identical and a singular J errors here
-          # exactly as it did before.
-          acc <- sandwich_hc0_logit_accumulate(
-            X, fitted_values, outcome_data,
-            prior_weights = if (unit_weights) NULL else prior_weights
-          )
-
-          bread <- solve(acc$J)
-          vcov_matrix <- (bread %*% acc$V %*% t(bread)) / n
-        }
+        # Non-clustered case, shared with the coefficient table
+        vcov_matrix <- continuous_vcov(X, model, outcome_data, link)
       } else if (length(cluster_ids) == 1) {
         # Single clustering
         cluster_id <- if (is.list(cluster_ids)) cluster_ids[[1]] else cluster_ids

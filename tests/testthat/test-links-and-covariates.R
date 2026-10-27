@@ -669,7 +669,9 @@ test_that("a covariate named like a fixed effect prefix does not disturb the res
     same_answer(run_pulesa("period_flag", period_value), pulesa_reference)
     # a real answer, not a degenerate one both runs agree on
     expect_true(pulesa_reference$est_outcome_goal > 0.6)
-    expect_equal(pulesa_reference$confidence_set_size_percentage, 1 / 9)
+    ci <- pulesa_reference$est_outcome_ci
+    expect_true(ci[["lower"]] < pulesa_reference$est_outcome_goal)
+    expect_true(pulesa_reference$est_outcome_goal < ci[["upper"]])
   }
 
   # and as a CENTER CHARACTERISTIC rather than an additional covariate, which

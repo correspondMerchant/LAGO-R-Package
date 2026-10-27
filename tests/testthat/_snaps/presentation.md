@@ -24,29 +24,13 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-          birth_volume_100, family = family_object, data = data, weights = weights)
-      
-      Coefficients:
-                        Estimate Std. Error z value Pr(>|z|)    
-      (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-      coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-      launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-      birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 8470.8  on 6123  degrees of freedom
-      Residual deviance: 5161.2  on 6120  degrees of freedom
-      AIC: 5169.2
-      
-      Number of Fisher Scoring iterations: 6
-      
+                       Estimate Std. Error
+      (Intercept)      -2.29989   0.068371
+      coaching_updt     0.02514   0.006112
+      launch_duration   1.02447   0.074135
+      birth_volume_100  0.66451   0.029627
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -106,29 +90,13 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-          birth_volume_100, family = family_object, data = data, weights = weights)
-      
-      Coefficients:
-                        Estimate Std. Error z value Pr(>|z|)    
-      (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-      coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-      launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-      birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 8470.8  on 6123  degrees of freedom
-      Residual deviance: 5161.2  on 6120  degrees of freedom
-      AIC: 5169.2
-      
-      Number of Fisher Scoring iterations: 6
-      
+                       Estimate Std. Error
+      (Intercept)      -2.29989   0.068371
+      coaching_updt     0.02514   0.006112
+      launch_duration   1.02447   0.074135
+      birth_volume_100  0.66451   0.029627
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -187,28 +155,12 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = mpg ~ gear + qsec, family = family_object, data = data, 
-          weights = weights)
-      
-      Coefficients:
-                  Estimate Std. Error t value Pr(>|t|)    
-      (Intercept) -30.7108     9.6702  -3.176 0.003530 ** 
-      gear          4.8711     1.0814   4.505 0.000100 ***
-      qsec          1.8399     0.4465   4.121 0.000288 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for gaussian family taken to be 18.84028)
-      
-          Null deviance: 1126.05  on 31  degrees of freedom
-      Residual deviance:  546.37  on 29  degrees of freedom
-      AIC: 189.61
-      
-      Number of Fisher Scoring iterations: 2
-      
+                  Estimate Std. Error
+      (Intercept)  -30.711     9.6702
+      gear           4.871     1.0814
+      qsec           1.840     0.4465
     Message
+      Standard errors are model based, as the confidence set uses them.
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -260,28 +212,12 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = mpg ~ gear + qsec, family = family_object, data = data, 
-          weights = weights)
-      
-      Coefficients:
-                  Estimate Std. Error t value Pr(>|t|)    
-      (Intercept) -30.7108     9.6702  -3.176 0.003530 ** 
-      gear          4.8711     1.0814   4.505 0.000100 ***
-      qsec          1.8399     0.4465   4.121 0.000288 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for gaussian family taken to be 18.84028)
-      
-          Null deviance: 1126.05  on 31  degrees of freedom
-      Residual deviance:  546.37  on 29  degrees of freedom
-      AIC: 189.61
-      
-      Number of Fisher Scoring iterations: 2
-      
+                  Estimate Std. Error
+      (Intercept)  -30.711     9.6702
+      gear           4.871     1.0814
+      qsec           1.840     0.4465
     Message
+      Standard errors are model based, as the confidence set uses them.
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -335,29 +271,13 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-          birth_volume_100, family = family_object, data = data, weights = weights)
-      
-      Coefficients:
-                        Estimate Std. Error z value Pr(>|z|)    
-      (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-      coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-      launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-      birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 8470.8  on 6123  degrees of freedom
-      Residual deviance: 5161.2  on 6120  degrees of freedom
-      AIC: 5169.2
-      
-      Number of Fisher Scoring iterations: 6
-      
+                       Estimate Std. Error
+      (Intercept)      -2.29989   0.068371
+      coaching_updt     0.02514   0.006112
+      launch_duration   1.02447   0.074135
+      birth_volume_100  0.66451   0.029627
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       Two-sample test for the difference in two proportions:
@@ -402,29 +322,13 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-          birth_volume_100, family = family_object, data = data, weights = weights)
-      
-      Coefficients:
-                        Estimate Std. Error z value Pr(>|z|)    
-      (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-      coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-      launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-      birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 8470.8  on 6123  degrees of freedom
-      Residual deviance: 5161.2  on 6120  degrees of freedom
-      AIC: 5169.2
-      
-      Number of Fisher Scoring iterations: 6
-      
+                       Estimate Std. Error
+      (Intercept)      -2.29989   0.068371
+      coaching_updt     0.02514   0.006112
+      launch_duration   1.02447   0.074135
+      birth_volume_100  0.66451   0.029627
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       Two-sample test for the difference in two proportions:
@@ -467,27 +371,11 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = y ~ dose, family = family_object, data = data, 
-          weights = weights)
-      
-      Coefficients:
-                  Estimate Std. Error z value Pr(>|z|)  
-      (Intercept)   -4.120      2.103  -1.959   0.0501 .
-      dose           2.747      1.285   2.137   0.0326 *
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 22.1807  on 15  degrees of freedom
-      Residual deviance:  9.3631  on 14  degrees of freedom
-      AIC: 13.363
-      
-      Number of Fisher Scoring iterations: 6
-      
+                  Estimate Std. Error
+      (Intercept)   -4.120      2.103
+      dose           2.747      1.285
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -533,27 +421,11 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = y ~ dose, family = family_object, data = data, 
-          weights = weights)
-      
-      Coefficients:
-                  Estimate Std. Error z value Pr(>|z|)  
-      (Intercept)   -4.120      2.103  -1.959   0.0501 .
-      dose           2.747      1.285   2.137   0.0326 *
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 22.1807  on 15  degrees of freedom
-      Residual deviance:  9.3631  on 14  degrees of freedom
-      AIC: 13.363
-      
-      Number of Fisher Scoring iterations: 6
-      
+                  Estimate Std. Error
+      (Intercept)   -4.120      2.103
+      dose           2.747      1.285
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -600,29 +472,13 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-          birth_volume_100, family = family_object, data = data, weights = weights)
-      
-      Coefficients:
-                        Estimate Std. Error z value Pr(>|z|)    
-      (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-      coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-      launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-      birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 8470.8  on 6123  degrees of freedom
-      Residual deviance: 5161.2  on 6120  degrees of freedom
-      AIC: 5169.2
-      
-      Number of Fisher Scoring iterations: 6
-      
+                       Estimate Std. Error
+      (Intercept)      -2.29989   0.068371
+      coaching_updt     0.02514   0.006112
+      launch_duration   1.02447   0.074135
+      birth_volume_100  0.66451   0.029627
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with
@@ -666,29 +522,13 @@
       
       -- Outcome model fit 
     Output
-      
-      Call:
-      glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-          birth_volume_100, family = family_object, data = data, weights = weights)
-      
-      Coefficients:
-                        Estimate Std. Error z value Pr(>|z|)    
-      (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-      coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-      launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-      birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-      ---
-      Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-      
-      (Dispersion parameter for binomial family taken to be 1)
-      
-          Null deviance: 8470.8  on 6123  degrees of freedom
-      Residual deviance: 5161.2  on 6120  degrees of freedom
-      AIC: 5169.2
-      
-      Number of Fisher Scoring iterations: 6
-      
+                       Estimate Std. Error
+      (Intercept)      -2.29989   0.068371
+      coaching_updt     0.02514   0.006112
+      launch_duration   1.02447   0.074135
+      birth_volume_100  0.66451   0.029627
     Message
+      Standard errors are those of the fitted glm().
       
       -- Overall intervention-effect test 
       To see the overall test results, include a 'group' column in the data with

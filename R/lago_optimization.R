@@ -583,7 +583,7 @@ lago_optimization <- function(
     intervention_components
   }
   # The fitted outcome model is carried on the result so the print/summary
-  # methods can show its coefficient table (summary(x$model)) and users can
+  # methods can show its coefficient table (lago_coef_table()) and users can
   # access it via $model. It is the same model object the optimization and
   # confidence set were computed from. The remaining fields echo the key user
   # inputs so the console output can reproduce the full picture the old output

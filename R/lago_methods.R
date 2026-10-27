@@ -31,11 +31,11 @@
   }
 
   # --- outcome model fit: family/link/effects appear in the inputs recap; here
-  # we print the fitted-model coefficient table the way the old output did
-  # (print(summary(model))). Carried on the object as $model.
+  # each coefficient is shown with the standard error the intervals use.
   if (!is.null(x$model)) {
     cli::cli_h3("{accent('Outcome model fit')}")
-    print(summary(x$model))
+    print(format(lago_coef_table(x), digits = 4))
+    cli::cli_text(lago_se_note(x))
   }
 
   # --- overall intervention-effect test (or the guidance shown when no valid

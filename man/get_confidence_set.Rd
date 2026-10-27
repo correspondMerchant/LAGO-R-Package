@@ -125,7 +125,8 @@ the confidence set calculations.}
 
 \item{cluster_id}{A list or NULL. Specifies the columns of data that will be
 used as clustering effects when the "outcome_type" is continuous, with one
-entry per fitted row.}
+entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
+center and time effects already model the centers and periods.}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. The cost vectors
 used in the LAGO optimization.}

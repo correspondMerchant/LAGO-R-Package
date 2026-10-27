@@ -399,9 +399,8 @@ test_that("public optimization aligns weighted covariance with fitted fixed effe
       model <- result$model
       expect_equal(unname(model$prior.weights), retained$w)
       expect_length(fitted(model), nrow(d))
-      clusters <- c(if (center) list(retained$center), if (period) list(retained$period))
-      if (!length(clusters)) clusters <- NULL
-      covariance <- weighted_confidence_oracle(model, retained, link, clusters)
+      # lago_optimization() does not cluster on the fixed effects
+      covariance <- weighted_confidence_oracle(model, retained, link, NULL)
       expect_equal(unname(result$est_outcome_ci),
         round(weighted_confidence_ci(model, covariance, result$rec_int, link), 3))
       grid <- seq(0, 2, 0.05)
