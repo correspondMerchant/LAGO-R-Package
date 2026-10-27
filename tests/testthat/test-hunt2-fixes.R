@@ -28,13 +28,33 @@ test_that("print() and summary() label the interval with its confidence level", 
     cost_list_of_vectors = list(c(0, 4), c(4, 6)), outcome_goal = 40,
     confidence_set_alpha = 0.2, confidence_set_grid_step_size = c(1, 1), quiet = TRUE
   ))
-  printed <- paste(cli::cli_fmt(print(r)), collapse = "\n")
+  utils::capture.output(lines <- cli::cli_fmt(print(r)))
+  printed <- paste(lines, collapse = "\n")
   expect_match(printed, "80% CI for the estimated outcome", fixed = TRUE)
   expect_match(printed, "80% confidence set size", fixed = TRUE)
   expect_no_match(printed, "95%", fixed = TRUE)
   expect_identical(LAGOtrials:::.lago_confidence_label(r), "80%")
   small <- structure(list(), lago_call_args = list(confidence_set_alpha = 1e-5))
   expect_identical(LAGOtrials:::.lago_confidence_label(small), "99.999%")
+  # an object that did not record its arguments is labelled at the default
+  expect_identical(LAGOtrials:::.lago_confidence_label(structure(list(), class = "lago")), "95%")
+  expect_identical(plot(r)$labels$title, "80% confidence set")
+  # without an interval at the recommendation, the line still shows the level
+  r$est_outcome_ci <- NULL
+  utils::capture.output(lines <- cli::cli_fmt(print(r)))
+  printed <- paste(lines, collapse = "\n")
+  expect_match(printed, "80% CI for the estimated outcome: not available", fixed = TRUE)
+})
+
+test_that("plot() of a one component result titles its confidence level", {
+  r <- hunt2_quiet(lago_optimization(
+    data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+    glm_family = "gaussian", link = "identity", intervention_components = "qsec",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 350,
+    cost_list_of_vectors = list(c(4, 6)), outcome_goal = 40,
+    confidence_set_alpha = 0.1, confidence_set_grid_step_size = 1, quiet = TRUE
+  ))
+  expect_identical(plot(r)$labels$title, "90% confidence set")
 })
 
 # ---- lago_budget() ------------------------------------------------------------
@@ -86,6 +106,26 @@ test_that("lago_budget() refines the right gap when goals tie on the outcome", {
 test_that("lago_budget() extends its goal grid far enough to bracket the boundary", {
   r <- budget_mtcars(c(10, 3500), 1e6)
   expect_equal(r$est_outcome, budget_mtcars_oracle(c(10, 3500), 1e6), tolerance = 0.01)
+})
+
+test_that("lago_budget() warns when 30 extensions do not bracket the boundary", {
+  # every goal is reached at no cost, so the grid can never stop extending
+  free <- function(..., values) {
+    out <- data.frame(value = values, status = "ok", rec_int_cost = 0, est_outcome_goal = values, gear = 0)
+    attr(out, "component_names") <- "gear"
+    out
+  }
+  local_mocked_bindings(lago_sensitivity = free)
+  expect_warning(
+    suppressMessages(lago_budget(
+      data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+      glm_family = "gaussian", link = "identity", intervention_components = "gear",
+      intervention_lower_bounds = 0, intervention_upper_bounds = 10,
+      cost_list_of_vectors = list(c(0, 4)), outcome_goal_intention = "maximize",
+      budget = 100, n_grid = 2
+    )),
+    "extended 30 times"
+  )
 })
 
 test_that("lago_budget() still refines with n_grid = 2", {
