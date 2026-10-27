@@ -47,7 +47,7 @@ confidence_set_processor <- function(
   )
   predictors_list <- gsub("`", "", predictors_list)
 
-  # a used NA level breaks the cluster ids, and elsewhere a non-reference level's == dummy
+  # an explicit NA level of a fixed effect, or a non-reference one elsewhere, is refused
   cluster_cols <- c(
     if (include_center_effects) "center",
     if (include_time_effects) "period"
@@ -67,19 +67,8 @@ confidence_set_processor <- function(
   }
 
   # convert columns of the fixed effects to factor type
-  if (include_center_effects || include_time_effects) {
-    cluster_id <- list()
-    if (include_center_effects) {
-      data$center <- factor(data$center)
-      cluster_id <- append(cluster_id, list(data$center))
-    }
-    if (include_time_effects) {
-      data$period <- factor(data$period)
-      cluster_id <- append(cluster_id, list(data$period))
-    }
-  } else {
-    cluster_id <- NULL
-  }
+  if (include_center_effects) data$center <- factor(data$center)
+  if (include_time_effects) data$period <- factor(data$period)
 
   cs <- get_confidence_set(
     # drop = FALSE keeps a single predictor as a data.frame; get_confidence_set
@@ -113,7 +102,9 @@ confidence_set_processor <- function(
     center_characteristics_optimization_values =
       center_characteristics_optimization_values,
     confidence_set_alpha = confidence_set_alpha,
-    cluster_id = cluster_id,
+    # the fixed effects already model the centers and periods, so the
+    # variance is not clustered on them
+    cluster_id = NULL,
     cost_list_of_vectors = cost_list_of_vectors,
     rec_int = rec_int
   )

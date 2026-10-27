@@ -1,5 +1,9 @@
 # LAGOtrials 1.1.0
 
+* Fixed the confidence interval and the confidence set of a continuous outcome with fixed center or time effects. The variance was clustered on the centers and periods that the fixed effects already model, so with few centers the interval was far too narrow and the confidence set often empty, and with both effects the variance could be negative, so no interval was reported. In one example on the logit link the interval was 0.599 to 0.601 with an empty confidence set, and it is now 0.594 to 0.606. The variance is now the one used without fixed effects. Results without fixed effects, and all binary results, are unchanged. Continuous results with fixed center or time effects should be recomputed (#31).
+
+* The coefficient table of `print()`, `summary()` and `lago_report()` now shows each estimate with the standard error the intervals use, and says which one it is. It used to show the `glm()` summary, whose standard errors for a continuous outcome on the logit link, or with fixed effects, were not the ones the intervals used (#30).
+
 * Fixed `lago_optimization()`, `print()`, `summary()` and `lago_report()` failing with "subscript out of bounds" for a binary or continuous logit outcome with fixed center effects and more than one center weight, which includes the default weights. The interval of the weighted average center was correct but lost its `lower` and `upper` names, which the printed output and the Python wrapper read.
 
 * `print()`, `summary()`, `plot()` and `lago_report()` now label the interval and the confidence set with the level they were computed at, from `confidence_set_alpha`. They always said 95%, so an 80% interval was printed as a 95% one.

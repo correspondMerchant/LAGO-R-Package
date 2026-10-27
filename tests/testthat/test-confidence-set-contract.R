@@ -524,6 +524,24 @@ ref_two_way_ci_at <- function(data, model, gear, qsec, period = 2) {
           upper = point + qnorm(0.975) * se), 3)
 }
 
+# lago_optimization() does not cluster, so the two-way estimator is asked of
+# get_confidence_set() directly, at the same model and recommendation
+two_way_cs <- function(d, res) {
+  out <- suppressWarnings(get_confidence_set(
+    predictors_data = d[, c("center", "period", "gear", "qsec")],
+    include_center_effects = TRUE,
+    center_weights_for_outcome_goal = as.numeric(levels(d$center) == "c2"),
+    include_time_effects = TRUE, time_effect_optimization_value = 2,
+    intervention_components = c("gear", "qsec"), outcome_data = d$mpg,
+    fitted_model = res$model, link = "identity", outcome_goal = 30,
+    outcome_type = "continuous", intervention_lower_bounds = c(3, 14),
+    intervention_upper_bounds = c(5, 22), confidence_set_grid_step_size = c(1, 2),
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    cluster_id = list(d$center, d$period), rec_int = res$rec_int
+  ))
+  c(out, list(model = res$model, rec_int = res$rec_int, est_outcome_ci = out$rec_int_ci))
+}
+
 test_that("two-way clustering pairs every row's interval with its OWN coordinates", {
   # The interval matrix was indexed by post-complete.cases() row numbers while
   # the grid was indexed by original ones, so every row after a dropped one
@@ -531,7 +549,7 @@ test_that("two-way clustering pairs every row's interval with its OWN coordinate
   # dropped, which the two-way estimator supplies: it is not positive
   # semi-definite here, so some rows get a NaN standard error.
   d <- two_way_data()
-  res <- two_way_optimize(d)
+  res <- two_way_cs(d, two_way_optimize(d))
 
   # The whole grid's intervals, computed independently at each point's own
   # coordinates. The set is then the points whose interval covers the goal, so
@@ -623,8 +641,8 @@ test_that("predictors_data is matched by column NAME, and an extra column is an 
   # both without a symptom.
   # Fixed center effects only, so the confidence set is reachable through the
   # exported get_confidence_set() with the same arguments regardless of how the
-  # fixed time effects are specified. The variance is still the hand-rolled
-  # clustered one built from predictors_data, which is the code under test.
+  # fixed time effects are specified. The variance is built from
+  # predictors_data, clustered or not, which is the code under test.
   d <- two_way_data()
   d$period <- NULL
   opt <- suppressWarnings(suppressMessages(lago_optimization(
@@ -649,7 +667,7 @@ test_that("predictors_data is matched by column NAME, and an extra column is an 
   )))
   predictors <- c("center", "gear", "qsec")
 
-  call_cs <- function(predictors_data) {
+  call_cs <- function(predictors_data, cluster_id = list(d$center)) {
     suppressWarnings(get_confidence_set(
       predictors_data = predictors_data,
       include_center_effects = TRUE,
@@ -663,7 +681,7 @@ test_that("predictors_data is matched by column NAME, and an extra column is an 
       intervention_lower_bounds = c(3, 14),
       intervention_upper_bounds = c(5, 22),
       confidence_set_grid_step_size = c(1, 2),
-      cluster_id = list(d$center),
+      cluster_id = cluster_id,
       cost_list_of_vectors = list(c(0, 4), c(4, 6)),
       rec_int = opt$rec_int
     ))
@@ -674,9 +692,10 @@ test_that("predictors_data is matched by column NAME, and an extra column is an 
   # the reversed order really is a different order (guards the fixture)
   expect_false(identical(rev(predictors), predictors))
   expect_identical(reversed, in_order)
-  # and it is the same answer lago_optimization() reports, so the column order
-  # confidence_set_processor() happens to pass is not special
-  expect_equal(in_order$cs, opt$cs)
+  # without clusters it is the answer lago_optimization() reports, so the column
+  # order confidence_set_processor() happens to pass is not special
+  unclustered <- call_cs(d[, rev(predictors), drop = FALSE], cluster_id = NULL)
+  expect_equal(unclustered$cs, opt$cs)
 
   # an extra column matches no predictor, so it is refused rather than silently
   # dropped after having widened the variance matrix
