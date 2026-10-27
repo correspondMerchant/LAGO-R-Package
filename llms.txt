@@ -6,6 +6,8 @@ LAGOtrials because the name `LAGO` was already taken on CRAN. Throughout
 this documentation “LAGO” refers to the statistical method and
 “LAGOtrials” refers to this package. (For continuity, the functions keep
 the `lago_` prefix and still return an object of class `"lago"`.)
+LAGOtrials is available on
+[CRAN](https://CRAN.R-project.org/package=LAGOtrials).
 
 The LAGOtrials R package bridges the gap between theoretical advances in
 Learn-As-you-GO (LAGO) and practical applications by providing a
@@ -51,12 +53,20 @@ interventions.
 
 ## How to install the R package
 
-- Method 1 (directly using RStudio):
+- Method 1, the released version from
+  [CRAN](https://CRAN.R-project.org/package=LAGOtrials):
+
+      install.packages("LAGOtrials")
+
+- Method 2, the development version from GitHub, which has the fixes
+  listed in
+  [NEWS](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/NEWS.md)
+  that are not on CRAN yet:
 
       install.packages("devtools")
       devtools::install_github("https://github.com/correspondMerchant/LAGO-R-Package")
 
-- Method 2: Clone this repo into RStudio, you can follow the directions
+- Method 3: Clone this repo into RStudio, you can follow the directions
   provided [in this
   video](https://www.youtube.com/watch?v=NInwldFZgwA&t=275s).
 
@@ -185,7 +195,7 @@ Typical output:
 
     ℹ Starting LAGO Optimization
     ℹ Validating inputs...
-    [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+    When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
     ✔ Done
     ℹ Assessing the cost function...
     ✔ Done
@@ -219,7 +229,8 @@ Typical output:
     ── Outcome model fit
 
     Call:
-    glm(formula = formula, family = family_object, data = data, weights = weights)
+    glm(formula = mpg ~ gear + qsec, family = family_object, data = data,
+        weights = weights)
 
     Coefficients:
                 Estimate Std. Error t value Pr(>|t|)
@@ -406,7 +417,7 @@ Output:
     ℹ Validating inputs...
     'center' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
     'period' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
-    [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+    When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
     ✔ Done
     ℹ Assessing the cost function...
     ✔ Done
@@ -440,7 +451,9 @@ Output:
     ── Outcome model fit
 
     Call:
-    glm(formula = formula, family = family_object, data = data, weights = weights)
+    glm(formula = pp3_oxytocin_mother ~ center + period + coaching_updt +
+        launch_duration, family = family_object, data = data, weights = weights,
+        contrasts = list(center = "contr.treatment", period = "contr.treatment"))
 
     Coefficients:
                       Estimate Std. Error z value Pr(>|z|)

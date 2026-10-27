@@ -52,9 +52,10 @@ lago_budget(object = NULL, ..., budget, n_grid = 25L, quiet = TRUE)
 
   A single integer (\>= 2) giving how many outcome goals to try across
   the outcome's range. Larger values give a finer, more precise answer
-  at the cost of more optimization runs. A second refinement pass is run
-  around the affordability boundary, so the effective resolution is
-  finer than \`n_grid\` alone. Default 25.
+  at the cost of more optimization runs. A second refinement pass tries
+  \`n_grid\` more goals strictly inside the gap at the affordability
+  boundary, so the effective resolution is finer than \`n_grid\` alone.
+  Default 25.
 
 - quiet:
 
@@ -112,6 +113,11 @@ An object of class \`"lago_budget"\`, a list with:
 
   The \`outcome_goal_intention\` used.
 
+- run_error:
+
+  The error of the first failed run when every run of a sweep failed,
+  otherwise \`NULL\`.
+
 ## Details
 
 The candidate outcome goals span the outcome's range: \`(0, 1)\` for a
@@ -124,16 +130,22 @@ goal, so such a goal is not counted as genuinely reached and does not
 become a candidate (only goals the recommendation actually delivers are
 considered). Among the reached goals whose recommended cost is at most
 \`budget\`, the one with the best estimated outcome is chosen (largest
-for \`"maximize"\`, smallest for \`"minimize"\`). The grid is extended
-in the improving direction until goals stop being reached or affordable,
-and a refinement sweep is then run near the affordability boundary to
-tighten the estimate.
+for \`"maximize"\`, smallest for \`"minimize"\`). Goals that tie on the
+estimated outcome return the same intervention, and the one furthest in
+the improving direction is taken. The grid is extended in the improving
+direction until goals stop being reached or affordable, up to 30 times
+with a warning if that is not enough, and a refinement sweep is then run
+near the affordability boundary to tighten the estimate.
 
 If no reachable goal is affordable (the budget is below the cost of even
 the cheapest reachable intervention), the result has \`feasible =
 FALSE\` and \`NA\` recommendation fields. If every reachable goal is
 affordable, the budget does not bind (\`binding = FALSE\`) and the
-maximum reachable outcome is returned.
+maximum reachable outcome is returned. If \[lago_optimization()\] fails
+for every goal of a sweep, for example because the outcome model cannot
+be fitted, the result has \`feasible = FALSE\`, the warning and the
+printed result give the error of the first failed run, and \`run_error\`
+holds it.
 
 ## See also
 
@@ -169,9 +181,9 @@ b
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.000000, qsec = 9.307224
-#> Cost: 99.8433458646856 (of 100).
-#> Estimated outcome: 35.1239581333999.
+#> Recommended intervention: gear = 10.000000, qsec = 9.296989
+#> Cost: 99.7819364800384 (of 100).
+#> Estimated outcome: 35.1051272439266.
 plot(b)
 
 
@@ -191,8 +203,8 @@ lago_budget(opt, budget = 100)
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.000000, qsec = 9.307224
-#> Cost: 99.8433458646856 (of 100).
-#> Estimated outcome: 35.1239581333999.
+#> Recommended intervention: gear = 10.000000, qsec = 9.296989
+#> Cost: 99.7819364800384 (of 100).
+#> Estimated outcome: 35.1051272439266.
 # }
 ```

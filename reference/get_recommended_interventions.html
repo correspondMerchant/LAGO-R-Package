@@ -43,7 +43,7 @@ interventions based on an outcome goal and/or a power goal."><meta property="og:
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>get_recommended_interventions</h1>
-      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.0/R/get_recommended_interventions.R" class="external-link"><code>R/get_recommended_interventions.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/R/get_recommended_interventions.R" class="external-link"><code>R/get_recommended_interventions.R</code></a></small>
       <div class="d-none name"><code>get_recommended_interventions.Rd</code></div>
     </div>
 
@@ -81,7 +81,8 @@ interventions based on an outcome goal and/or a power goal.</p>
 <span>  <span class="va">outcome_name</span>,</span>
 <span>  icc <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  power_goal_cluster_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  aliased_coef_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span></span>
+<span>  aliased_coef_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span>,</span>
+<span>  input_data_structure <span class="op">=</span> <span class="st">"individual_level"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -209,9 +210,8 @@ recommended interventions from the previous stage.</p></dd>
 
 
 <dt id="arg-shrinkage-threshold">shrinkage_threshold<a class="anchor" aria-label="anchor" href="#arg-shrinkage-threshold"></a></dt>
-<dd><p>A numeric value. Specifies the threshold for
-shrinking the recommended intervention towards the recommended intervention
-from the previous stage.</p></dd>
+<dd><p>A numeric value. Not used, see the
+lago_optimization() argument of the same name.</p></dd>
 
 
 <dt id="arg-power-goal">power_goal<a class="anchor" aria-label="anchor" href="#arg-power-goal"></a></dt>
@@ -262,6 +262,12 @@ establish this for itself: an NA it sees has already been summed into the
 center-level effects and no longer names the term it came from. Used only to
 say which of the two causes stopped an optimization that could compute no
 outcome at all, since the two need opposite advice.</p></dd>
+
+
+<dt id="arg-input-data-structure">input_data_structure<a class="anchor" aria-label="anchor" href="#arg-input-data-structure"></a></dt>
+<dd><p>A character string, "individual_level" or
+"center_level". For center level data the power goal counts each row's
+center_sample_size patients.</p></dd>
 
 </dl></div>
     <div class="section level2">

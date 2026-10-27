@@ -65,7 +65,7 @@ optimizer internals, so it inherits the same model, cost functions and bounds.">
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Budget-constrained LAGO optimization</h1>
-      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.0/R/lago_budget.R" class="external-link"><code>R/lago_budget.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/R/lago_budget.R" class="external-link"><code>R/lago_budget.R</code></a></small>
       <div class="d-none name"><code>lago_budget.Rd</code></div>
     </div>
 
@@ -119,9 +119,9 @@ allowed, in the same units as the supplied `cost_list_of_vectors` (or
 <dt id="arg-n-grid">n_grid<a class="anchor" aria-label="anchor" href="#arg-n-grid"></a></dt>
 <dd><p>A single integer (&gt;= 2) giving how many outcome goals to try
 across the outcome's range. Larger values give a finer, more precise answer
-at the cost of more optimization runs. A second refinement pass is run around
-the affordability boundary, so the effective resolution is finer than
-`n_grid` alone. Default 25.</p></dd>
+at the cost of more optimization runs. A second refinement pass tries
+`n_grid` more goals strictly inside the gap at the affordability boundary,
+so the effective resolution is finer than `n_grid` alone. Default 25.</p></dd>
 
 
 <dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
@@ -168,6 +168,10 @@ the affordability boundary, so the effective resolution is finer than
   <dt>intention</dt>
 <dd><p>The `outcome_goal_intention` used.</p></dd>
 
+  <dt>run_error</dt>
+<dd><p>The error of the first failed run when every run of a
+  sweep failed, otherwise `NULL`.</p></dd>
+
 
 </dl></div>
     <div class="section level2">
@@ -182,13 +186,20 @@ is not counted as genuinely reached and does not become a candidate (only
 goals the recommendation actually delivers are considered). Among the reached
 goals whose recommended cost is at most `budget`, the one with the best
 estimated outcome is chosen (largest for `"maximize"`, smallest for
-`"minimize"`). The grid is extended in the improving direction until goals
-stop being reached or affordable, and a refinement sweep is then run near the
-affordability boundary to tighten the estimate.</p>
+`"minimize"`). Goals that tie on the estimated outcome return the same
+intervention, and the one furthest in the improving direction is taken. The
+grid is extended in the improving direction until goals stop being reached
+or affordable, up to 30 times with a warning if that is not enough, and a
+refinement sweep is then run near the affordability boundary to tighten the
+estimate.</p>
 <p>If no reachable goal is affordable (the budget is below the cost of even the
 cheapest reachable intervention), the result has `feasible = FALSE` and `NA`
 recommendation fields. If every reachable goal is affordable, the budget does
-not bind (`binding = FALSE`) and the maximum reachable outcome is returned.</p>
+not bind (`binding = FALSE`) and the maximum reachable outcome is returned.
+If [lago_optimization()] fails for every goal of a sweep, for example because
+the outcome model cannot be fitted, the result has `feasible = FALSE`, the
+warning and the printed result give the error of the first failed run, and
+`run_error` holds it.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -223,9 +234,9 @@ not bind (`binding = FALSE`) and the maximum reachable outcome is returned.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">LAGO budget-constrained optimization</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Budget: <span style="color: #0000BB;">100</span> (maximize).</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Recommended intervention: gear = 10.000000, qsec = 9.307224</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: <span style="color: #0000BB;">99.8433458646856</span> (of <span style="color: #0000BB;">100</span>).</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: <span style="color: #0000BB;">35.1239581333999</span>.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Recommended intervention: gear = 10.000000, qsec = 9.296989</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: <span style="color: #0000BB;">99.7819364800384</span> (of <span style="color: #0000BB;">100</span>).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: <span style="color: #0000BB;">35.1051272439266</span>.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">b</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="lago_budget-1.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
@@ -245,9 +256,9 @@ not bind (`binding = FALSE`) and the maximum reachable outcome is returned.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">LAGO budget-constrained optimization</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Budget: <span style="color: #0000BB;">100</span> (maximize).</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Recommended intervention: gear = 10.000000, qsec = 9.307224</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: <span style="color: #0000BB;">99.8433458646856</span> (of <span style="color: #0000BB;">100</span>).</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: <span style="color: #0000BB;">35.1239581333999</span>.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Recommended intervention: gear = 10.000000, qsec = 9.296989</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: <span style="color: #0000BB;">99.7819364800384</span> (of <span style="color: #0000BB;">100</span>).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: <span style="color: #0000BB;">35.1051272439266</span>.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

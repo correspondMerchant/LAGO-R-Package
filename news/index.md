@@ -4,6 +4,207 @@
 
 CRAN release: 2026-10-24
 
+- Fixed
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+  [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html) and
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  failing with “subscript out of bounds” for a binary or continuous
+  logit outcome with fixed center effects and more than one center
+  weight, which includes the default weights. The interval of the
+  weighted average center was correct but lost its `lower` and `upper`
+  names, which the printed output and the Python wrapper read.
+
+- [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html),
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) and
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now label the interval and the confidence set with the level they were
+  computed at, from `confidence_set_alpha`. They always said 95%, so an
+  80% interval was printed as a 95% one.
+
+- Fixed three ways
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  could miss the best affordable outcome. When several goals tied on the
+  estimated outcome, as all the goals below the no intervention outcome
+  do, it refined the gap above the lowest of them rather than the
+  highest, leaving budget unspent. It stopped extending its goal grid
+  after 6 extensions. So when the best affordable outcome was far above
+  the observed range, it was not found, and the budget was still
+  reported as not binding. It now extends up to 30 times and warns if
+  that is not enough. With `n_grid = 2` its refinement pass re-ran the
+  same two goals, so nothing was refined, and it now tries goals
+  strictly inside the gap. Other results of
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  can also change slightly, within the resolution of its goal grid.
+
+- Fixed the default center weights for center level data using only each
+  center’s first row of `center_sample_size`. With several rows per
+  center of different sizes, such as one row per center and period, the
+  weighted average center then depended on the order of the rows and did
+  not match the same data at the patient level. Each center is now
+  weighted by the sum of its `center_sample_size`, which is how
+  [`glm()`](https://rdrr.io/r/stats/glm.html) weights its rows. Results
+  for center level data with several rows per center and the default
+  weights should be recomputed.
+
+- Fixed grid search never trying an upper bound that its step does not
+  reach, which the default steps (a twentieth of the observed range)
+  often do not reach when the bounds differ from the observed range. It
+  then returned a costlier recommendation, or said the goal could not be
+  reached and shrank, when the upper bound would have reached it. The
+  grid of each component now includes its upper bound.
+
+- Fixed the power goal using the control rate at center characteristic
+  value 0, the reference center and the reference period. The next-stage
+  control arm gets no intervention, and its rate was taken as `expit()`
+  of the model intercept, which is the rate only on the logit link when
+  the model has no other terms. On the identity link the intercept is
+  already the rate, so `expit()` of it was wrong even without other
+  terms. With center characteristics or fixed center effects, the
+  power-implied outcome and the recommendation then changed when a
+  characteristic was merely shifted by a constant or the reference
+  center was changed. In one example the raw characteristic gave a
+  power-implied outcome of 0.294, whose true power is 0.215 against a
+  goal of 0.8, while the centered one gave the correct 0.467. The
+  control rate is now the estimated outcome with no intervention at the
+  same planning values as the outcome goal: the center characteristic
+  values, the center weights or named center, and the period. Results
+  with a power goal and center characteristics, fixed center effects or
+  fixed time effects, or on the identity link, should be recomputed.
+
+- Fixed the power goal on center level data counting each row as one
+  patient and summing the proportions as the number of events. It now
+  counts each row’s `center_sample_size` patients and its events, as for
+  the same data at the patient level, including the stage-1 cluster
+  sizes used with `icc`. A row without `center_sample_size` is left out,
+  as [`glm()`](https://rdrr.io/r/stats/glm.html) leaves it out. In one
+  example the power-implied outcome was 0.399, with a true power of
+  0.889 against a goal of 0.8, and is now 0.343, the same as for the
+  patient level data.
+
+- Fixed the confidence interval and the confidence set of the weighted
+  average center on the logit link. The reported outcome is the weighted
+  mean of each center’s probability, but its interval was built for
+  `expit()` of the weighted mean linear predictor, a different quantity,
+  so the printed interval could exclude its own estimate, for example an
+  estimated outcome of 0.75 with an interval of 0.764 to 0.835. The
+  interval is now the delta method interval of the weighted mean
+  probability, for binary and continuous outcomes and for individual and
+  center level data. A single named center, and the identity link, are
+  unchanged. Confidence sets for the weighted average center on the
+  logit link should be recomputed.
+
+- Fixed three errors in the shrinking method used when the outcome goal
+  cannot be reached. With interaction terms it read each main
+  component’s coefficient by its position in `main_components`, so
+  listing an interaction term before a main component, or the main
+  components in another order than in `intervention_components`, gave a
+  different recommendation for the same model. It also searched for the
+  needed coefficient only up to 100, so an outcome on a large scale,
+  such as a weight in grams, gave a different recommendation than the
+  same outcome in kilograms. When a step of the search landed on the
+  goal exactly, the search also returned the lower end of its bracket
+  instead of that step, which could be far from the needed coefficient.
+  Results that used the shrinking method should be recomputed, most of
+  all those with interaction terms or with a needed coefficient above
+  100.
+
+- The documentation of `shrinkage_threshold` now says that it is not
+  used. The shrinking method is applied whenever the outcome goal is not
+  estimated to be reachable, which has been the behavior since the
+  threshold rule was removed.
+
+- Fixed the in-browser playground treating a numeric `NaN` period as a
+  missing value when it checks which centers have a row the outcome
+  model can use. The package turns a numeric `period` column into a
+  factor, which keeps `NaN` as a level and its rows in the fit, so with
+  fixed center and time effects the playground could refuse to run, or
+  say a center could not be optimized for, when the package would fit
+  it. When `period` is used as a numeric intervention component or
+  covariate instead, a `NaN` still counts as missing, as it does in
+  [`glm()`](https://rdrr.io/r/stats/glm.html).
+
+- Three input problems now get clearer refusals.
+  `center_effects_optimization_values = NA_character_` with a `center`
+  column that has missing values but no explicit `NA` level failed with
+  “values in center_weights_for_outcome_goal must sum up to 1”, and now
+  says that `NA_character_` is not one of the centers and how to make
+  the missing centers an explicit level with
+  [`addNA()`](https://rdrr.io/r/base/factor.html). The three refusals of
+  `center_effects_optimization_values` no longer print a line break and
+  a run of spaces in the middle of the sentence, and the one for an
+  unknown center names the value. A global
+  `options(na.action = "na.pass")` or `"na.fail"` with a missing value
+  in a model variable or its glm weight failed inside
+  [`glm()`](https://rdrr.io/r/stats/glm.html) with an error that did not
+  name the option, and is now refused up front with a message that says
+  to use `"na.omit"` or `"na.exclude"`. Data without missing values
+  still runs under either option.
+
+- Fixed wrong results when two coefficients of the outcome model got the
+  same name. [`glm()`](https://rdrr.io/r/stats/glm.html) names a factor
+  coefficient by joining the column name and the level, so a level
+  labeled with the text `"NA"` and an explicit `NA` level (as from
+  [`addNA()`](https://rdrr.io/r/base/factor.html)) both became, for
+  example, `centerNA`, and a factor `visit` with level `2` and a numeric
+  column `visit2` both became `visit2`. The package reads coefficients
+  by name. With fixed center effects and
+  `include_confidence_set = FALSE`, the recommendation was then computed
+  for the wrong center, or with the center weights paired with the wrong
+  centers, without any error. With the confidence set, the call failed
+  with a message about unmatched coefficients. Such a fit is now refused
+  with a message that names the coefficient and its columns. This also
+  refuses some fits that gave correct results before, such as a period
+  or covariate with both kinds of `NA` level and no confidence set, so
+  that one rule applies everywhere. Center results from such data
+  computed without the confidence set should be recomputed after
+  renaming one of the levels or columns. When every run of a sweep
+  fails, such as with this refusal or an outcome model that cannot be
+  fitted,
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  still returns `feasible = FALSE`, but its warning and printed result
+  now give the error of the first failed run, and the new `run_error`
+  field holds it. The printed result no longer suggests a larger budget
+  in that case.
+
+- The documentation of
+  [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  now says that `center_weights_for_outcome_goal` has one weight per
+  center of the fitted model, in the order of its center levels, and the
+  documentation of `center_effects_optimization_values` now says that
+  `NA_character_` selects an explicit `NA` center level. The README
+  examples now show the outcome model’s actual printed call.
+
+- [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  and
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  are faster. No input they can sweep changes the outcome model, but
+  every run refitted it, which was most of the time of a sweep. A sweep
+  now fits the model once and reuses it for every run with identical
+  fitting inputs, and a budget search shares one fit across all of its
+  sweeps. A 25 value sensitivity sweep on `BB_data` went from 3.7 to 1.3
+  seconds, and a default budget search from 6.6 to 2.3 seconds. Results
+  are unchanged, and the warnings and messages from the fit are still
+  raised for every run. A single
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  call always fits its own model.
+
+- [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  and
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  now show each message about how the inputs were read once per call,
+  instead of once for every run of the sweep. Examples are the note that
+  the `center` column was converted to a factor and the note that
+  `optimization_method` was switched to grid search. A message is hidden
+  only when its text is exactly the same as one already shown. Other
+  messages, such as a note about one run’s power goal, and the progress
+  lines shown with `quiet = FALSE` still appear for every run. The note
+  that `default_cost_fxn_type` is ignored when `cost_list_of_vectors` is
+  given is now sent as a message like the other input notes, rather than
+  printed with [`print()`](https://rdrr.io/r/base/print.html), so it no
+  longer shows as `[1] "..."` in the output.
+
 - Fixed two unclear refusals for fixed center and time effects. An all
   `NA` `center` column was refused with “values in
   center_weights_for_outcome_goal must sum up to 1”, or with a message

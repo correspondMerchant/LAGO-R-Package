@@ -14,7 +14,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.0/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/DESCRIPTION)
 
 Bing A, Bui M, Cui J (2026). *LAGOtrials: Learn-as-You-Go Adaptive Trial
 Optimization*. R package version 1.1.0,

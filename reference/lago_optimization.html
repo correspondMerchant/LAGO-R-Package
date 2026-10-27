@@ -61,7 +61,7 @@ but do not use polynomial contrasts. Numeric predictors keep their values."><met
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Run a LAGO optimization</h1>
-      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.0/R/lago_optimization.R" class="external-link"><code>R/lago_optimization.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/R/lago_optimization.R" class="external-link"><code>R/lago_optimization.R</code></a></small>
       <div class="d-none name"><code>lago_optimization.Rd</code></div>
     </div>
 
@@ -387,7 +387,7 @@ the levels of a factor column once unused levels are dropped (an explicit NA
 level included), and the sorted values otherwise.
 Default value without user specification:
 For each center the model fitted, calculate what percentage its sample size
-(all of its rows, or its center_sample_size for center level data) is of the
+(all of its rows, or the sum of its center_sample_size for center level data) is of the
 total over those centers, and use that percentage as the center's weight. A
 center the model could not fit is left out, with a warning. For center level
 data, a center with no center_sample_size at all is refused instead.</p></dd>
@@ -436,7 +436,12 @@ include_center_effects is set to TRUE. If not specified, the LAGO
 optimization will be carried out for a weighted average of the centers the
 model fitted (see center_weights_for_outcome_goal). The
 center must have a row where every model variable and the row's glm weight
-(center_sample_size for center level data) are observed.</p></dd>
+(center_sample_size for center level data) are observed. To select an
+explicit NA center level (as from <code><a href="https://rdrr.io/r/base/factor.html" class="external-link">addNA()</a></code>), pass
+<code>NA_character_</code>. The string <code>"NA"</code> selects only a center whose
+label is the text NA. A center labeled with the text NA and an explicit NA
+level cannot be used together, since the model gives both the same
+coefficient name, so rename one of them.</p></dd>
 
 
 <dt id="arg-include-time-effects">include_time_effects<a class="anchor" aria-label="anchor" href="#arg-include-time-effects"></a></dt>
@@ -465,14 +470,11 @@ Supplementary material of Nevo et al. (2021) for details).</p></dd>
 
 
 <dt id="arg-shrinkage-threshold">shrinkage_threshold<a class="anchor" aria-label="anchor" href="#arg-shrinkage-threshold"></a></dt>
-<dd><p>A numeric value. The threshold for the shrinkage
-method to kick in. This threshold represents the proportion of the distance
-between the estimated outcome without intervention, and the outcome goal. If
-the maximum reachable outcome is less than this value, the shrinkage method
-from Section 5.1 of the Supplementary Materials of Nevo et al. (2021)
-will be applied. If the maximum reachable outcome is greater than this value,
-then the maximum reachable outcome will be used as the outcome goal, and the
-shrinkage method will not be used.
+<dd><p>A numeric value between 0 and 1. Not used, and
+kept so that existing calls still run. When the outcome goal is not
+estimated to be reachable within the bounds, the shrinkage method from
+Section 5.1 of the Supplementary Materials of Nevo et al. (2021) is always
+applied, whatever this value is.
 Default value without user specification: 0.25.</p></dd>
 
 
@@ -492,8 +494,8 @@ Default value without user specification: FALSE.</p></dd>
 recommended interventions,
 associated cost for the interventions,
 estimated outcome mean/probability for the intervention group,
-95% confidence set percentage,
-95% confidence set,
+confidence set percentage (at level 1 - confidence_set_alpha),
+confidence set,
 overall intervention test results (test_results), a list with the test
 statistic and p-value; NULL unless a valid 'group' column is supplied.
 The confidence set fields are only present when include_confidence_set = TRUE.)
@@ -532,7 +534,7 @@ to [lago_sensitivity()] to sweep one input without retyping the call.</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Starting LAGO Optimization</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Validating inputs...</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Assessing the cost function...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
@@ -627,7 +629,7 @@ to [lago_sensitivity()] to sweep one input without retyping the call.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Validating inputs...</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component launch_duration is greater than the minimum value in the data.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Assessing the cost function...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
@@ -734,7 +736,7 @@ to [lago_sensitivity()] to sweep one input without retyping the call.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Validating inputs...</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component launch_duration is greater than the minimum value in the data.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Assessing the cost function...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
@@ -796,7 +798,7 @@ to [lago_sensitivity()] to sweep one input without retyping the call.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 38.9887</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 4.793</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 4.7929</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 104620</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.838</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (set include_confidence_set =</span>

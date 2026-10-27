@@ -51,13 +51,16 @@ get_confidence_set(
 
   A numeric vector. Specifies the weights that will be used for
   calculating recommended interventions that satisfy the outcome goal
-  for an (weighted) average center. The weights need to sum up to 1, and
-  must all be non-negative and finite. A weight of 0 is allowed and
-  excludes that center from the average. Only used, and only checked,
-  when include_center_effects is TRUE. A vector whose sum is not 1 is
-  refused here rather than renormalised: the interval is computed AT the
-  weights the optimization ran with, so rescaling them would report an
-  interval for a different weighting than the point estimate beside it.
+  for an (weighted) average center. There is one weight per center the
+  fitted model has, in the order of its center levels
+  (`fitted_model$xlevels$center`), so the first weight is for the
+  reference center. The weights need to sum up to 1, and must all be
+  non-negative and finite. A weight of 0 is allowed and excludes that
+  center from the average. Only used, and only checked, when
+  include_center_effects is TRUE. A vector whose sum is not 1 is refused
+  here rather than renormalised: the interval is computed AT the weights
+  the optimization ran with, so rescaling them would report an interval
+  for a different weighting than the point estimate beside it.
   lago_optimization() refuses the same vectors, and normalises within
   the tolerance the ones it accepts, so weights arriving from it always
   sum to 1.
@@ -198,12 +201,15 @@ excludes its own estimate. That estimate leaving \[0, 1\] is a defect in
 its own right and not this one; lago_optimization() now warns when it
 does, so it is flagged rather than silent, and the interval is still
 reported as computed for the same reason as before. Not confined for a
-continuous outcome either, whose range is not knowable here. NULL when
-that interval is not computable\>, cs = \<data.frame of the grid
-interventions whose confidence interval covers the outcome goal, with
-their interval bounds and cost. rec_int is never one of its rows, and
-need not be a grid intervention at all. NULL when no grid intervention
-qualifies\> )
+continuous outcome either, whose range is not knowable here. The
+exception, for both outcome types, is the weighted average center on the
+logit link, whose estimate is the weighted mean of the centers'
+probabilities: its interval is the delta method interval of that mean
+and is confined to \[0, 1\]. NULL when that interval is not
+computable\>, cs = \<data.frame of the grid interventions whose
+confidence interval covers the outcome goal, with their interval bounds
+and cost. rec_int is never one of its rows, and need not be a grid
+intervention at all. NULL when no grid intervention qualifies\> )
 
 ## Details
 

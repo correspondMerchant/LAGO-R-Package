@@ -310,11 +310,11 @@ lago_optimization(
   a factor column once unused levels are dropped (an explicit NA level
   included), and the sorted values otherwise. Default value without user
   specification: For each center the model fitted, calculate what
-  percentage its sample size (all of its rows, or its center_sample_size
-  for center level data) is of the total over those centers, and use
-  that percentage as the center's weight. A center the model could not
-  fit is left out, with a warning. For center level data, a center with
-  no center_sample_size at all is refused instead.
+  percentage its sample size (all of its rows, or the sum of its
+  center_sample_size for center level data) is of the total over those
+  centers, and use that percentage as the center's weight. A center the
+  model could not fit is left out, with a warning. For center level
+  data, a center with no center_sample_size at all is refused instead.
 
 - optimization_grid_search_step_size:
 
@@ -357,7 +357,12 @@ lago_optimization(
   out for a weighted average of the centers the model fitted (see
   center_weights_for_outcome_goal). The center must have a row where
   every model variable and the row's glm weight (center_sample_size for
-  center level data) are observed.
+  center level data) are observed. To select an explicit NA center level
+  (as from [`addNA()`](https://rdrr.io/r/base/factor.html)), pass
+  `NA_character_`. The string `"NA"` selects only a center whose label
+  is the text NA. A center labeled with the text NA and an explicit NA
+  level cannot be used together, since the model gives both the same
+  coefficient name, so rename one of them.
 
 - include_time_effects:
 
@@ -385,15 +390,12 @@ lago_optimization(
 
 - shrinkage_threshold:
 
-  A numeric value. The threshold for the shrinkage method to kick in.
-  This threshold represents the proportion of the distance between the
-  estimated outcome without intervention, and the outcome goal. If the
-  maximum reachable outcome is less than this value, the shrinkage
-  method from Section 5.1 of the Supplementary Materials of Nevo et
-  al. (2021) will be applied. If the maximum reachable outcome is
-  greater than this value, then the maximum reachable outcome will be
-  used as the outcome goal, and the shrinkage method will not be used.
-  Default value without user specification: 0.25.
+  A numeric value between 0 and 1. Not used, and kept so that existing
+  calls still run. When the outcome goal is not estimated to be
+  reachable within the bounds, the shrinkage method from Section 5.1 of
+  the Supplementary Materials of Nevo et al. (2021) is always applied,
+  whatever this value is. Default value without user specification:
+  0.25.
 
 - quiet:
 
@@ -408,14 +410,15 @@ lago_optimization(
 ## Value
 
 List( recommended interventions, associated cost for the interventions,
-estimated outcome mean/probability for the intervention group, 95%
-confidence set percentage, 95% confidence set, overall intervention test
-results (test_results), a list with the test statistic and p-value; NULL
-unless a valid 'group' column is supplied. The confidence set fields are
-only present when include_confidence_set = TRUE.) The result also
-carries its own call arguments in the attribute \`"lago_call_args"\`
-(not a \`\$\`-accessible field), so it can be passed directly to
-\[lago_sensitivity()\] to sweep one input without retyping the call.
+estimated outcome mean/probability for the intervention group,
+confidence set percentage (at level 1 - confidence_set_alpha),
+confidence set, overall intervention test results (test_results), a list
+with the test statistic and p-value; NULL unless a valid 'group' column
+is supplied. The confidence set fields are only present when
+include_confidence_set = TRUE.) The result also carries its own call
+arguments in the attribute \`"lago_call_args"\` (not a \`\$\`-accessible
+field), so it can be passed directly to \[lago_sensitivity()\] to sweep
+one input without retyping the call.
 
 ## See also
 
@@ -449,7 +452,7 @@ lago_optimization(
 )
 #> ℹ Starting LAGO Optimization
 #> ℹ Validating inputs...
-#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -544,7 +547,7 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -651,7 +654,7 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> [1] "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored."
+#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -713,7 +716,7 @@ lago_optimization(
 #> 
 #> ── Recommended intervention 
 #> coaching_updt: 38.9887
-#> launch_duration: 4.793
+#> launch_duration: 4.7929
 #> Cost: 104620
 #> Estimated outcome: 0.838
 #> 95% CI for the estimated outcome: not available (set include_confidence_set =
