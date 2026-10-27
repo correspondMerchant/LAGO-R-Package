@@ -76,15 +76,15 @@
       "Not computed (set include_confidence_set = TRUE to compute it)."
     )
   } else {
+    level <- .lago_confidence_label(x)
     cli::cli_text(
-      "95% confidence set size: {round(100 * x$confidence_set_size_percentage, 2)}% of the grid"
+      "{level} confidence set size: {round(100 * x$confidence_set_size_percentage, 2)}% of the grid"
     )
     if (!is.null(blocks$confidence_set) && !is.null(x$cs)) {
       # render the non-size rows (cost IQR) verbatim from the shared block.
-      iqr_rows <- grep(
-        "^95% confidence set size", blocks$confidence_set$rows,
-        value = TRUE, invert = TRUE
-      )
+      iqr_rows <- blocks$confidence_set$rows[
+        !startsWith(blocks$confidence_set$rows, paste(level, "confidence set size"))
+      ]
       for (row in iqr_rows) cli::cli_text(row)
       cli::cli_text("First rows of the confidence set (use $cs for all):")
       print(utils::head(x$cs))
@@ -105,9 +105,9 @@
 #' model family/link and fixed effects, goals, costs and bounds), the fitted
 #' outcome-model coefficient table, the overall intervention-effect test, the
 #' recommended intervention with its cost and the estimated outcome (and its
-#' 95\% confidence interval), and the confidence set (size, cost IQR, and first
-#' rows). Everything is shown on the console so results can be read without
-#' further calls. [summary.lago()] renders the same output.
+#' confidence interval, 95\% by default), and the confidence set (size, cost
+#' IQR, and first rows). Everything is shown on the console so results can be
+#' read without further calls. [summary.lago()] renders the same output.
 #'
 #' @param x A "lago" object returned by [lago_optimization()].
 #' @param ... Ignored.
@@ -187,7 +187,7 @@ summary.lago <- function(object, ...) {
 
 #' Plot a LAGO optimization result
 #'
-#' @description Visualizes the 95\% confidence set. For a two-component
+#' @description Visualizes the confidence set, 95\% by default. For a two-component
 #' intervention it plots the grid points in the confidence set with the
 #' recommended intervention highlighted; for a single component it plots the
 #' confidence interval bounds against the dose. A non-empty confidence set is
@@ -264,7 +264,7 @@ plot.lago <- function(x, ...) {
         color = "#cc3300", size = 4, shape = 18
       ) +
       ggplot2::labs(
-        title = "95% confidence set",
+        title = paste(.lago_confidence_label(x), "confidence set"),
         subtitle = "Red diamond: recommended intervention",
         x = comps[1], y = comps[2]
       ) +
@@ -289,7 +289,7 @@ plot.lago <- function(x, ...) {
         xintercept = x$rec_int[1], color = "#cc3300", linetype = "dashed"
       ) +
       ggplot2::labs(
-        title = "95% confidence set",
+        title = paste(.lago_confidence_label(x), "confidence set"),
         subtitle = "Dashed line: recommended intervention",
         x = comps[1], y = "Outcome CI"
       ) +

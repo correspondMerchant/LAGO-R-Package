@@ -34,6 +34,14 @@
 
 # --- the shared formatter -----------------------------------------------------
 
+# The confidence level of a result, such as "95%", from the confidence_set_alpha
+# it was computed with. 95% for an object that did not record its arguments.
+.lago_confidence_label <- function(x) {
+  alpha <- attr(x, "lago_call_args")$confidence_set_alpha
+  if (!is.numeric(alpha) || length(alpha) != 1 || is.na(alpha)) alpha <- 0.05
+  paste0(format(round(100 * (1 - alpha), 10), digits = 15, scientific = FALSE), "%")
+}
+
 #' Build presentation blocks for a LAGO result
 #'
 #' Internal helper that turns a `lago` object into an ordered list of labeled,
@@ -188,7 +196,7 @@ lago_blocks <- function(x) {
     rows = paste0("Cost: ", .lago_fmt_cost(x$rec_int_cost))
   )
 
-  # --- outcome (estimated outcome, its 95% CI when available, and the outcome
+  # --- outcome (estimated outcome, its CI when available, and the outcome
   # goal when present). The CI is the interval for the estimated outcome at the
   # recommended intervention, which get_confidence_set() reports in its own
   # rec_int_ci field, carried on the object as est_outcome_ci.
@@ -199,20 +207,21 @@ lago_blocks <- function(x) {
   # not available. The interval no longer depends on the confidence set being
   # non-empty, so with the set requested it is missing only when the interval
   # at the recommended intervention itself could not be computed.
+  level <- .lago_confidence_label(x)
   ci_line <- if (!is.null(x$est_outcome_ci)) {
     paste0(
-      "95% CI for the estimated outcome: ",
+      level, " CI for the estimated outcome: ",
       .lago_fmt_value(x$est_outcome_ci[["lower"]]),
       " - ",
       .lago_fmt_value(x$est_outcome_ci[["upper"]])
     )
   } else if (!is.null(x$confidence_set_size_percentage)) {
     paste0(
-      "95% CI for the estimated outcome: not available (the interval at the ",
+      level, " CI for the estimated outcome: not available (the interval at the ",
       "recommended intervention could not be computed)"
     )
   } else {
-    "95% CI for the estimated outcome: not available (set include_confidence_set = TRUE)"
+    paste0(level, " CI for the estimated outcome: not available (set include_confidence_set = TRUE)")
   }
   outcome_rows <- c(outcome_rows, ci_line)
   if (!is.null(x$outcome_goal)) {
@@ -243,7 +252,7 @@ lago_blocks <- function(x) {
       cs_rows <- c(
         cs_rows,
         paste0(
-          "95% confidence set size: ",
+          level, " confidence set size: ",
           round(100 * x$confidence_set_size_percentage, 2),
           "% of the grid"
         )
@@ -256,7 +265,7 @@ lago_blocks <- function(x) {
       cs_rows <- c(
         cs_rows,
         paste0(
-          "IQR of the cost within the 95% confidence set: ",
+          "IQR of the cost within the ", level, " confidence set: ",
           .lago_fmt_cost_range(qs[1]),
           " - ",
           .lago_fmt_cost_range(qs[2])

@@ -64,7 +64,7 @@ res <- lago_optimization(
 res$rec_int          # recommended intervention (one value per component)
 res$rec_int_cost     # its cost
 res$est_outcome_goal # estimated outcome at the recommendation
-res$est_outcome_ci   # 95% CI for that estimate
+res$est_outcome_ci   # CI for that estimate, 95% by default
 res$cs               # confidence set (data.frame of qualifying grid points)
 res                  # print()/summary() show the full formatted result
 ```
@@ -171,8 +171,8 @@ distinguish from the goal," not "interventions that meet it."
 
 `lago_optimization()` returns a `"lago"` object (a list, so `$` access works)
 with `print()`, `summary()`, and `plot()` methods. Key fields: `rec_int`,
-`rec_int_cost`, `est_outcome_goal`, `est_outcome_ci` (the 95% CI at the
-recommendation), `cs` (confidence set), and `model` (the fitted glm). `plot()` visualizes the confidence
+`rec_int_cost`, `est_outcome_goal`, `est_outcome_ci` (the CI at the
+recommendation, 95% by default), `cs` (confidence set), and `model` (the fitted glm). `plot()` visualizes the confidence
 set; `lago_report(res)` writes the full result to a shareable HTML file.
 
 ## Additional resources

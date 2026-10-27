@@ -25,9 +25,9 @@ allowed, in the same units as the supplied `cost_list_of_vectors` (or
 
 \item{n_grid}{A single integer (>= 2) giving how many outcome goals to try
 across the outcome's range. Larger values give a finer, more precise answer
-at the cost of more optimization runs. A second refinement pass is run around
-the affordability boundary, so the effective resolution is finer than
-`n_grid` alone. Default 25.}
+at the cost of more optimization runs. A second refinement pass tries
+`n_grid` more goals strictly inside the gap at the affordability boundary,
+so the effective resolution is finer than `n_grid` alone. Default 25.}
 
 \item{quiet}{A boolean forwarded to [lago_optimization()] via
 [lago_sensitivity()]. Defaults to `TRUE` so the search is not noisy.}
@@ -83,9 +83,12 @@ is not counted as genuinely reached and does not become a candidate (only
 goals the recommendation actually delivers are considered). Among the reached
 goals whose recommended cost is at most `budget`, the one with the best
 estimated outcome is chosen (largest for `"maximize"`, smallest for
-`"minimize"`). The grid is extended in the improving direction until goals
-stop being reached or affordable, and a refinement sweep is then run near the
-affordability boundary to tighten the estimate.
+`"minimize"`). Goals that tie on the estimated outcome return the same
+intervention, and the one furthest in the improving direction is taken. The
+grid is extended in the improving direction until goals stop being reached
+or affordable, up to 30 times with a warning if that is not enough, and a
+refinement sweep is then run near the affordability boundary to tighten the
+estimate.
 
 If no reachable goal is affordable (the budget is below the cost of even the
 cheapest reachable intervention), the result has `feasible = FALSE` and `NA`

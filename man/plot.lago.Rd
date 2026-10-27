@@ -16,7 +16,7 @@ A ggplot object (invisibly) when a plot is produced, otherwise `NULL`
 invisibly.
 }
 \description{
-Visualizes the 95\% confidence set. For a two-component
+Visualizes the confidence set, 95\% by default. For a two-component
 intervention it plots the grid points in the confidence set with the
 recommended intervention highlighted; for a single component it plots the
 confidence interval bounds against the dose. A non-empty confidence set is

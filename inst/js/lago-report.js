@@ -244,9 +244,10 @@
   // data.components : column names in data.cs that hold the intervention
   //                   components (1 or 2 of them, matching rec_int).
   // data.cs         : array of row objects, one per grid intervention in the
-  //                   95% confidence set. Each has the component columns plus
+  //                   confidence set. Each has the component columns plus
   //                   CI_lower_bound, CI_upper_bound, and cost.
   // data.rec_int    : the recommended intervention, one value per component.
+  // data.confidence_level : the level label, such as "95%".
   //
   // Two components -> scatter of the two components with the recommended point
   // highlighted. One component -> a 1-D strip (number line) of the doses. 3+
@@ -258,6 +259,8 @@
     }
     var comps = data.components;
     var cs = data.cs;
+    // the level the result was computed at, such as "95%"
+    level = data.confidence_level || "95%";
     var rec = data.rec_int || [];
     var sel = d3.select(host);
     sel.selectAll("*").remove();
@@ -270,6 +273,9 @@
     // 3+ components: intentionally nothing (R renders the static fallback).
   }
 
+  // the confidence level of the rendered result, set by the render call
+  var level = "95%";
+
   // Format the shared tooltip lines for one confidence-set row.
   function csTooltipLines(comps, row) {
     var lines = comps.map(function (c) {
@@ -279,7 +285,7 @@
       lines.push("cost: " + fmt(row.cost));
     }
     if (row.CI_lower_bound != null && row.CI_upper_bound != null) {
-      lines.push("95% CI: " + fmt(row.CI_lower_bound) + " - " + fmt(row.CI_upper_bound));
+      lines.push(level + " CI: " + fmt(row.CI_lower_bound) + " - " + fmt(row.CI_upper_bound));
     }
     return lines;
   }
@@ -298,7 +304,7 @@
     var yScale = d3.scaleLinear().domain(paddedExtent(ys)).range([IH, 0]).nice();
 
     var chart = makeSvg(sel, {
-      title: "95% confidence set",
+      title: level + " confidence set",
       xlab: xKey,
       ylab: yKey,
       xScale: xScale,
@@ -377,7 +383,7 @@
     var yLine = IH / 2;
 
     var chart = makeSvg(sel, {
-      title: "95% confidence set",
+      title: level + " confidence set",
       xlab: xKey,
       ylab: null,
       xScale: xScale,

@@ -1221,8 +1221,8 @@ get_confidence_set <- function(
   # rec_int inside the confidence set. NULL when it could not be computed.
   rec_int_ci <- if (valid_rows[1]) {
     c(
-      lower = round(reported_ci_prob_all[1, 1], 3),
-      upper = round(reported_ci_prob_all[1, 2], 3)
+      lower = round(unname(reported_ci_prob_all[1, 1]), 3),
+      upper = round(unname(reported_ci_prob_all[1, 2]), 3)
     )
   } else {
     NULL

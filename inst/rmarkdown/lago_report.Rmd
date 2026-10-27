@@ -62,6 +62,7 @@ report_json <- NULL
 if (have_jsonlite) {
   report_data <- list(
     components = I(as.character(plot_components)),
+    confidence_level = LAGOtrials:::.lago_confidence_label(x),
     rec_int = I(as.numeric(x$rec_int)),
     rec_int_cost = as.numeric(x$rec_int_cost),
     cs = x$cs,

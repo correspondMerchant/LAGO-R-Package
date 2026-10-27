@@ -357,11 +357,11 @@ validate_inputs <- function(
       # then we calculate the default values for center weights
       if (is.null(center_effects_optimization_values)) {
         if (input_data_structure == "center_level") {
-          # each center's size is its first observed center_sample_size
+          # each center's size is its patients, the sum over its rows, as glm() weights them
           center_sizes <- tapply(
             data$center_sample_size,
             data$center,
-            function(x) x[!is.na(x)][1]
+            function(x) if (all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
           )
           no_size <- names(center_sizes)[is.na(center_sizes)]
           if (length(no_size) > 0) {
