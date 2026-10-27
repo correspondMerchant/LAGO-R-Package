@@ -106,27 +106,12 @@ result
 #> Intervention upper bounds: 40, 5
 #> 
 #> ── Outcome model fit
-#> 
-#> Call:
-#> glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-#>     birth_volume_100, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>                   Estimate Std. Error z value Pr(>|z|)    
-#> (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-#> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-#> launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-#> birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-#> ---
-#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-#> 
-#> (Dispersion parameter for binomial family taken to be 1)
-#> 
-#>     Null deviance: 8470.8  on 6123  degrees of freedom
-#> Residual deviance: 5161.2  on 6120  degrees of freedom
-#> AIC: 5169.2
-#> 
-#> Number of Fisher Scoring iterations: 6
+#>                  Estimate Std. Error
+#> (Intercept)      -2.29989   0.068371
+#> coaching_updt     0.02514   0.006112
+#> launch_duration   1.02447   0.074135
+#> birth_volume_100  0.66451   0.029627
+#> Standard errors are those of the fitted glm().
 #> 
 #> ── Overall intervention-effect test
 #> To see the overall test results, include a 'group' column in the data with
@@ -186,27 +171,12 @@ summary(result)
 #> Intervention upper bounds: 40, 5
 #> 
 #> ── Outcome model fit
-#> 
-#> Call:
-#> glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-#>     birth_volume_100, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>                   Estimate Std. Error z value Pr(>|z|)    
-#> (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-#> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-#> launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-#> birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-#> ---
-#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-#> 
-#> (Dispersion parameter for binomial family taken to be 1)
-#> 
-#>     Null deviance: 8470.8  on 6123  degrees of freedom
-#> Residual deviance: 5161.2  on 6120  degrees of freedom
-#> AIC: 5169.2
-#> 
-#> Number of Fisher Scoring iterations: 6
+#>                  Estimate Std. Error
+#> (Intercept)      -2.29989   0.068371
+#> coaching_updt     0.02514   0.006112
+#> launch_duration   1.02447   0.074135
+#> birth_volume_100  0.66451   0.029627
+#> Standard errors are those of the fitted glm().
 #> 
 #> ── Overall intervention-effect test
 #> To see the overall test results, include a 'group' column in the data with

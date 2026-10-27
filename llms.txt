@@ -228,25 +228,11 @@ Typical output:
 
     ── Outcome model fit
 
-    Call:
-    glm(formula = mpg ~ gear + qsec, family = family_object, data = data,
-        weights = weights)
-
-    Coefficients:
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept) -30.7108     9.6702  -3.176 0.003530 **
-    gear          4.8711     1.0814   4.505 0.000100 ***
-    qsec          1.8399     0.4465   4.121 0.000288 ***
-    ---
-    Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-    (Dispersion parameter for gaussian family taken to be 18.84028)
-
-        Null deviance: 1126.05  on 31  degrees of freedom
-    Residual deviance:  546.37  on 29  degrees of freedom
-    AIC: 189.61
-
-    Number of Fisher Scoring iterations: 2
+                Estimate Std. Error
+    (Intercept)  -30.711     9.6702
+    gear           4.871     1.0814
+    qsec           1.840     0.4465
+    Standard errors are model based, as the confidence set uses them.
 
     ── Overall intervention-effect test
     To see the overall test results, include a 'group' column in the data with
@@ -450,44 +436,29 @@ Output:
 
     ── Outcome model fit
 
-    Call:
-    glm(formula = pp3_oxytocin_mother ~ center + period + coaching_updt +
-        launch_duration, family = family_object, data = data, weights = weights,
-        contrasts = list(center = "contr.treatment", period = "contr.treatment"))
-
-    Coefficients:
-                      Estimate Std. Error z value Pr(>|z|)
-    (Intercept)     -7.947e-01  1.345e-01  -5.908 3.47e-09 ***
-    center2          1.419e-01  1.361e-01   1.043    0.297
-    center3          8.206e-02  1.370e-01   0.599    0.549
-    center4         -8.730e-02  1.384e-01  -0.631    0.528
-    center5          1.790e-02  1.374e-01   0.130    0.896
-    center6         -1.491e-01  1.413e-01  -1.056    0.291
-    center7         -1.222e-01  1.362e-01  -0.897    0.370
-    center8         -2.050e-01  1.381e-01  -1.485    0.138
-    center9         -2.467e-02  1.380e-01  -0.179    0.858
-    center10         1.240e-01  1.375e-01   0.902    0.367
-    period2         -1.455e-01  1.386e-01  -1.050    0.294
-    period3          5.545e-02  1.348e-01   0.411    0.681
-    period4         -1.545e-01  1.425e-01  -1.084    0.278
-    period5         -3.372e-02  1.392e-01  -0.242    0.809
-    period6          3.380e-02  1.377e-01   0.246    0.806
-    period7         -1.417e-01  1.415e-01  -1.002    0.316
-    period8          1.252e-02  1.363e-01   0.092    0.927
-    period9         -1.844e-01  1.364e-01  -1.353    0.176
-    period10         1.041e-01  1.362e-01   0.764    0.445
-    coaching_updt   -2.997e-05  7.668e-03  -0.004    0.997
-    launch_duration  1.375e+00  8.744e-02  15.726  < 2e-16 ***
-    ---
-    Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-    (Dispersion parameter for binomial family taken to be 1)
-
-        Null deviance: 8470.8  on 6123  degrees of freedom
-    Residual deviance: 6344.6  on 6103  degrees of freedom
-    AIC: 6386.6
-
-    Number of Fisher Scoring iterations: 4
+                      Estimate Std. Error
+    (Intercept)     -7.947e-01   0.134522
+    center2          1.419e-01   0.136061
+    center3          8.206e-02   0.137021
+    center4         -8.730e-02   0.138399
+    center5          1.790e-02   0.137386
+    center6         -1.491e-01   0.141253
+    center7         -1.222e-01   0.136217
+    center8         -2.050e-01   0.138117
+    center9         -2.467e-02   0.137960
+    center10         1.240e-01   0.137477
+    period2         -1.455e-01   0.138584
+    period3          5.545e-02   0.134824
+    period4         -1.545e-01   0.142506
+    period5         -3.372e-02   0.139243
+    period6          3.380e-02   0.137694
+    period7         -1.417e-01   0.141471
+    period8          1.252e-02   0.136311
+    period9         -1.844e-01   0.136354
+    period10         1.041e-01   0.136191
+    coaching_updt   -2.997e-05   0.007668
+    launch_duration  1.375e+00   0.087439
+    Standard errors are those of the fitted glm().
 
     ── Overall intervention-effect test
     To see the overall test results, include a 'group' column in the data with

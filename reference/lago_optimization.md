@@ -488,25 +488,11 @@ lago_optimization(
 #> Intervention upper bounds: 50, 10
 #> 
 #> ── Outcome model fit 
-#> 
-#> Call:
-#> glm(formula = case ~ age + parity, family = family_object, data = data, 
-#>     weights = weights)
-#> 
-#> Coefficients:
-#>              Estimate Std. Error z value Pr(>|z|)
-#> (Intercept) -0.753683   0.835836  -0.902    0.367
-#> age          0.001137   0.025775   0.044    0.965
-#> parity       0.014662   0.107680   0.136    0.892
-#> 
-#> (Dispersion parameter for binomial family taken to be 1)
-#> 
-#>     Null deviance: 316.17  on 247  degrees of freedom
-#> Residual deviance: 316.15  on 245  degrees of freedom
-#> AIC: 322.15
-#> 
-#> Number of Fisher Scoring iterations: 4
-#> 
+#>              Estimate Std. Error
+#> (Intercept) -0.753683    0.83584
+#> age          0.001137    0.02578
+#> parity       0.014662    0.10768
+#> Standard errors are those of the fitted glm().
 #> 
 #> ── Overall intervention-effect test 
 #> To see the overall test results, include a 'group' column in the data with
@@ -580,28 +566,12 @@ lago_optimization(
 #> Intervention upper bounds: 40, 5
 #> 
 #> ── Outcome model fit 
-#> 
-#> Call:
-#> glm(formula = pp3_oxytocin_mother ~ coaching_updt + launch_duration + 
-#>     birth_volume_100, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>                   Estimate Std. Error z value Pr(>|z|)    
-#> (Intercept)      -2.299892   0.068371 -33.638  < 2e-16 ***
-#> coaching_updt     0.025137   0.006112   4.113 3.91e-05 ***
-#> launch_duration   1.024470   0.074135  13.819  < 2e-16 ***
-#> birth_volume_100  0.664511   0.029627  22.429  < 2e-16 ***
-#> ---
-#> Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-#> 
-#> (Dispersion parameter for binomial family taken to be 1)
-#> 
-#>     Null deviance: 8470.8  on 6123  degrees of freedom
-#> Residual deviance: 5161.2  on 6120  degrees of freedom
-#> AIC: 5169.2
-#> 
-#> Number of Fisher Scoring iterations: 6
-#> 
+#>                  Estimate Std. Error
+#> (Intercept)      -2.29989   0.068371
+#> coaching_updt     0.02514   0.006112
+#> launch_duration   1.02447   0.074135
+#> birth_volume_100  0.66451   0.029627
+#> Standard errors are those of the fitted glm().
 #> 
 #> ── Overall intervention-effect test 
 #> To see the overall test results, include a 'group' column in the data with
@@ -687,28 +657,12 @@ lago_optimization(
 #> Intervention upper bounds: 40, 5
 #> 
 #> ── Outcome model fit 
-#> 
-#> Call:
-#> glm(formula = EBP_proportions ~ coaching_updt + launch_duration + 
-#>     birth_volume_100, family = family_object, data = data, weights = weights)
-#> 
-#> Coefficients:
-#>                   Estimate Std. Error t value Pr(>|t|)    
-#> (Intercept)      -0.138303   0.011848  -11.67   <2e-16 ***
-#> coaching_updt     0.034416   0.001382   24.90   <2e-16 ***
-#> launch_duration   0.165681   0.015574   10.64   <2e-16 ***
-#> birth_volume_100 -0.202380   0.003241  -62.45   <2e-16 ***
-#> ---
-#> Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-#> 
-#> (Dispersion parameter for quasibinomial family taken to be 0.08983316)
-#> 
-#>     Null deviance: 1486.60  on 7358  degrees of freedom
-#> Residual deviance:  735.96  on 7355  degrees of freedom
-#> AIC: NA
-#> 
-#> Number of Fisher Scoring iterations: 4
-#> 
+#>                  Estimate Std. Error
+#> (Intercept)      -0.13830   0.009283
+#> coaching_updt     0.03442   0.002362
+#> launch_duration   0.16568   0.026895
+#> birth_volume_100 -0.20238   0.003643
+#> Standard errors are robust (sandwich, HC0), as the confidence set uses them.
 #> 
 #> ── Overall intervention-effect test 
 #> To see the overall test results, include a 'group' column in the data with

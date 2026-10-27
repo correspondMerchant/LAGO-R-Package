@@ -220,7 +220,8 @@ the confidence set calculations.</p></dd>
 <dt id="arg-cluster-id">cluster_id<a class="anchor" aria-label="anchor" href="#arg-cluster-id"></a></dt>
 <dd><p>A list or NULL. Specifies the columns of data that will be
 used as clustering effects when the "outcome_type" is continuous, with one
-entry per fitted row.</p></dd>
+entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
+center and time effects already model the centers and periods.</p></dd>
 
 
 <dt id="arg-cost-list-of-vectors">cost_list_of_vectors<a class="anchor" aria-label="anchor" href="#arg-cost-list-of-vectors"></a></dt>

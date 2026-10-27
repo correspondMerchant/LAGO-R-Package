@@ -4,6 +4,30 @@
 
 CRAN release: 2026-10-24
 
+- Fixed the confidence interval and the confidence set of a continuous
+  outcome with fixed center or time effects. The variance was clustered
+  on the centers and periods that the fixed effects already model, so
+  with few centers the interval was far too narrow and the confidence
+  set often empty, and with both effects the variance could be negative,
+  so no interval was reported. In one example on the logit link the
+  interval was 0.599 to 0.601 with an empty confidence set, and it is
+  now 0.594 to 0.606. The variance is now the one used without fixed
+  effects. Results without fixed effects, and all binary results, are
+  unchanged. Continuous results with fixed center or time effects should
+  be recomputed
+  ([\#31](https://github.com/correspondMerchant/LAGO-R-Package/issues/31)).
+
+- The coefficient table of
+  [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html) and
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now shows each estimate with the standard error the intervals use, and
+  says which one it is. It used to show the
+  [`glm()`](https://rdrr.io/r/stats/glm.html) summary, whose standard
+  errors for a continuous outcome on the logit link, or with fixed
+  effects, were not the ones the intervals used
+  ([\#30](https://github.com/correspondMerchant/LAGO-R-Package/issues/30)).
+
 - Fixed
   [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
   [`print()`](https://rdrr.io/r/base/print.html),
