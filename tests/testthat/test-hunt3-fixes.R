@@ -16,10 +16,15 @@ test_that("a center whose rows all have zero weight is left out of the fit", {
       confidence_set_grid_step_size = 1, quiet = TRUE
     )
   }
-  expect_warning(
-    zero <- suppressMessages(run(d, ifelse(d$center == "c3", 0, 1))),
-    "no usable row with a positive glm weight"
+  warnings <- character(0)
+  zero <- withCallingHandlers(
+    suppressMessages(run(d, ifelse(d$center == "c3", 0, 1))),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
   )
+  expect_true(any(grepl("no usable row with a positive glm weight", warnings)))
   # the same data without that center at all
   without <- hunt3_quiet(run(droplevels(d[d$center != "c3", ])))
   expect_equal(zero$rec_int, without$rec_int, tolerance = 1e-8)

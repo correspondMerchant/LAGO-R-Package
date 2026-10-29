@@ -946,13 +946,22 @@ get_recommended_interventions <- function(
         # no diagonal restart reached the goal.
         best_cost <- suppressWarnings(min(cost_results, na.rm = TRUE))
         extra_starts <- c(off_diagonal_starts(lo, up), list(max_point))
+        strict_tol <- 1e-8 * max(1, abs(new_outcome_goal))
         for (start in extra_starts) {
           result <- solve_cost(start, maxIter = 100)
-          # to replace an answer that reaches the goal, an extra start must
-          # reach it too, not just come cheaper by falling a little short
-          tol <- if (is.finite(best_cost)) 1e-8 * max(1, abs(new_outcome_goal)) else goal_tol
-          if (is.null(result) || !reaches_goal(result$par, tol)) next
+          if (is.null(result)) next
+          # a cheaper start not yet at the goal is finished with full iterations
+          if (is.finite(best_cost) && !reaches_goal(result$par, strict_tol) &&
+            cost_obj_fun(result$par) < best_cost) {
+            polished <- solve_cost(result$par)
+            if (!is.null(polished)) result <- polished
+          }
+          if (!reaches_goal(result$par)) next
           cost <- cost_obj_fun(result$par)
+          # a start must not win a small saving by falling a little short of
+          # the goal, so a saving under 0.1% needs the goal met strictly
+          clearly_cheaper <- cost < best_cost - 1e-3 * abs(best_cost)
+          if (is.finite(best_cost) && !clearly_cheaper && !reaches_goal(result$par, strict_tol)) next
           if (!is.finite(best_cost) || cost < best_cost - 1e-6 * abs(best_cost)) {
             results_int_components <- cbind(results_int_components, result$par)
             cost_results <- c(cost_results, cost)
