@@ -835,10 +835,15 @@ get_recommended_interventions <- function(
           NlcOptim::solnl(X = start, objfun = obj_fun_for_max_outcome, lb = lo, ub = up, maxIter = 100),
           error = function(e) NULL
         )
-        if (is.null(result)) next
-        if (-result$fn > max_achievable_outcome + 1e-8 * max(1, abs(max_achievable_outcome))) {
-          max_achievable_outcome <- -result$fn
-          max_point <- result$par
+        if (is.null(result) || any(!is.finite(result$par))) next
+        # the outcome is computed at the returned point rather than read from
+        # result$fn, which a start cut short by maxIter need not match
+        x <- pmin(pmax(result$par, lo), up)
+        outcome <- -obj_fun_for_max_outcome(x)
+        if (is.finite(outcome) &&
+          outcome > max_achievable_outcome + 1e-8 * max(1, abs(max_achievable_outcome))) {
+          max_achievable_outcome <- outcome
+          max_point <- x
         }
       }
 
@@ -949,7 +954,7 @@ get_recommended_interventions <- function(
         strict_tol <- 1e-8 * max(1, abs(new_outcome_goal))
         for (start in extra_starts) {
           result <- solve_cost(start, maxIter = 100)
-          if (is.null(result)) next
+          if (is.null(result) || any(!is.finite(result$par))) next
           # a cheaper start not yet at the goal is finished with full iterations
           if (is.finite(best_cost) && !reaches_goal(result$par, strict_tol) &&
             cost_obj_fun(result$par) < best_cost) {

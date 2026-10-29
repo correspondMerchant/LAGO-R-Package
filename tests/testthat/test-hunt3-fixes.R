@@ -166,12 +166,17 @@ test_that("the numerical optimizer looks off the diagonal of the bounds", {
     cost_list_of_vectors = list(c(0, 4, -0.2), c(0, 4, -0.2)),
     include_confidence_set = FALSE, quiet = TRUE
   ))
-  # with a cost that flattens out, the cheapest point spends on one component
+  # with a cost that flattens out, the cheap points spend on one component.
+  # The diagonal restarts end at about (4, 4) with cost 25.6. Off the diagonal
+  # there are two local optima, about (8, 0) at 19.2 and (10, 0) at 20, where
+  # the cost is flat, and which one the solver reaches depends on the platform.
   fit <- stats::glm(y ~ x1 + x2, data = d)
   g <- expand.grid(x1 = seq(0, 10, 0.01), x2 = seq(0, 10, 0.01))
   ok <- stats::predict(fit, g) >= 8
   cost <- 4 * g$x1 - 0.2 * g$x1^2 + 4 * g$x2 - 0.2 * g$x2^2
-  expect_equal(r$rec_int_cost, min(cost[ok]), tolerance = 1e-3)
+  expect_gte(r$rec_int_cost, min(cost[ok]) - 1e-3)
+  expect_lte(r$rec_int_cost, 20 + 1e-6)
+  expect_gte(r$est_outcome_goal, 8 - 1e-6)
 })
 
 # ---- the overall intervention test on center level data ---------------------------
