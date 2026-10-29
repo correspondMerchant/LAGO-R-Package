@@ -604,6 +604,20 @@ get_confidence_set <- function(
     ))
   }
   model_coefs <- model_coefs[coef_positions]
+  # an additional covariate glm() could not estimate (NA) adds nothing to the
+  # fit, so its column is left out, as predict() leaves it out. Any other NA
+  # coefficient is kept, so the confidence set stays empty for it.
+  covariate_keys <- gsub("`", "", unlist(lapply(
+    additional_covariates, predictor_coef_names, coef_mapping = coef_mapping
+  )))
+  aliased <- is.na(model_coefs) & column_keys %in% covariate_keys
+  aliased_keys <- column_keys[aliased]
+  if (any(aliased)) {
+    new_data <- new_data[, !aliased, drop = FALSE]
+    model_coefs <- model_coefs[!aliased]
+    coef_positions <- coef_positions[!aliased]
+    column_keys <- column_keys[!aliased]
+  }
 
   # get critical value based on the given alpha value
   critical_value <- qnorm(1 - confidence_set_alpha / 2)
@@ -889,6 +903,7 @@ get_confidence_set <- function(
       }
 
       X <- prepare_design_matrix(predictors_data)
+      X <- X[, !gsub("`", "", colnames(X)) %in% aliased_keys, drop = FALSE]
       n <- nrow(X)
       n_params <- ncol(X)
       fitted_values <- model$fitted.values
@@ -1266,9 +1281,13 @@ get_confidence_set <- function(
     ci_lower_bound,
     ci_upper_bound
   )
+  # 2 decimals, or 6 significant digits when that keeps more, so a cost in
+  # small units keeps its precision
+  cost <- row_costs$total_cost
+  row_costs$total_cost <- ifelse(abs(cost) >= 1e4, round(cost, 2), signif(cost, 6))
   cs <- cbind(
     cs,
-    round(row_costs, 2)
+    row_costs
   )
   names(cs) <- c(
     cs_output_names,
@@ -1700,8 +1719,8 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
       "periods the outcome model was fitted on, which are ",
       paste(period_levels, collapse = ", "),
       ". It must be a period with a row the outcome model could use (one with ",
-      "every model variable and its glm weight observed). Pick another period, ",
-      "or fill in the missing values."
+      "every model variable observed and a positive glm weight). Pick another ",
+      "period, or fill in the missing values."
     ))
   }
   indicator <- rep(0, length(time_effect_names))

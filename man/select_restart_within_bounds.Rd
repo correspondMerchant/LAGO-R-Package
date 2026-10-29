@@ -46,9 +46,10 @@ recomputation are one decision and are deliberately kept together: each
 step's correctness depends on the one before it.
 
 costs holds the cost each restart converged to, so the best restart is the
-cheapest one. Every restart satisfies the outcome constraint, which
-NlcOptim::solnl() enforces through confun, so cost is the only thing to
-choose on among the ones that are actually implementable.
+cheapest one. A restart that does not reach the outcome goal has a cost of
+NA here, since NlcOptim::solnl() can stop short of its constraint, so cost
+is the only thing to choose on among the ones that are actually
+implementable.
 
 solnl() treats the box as a soft constraint and will step a little outside it
 to buy a lower objective, so the cheapest restart is systematically the one

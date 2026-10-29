@@ -157,6 +157,27 @@ outcome_model_fitting <- function(
       "' has one. Fill in the missing values", turn_off(term), "."
     ))
   }
+  # A center or period whose usable rows all have zero weight has a dummy glm()
+  # cannot estimate. Its rows add nothing to the fit, so they are left out as rows
+  # with a missing weight are, and the center is left out of the average.
+  if (!is.null(weights) && !is.null(frame)) {
+    for (term in effects) {
+      # judged on the rows glm() keeps, as the check above is
+      kept <- droplevels(as.factor(frame[[term]]))
+      kept_weights <- frame[["(weights)"]]
+      positive <- tapply(kept_weights > 0, kept, any)
+      empty <- names(positive)[!positive %in% TRUE]
+      if (length(empty) == 0) next
+      weights[as.character(data[[term]]) %in% empty] <- NA
+      warning(paste0(
+        "The ", term, "(s) ", paste0("'", empty, "'", collapse = ", "),
+        " have no usable row with a positive glm weight (center_sample_size for ",
+        "center level data), so they add nothing to the outcome model and are ",
+        "left out of it."
+      ), call. = FALSE)
+    }
+  }
+
   # Categorical predictors use the first level as their reference.
   predictors <- all.vars(stats::delete.response(stats::terms(formula)))
   categorical_predictors <- Filter(function(term) {

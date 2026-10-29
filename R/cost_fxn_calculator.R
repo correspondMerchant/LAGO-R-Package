@@ -37,8 +37,10 @@ cost_fxn_calculator <- function(
       x2 <- range_min + 0.33 * (range_max - range_min) # adjust as needed
       x3 <- range_min + 0.6 * (range_max - range_min) # adjust as needed
 
-      # Initial delta value (negative slope at x2)
-      delta <- -0.8 # Adjustable
+      # Initial delta value (negative slope at x2), in the units of the unit
+      # cost, so restating the costs in other units only rescales the curve.
+      # A unit cost of 0 then gives the zero curve at once.
+      delta <- -0.8 * unit_cost # Adjustable
 
       # Define function to compute coefficients
       solve_coefficients <- function(delta) {

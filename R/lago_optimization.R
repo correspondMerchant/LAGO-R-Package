@@ -558,7 +558,9 @@ lago_optimization <- function(
     test_results <- test_processor(
       data = data,
       outcome_type = outcome_type,
-      outcome_name = outcome_name
+      outcome_name = outcome_name,
+      # a center level row is a proportion of center_sample_size patients
+      row_sizes = if (input_data_structure == "center_level") data$center_sample_size
     )
   } else {
     test_results <- NULL
