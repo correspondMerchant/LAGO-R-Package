@@ -201,6 +201,24 @@ refuse_if_no_grid_outcome <- function(all_outcomes,
 }
 
 
+# Start points off the box diagonal, which the diagonal restarts never visit:
+# the corners for up to 3 components, else each component alone at a bound,
+# and each component alone at its midpoint.
+off_diagonal_starts <- function(lo, up) {
+  k <- length(lo)
+  if (k < 2) {
+    return(list())
+  }
+  pick <- if (k <= 3) {
+    as.matrix(expand.grid(rep(list(0:1), k)))
+  } else {
+    rbind(diag(k), 1 - diag(k))
+  }
+  pick <- pick[rowSums(pick) > 0 & rowSums(pick) < k, , drop = FALSE]
+  pick <- rbind(pick, diag(k) / 2)
+  lapply(seq_len(nrow(pick)), function(i) lo + pick[i, ] * (up - lo))
+}
+
 #' select_restart_within_bounds
 #'
 #' @description Internal function that picks the recommended intervention out
@@ -212,9 +230,10 @@ refuse_if_no_grid_outcome <- function(all_outcomes,
 #' step's correctness depends on the one before it.
 #'
 #' costs holds the cost each restart converged to, so the best restart is the
-#' cheapest one. Every restart satisfies the outcome constraint, which
-#' NlcOptim::solnl() enforces through confun, so cost is the only thing to
-#' choose on among the ones that are actually implementable.
+#' cheapest one. A restart that does not reach the outcome goal has a cost of
+#' NA here, since NlcOptim::solnl() can stop short of its constraint, so cost
+#' is the only thing to choose on among the ones that are actually
+#' implementable.
 #'
 #' solnl() treats the box as a soft constraint and will step a little outside it
 #' to buy a lower objective, so the cheapest restart is systematically the one
@@ -807,6 +826,21 @@ get_recommended_interventions <- function(
       refuse_if_all_restarts_failed(results, aliased_coef_names)
       max_position <- which.max(results)
       max_achievable_outcome <- results[max_position]
+      max_point <- results_int_components[, max_position]
+      # the diagonal restarts can stop at a saddle point, so the corners are
+      # tried too, and one is kept only when it reaches a clearly higher outcome
+      for (start in off_diagonal_starts(lo, up)) {
+        result <- tryCatch(
+          # few iterations, since a start that stalls at a corner is not worth the time
+          NlcOptim::solnl(X = start, objfun = obj_fun_for_max_outcome, lb = lo, ub = up, maxIter = 100),
+          error = function(e) NULL
+        )
+        if (is.null(result)) next
+        if (-result$fn > max_achievable_outcome + 1e-8 * max(1, abs(max_achievable_outcome))) {
+          max_achievable_outcome <- -result$fn
+          max_point <- result$par
+        }
+      }
 
       # Create cost functions
       cost_functions <- lapply(cost_params, create_cost_function)
@@ -866,28 +900,35 @@ get_recommended_interventions <- function(
         }
 
         cost_results <- numeric(length(quantile_points))
+        # solnl() can return a point short of the goal without an error. The
+        # tolerance is the one lago_budget() counts a goal as reached within.
+        goal_tol <- 1e-6 * max(1, abs(new_outcome_goal))
+        reaches_goal <- function(x, tol = goal_tol) constraint_fun(x)$c <= tol
+        solve_cost <- function(start_points, ...) {
+          tryCatch(
+            NlcOptim::solnl(
+              X = start_points,
+              objfun = cost_obj_fun_scaled,
+              confun = constraint_fun,
+              lb = lo,
+              ub = up,
+              ...
+            ),
+            error = function(e) NULL
+          )
+        }
+        solved <- logical(length(quantile_points))
 
         for (i in seq_along(quantile_points)) {
           start_points <- lo + quantile_points[i] * (up - lo)
-          result <- tryCatch(
-            {
-              NlcOptim::solnl(
-                X = start_points, # Use start_points instead of a fixed midpoint
-                objfun = cost_obj_fun_scaled,
-                confun = constraint_fun,
-                lb = lo,
-                ub = up
-              )
-            },
-            error = function(e) {
-              return(NULL) # Return NULL if an error occurs
-            }
-          )
+          result <- solve_cost(start_points)
 
           if (!is.null(result)) {
+            solved[i] <- TRUE
             # result$fn is the NORMALIZED objective; record the true cost so the
             # cheapest-restart selection and the reported cost stay in real units.
-            cost_results[i] <- cost_obj_fun(result$par)
+            # A restart that does not reach the goal is not a solution.
+            cost_results[i] <- if (reaches_goal(result$par)) cost_obj_fun(result$par) else NA
             results_int_components[, i] <- result$par
           } else {
             cost_results[i] <- NA # Assign NA if the optimization failed
@@ -898,7 +939,30 @@ get_recommended_interventions <- function(
         # max-outcome loop above makes, from the same place and with the same
         # cause, so the two loops cannot come to describe the same situation
         # differently.
-        refuse_if_all_restarts_failed(cost_results, aliased_coef_names)
+        refuse_if_all_restarts_failed(ifelse(solved, 0, NA), aliased_coef_names)
+
+        # Starts off the diagonal, and the point of the highest outcome, which
+        # reaches the goal. One is kept only when it is clearly cheaper, or when
+        # no diagonal restart reached the goal.
+        best_cost <- suppressWarnings(min(cost_results, na.rm = TRUE))
+        extra_starts <- c(off_diagonal_starts(lo, up), list(max_point))
+        for (start in extra_starts) {
+          result <- solve_cost(start, maxIter = 100)
+          # to replace an answer that reaches the goal, an extra start must
+          # reach it too, not just come cheaper by falling a little short
+          tol <- if (is.finite(best_cost)) 1e-8 * max(1, abs(new_outcome_goal)) else goal_tol
+          if (is.null(result) || !reaches_goal(result$par, tol)) next
+          cost <- cost_obj_fun(result$par)
+          if (!is.finite(best_cost) || cost < best_cost - 1e-6 * abs(best_cost)) {
+            results_int_components <- cbind(results_int_components, result$par)
+            cost_results <- c(cost_results, cost)
+            best_cost <- cost
+          }
+        }
+        if (!is.finite(best_cost)) {
+          results_int_components <- cbind(results_int_components, max_point)
+          cost_results <- c(cost_results, cost_obj_fun(max_point))
+        }
 
         # Choosing among the restarts, and making the winner implementable, is
         # one decision and lives in select_restart_within_bounds(): the in-box

@@ -96,6 +96,20 @@ validate_inputs <- function(
       "must be either 'continuous' or 'binary'."
     ))
   }
+  # a factor or character outcome has no mean to compare the goal against
+  outcome_column <- data[[outcome_name]]
+  if (!is.numeric(outcome_column) && !is.logical(outcome_column)) {
+    stop(paste0(
+      "The outcome column '", outcome_name, "' must be numeric",
+      if (outcome_type == "binary") ", with 0 and 1 for a binary outcome",
+      ", but it is a ", class(outcome_column)[1], " column. Recode it, for ",
+      "example with ",
+      if (outcome_type == "binary") {
+        paste0("as.numeric(data$", outcome_name, " == \"yes\") for yes and no values, or ")
+      },
+      "as.numeric(as.character(data$", outcome_name, ")) for values written as numbers."
+    ))
+  }
   # check if the input data structure is center_level when
   # the outcome type is continuous.
   if (input_data_structure == "center_level") {
@@ -217,6 +231,20 @@ validate_inputs <- function(
       " are entirely NA, so glm() would drop every row and they ",
       "cannot enter the model. Remove them from intervention_components ",
       "or supply observed values."
+    ))
+  }
+  # a component is a dose, and glm() would code a non-numeric one as levels
+  non_numeric_components <- intervention_components[!vapply(
+    intervention_components,
+    function(component) is.numeric(data[[component]]),
+    logical(1)
+  )]
+  if (length(non_numeric_components) > 0) {
+    stop(paste0(
+      "The intervention component(s) ",
+      paste0("'", non_numeric_components, "'", collapse = ", "),
+      " must be numeric columns. Recode a yes or no component as 0 and 1, ",
+      "for example with as.numeric()."
     ))
   }
 
@@ -724,6 +752,9 @@ validate_inputs <- function(
     # check if unit_costs is a numeric vector
     if (!is.numeric(unit_costs)) {
       stop("unit_costs must be a numeric vector.")
+    }
+    if (any(!is.finite(unit_costs)) || any(unit_costs < 0)) {
+      stop("unit_costs must be finite and not negative.")
     }
     # check if the dimension of unit_costs matches
     # the dimension of intervention_components or the dimension

@@ -19,8 +19,8 @@ align_center_weights_to_fit <- function(center_weights,
     ))
   }
   why <- paste0(
-    "no row the outcome model could use (one with every model variable and its ",
-    "glm weight, which is center_sample_size for center level data, observed)"
+    "no row the outcome model could use (one with every model variable observed ",
+    "and a positive glm weight, which is center_sample_size for center level data)"
   )
   # user weights win over a named center, as in validate_inputs()
   if (!is.null(center_name) && is.null(user_weights)) {

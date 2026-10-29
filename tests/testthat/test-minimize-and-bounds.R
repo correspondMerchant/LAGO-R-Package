@@ -597,17 +597,14 @@ test_that("an unachievable minimize goal warns about the right extreme", {
 # ---------------------------------------------------------------------------
 
 test_that("the numerical optimizer picks the cheapest in-box restart", {
-  # solnl() is run from eleven starting points and one is selected. The
+  # solnl() is run from several starting points and one is selected. The
   # objective is COST and it is minimized, so the best restart is the cheapest
   # one -- but the selection used which.max, returning the most EXPENSIVE
   # candidate that satisfied the goal.
   #
-  # With a linear cost every restart converges to the same point, which is why
-  # the existing tests never saw this. A cubic cost (the package's own default
-  # cost shape, built by cost_fxn_calculator()) makes the restarts land in
-  # genuinely different places, and the spread is large: the cheapest restart
-  # costs 22422 and the most expensive 50291. Selecting the wrong end is then
-  # unmistakable.
+  # The answer here costs 13330, which a fine brute force grid over the same
+  # goal confirmed when the value was set. The direct test of the selection is
+  # the one on a hand-built restart matrix.
   cost_fxn_calculator <- getFromNamespace("cost_fxn_calculator", "LAGOtrials")
   cubic_costs <- cost_fxn_calculator(
     intervention_lower_bounds = c(0, 0),
@@ -624,10 +621,9 @@ test_that("the numerical optimizer picks the cheapest in-box restart", {
 
   # the goal is still met, so this is a comparison among feasible candidates.
   expect_equal(res$est_outcome_goal, 0.85, tolerance = 1e-6)
-  # the cheap solution, not the expensive one. which.max returned
-  # c(18.597, 2.347) at cost 50291 for this exact configuration.
+  # the cheap solution, not the expensive one
   expect_equal(res$rec_int, c(0, 2.803008), tolerance = 1e-5)
-  expect_equal(res$rec_int_cost, 22421.687427, tolerance = 1e-5)
+  expect_equal(res$rec_int_cost, 13329.513069, tolerance = 1e-5)
 
   # a grid search over the same problem cannot beat the numerical optimum by
   # more than one grid step's worth of cost. This is the optimizer-independent
@@ -747,5 +743,5 @@ test_that("unit_costs and the equivalent cost_list_of_vectors agree", {
     tolerance = 1e-8
   )
   # and the cheap end, not the expensive end, on this path as well.
-  expect_equal(from_unit_costs$rec_int_cost, 22421.687427, tolerance = 1e-5)
+  expect_equal(from_unit_costs$rec_int_cost, 13329.513069, tolerance = 1e-5)
 })
