@@ -4,6 +4,58 @@
 
 CRAN release: 2026-10-24
 
+- Fixed the numerical optimizer returning a recommendation that misses
+  the outcome goal.
+  [`NlcOptim::solnl()`](https://rdrr.io/pkg/NlcOptim/man/solnl.html) can
+  stop at a point short of the goal without an error, and that point was
+  kept when it was the cheapest. In one example with interacting
+  components it recommended a point whose estimated outcome was 4.92
+  against a goal of 9.5. A restart that does not reach the goal is now
+  left out. The optimizer also starts from the point of the highest
+  outcome, and uses that point itself when no restart reaches the goal.
+
+- The numerical optimizer now also starts off the diagonal of the
+  bounds, at the corners and at each component’s midpoint. All its
+  restarts started on that diagonal, so a near symmetric problem could
+  stop at a costlier point, or at a saddle point that wrongly made a
+  reachable goal look out of reach. An extra start replaces the answer
+  only when it is clearly cheaper, so other results are unchanged.
+
+- Fixed the default cubic cost depending on the units of `unit_costs`.
+  Its slope was a fixed number rather than one in the units of the cost,
+  so restating the costs in thousands changed the shape of the cost
+  curve and the recommendation. The slope now scales with each unit
+  cost, so a unit cost of 1 is unchanged. Results with the cubic cost
+  and other unit costs should be recomputed. A unit cost of 0 no longer
+  makes the cost calculation run forever, and a negative one is refused.
+
+- The `cost` column of the confidence set now keeps 6 significant digits
+  when that is more precise than 2 decimals, so a cost in small units
+  keeps its precision. Costs of 10000 or more are unchanged, and the
+  printed cost IQR still shows 2 decimals.
+
+- Fixed the overall intervention test on center level data. It compared
+  the mean of the row proportions and counted each row as one patient.
+  It now counts each row’s `center_sample_size` patients, so it is the
+  same test as for the same data at the patient level. In one example
+  its sign was wrong.
+
+- Fixed the confidence set when an additional covariate has a
+  coefficient that [`glm()`](https://rdrr.io/r/stats/glm.html) cannot
+  estimate, such as one that is constant within each center. The
+  confidence set was empty for a binary outcome and failed for a
+  continuous one. It is now the confidence set of the fit without that
+  term, which the run already warned it would be.
+
+- A center or period whose rows all have a glm weight of 0 is now left
+  out of the outcome model with a warning. It used to stop the run with
+  a message about collinear predictors.
+
+- A factor or character outcome, and an intervention component that is
+  not numeric, are now refused with a clear message. They used to fail
+  with an unclear error, or with a wrong message about collinear
+  predictors.
+
 - Fixed the confidence interval and the confidence set of a continuous
   outcome with fixed center or time effects. The variance was clustered
   on the centers and periods that the fixed effects already model, so
