@@ -206,6 +206,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     sens <- withCallingHandlers(
       do.call(lago_sensitivity, sens_args),
       warning = function(w) {
+        # an input warning is shown once over all the sweeps
+        once(w)
         # muffle warnings that are artifacts of scanning the goal range, not of
         # the user's chosen configuration: lago_sensitivity()'s "N run(s) failed"
         # summary; lago_optimization()'s "the specified outcome goal is <below/at

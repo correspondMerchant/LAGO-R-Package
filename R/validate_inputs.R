@@ -15,6 +15,7 @@ validate_inputs <- function(
     icc = NULL,
     power_goal_cluster_id = NULL,
     unit_costs = NULL,
+    unit_cost_doses = NULL,
     default_cost_fxn_type = "cubic",
     cost_list_of_vectors = NULL,
     glm_family = "default",
@@ -786,6 +787,29 @@ validate_inputs <- function(
         paste(supported_cost_fxn_types, collapse = ", ")
       ))
     }
+    # the dose each unit cost was measured at pins the cubic cost there
+    if (!is.null(unit_cost_doses)) {
+      if (!is.numeric(unit_cost_doses) || length(unit_cost_doses) != length(unit_costs) ||
+        any(!is.finite(unit_cost_doses))) {
+        stop(paste(
+          "unit_cost_doses must be a finite numeric vector with one dose for",
+          "each unit cost."
+        ))
+      }
+      if (any(unit_cost_doses < intervention_lower_bounds) ||
+        any(unit_cost_doses > intervention_upper_bounds)) {
+        stop(paste(
+          "Each value of unit_cost_doses must lie within the lower and upper",
+          "bounds of its intervention component."
+        ))
+      }
+    } else if (is.null(cost_list_of_vectors) && default_cost_fxn_type == "cubic") {
+      input_warning(paste(
+        "'unit_cost_doses' is not given, so the cubic cost only matches each",
+        "unit cost on average over the bounds, not at the dose it was measured",
+        "at. Give the dose each unit cost was measured at to pin the cost there."
+      ))
+    }
   }
 
   # check if cost_list_of_vectors is valid
@@ -1245,6 +1269,7 @@ validate_inputs <- function(
     intervention_upper_bounds = intervention_upper_bounds,
     outcome_goal = outcome_goal,
     unit_costs = unit_costs,
+    unit_cost_doses = unit_cost_doses,
     default_cost_fxn_type = default_cost_fxn_type,
     cost_list_of_vectors = cost_list_of_vectors,
     glm_family = glm_family,
@@ -1456,5 +1481,14 @@ input_note <- function(text) {
   message(structure(
     class = c("lago_input_note", "message", "condition"),
     list(message = paste0(text, "\n"), call = NULL)
+  ))
+}
+
+# Signal an input warning, a warning about how the inputs were read. A sweep
+# shows each one once rather than once per run, as it does an input note.
+input_warning <- function(text) {
+  warning(structure(
+    class = c("lago_input_warning", "warning", "condition"),
+    list(message = text, call = NULL)
   ))
 }

@@ -2,7 +2,8 @@ cost_fxn_calculator <- function(
     intervention_lower_bounds,
     intervention_upper_bounds,
     unit_costs,
-    default_cost_fxn_type) {
+    default_cost_fxn_type,
+    unit_cost_doses = NULL) {
   # The idea for calculating the cost function comes from Jingyu.
   #
   # Assuming we want a 3rd degree polynomial:
@@ -18,6 +19,9 @@ cost_fxn_calculator <- function(
   #
   # For the last unknown d,
   # we want integral over the range f(x)dx / range = 1
+  # or, when the dose a unit cost was measured at is given, f(dose) = unit cost.
+  # f(x) is the cost per unit at dose x, since the total cost is x f(x), so the
+  # total cost at that dose is then the measured unit cost times the dose.
   #
   # please note that this method implies that the unit cost function
   # is a polynomial of degree 3, and the total cost function is a polynomial
@@ -31,7 +35,7 @@ cost_fxn_calculator <- function(
   if (default_cost_fxn_type == "linear") {
     results <- lapply(unit_costs, function(x) c(0, x))
   } else if (default_cost_fxn_type == "cubic") {
-    compute_abcd <- function(range_min, range_max, unit_cost) {
+    compute_abcd <- function(range_min, range_max, unit_cost, dose) {
       # Percentiles for derivative constraints
       x1 <- range_min + 0 * (range_max - range_min)
       x2 <- range_min + 0.33 * (range_max - range_min) # adjust as needed
@@ -44,17 +48,25 @@ cost_fxn_calculator <- function(
 
       # Define function to compute coefficients
       solve_coefficients <- function(delta) {
+        last_row <- if (is.na(dose)) {
+          c(
+            (range_max^4 - range_min^4) / 4,
+            (range_max^3 - range_min^3) / 3,
+            (range_max^2 - range_min^2) / 2,
+            (range_max - range_min)
+          )
+        } else {
+          c(dose^3, dose^2, dose, 1)
+        }
         A <- matrix(c(
           3 * x1^2, 2 * x1, 1, 0,
           3 * x2^2, 2 * x2, 1, 0,
           3 * x3^2, 2 * x3, 1, 0,
-          (range_max^4 - range_min^4) / 4,
-          (range_max^3 - range_min^3) / 3,
-          (range_max^2 - range_min^2) / 2,
-          (range_max - range_min)
+          last_row
         ), nrow = 4, byrow = TRUE)
 
-        b_vec <- c(0, delta, 0, (range_max - range_min) * unit_cost)
+        last_value <- if (is.na(dose)) (range_max - range_min) * unit_cost else unit_cost
+        b_vec <- c(0, delta, 0, last_value)
         solve(A, b_vec)
       }
 
@@ -91,11 +103,13 @@ cost_fxn_calculator <- function(
       }
     }
 
+    if (is.null(unit_cost_doses)) unit_cost_doses <- rep(NA_real_, length(unit_costs))
     results <- mapply(
       compute_abcd,
       intervention_lower_bounds,
       intervention_upper_bounds,
       unit_costs,
+      unit_cost_doses,
       SIMPLIFY = FALSE
     )
   } else {

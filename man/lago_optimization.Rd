@@ -21,6 +21,7 @@ lago_optimization(
   icc = NULL,
   power_goal_cluster_id = NULL,
   unit_costs = NULL,
+  unit_cost_doses = NULL,
   default_cost_fxn_type = "cubic",
   cost_list_of_vectors = NULL,
   glm_family = "default",
@@ -144,6 +145,14 @@ Default value without user specification: NULL.}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each
 intervention component.
+Default value without user specification: NULL.}
+
+\item{unit_cost_doses}{A numeric vector or NULL. The dose of each
+intervention component at which its unit cost in `unit_costs` was measured,
+one per unit cost and within the bounds. The cubic cost is then pinned there,
+so the cost per unit at that dose is the unit cost. Without it the cubic cost
+only matches each unit cost on average over the bounds, and a warning says
+so. The linear cost is the unit cost at every dose, so it does not use this.
 Default value without user specification: NULL.}
 
 \item{default_cost_fxn_type}{A character string. Specifies the shape of the
