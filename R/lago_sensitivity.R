@@ -193,9 +193,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
         "of the package, or pass the lago_optimization() arguments directly."
       ))
     }
-    overrides <- list(...)
-    dots <- stored
-    for (nm in names(overrides)) dots[[nm]] <- overrides[[nm]]
+    dots <- merge_call_args(stored, list(...))
   } else {
     dots <- list(...)
   }
@@ -571,6 +569,27 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
     ) +
     ggplot2::theme_minimal(base_size = 14)
   p
+}
+
+# The stored call arguments of a result with the overrides applied. An override
+# of the unit cost settings drops a stored cost_list_of_vectors, which
+# lago_optimization() would otherwise use in their place. A result from version
+# 1.1.0 or older, which has no unit_cost_doses argument, stored FALSE for
+# include_center_effects as its default, which center level data turned into
+# TRUE. That FALSE is read as the default, so it is resolved again for the data.
+merge_call_args <- function(stored, overrides) {
+  merged <- stored
+  older <- !"unit_cost_doses" %in% names(stored)
+  if (older && identical(stored$include_center_effects, FALSE)) {
+    merged["include_center_effects"] <- list(NULL)
+  }
+  for (nm in names(overrides)) merged[[nm]] <- overrides[[nm]]
+  unit_settings <- c("unit_costs", "default_cost_fxn_type", "unit_cost_doses")
+  if (any(unit_settings %in% names(overrides)) &&
+    !"cost_list_of_vectors" %in% names(overrides) && !is.null(merged$unit_costs)) {
+    merged$cost_list_of_vectors <- NULL
+  }
+  merged
 }
 
 # Return a handler that shows each distinct input note or input warning once

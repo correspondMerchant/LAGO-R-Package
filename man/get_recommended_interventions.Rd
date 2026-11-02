@@ -32,7 +32,8 @@ get_recommended_interventions(
   icc = NULL,
   power_goal_cluster_id = NULL,
   aliased_coef_names = character(0),
-  input_data_structure = "individual_level"
+  input_data_structure = "individual_level",
+  row_weights = NULL
 )
 }
 \arguments{
@@ -159,6 +160,10 @@ outcome at all, since the two need opposite advice.}
 \item{input_data_structure}{A character string, "individual_level" or
 "center_level". For center level data the power goal counts each row's
 center_sample_size patients.}
+
+\item{row_weights}{A numeric vector or NULL. The glm() weights of the rows,
+used to average the stage-1 intervention the shrinking method shrinks
+towards. Center level data uses center_sample_size instead.}
 }
 \value{
 List(

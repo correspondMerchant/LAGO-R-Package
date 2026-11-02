@@ -218,9 +218,10 @@ get_power_desired_outcome <- function(
       # (calculated_ncp - desired_ncp)
       pos_diff_idx <- which(ncp_diffs >= 0)
 
-      ctl_percentage <- sum(ctl_data_stage1$.lago_events) / sum(ctl_data_stage1$.lago_row_size)
-      pos_grid_for_expit_part <- grid_for_expit_part[pos_diff_idx]
-      found <- (pos_grid_for_expit_part[pos_grid_for_expit_part > ctl_percentage])[1]
+      # the grid starts at the planned control rate, and get_ncp_diff() counts
+      # only outcomes above the control arm, so the first point with the power
+      # is the goal, even below the stage-1 control rate
+      found <- grid_for_expit_part[pos_diff_idx][1]
       if (is.na(found)) {
         # no attainable outcome reaches the required power
         warn_power_goal_unreachable()

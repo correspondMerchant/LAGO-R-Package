@@ -194,7 +194,8 @@ test_that("data with a single center is refused clearly", {
     error = conditionMessage
   )
   expect_match(err, "the data has only the center 'c1'")
-  expect_no_match(err, "include_center_effects = FALSE")
+  # center level data can now be fitted without center effects too
+  expect_match(err, "include_center_effects = FALSE", fixed = TRUE)
 })
 
 test_that("an na.action that keeps missing rows still gets a clear refusal", {

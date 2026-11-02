@@ -58,16 +58,11 @@ outcome_model_fitting <- function(
       "least two ", term, "s"
     )
   }
-  # center level data always fits center effects, so turning them off is no remedy
   turn_off <- function(term) {
-    if (term == "center" && input_data_structure == "center_level") {
-      ""
-    } else {
-      paste0(
-        ", or set include_", if (term == "center") "center" else "time",
-        "_effects = FALSE"
-      )
-    }
+    paste0(
+      ", or set include_", if (term == "center") "center" else "time",
+      "_effects = FALSE"
+    )
   }
   no_usable_row <- paste0(
     "No row has every model variable and its glm weight (center_sample_size ",

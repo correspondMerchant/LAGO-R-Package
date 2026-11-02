@@ -32,7 +32,7 @@ validate_inputs <- function(
     optimization_grid_search_step_size = NULL,
     confidence_set_grid_step_size = NULL,
     include_confidence_set = TRUE,
-    include_center_effects = FALSE,
+    include_center_effects = NULL,
     center_effects_optimization_values = NULL,
     include_time_effects = FALSE,
     include_interaction_terms = FALSE,
@@ -137,6 +137,13 @@ validate_inputs <- function(
     stop(sprintf(
       "The following required columns are missing: %s",
       paste(missing_columns, collapse = ", ")
+    ))
+  }
+  # center level data is fitted on its proportion column, so the outcome must be it
+  if (input_data_structure == "center_level" && !identical(outcome_name, "proportion")) {
+    stop(paste0(
+      "For center level data the outcome is the 'proportion' column, so ",
+      "outcome_name must be \"proportion\", not \"", outcome_name, "\"."
     ))
   }
 
@@ -301,13 +308,15 @@ validate_inputs <- function(
     }
   }
 
-  # check whether the include_center_effects indicator is boolean
-  if (!is.logical(include_center_effects)) {
-    stop("The include_center_effects indicator must be a boolean.")
+  # if include_center_effects is not specified, set the default value: TRUE
+  # for center level data, FALSE otherwise. A value the user gave is kept.
+  if (is.null(include_center_effects)) {
+    include_center_effects <- input_data_structure == "center_level"
   }
-  # if include_center_effects is not specified, set the default value
-  if (input_data_structure == "center_level" && !include_center_effects) {
-    include_center_effects <- TRUE
+  # check whether the include_center_effects indicator is boolean
+  if (!is.logical(include_center_effects) || length(include_center_effects) != 1 ||
+    is.na(include_center_effects)) {
+    stop("The include_center_effects indicator must be a boolean.")
   }
 
   # check whether center_characteristics and center effects are both included
@@ -333,10 +342,8 @@ validate_inputs <- function(
     if (all(is.na(data$center))) {
       stop(paste0(
         "Fixed center effects need at least two centers, but the data has no ",
-        "observed center. Fill in the center column",
-        if (input_data_structure != "center_level") {
-          ", or set include_center_effects = FALSE"
-        }, "."
+        "observed center. Fill in the center column, or set ",
+        "include_center_effects = FALSE."
       ))
     }
     # if "center" column of the input data is not a factor,
@@ -1086,6 +1093,10 @@ validate_inputs <- function(
         "search algorithm in the confidence set calculation",
         "must be the same as the length of 'main_components'."
       ))
+    }
+    if (any(!is.finite(confidence_set_grid_step_size)) ||
+      any(confidence_set_grid_step_size <= 0)) {
+      stop("confidence_set_grid_step_size must be finite and positive.")
     }
   }
 

@@ -144,8 +144,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
         "of the package, or pass the lago_optimization() arguments directly."
       ))
     }
-    base <- stored
-    for (nm in names(dots)) base[[nm]] <- dots[[nm]]
+    base <- merge_call_args(stored, dots)
   } else {
     base <- dots
   }
@@ -302,10 +301,32 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   }
   # the span doubles with each extension, so 30 covers about 1e9 times the range
   extensions <- 0L
-  while (extreme_ok_afford(fr) && extensions < 30L) {
+  # a binary goal cannot pass 0 or 1, so the search stops once the improving
+  # most reached goal is at that limit, as on the identity link it can be
+  at_limit <- function(df) {
+    if (!identical(outcome_type, "binary")) {
+      return(FALSE)
+    }
+    g <- if (maximize) max(df$outcome_goal) else min(df$outcome_goal)
+    est <- df$est_outcome[df$outcome_goal == g][1]
+    gap <- if (maximize) 1 - g else g
+    gap < 1e-6 || (maximize && isTRUE(est >= 1)) || (!maximize && isTRUE(est <= 0))
+  }
+  while (extreme_ok_afford(fr) && !at_limit(fr) && extensions < 30L) {
     span <- diff(range(fr$outcome_goal))
     if (!is.finite(span) || span <= 0) span <- abs(fr$outcome_goal[1]) + 1
-    if (maximize) {
+    if (identical(outcome_type, "binary")) {
+      # a probability cannot pass 0 or 1, so the new goals fill the gap
+      # towards it, strictly inside
+      inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
+      new_goals <- if (maximize) {
+        g0 <- max(fr$outcome_goal)
+        g0 + (1 - g0) * inside
+      } else {
+        g0 <- min(fr$outcome_goal)
+        g0 * inside
+      }
+    } else if (maximize) {
       g0 <- max(fr$outcome_goal)
       new_goals <- seq(g0, g0 + span, length.out = n_grid + 1L)[-1]
     } else {
@@ -317,7 +338,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     rownames(fr) <- NULL
     extensions <- extensions + 1L
   }
-  if (extreme_ok_afford(fr)) {
+  if (extreme_ok_afford(fr) && !at_limit(fr)) {
     warning(paste(
       "The goal grid was extended 30 times and its best goal is still reached",
       "and affordable, so a better affordable outcome may exist. Check the",
@@ -338,7 +359,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     best <- if (maximize) max(df$est_outcome[aff]) else min(df$est_outcome[aff])
     # goals that tie on the outcome all return the same intervention, so take
     # the furthest one in the improving direction, where the refinement belongs
-    tied <- aff[df$est_outcome[aff] == best]
+    # within rounding, since the solver's last digits differ from goal to goal
+    tied <- aff[abs(df$est_outcome[aff] - best) <= 1e-9 * max(1, abs(best))]
     tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
   }
 

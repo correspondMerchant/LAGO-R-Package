@@ -1,5 +1,27 @@
 # LAGOtrials 1.1.0
 
+* Center level data now keeps an explicit `include_center_effects = FALSE`. It used to fit center effects anyway with no message, since the argument could not tell FALSE from not given. Its default is now `NULL`, which means TRUE for center level data and FALSE otherwise. Center level data also refuses an `outcome_name` other than `"proportion"`, the column it is fitted on, instead of fitting `proportion` while other parts read the named column.
+
+* Fixed the shrinking method for center level data and weighted data. The stage-1 intervention it shrinks towards was the plain mean of the rows, so an unreachable goal gave a different recommendation than the same patients one row each. It is now weighted by `center_sample_size`, or by the `glm()` weights.
+
+* The confidence set grid now includes each upper bound, as the optimizer grid already did. When the step did not divide the range, the set could miss the corner where the recommendation sits and come back empty. `confidence_set_grid_step_size` must now be finite and positive.
+
+* Fixed the numerical optimizer giving a costlier recommendation when an intervention component is in large units. A restart that ended a hair outside a bound was left out, so a point on the bound was lost, and the solver's fixed tolerances could stop a wide component early. A restart within 1e-8 of a bound now counts as inside it, and a last start is solved in each component's share of its range. Results that were already right are unchanged.
+
+* Fixed the unconditional power goal being held above the stage-1 control rate, which overstated it when the planned control rate, for example at low center characteristic values, was lower.
+
+* Overriding `unit_costs`, `default_cost_fxn_type` or `unit_cost_doses` in `lago_sensitivity()` or `lago_budget()` on a stored result now replaces the stored `cost_list_of_vectors`. The stored list used to stay in place and win.
+
+* Fixed binary `lago_budget()` never trying goals near 0 or 1, so a rare outcome could get a much worse result than the budget buys. The goal grid now extends towards 0 and 1 without passing them.
+
+* The default cubic cost no longer fails for a component held at one dose (equal bounds), which now gets the linear cost, or for narrow bounds far from 0, such as 1000 to 1100. Bounds so far from 0 for their width that the cubic cannot be computed accurately are refused with a clear message.
+
+* The printed cost IQR keeps 3 significant digits for a cost below 1, so a cost in small units no longer shows as 0 - 0.
+
+* A continuous outcome with a family other than gaussian on the identity link, such as quasibinomial, now uses the variance `glm()` reports, which weighs the rows by the family's variance function. Its intervals used to ignore that function.
+
+* The MCP server's `optimize` and `sensitivity` tools now take the next-stage size, `power_goal_approach`, `icc` and `power_goal_cluster_id`, so a power goal can be run through them.
+
 * Fixed the unconditional power goal counting significance in the harmful direction. Its test statistic was squared, so an outcome at which the next stage would show that the intervention is worse also met the power goal. When the treatment arm started below control it could return such a goal, which has almost no power to show benefit, or NA. Only outcomes that show benefit now count.
 
 * Fixed a conditional power goal that cannot be reached silently becoming an outcome goal of 0, which recommended no intervention. Both approaches now warn that the power goal cannot be reached and set the power-implied goal to 1, so the shrinking method is used. The warning no longer blames `icc` when `icc` is 0 or not given.

@@ -25,10 +25,11 @@
 # reports. Showing 5 significant figures keeps the value stable regardless of
 # the magnitude of the caller's cost units while staying precise enough for a
 # cost. The confidence-set costs are evaluated at exact grid points, so their
-# IQR stays on round(., 2).
+# IQR stays on round(., 2), with 3 significant digits for a cost below 1 so a
+# cost in small units does not show as 0.
 .lago_fmt_cost <- function(v) signif(v, 5)
 
-.lago_fmt_cost_range <- function(v) round(v, 2)
+.lago_fmt_cost_range <- function(v) ifelse(abs(v) >= 1 | v == 0, round(v, 2), signif(v, 3))
 
 .lago_fmt_pval <- function(p, digits = 4) signif(p, digits)
 

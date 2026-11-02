@@ -38,7 +38,7 @@ lago_optimization(
   optimization_grid_search_step_size = NULL,
   confidence_set_grid_step_size = NULL,
   include_confidence_set = TRUE,
-  include_center_effects = FALSE,
+  include_center_effects = NULL,
   center_effects_optimization_values = NULL,
   include_time_effects = FALSE,
   include_interaction_terms = FALSE,
@@ -291,8 +291,8 @@ ordered factor is converted to an unordered one, so each center gets its own
 effect, and at least two centers need a row the outcome model can use.
 Note, include_center_effects and center_characteristics cannot be used
 together at the same time.
-Default value without user specification: FALSE for individual level data,
-TRUE for center level data.}
+Default value without user specification (NULL): FALSE for individual level
+data, TRUE for center level data.}
 
 \item{center_effects_optimization_values}{A character string. The name of
 the center of interest (one of the values of the 'center' column) that will

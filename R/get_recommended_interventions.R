@@ -274,11 +274,14 @@ select_restart_within_bounds <- function(restart_points,
                                          lower_bounds,
                                          upper_bounds,
                                          cost_fun) {
+  # solnl() can land a hair outside a bound, so a point within 1e-8 of the range
+  # counts as inside and is moved onto the bound below
+  slack <- 1e-8 * pmax(upper_bounds - lower_bounds, 1)
   in_box <- apply(
     restart_points, 2,
     function(x) {
-      all(x >= lower_bounds) &&
-        all(x <= upper_bounds)
+      all(x >= lower_bounds - slack) &&
+        all(x <= upper_bounds + slack)
     }
   )
   valid_indices <- which(!is.na(costs) & in_box)
@@ -401,6 +404,9 @@ select_restart_within_bounds <- function(restart_points,
 #' @param input_data_structure A character string, "individual_level" or
 #' "center_level". For center level data the power goal counts each row's
 #' center_sample_size patients.
+#' @param row_weights A numeric vector or NULL. The glm() weights of the rows,
+#' used to average the stage-1 intervention the shrinking method shrinks
+#' towards. Center level data uses center_sample_size instead.
 #'
 #' @return List(
 #' est_rec_int = recommended interventions,
@@ -445,7 +451,8 @@ get_recommended_interventions <- function(
     icc = NULL,
     power_goal_cluster_id = NULL,
     aliased_coef_names = character(0),
-    input_data_structure = "individual_level") {
+    input_data_structure = "individual_level",
+    row_weights = NULL) {
   # check if power goal is null, if not, calculate the desired outcome
   # value needed to achieve the power goal
   if (!is.null(power_goal)) {
@@ -515,11 +522,23 @@ get_recommended_interventions <- function(
     }
     # drop = FALSE keeps a one-column selection as a data.frame; without it,
     # data[, single_col] collapses to a vector and colMeans() errors.
-    # every row counts here, since the stage-1 intervention was delivered either way
-    observed_mean_int_values <- colMeans(
-      data[, all_components, drop = FALSE],
-      na.rm = TRUE
-    )
+    # every row counts here, since the stage-1 intervention was delivered
+    # either way, weighted as glm() weights it, so a center level row counts
+    # its center_sample_size patients
+    if (input_data_structure == "center_level") row_weights <- data$center_sample_size
+    observed_mean_int_values <- if (is.null(row_weights)) {
+      colMeans(data[, all_components, drop = FALSE], na.rm = TRUE)
+    } else {
+      vapply(all_components, function(component) {
+        x <- data[[component]]
+        ok <- !is.na(x) & !is.na(row_weights)
+        if (any(ok) && sum(row_weights[ok]) > 0) {
+          stats::weighted.mean(x[ok], row_weights[ok])
+        } else {
+          mean(x, na.rm = TRUE)
+        }
+      }, numeric(1))
+    }
     # the shrinking method shrinks TOWARDS this vector and can return it
     # unchanged, so it is a candidate recommendation and has to be one the user
     # could actually implement, i.e. inside the bounds they gave. The observed
@@ -828,7 +847,28 @@ get_recommended_interventions <- function(
       max_achievable_outcome <- results[max_position]
       max_point <- results_int_components[, max_position]
       # the diagonal restarts can stop at a saddle point, so the corners are
-      # tried too, and one is kept only when it reaches a clearly higher outcome
+      # tried too, and one is kept only when it reaches a clearly higher
+      # outcome. The last start, from the best point in each component's share
+      # of its range, guards against a component in large units stopping early.
+      span <- ifelse(up > lo, up - lo, 1)
+      to_x <- function(t) lo + t * span
+      scaled_max <- tryCatch(
+        NlcOptim::solnl(
+          X = (max_point - lo) / span,
+          objfun = function(t) obj_fun_for_max_outcome(to_x(t)),
+          lb = rep(0, length(lo)), ub = (up - lo) / span, maxIter = 100
+        ),
+        error = function(e) NULL
+      )
+      if (!is.null(scaled_max) && all(is.finite(scaled_max$par))) {
+        x <- pmin(pmax(to_x(scaled_max$par), lo), up)
+        outcome <- -obj_fun_for_max_outcome(x)
+        if (is.finite(outcome) &&
+          outcome > max_achievable_outcome + 1e-8 * max(1, abs(max_achievable_outcome))) {
+          max_achievable_outcome <- outcome
+          max_point <- x
+        }
+      }
       for (start in off_diagonal_starts(lo, up)) {
         result <- tryCatch(
           # few iterations, since a start that stalls at a corner is not worth the time
@@ -971,6 +1011,34 @@ get_recommended_interventions <- function(
             results_int_components <- cbind(results_int_components, result$par)
             cost_results <- c(cost_results, cost)
             best_cost <- cost
+          }
+        }
+        # solnl()'s tolerances are absolute in x, so a component in large units
+        # can stop early. A last start from the best point, solved in each
+        # component's share of its range, is kept by the same rules.
+        if (is.finite(best_cost)) {
+          span <- ifelse(up > lo, up - lo, 1)
+          to_x <- function(t) lo + t * span
+          best_point <- results_int_components[, which(cost_results == best_cost)[1]]
+          scaled <- tryCatch(
+            NlcOptim::solnl(
+              X = (best_point - lo) / span,
+              objfun = function(t) cost_obj_fun_scaled(to_x(t)),
+              confun = function(t) constraint_fun(to_x(t)),
+              lb = rep(0, length(lo)), ub = (up - lo) / span
+            ),
+            error = function(e) NULL
+          )
+          if (!is.null(scaled) && all(is.finite(scaled$par))) {
+            x <- pmin(pmax(to_x(scaled$par), lo), up)
+            cost <- cost_obj_fun(x)
+            clearly_cheaper <- cost < best_cost - 1e-3 * abs(best_cost)
+            if (reaches_goal(x) && (clearly_cheaper || reaches_goal(x, strict_tol)) &&
+              cost < best_cost - 1e-6 * abs(best_cost)) {
+              results_int_components <- cbind(results_int_components, x)
+              cost_results <- c(cost_results, cost)
+              best_cost <- cost
+            }
           }
         }
         if (!is.finite(best_cost)) {

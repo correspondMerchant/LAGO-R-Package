@@ -31,7 +31,7 @@ fit_bb_model <- function(predictors) {
 }
 
 # get_confidence_set() over the bundled BB_data at a coarse grid (40 x 5 in
-# steps of 5 and 1, so 40 grid interventions), which is what keeps these cheap.
+# steps of 5 and 1, so 45 grid interventions with the upper bound), which is what keeps these cheap.
 # Arguments passed through ... REPLACE the defaults below rather than being
 # passed alongside them, so a test can drop the center characteristic or ask for
 # another link without get_confidence_set() seeing the argument twice.
@@ -99,14 +99,13 @@ test_that("get_confidence_set() pairs coefficients with predictors by name, not 
     )
   }
   # and the shared answer is a real confidence set, not six copies of a
-  # degenerate one: 3 of the 40 grid interventions qualify, and the interval at
-  # the recommended intervention covers the outcome goal of 0.85.
-  # The row count is asserted alongside the size because the size alone cannot
-  # tell the two formulas apart here: the old (n - 1) / (N - 1) over 4
-  # qualifying rows of a grid it had widened to 41 also gives 0.075, from a
-  # genuinely different set. The count separates 3 from 4.
-  expect_equal(results[[1]]$confidence_set_size_percentage, 3 / 40)
-  expect_equal(nrow(results[[1]]$cs), 3)
+  # degenerate one: 4 of the 45 grid interventions qualify (the grid includes
+  # the upper bound 40 of coaching_updt), and the interval at the recommended
+  # intervention covers the outcome goal of 0.85.
+  # The row count is asserted alongside the size, so the size is read over the
+  # right set of rows.
+  expect_equal(results[[1]]$confidence_set_size_percentage, 4 / 45)
+  expect_equal(nrow(results[[1]]$cs), 4)
   expect_equal(
     results[[1]]$rec_int_ci,
     c(lower = 0.802, upper = 0.898),
@@ -370,8 +369,8 @@ test_that("two-level character and factor additional_covariates are found by coe
       cts_beta[["launch_duration"]] * cts_factor$rec_int[2],
     tolerance = 1e-10
   )
-  # 7 of the 40 grid interventions qualify. The wrong dummy reported 4.
-  expect_equal(cts_factor$confidence_set_size_percentage, 7 / 40)
+  # 7 of the 45 grid interventions qualify. The wrong dummy reported fewer.
+  expect_equal(cts_factor$confidence_set_size_percentage, 7 / 45)
   expect_equal(
     cts_factor$est_outcome_ci, c(lower = 0.484, upper = 0.516),
     tolerance = 1e-3
@@ -433,7 +432,7 @@ test_that("a factor additional_covariate with more than two levels is assembled 
   # meets it exactly
   expect_equal(as_factor$est_outcome_goal, 0.85, tolerance = 1e-6)
   expect_equal(as_factor$rec_int, c(1, 2.944728), tolerance = 1e-5)
-  expect_equal(as_factor$confidence_set_size_percentage, 0.25)
+  expect_equal(as_factor$confidence_set_size_percentage, 12 / 45)
 
   # the factor and its own two dummy columns are the same model
   expect_equal(as_dummies$rec_int, as_factor$rec_int)
@@ -514,7 +513,7 @@ test_that("a factor center_characteristic is found by its level-named coefficien
   # the confidence set is computed for ONE center, so every row carries the
   # same characteristic value
   expect_equal(unique(reachable$cs$vol_hi), 1)
-  expect_equal(reachable$confidence_set_size_percentage, 0.25)
+  expect_equal(reachable$confidence_set_size_percentage, 12 / 45)
 })
 
 

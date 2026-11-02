@@ -293,12 +293,17 @@ get_confidence_set <- function(
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
+  # each grid includes its upper bound, even when the step does not divide the
+  # range, as the optimizer's grid does
   for (i in seq_along(intervention_lower_bounds)) {
-    sequences[[i]] <- seq(
+    grid <- seq(
       from = intervention_lower_bounds[i],
       to = intervention_upper_bounds[i],
       by = confidence_set_grid_step_size[i]
     )
+    up <- intervention_upper_bounds[i]
+    if (up - grid[length(grid)] > 1e-8 * max(1, abs(up))) grid <- c(grid, up)
+    sequences[[i]] <- grid
   }
   # expand grid
   grid_x <- expand.grid(sequences)
