@@ -172,6 +172,21 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       "`object` or `...`) to run a budget search."
     ))
   }
+  # each component gets a column of the search table, next to these fixed ones
+  components <- if (isTRUE(base$include_interaction_terms) && !is.null(base$main_components)) {
+    base$main_components
+  } else {
+    base$intervention_components
+  }
+  reserved <- c("outcome_goal", "rec_int_cost", "est_outcome", "status", "reached", "affordable")
+  clashing <- intersect(gsub("`", "", components), reserved)
+  if (length(clashing) > 0) {
+    stop(paste0(
+      "The intervention component(s) ", paste0("'", clashing, "'", collapse = ", "),
+      " have the name of a column lago_budget() uses in its search (",
+      paste(reserved, collapse = ", "), "). Rename them in the data."
+    ))
+  }
   if (!outcome_name %in% names(data)) {
     stop(sprintf("`outcome_name` \"%s\" is not a column of `data`.", outcome_name))
   }
@@ -239,10 +254,17 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     # only goals the recommendation actually meets as `reached` (est reaches the
     # goal, up to a tolerance; overshoot from the grid counts as reached).
     tol <- 1e-6 * pmax(1, abs(sens$value))
+    # with a power goal a run targets the higher power implied goal, so it
+    # reaches its goal only when it meets that one
+    target <- sens$value
+    effective <- attr(sens, "effective_outcome_goal")
+    if (maximize && length(effective) == length(target)) {
+      target <- ifelse(is.na(effective), target, pmax(target, effective))
+    }
     reached <- ok & (if (maximize) {
-      sens$est_outcome_goal >= sens$value - tol
+      sens$est_outcome_goal >= target - tol
     } else {
-      sens$est_outcome_goal <= sens$value + tol
+      sens$est_outcome_goal <= target + tol
     })
     data.frame(
       outcome_goal = sens$value,
@@ -390,8 +412,12 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     } else if (n_reachable == 0L) {
       warning(paste(
         "No outcome goal in the searched range was reachable, so no",
-        "budget-constrained recommendation could be made. Check the model,",
-        "bounds and outcome type."
+        "budget-constrained recommendation could be made.",
+        if (!is.null(base$power_goal)) {
+          "Every run also has to reach the outcome the power goal implies, so check the power goal and the next-stage size, as well as the model and bounds."
+        } else {
+          "Check the model, bounds and outcome type."
+        }
       ), call. = FALSE)
     } else {
       warning(sprintf(paste(
@@ -459,9 +485,16 @@ print.lago_budget <- function(x, ...) {
     return(invisible(x))
   }
   if (!x$feasible) {
-    cli::cli_alert_warning(
-      "No reachable intervention fits this budget; increase the budget."
-    )
+    # the frontier holds the reached goals, so it is empty when none was reached
+    if (NROW(x$frontier) == 0L) {
+      cli::cli_alert_warning(
+        "No outcome goal in the searched range was reachable, so no budget would help."
+      )
+    } else {
+      cli::cli_alert_warning(
+        "No reachable intervention fits this budget; increase the budget."
+      )
+    }
     return(invisible(x))
   }
 
@@ -476,9 +509,10 @@ print.lago_budget <- function(x, ...) {
   cli::cli_text("Cost: {.val {x$rec_int_cost}} (of {.val {x$budget}}).")
   cli::cli_text("Estimated outcome: {.val {x$est_outcome}}.")
   if (!x$binding) {
-    cli::cli_alert_info(paste(
-      "The budget did not bind: the whole reachable outcome range fits it,",
-      "so this is the maximum reachable outcome."
+    best <- if (identical(x$intention, "minimize")) "minimum" else "maximum"
+    cli::cli_alert_info(paste0(
+      "The budget did not bind: the whole reachable outcome range fits it, ",
+      "so this is the ", best, " reachable outcome."
     ))
   }
   invisible(x)

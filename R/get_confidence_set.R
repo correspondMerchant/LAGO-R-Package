@@ -75,9 +75,9 @@
 #' center_characteristics.
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
-#' @param cluster_id A list or NULL. Specifies the columns of data that will be
-#' used as clustering effects when the "outcome_type" is continuous, with one
-#' entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
+#' @param cluster_id A list of one or two vectors, a single vector, or NULL.
+#' Specifies the columns of data that will be used as clustering effects when
+#' the "outcome_type" is continuous, with one entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
 #' center and time effects already model the centers and periods.
 #' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
 #' used in the LAGO optimization.
@@ -646,9 +646,8 @@ get_confidence_set <- function(
     # link below. Computed once so the two link branches can differ ONLY in
     # that map, the way get_outcome() is written.
     linear_predictor <- new_data %*% model_coefs
-    se_linear_predictor <- sqrt(
-      diag((new_data) %*% model_vcov %*% t(new_data))
-    )
+    # the diagonal of X V X' without forming that n by n matrix
+    se_linear_predictor <- sqrt(rowSums((new_data %*% model_vcov) * new_data))
 
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links(). Both this and the
@@ -931,11 +930,16 @@ get_confidence_set <- function(
       # one-way and the two-way paths pass through. The non-clustered path has
       # no cluster_id and is not reached (cluster_ids is NULL there).
       if (!is.null(cluster_ids)) {
-        cluster_vectors <- if (is.list(cluster_ids)) {
-          cluster_ids
-        } else {
-          list(cluster_ids)
+        # one clustering vector may be given on its own, and at most two are
+        # supported
+        if (!is.list(cluster_ids)) cluster_ids <- list(cluster_ids)
+        if (length(cluster_ids) > 2) {
+          stop(paste0(
+            "cluster_id can hold at most two clustering vectors, but it has ",
+            length(cluster_ids), "."
+          ))
         }
+        cluster_vectors <- cluster_ids
         for (cid in cluster_vectors) {
           if (anyNA(cid)) {
             stop(paste0(
@@ -1200,8 +1204,8 @@ get_confidence_set <- function(
   # rec_int inside the confidence set. NULL when it could not be computed.
   rec_int_ci <- if (valid_rows[1]) {
     c(
-      lower = round(unname(reported_ci_prob_all[1, 1]), 3),
-      upper = round(unname(reported_ci_prob_all[1, 2]), 3)
+      lower = round_interval_bound(unname(reported_ci_prob_all[1, 1])),
+      upper = round_interval_bound(unname(reported_ci_prob_all[1, 2]))
     )
   } else {
     NULL
@@ -1273,8 +1277,8 @@ get_confidence_set <- function(
   # cs_row_indices are grid_x row numbers, and ci_prob_all is indexed by the
   # same row numbers, so the bounds line up with the cs rows they belong to.
   cs_output_names <- names(cs)
-  ci_lower_bound <- round(reported_ci_prob_all[cs_row_indices, 1], 3)
-  ci_upper_bound <- round(reported_ci_prob_all[cs_row_indices, 2], 3)
+  ci_lower_bound <- round_interval_bound(reported_ci_prob_all[cs_row_indices, 1])
+  ci_upper_bound <- round_interval_bound(reported_ci_prob_all[cs_row_indices, 2])
 
   cs <- cbind(
     cs,
@@ -1301,6 +1305,12 @@ get_confidence_set <- function(
     rec_int_ci = rec_int_ci,
     cs = cs
   ))
+}
+
+# An interval bound to 3 decimals, or to 4 significant digits when it is below
+# 0.1, so a rare outcome or one in small units keeps its digits.
+round_interval_bound <- function(x) {
+  ifelse(abs(x) >= 0.1 | !is.finite(x), round(x, 3), signif(x, 4))
 }
 
 # the coefficient names glm() gave each term of a fitted model, as a list whose

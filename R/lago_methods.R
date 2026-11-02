@@ -70,7 +70,9 @@
   # here (gated on the field) so it still appears when the field is present but
   # no confidence set was found (cs NULL).
   cli::cli_h3("{accent('Confidence set')}")
-  if (is.null(x$confidence_set_size_percentage)) {
+  if (is.null(x$confidence_set_size_percentage) && isTRUE(x$shrinking_method_used)) {
+    cli::cli_text("Not computed: the goal could not be reached, so the shrinking method was used and no confidence set is computed.")
+  } else if (is.null(x$confidence_set_size_percentage)) {
     # confidence set was not requested (include_confidence_set = FALSE).
     cli::cli_text(
       "Not computed (set include_confidence_set = TRUE to compute it)."
@@ -237,8 +239,16 @@ summary.lago <- function(object, ...) {
 plot.lago <- function(x, ...) {
   if (is.null(x$cs)) {
     message(
-      "No confidence set to plot. Re-run lago_optimization() with ",
-      "include_confidence_set = TRUE."
+      if (isTRUE(x$shrinking_method_used)) {
+        "No confidence set to plot: the goal could not be reached, so the shrinking method was used and no confidence set is computed."
+      } else if (!is.null(x$confidence_set_size_percentage)) {
+        "No confidence set to plot: no grid point is in the confidence set."
+      } else {
+        paste(
+          "No confidence set to plot. Re-run lago_optimization() with",
+          "include_confidence_set = TRUE."
+        )
+      }
     )
     return(invisible(NULL))
   }

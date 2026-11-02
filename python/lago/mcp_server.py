@@ -163,7 +163,9 @@ def optimize(
 
     Returns a JSON dict with `rec_int` (the recommended value per component),
     `rec_int_cost` (its cost), `est_outcome_goal` (the estimated outcome at the
-    recommendation), and, when a confidence set is computed, `est_outcome_ci`
+    recommendation), `shrinking_method_used` (True when the goal could not be
+    reached, in which case no confidence set is computed), and, when a
+    confidence set is computed, `est_outcome_ci`
     (lower/upper), `confidence_set_size_percentage`, and `confidence_set` (the
     confidence-set rows). On a bad input or optimization error it returns
     `{"error": "..."}` with a short message instead of raising.
@@ -200,6 +202,8 @@ def optimize(
             "rec_int": [_finite(v) for v in res["rec_int"]],
             "rec_int_cost": _finite(res["rec_int_cost"]),
             "est_outcome_goal": _finite(res["est_outcome_goal"]),
+            # True when the goal could not be reached, so no confidence set
+            "shrinking_method_used": bool(res.get("shrinking_method_used", False)),
         }
         ci = res.get("est_outcome_ci")
         if isinstance(ci, dict):

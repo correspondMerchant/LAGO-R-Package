@@ -1,5 +1,35 @@
 # LAGOtrials 1.1.0
 
+* Fixed the unconditional power goal counting significance in the harmful direction. Its test statistic was squared, so an outcome at which the next stage would show that the intervention is worse also met the power goal. When the treatment arm started below control it could return such a goal, which has almost no power to show benefit, or NA. Only outcomes that show benefit now count.
+
+* Fixed a conditional power goal that cannot be reached silently becoming an outcome goal of 0, which recommended no intervention. Both approaches now warn that the power goal cannot be reached and set the power-implied goal to 1, so the shrinking method is used. The warning no longer blames `icc` when `icc` is 0 or not given.
+
+* Fixed `lago_budget()` with a power goal counting a run as reached when it was shrunk because the power-implied goal could not be reached. It then called a shrunk point the maximum reachable outcome. Such runs are now not reached, and the warning names the power goal.
+
+* Fixed the shrinking method losing precision when an intervention component is in large units. Its search for the needed coefficient stopped at an absolute width of 1e-6, so a small coefficient was found too coarsely, and at very large units the recommendation fell back to the stage-1 values. The width is now relative to the coefficient below 1, so other results are unchanged.
+
+* The interval bounds of the confidence set and of the estimated outcome now keep 4 significant digits below 0.1 rather than 3 decimals. A rare binary outcome showed intervals such as 0.002 to 0.003, and some confidence set rows showed an interval that did not contain the goal although the row was in the set. Bounds of 0.1 or more are unchanged.
+
+* Fixed the binary confidence set running out of memory with four intervention components on the default grid, since it built a matrix with one row and one column per grid point to read its diagonal.
+
+* `glm_family = "quasibinomial"` now takes the logit link by default. It used to fail with an unclear error unless `link` was given.
+
+* Column names that are not valid R names, such as names with spaces, are now refused with a clear message. They used to fail with a parse error, or could fit a different model.
+
+* Fixed `visualize_cost()` losing the small high order coefficients of a cubic cost. Its sliders report values rounded to 5 decimals, so the curve it drew and the cost list it returned and copied could cost half of the curve it set up. The app now keeps the exact values it sets, for the drawn curve too, and the copied text keeps full precision.
+
+* `lago_optimization()` now warns when both `center_weights_for_outcome_goal` and `center_effects_optimization_values` are given, since the center weights are used and the named center is ignored. It also warns that `weights` is ignored for center level data, whose rows are weighted by `center_sample_size`.
+
+* The check that the outcome goal is above or below the observed mean now weighs the rows as `glm()` does, so for center level data it uses the mean over patients rather than over rows.
+
+* `lago_sensitivity()` now refuses an intervention component named like one of its result columns (`value`, `rec_int_cost`, `est_outcome_goal`, `status`), which used to overwrite or hide it. `lago_budget()` likewise refuses a component named like a column it uses in its search (`outcome_goal`, `est_outcome`, `reached`, `affordable` and the others), which used to change its result. The printed summary of `lago_sensitivity()` now pairs each cost with its own value, so a descending sweep is no longer described backwards, and its `baseline` attribute is found for a value built with `seq()`.
+
+* When the outcome goal cannot be reached, `print()`, `summary()`, `plot()` and `lago_report()` now say that the shrinking method was used and no confidence set is computed, rather than telling the user to set `include_confidence_set = TRUE`. The result has a new field `shrinking_method_used`. `print()` of a `lago_budget()` result now says minimum for a minimize budget that does not bind.
+
+* `get_confidence_set()` now accepts a single clustering vector as `cluster_id` and refuses more than two with a clear message.
+
+* With `unit_cost_doses`, the pinned cubic cost now also does not depend on the units of the dose.
+
 * New argument `unit_cost_doses` in `lago_optimization()`: the dose each unit cost in `unit_costs` was measured at. The default cubic cost is then pinned there, so the cost per unit at that dose is the measured unit cost. Without it the cubic cost only matches each unit cost on average over the bounds, which could be far off at the measured dose, and a warning now says so. The cost is otherwise unchanged (#47).
 
 * Fixed the numerical optimizer returning a recommendation that misses the outcome goal. `NlcOptim::solnl()` can stop at a point short of the goal without an error, and that point was kept when it was the cheapest. In one example with interacting components it recommended a point whose estimated outcome was 4.92 against a goal of 9.5. A restart that does not reach the goal is now left out. The optimizer also starts from the point of the highest outcome, and uses that point itself when no restart reaches the goal.

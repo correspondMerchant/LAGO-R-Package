@@ -153,8 +153,8 @@ shrinking_method <- function(
 # by bisection. The search starts in [-100, 100]. A needed coefficient above
 # 100, which depends on the outcome's units, doubles the top of the bracket
 # until it holds it. A needed coefficient below -100 leaves no usable bracket
-# either way. Returns the midpoint that reaches the goal, or else the lower end
-# of the final bracket.
+# either way. The bracket is resolved to 1e-6, relative below 1. Returns the
+# midpoint that reaches the goal, or else the lower end of the final bracket.
 find_needed_coefficient <- function(effect_at, outcome_goal) {
   left <- -100
   right <- 100
@@ -162,7 +162,9 @@ find_needed_coefficient <- function(effect_at, outcome_goal) {
     if (effect_at(right) >= outcome_goal) break
     right <- right * 2
   }
-  while (abs(right - left) > 1e-6) {
+  # the bracket is resolved to 1e-6, or relative to the coefficient when it is
+  # small, so a component in large units keeps its precision
+  while (abs(right - left) > 1e-6 * min(1, max(abs(left), abs(right)))) {
     mid <- (left + right) / 2
     # at a very large scale the bracket can stop shrinking before 1e-6
     if (mid <= left || mid >= right) break

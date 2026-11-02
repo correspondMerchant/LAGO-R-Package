@@ -150,7 +150,8 @@ Default value without user specification: NULL.}
 \item{unit_cost_doses}{A numeric vector or NULL. The dose of each
 intervention component at which its unit cost in `unit_costs` was measured,
 one per unit cost and within the bounds. The cubic cost is then pinned there,
-so the cost per unit at that dose is the unit cost. Without it the cubic cost
+so the cost per unit at that dose is the unit cost, and the curve does not
+depend on the units of the cost or of the dose. Without it the cubic cost
 only matches each unit cost on average over the bounds, and a warning says
 so. The linear cost is the unit cost at every dose, so it does not use this.
 Default value without user specification: NULL.}
@@ -184,7 +185,8 @@ Must be either "logit" or "identity": those are the links whose inverse the
 estimated outcome and the confidence set are computed with, so they are the
 only ones that can be reported on the outcome scale the goal is stated on.
 Default value without user specification:
-"identity" for continuous outcomes, "logit" for binary outcomes.}
+"logit" for binary outcomes and for the "quasibinomial" family, and
+"identity" otherwise.}
 
 \item{optimization_method}{A character string. Specifies the method used for
 LAGO optimization. Must be either "numerical" or "grid_search".
@@ -205,7 +207,9 @@ outcome model. Continuous confidence covariance uses the actual fitted
 prior weights as relative observation weights, with zero weights excluded
 from covariance contributions and the identity residual degrees of freedom.
 See get_confidence_set() for the covariance formulas and family limits.
-A data column named weights does not replace this argument.}
+A data column named weights does not replace this argument. For center
+level data it is ignored with a warning, since each row is weighted by its
+center_sample_size.}
 
 \item{center_characteristics}{A character vector. The names of the columns in
 the dataset that represent the center characteristics.
@@ -347,6 +351,9 @@ confidence set percentage (at level 1 - confidence_set_alpha),
 confidence set,
 overall intervention test results (test_results), a list with the test
 statistic and p-value; NULL unless a valid 'group' column is supplied.
+shrinking_method_used, TRUE when the outcome goal could not be reached and
+the shrinking method gave the recommendation, in which case no confidence set
+is computed.
 The confidence set fields are only present when include_confidence_set = TRUE.)
 The result also carries its own call arguments in the attribute
 `"lago_call_args"` (not a `$`-accessible field), so it can be passed directly

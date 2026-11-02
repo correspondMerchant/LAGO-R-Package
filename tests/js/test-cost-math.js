@@ -187,4 +187,11 @@ check("reshape keeps a fixed anchor", Math.abs(m.costAt(reshaped, axm[0]) - ys2[
 // 11. solveVandermonde returns null on a singular system (duplicated x).
 check("solveVandermonde null on duplicated x", m.solveVandermonde([1, 1, 2], [1, 2, 3]) === null);
 
+// 12. preferExact reads a rounded slider value as the exact one within half a
+// step, and a moved slider as moved.
+var exact = { value: 5e-7, step: 1e-5 };
+check("preferExact keeps the exact small value", m.preferExact(0, exact) === 5e-7);
+check("preferExact reads a moved slider as moved", m.preferExact(2e-5, exact) === 2e-5);
+check("preferExact without an exact value reads the slider", m.preferExact(0.3, undefined) === 0.3);
+
 console.log("\nAll " + passed + " JS math assertions passed.");

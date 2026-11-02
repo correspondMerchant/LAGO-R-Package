@@ -1211,7 +1211,8 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
     if (link == "logit") {
       bounds <- pmin(pmax(bounds, 0), 1)
     }
-    round(bounds, 3)
+    # 3 decimals, or 4 significant digits below 0.1
+    ifelse(abs(bounds) >= 0.1, round(bounds, 3), signif(bounds, 4))
   }
 
   for (link in c("logit", "identity")) {

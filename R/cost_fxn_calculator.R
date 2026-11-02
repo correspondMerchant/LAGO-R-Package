@@ -45,6 +45,9 @@ cost_fxn_calculator <- function(
       # cost, so restating the costs in other units only rescales the curve.
       # A unit cost of 0 then gives the zero curve at once.
       delta <- -0.8 * unit_cost # Adjustable
+      # with a measured dose the slope is also per dose unit, so the pinned
+      # curve does not depend on the units of the dose either
+      if (!is.na(dose)) delta <- delta / (range_max - range_min)
 
       # Define function to compute coefficients
       solve_coefficients <- function(delta) {

@@ -220,6 +220,8 @@ lago_blocks <- function(x) {
       level, " CI for the estimated outcome: not available (the interval at the ",
       "recommended intervention could not be computed)"
     )
+  } else if (isTRUE(x$shrinking_method_used)) {
+    paste0(level, " CI for the estimated outcome: not available (the goal could not be reached, so the shrinking method was used and no confidence set is computed)")
   } else {
     paste0(level, " CI for the estimated outcome: not available (set include_confidence_set = TRUE)")
   }

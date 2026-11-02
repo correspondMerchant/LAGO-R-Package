@@ -246,7 +246,7 @@ test_that("an infeasible design effect warns instead of silently dropping the go
       patients_per_center_in_next_stage = 8, outcome_name = "y",
       icc = 0.3, power_goal_cluster_id = "center"
     ),
-    "infeasible"
+    "power goal cannot be reached"
   )
   expect_warning(
     get_power_desired_outcome(
@@ -255,7 +255,7 @@ test_that("an infeasible design effect warns instead of silently dropping the go
       patients_per_center_in_next_stage = 8, outcome_name = "y",
       icc = 0.5, power_goal_cluster_id = "center"
     ),
-    "infeasible"
+    "power goal cannot be reached"
   )
 })
 

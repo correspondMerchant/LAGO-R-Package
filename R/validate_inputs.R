@@ -175,13 +175,21 @@ validate_inputs <- function(
   }
   # assign link based on the glm_family
   if (link == "default") {
-    if (glm_family == "binomial") {
+    # a quasibinomial outcome is a proportion, so it takes the logit link too
+    if (glm_family %in% c("binomial", "quasibinomial")) {
       link <- "logit"
     } else if (glm_family == "gaussian") {
       link <- "identity"
     }
   }
 
+  # center level rows are weighted by their center_sample_size
+  if (!is.null(weights) && input_data_structure == "center_level") {
+    input_warning(paste(
+      "'weights' is ignored for center level data, whose rows are weighted",
+      "by their center_sample_size."
+    ))
+  }
   # check if the provided weights option is numeric
   if (!is.null(weights)) {
     if (!is.numeric(weights)) {
@@ -376,6 +384,13 @@ validate_inputs <- function(
       stop(paste(
         "The length of center_weights_for_outcome_goal must match",
         "the number of unique facilities in the input data."
+      ))
+    }
+    if (!is.null(center_effects_optimization_values)) {
+      input_warning(paste(
+        "Both 'center_weights_for_outcome_goal' and",
+        "'center_effects_optimization_values' are given. The center weights",
+        "are used and the named center is ignored. Give only one of them."
       ))
     }
   } else {
@@ -669,6 +684,23 @@ validate_inputs <- function(
         "or supply observed values."
       ))
     }
+  }
+
+  # the model formula is built from these names, so each must be a valid R
+  # name. An interaction term such as a:b is quoted where it is used.
+  model_names <- unique(c(
+    outcome_name, intervention_components, main_components,
+    additional_covariates, center_characteristics
+  ))
+  model_names <- model_names[!grepl(":", model_names, fixed = TRUE)]
+  bad_names <- model_names[make.names(model_names) != model_names]
+  if (length(bad_names) > 0) {
+    stop(paste0(
+      "The column name(s) ", paste0("'", bad_names, "'", collapse = ", "),
+      " are not valid R names, so they cannot be used in the outcome model ",
+      "formula. Rename them, for example with make.names(), which gives ",
+      paste0("'", make.names(bad_names), "'", collapse = ", "), "."
+    ))
   }
 
   # check if intervention_lower_bounds and intervention_upper_bounds are both
@@ -980,27 +1012,42 @@ validate_inputs <- function(
   # when only a power goal is provided (outcome_goal is NULL), the goal is
   # always to increase the outcome to reach the desired power, so
   # lower_outcome_goal is FALSE and the intention checks are skipped.
+  # the observed mean the goal is compared with, weighted as glm() weights the
+  # rows, so center level data is averaged over patients rather than rows
+  observed_mean <- local({
+    y <- data[[outcome_name]]
+    w <- if (input_data_structure == "center_level") {
+      data$center_sample_size
+    } else if (!is.null(weights)) {
+      weights
+    } else {
+      rep(1, length(y))
+    }
+    ok <- !is.na(y) & !is.na(w)
+    m <- if (any(ok) && sum(w[ok]) > 0) stats::weighted.mean(y[ok], w[ok]) else NaN
+    if (is.finite(m)) m else mean(y, na.rm = TRUE)
+  })
   if (is.null(outcome_goal)) {
     lower_outcome_goal <- FALSE
   } else if (outcome_goal_intention == "minimize") {
     lower_outcome_goal <- TRUE
-    if (outcome_goal > mean(data[[outcome_name]], na.rm = TRUE)) {
+    if (outcome_goal > observed_mean) {
       warning(paste(
         "The specified outcome goal intention is",
         "to minimize the outcome.",
         "The observed mean of the outcome is",
-        mean(data[[outcome_name]], na.rm = TRUE),
+        observed_mean,
         "and the specified outcome goal is", outcome_goal, "."
       ))
     }
   } else {
     lower_outcome_goal <- FALSE
-    if (outcome_goal <= mean(data[[outcome_name]], na.rm = TRUE)) {
+    if (outcome_goal <= observed_mean) {
       warning(paste(
         "The specified outcome goal intention",
         "is to maximize the outcome.",
         "The observed mean of the outcome is",
-        mean(data[[outcome_name]], na.rm = TRUE),
+        observed_mean,
         "and the specified outcome goal is", outcome_goal, "."
       ))
     }

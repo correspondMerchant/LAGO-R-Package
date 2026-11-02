@@ -34,6 +34,7 @@ SCALAR_RESULT_FIELDS = frozenset({
     "outcome_goal",
     "power_goal",
     "effective_outcome_goal",
+    "shrinking_method_used",
     "outcome_name",
     "family",
     "link",

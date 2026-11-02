@@ -89,6 +89,8 @@ test_that("the confidence set keeps the precision of a cost in small units", {
 # ---- the numerical optimizer ------------------------------------------------------
 
 test_that("the numerical optimizer does not return a point short of the goal", {
+  # a deliberately hard optimization, which takes about a minute
+  skip_on_cran()
   set.seed(1)
   d <- expand.grid(x1 = 0:10, x2 = 0:10)
   d <- d[rep(seq_len(nrow(d)), 3), ]
@@ -134,6 +136,8 @@ hunt3_brute <- function(beta, cost, goal, link) {
 }
 
 test_that("restarts that stop short of the goal are left out", {
+  # a deliberately hard optimization, which takes about a minute
+  skip_on_cran()
   cases <- list(
     list(beta = c(-1.5, 0.46, 0.42, -0.097), cost = list(c(0, 1, 0), c(0, 1, 0)), goal = 0.85, link = "logit"),
     list(beta = c(0, 1, 0.98, -0.2), cost = list(c(0, 0, 1), c(0, 0, 2)), goal = 9.5, link = "identity")
@@ -147,6 +151,8 @@ test_that("restarts that stop short of the goal are left out", {
 })
 
 test_that("the highest outcome is not taken from a saddle point on the diagonal", {
+  # a deliberately hard optimization, which takes about a minute
+  skip_on_cran()
   # equal effects that cancel through the interaction: the diagonal restarts
   # stop at about 0.62, while x2 = 0 and x1 = 10 reaches 0.95
   r <- hunt3_optimize(c(-2, 0.5, 0.5, -0.1), list(c(0, 1), c(0, 1)), 0.9, "logit")

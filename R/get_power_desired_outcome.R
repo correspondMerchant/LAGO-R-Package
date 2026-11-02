@@ -115,6 +115,18 @@ get_power_desired_outcome <- function(
   ##################################
   ## unconditional power approach ##
   ##################################
+  # the power goal cannot be met by any outcome, so it is set to the
+  # unreachable 1 and the shrinking method then takes over
+  warn_power_goal_unreachable <- function() {
+    warning(paste0(
+      "The power goal cannot be reached for the given next-stage size: no ",
+      "outcome up to 1 gives the required power",
+      if (!is.null(icc) && any(icc > 0)) " with the design effect implied by 'icc'",
+      ". The power-implied outcome goal is set to 1, which cannot be reached. ",
+      "Consider a larger next stage or a lower power goal."
+    ), call. = FALSE)
+  }
+
   if (power_goal_approach == "unconditional") {
     # helper function to get the power difference
     get_power_diff <- function(ncp, alpha, df, power_goal) {
@@ -160,6 +172,10 @@ get_power_desired_outcome <- function(
       p1 <- (S1_1 + S1_2) / N1
       p0 <- (S0_1 + S0_2) / N0
       top <- p1 - p0
+      # the test must find the intervention better, not worse, than control
+      if (!is.finite(top) || top <= 0) {
+        return(-1)
+      }
       # both-stage clustered variance (unconditional, Theorem 1). At icc = 0
       # DE1 = DE2 = 1 and each term collapses to p(1-p)/N.
       bottom_part1 <- p1 * (1 - p1) * (de1_int * n1_1 + de2_int * n1_2) / N1^2
@@ -202,28 +218,15 @@ get_power_desired_outcome <- function(
       # (calculated_ncp - desired_ncp)
       pos_diff_idx <- which(ncp_diffs >= 0)
 
-      if (length(pos_diff_idx) == 0) {
-        # no grid point reaches the required ncp: the power goal is infeasible
-        # at these inputs. When a design effect is in force, say so explicitly
-        # rather than silently returning an unreachable outcome.
-        if (!is.null(icc)) {
-          warning(paste(
-            "The design effect implied by 'icc' makes the power goal",
-            "infeasible for the given next-stage size: no attainable outcome",
-            "reaches the required power. Returning an unreachable outcome",
-            "(1); consider a larger next-stage sample, a lower power goal, or",
-            "reviewing the icc."
-          ))
-        } else {
-          message("No non-negative NCP differences found in grid search.")
-        }
-        return(1)
-      }
-
       ctl_percentage <- sum(ctl_data_stage1$.lago_events) / sum(ctl_data_stage1$.lago_row_size)
       pos_grid_for_expit_part <- grid_for_expit_part[pos_diff_idx]
-
-      return((pos_grid_for_expit_part[pos_grid_for_expit_part > ctl_percentage])[1])
+      found <- (pos_grid_for_expit_part[pos_grid_for_expit_part > ctl_percentage])[1]
+      if (is.na(found)) {
+        # no attainable outcome reaches the required power
+        warn_power_goal_unreachable()
+        return(1)
+      }
+      found
     }
 
     min_ncp_solution <- get_min_req_ncp(
@@ -309,21 +312,12 @@ get_power_desired_outcome <- function(
       if (length(all_possible_expit_part_values) > 0) {
         final_expit_value <- all_possible_expit_part_values[1]
       } else {
-        # no attainable outcome satisfies the conditional-power inequality: the
-        # goal is infeasible at these inputs. Pre-icc this returned 0 silently,
-        # which drops the power goal downstream via max(0, outcome_goal). When a
-        # design effect is in force, warn explicitly instead of failing quietly.
-        if (!is.null(icc)) {
-          warning(paste(
-            "The design effect implied by 'icc' makes the power goal",
-            "infeasible for the given next-stage size under the conditional",
-            "approach: no attainable outcome satisfies the required power.",
-            "Returning 0, which does not raise the outcome goal; consider a",
-            "larger next-stage sample, a lower power goal, or reviewing the",
-            "icc."
-          ))
-        }
-        final_expit_value <- 0
+        # no attainable outcome satisfies the conditional power inequality.
+        # Returning 0 would drop the power goal downstream through
+        # max(0, outcome_goal), so the unreachable goal 1 is returned, as in the
+        # unconditional approach.
+        warn_power_goal_unreachable()
+        final_expit_value <- 1
       }
       return(final_expit_value)
     }

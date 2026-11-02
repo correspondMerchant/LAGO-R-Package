@@ -18,3 +18,4 @@
 ^skills$
 ^tools$
 ^CRAN-SUBMISSION$
+^tests/testthat/Rplots\.pdf$
