@@ -13,7 +13,7 @@
     "data", "input_data_structure", "outcome_name", "outcome_type",
     "intervention_components", "intervention_lower_bounds",
     "intervention_upper_bounds", "outcome_goal_intention",
-    "power_goal_approach", "power_goal_cluster_id", "unit_costs",
+    "power_goal_approach", "power_goal_cluster_id", "unit_costs", "unit_cost_doses",
     "default_cost_fxn_type", "cost_list_of_vectors", "glm_family", "link",
     "optimization_method", "weights", "center_characteristics",
     "center_characteristics_optimization_values", "main_components",
@@ -304,7 +304,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
     args$quiet <- quiet
 
     res <- tryCatch(
-      withCallingHandlers(do.call(lago_optimization, args), message = once),
+      withCallingHandlers(do.call(lago_optimization, args), message = once, warning = once),
       error = function(e) e
     )
     if (inherits(res, "error")) {
@@ -555,17 +555,23 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   p
 }
 
-# Return a message handler that shows each distinct input note once and hides
-# later copies of the same text. Every other message, such as a note about one
-# run's power goal or the cli progress lines, is shown for every run.
+# Return a handler that shows each distinct input note or input warning once
+# and hides later copies of the same text. Every other condition, such as a note
+# about one run's power goal or the cli progress lines, is shown for every run.
 show_each_input_note_once <- function() {
   seen <- character(0)
   function(m) {
-    if (!inherits(m, "lago_input_note")) {
+    if (!inherits(m, c("lago_input_note", "lago_input_warning"))) {
+      return(invisible(NULL))
+    }
+    # with warnings made errors, every run must stop as a single run would
+    if (inherits(m, "warning") && getOption("warn") >= 2) {
       return(invisible(NULL))
     }
     text <- conditionMessage(m)
-    if (text %in% seen) invokeRestart("muffleMessage")
+    if (text %in% seen) {
+      invokeRestart(if (inherits(m, "warning")) "muffleWarning" else "muffleMessage")
+    }
     seen <<- c(seen, text)
   }
 }

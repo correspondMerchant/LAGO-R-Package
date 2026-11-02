@@ -159,11 +159,9 @@ visualize_cost <- function(
       unit_costs = unit_costs,
       default_cost_fxn_type = "linear"
     ),
-    # cost_fxn_calculator's cubic is, for typical unit costs, within ~1% of the
-    # straight line over the range, so it renders as a near-straight line and the
-    # Cubic toggle looks like no change. The designer instead opens the cubic form
-    # on a visibly curved but still valid (non-negative, non-decreasing) demo
-    # cost, which the user then shapes; see .designer_cubic_coefs.
+    # The designer opens the cubic form on its own visibly curved but still valid
+    # (non-negative, non-decreasing) demo cost, which the user then shapes,
+    # rather than on cost_fxn_calculator's cubic; see .designer_cubic_coefs.
     cubic = lapply(seq_along(unit_costs), function(ci) {
       .designer_cubic_coefs(
         intervention_lower_bounds[ci],

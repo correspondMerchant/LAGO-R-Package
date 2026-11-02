@@ -1,5 +1,7 @@
 # LAGOtrials 1.1.0
 
+* New argument `unit_cost_doses` in `lago_optimization()`: the dose each unit cost in `unit_costs` was measured at. The default cubic cost is then pinned there, so the cost per unit at that dose is the measured unit cost. Without it the cubic cost only matches each unit cost on average over the bounds, which could be far off at the measured dose, and a warning now says so. The cost is otherwise unchanged (#47).
+
 * Fixed the numerical optimizer returning a recommendation that misses the outcome goal. `NlcOptim::solnl()` can stop at a point short of the goal without an error, and that point was kept when it was the cheapest. In one example with interacting components it recommended a point whose estimated outcome was 4.92 against a goal of 9.5. A restart that does not reach the goal is now left out. The optimizer also starts from the point of the highest outcome, and uses that point itself when no restart reaches the goal.
 
 * The numerical optimizer now also starts off the diagonal of the bounds, at the corners and at each component's midpoint. All its restarts started on that diagonal, so a near symmetric problem could stop at a costlier point, or at a saddle point that wrongly made a reachable goal look out of reach. An extra start replaces the answer only when it is clearly cheaper, so other results are unchanged.

@@ -95,7 +95,10 @@ and `c(4, 6)` means `C(x)=4+6x`. Providing `cost_list_of_vectors` makes
 `default_cost_fxn_type` ignored.
 
 Alternatively give `unit_costs` + `default_cost_fxn_type` (`"linear"` or
-`"cubic"`) and let the package build the coefficients.
+`"cubic"`) and let the package build the coefficients. With the cubic cost,
+also give `unit_cost_doses`, the dose each unit cost was measured at, so the
+cost per unit at that dose is the unit cost. Without it a warning says the
+cubic cost only matches each unit cost on average over the bounds.
 
 To design cost functions interactively, run `visualize_cost()` — a Shiny app
 with sliders and live curves. On close it returns the coefficient list (also in
