@@ -98,6 +98,7 @@ but do not use polynomial contrasts. Numeric predictors keep their values.</p>
 <span>  icc <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  power_goal_cluster_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  unit_costs <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  unit_cost_doses <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  default_cost_fxn_type <span class="op">=</span> <span class="st">"cubic"</span>,</span>
 <span>  cost_list_of_vectors <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  glm_family <span class="op">=</span> <span class="st">"default"</span>,</span>
@@ -256,6 +257,16 @@ Default value without user specification: NULL.</p></dd>
 <dt id="arg-unit-costs">unit_costs<a class="anchor" aria-label="anchor" href="#arg-unit-costs"></a></dt>
 <dd><p>A numeric vector. Specifies the unit costs for each
 intervention component.
+Default value without user specification: NULL.</p></dd>
+
+
+<dt id="arg-unit-cost-doses">unit_cost_doses<a class="anchor" aria-label="anchor" href="#arg-unit-cost-doses"></a></dt>
+<dd><p>A numeric vector or NULL. The dose of each
+intervention component at which its unit cost in `unit_costs` was measured,
+one per unit cost and within the bounds. The cubic cost is then pinned there,
+so the cost per unit at that dose is the unit cost. Without it the cubic cost
+only matches each unit cost on average over the bounds, and a warning says
+so. The linear cost is the unit cost at every dose, so it does not use this.
 Default value without user specification: NULL.</p></dd>
 
 
