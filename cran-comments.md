@@ -21,11 +21,12 @@ cannot be reached. The changes are listed in NEWS.md.
 * Local: R 4.5.3 on x86_64 Linux (Amazon Linux 2023).
 * GitHub Actions: macOS (release), Windows (release), and Linux
   (devel, release, oldrel-1) via the standard `r-lib/actions` R-CMD-check
-  workflow.
+  workflow. All five pass.
 * R-hub containers, run locally with docker: `mkl` (Fedora 44, R-devel
   2026-11-02 r90827, Intel MKL 2025.3) and `atlas` (Fedora, R-devel, ATLAS).
   Both give `Status: OK`.
-* win-builder: R-devel and R-release.
+* win-builder: R-devel (2026-11-02 r90827) and R-release (4.6.2). Both give
+  `Status: OK`.
 
 ## R CMD check results
 
