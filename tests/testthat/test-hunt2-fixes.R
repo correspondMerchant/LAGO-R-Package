@@ -81,6 +81,8 @@ budget_mtcars_oracle <- function(upper, budget) {
 }
 
 test_that("lago_budget() refines the right gap when goals tie on the outcome", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   d <- as.data.frame(BB_data)
   r <- hunt2_quiet(lago_budget(
     data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
@@ -104,6 +106,8 @@ test_that("lago_budget() refines the right gap when goals tie on the outcome", {
 })
 
 test_that("lago_budget() extends its goal grid far enough to bracket the boundary", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   r <- budget_mtcars(c(10, 3500), 1e6)
   expect_equal(r$est_outcome, budget_mtcars_oracle(c(10, 3500), 1e6), tolerance = 0.01)
 })

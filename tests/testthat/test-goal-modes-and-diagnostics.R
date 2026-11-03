@@ -30,6 +30,8 @@ test_that("power goal alone works (no outcome goal)", {
 })
 
 test_that("both goals: the higher (outcome) goal binds", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   args <- list(
     data = BB_data, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
     intervention_components = c("coaching_updt", "launch_duration"),

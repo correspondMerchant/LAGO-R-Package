@@ -306,6 +306,8 @@ test_that("minimize on an identity link is unchanged", {
 # ---------------------------------------------------------------------------
 
 test_that("the recommendation never leaves the intervention bounds", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   # THE assertion that was missing. The shrinking method's interpolation was
   # unbounded, so an unachievable outcome goal could return an intervention
   # outside the box the user gave, in three distinct ways. All three are
@@ -637,6 +639,8 @@ test_that("the numerical optimizer picks the cheapest in-box restart", {
 })
 
 test_that("rec_int_cost is the cost of the returned rec_int", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   # What this pins is the in-box filter: restarts that left the box are dropped
   # before the cheapest is chosen, because solnl() treats the box as soft and
   # the cheapest restart is cheapest precisely by sitting outside the bounds.

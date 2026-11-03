@@ -110,6 +110,8 @@ test_that("every repeated name is listed", {
 })
 
 test_that("lago_budget() reports the refusal rather than an unreachable budget", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   expected <- dup_names_message("centerNA", "center")
   args <- list(
     data = dup_names_centers(), outcome_name = "pp3_oxytocin_mother",

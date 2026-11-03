@@ -110,6 +110,8 @@ test_that("a rare outcome keeps the digits of its interval", {
 })
 
 test_that("a binary confidence set with four components does not run out of memory", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   set.seed(1)
   d <- as.data.frame(matrix(stats::runif(2000, 0, 2), ncol = 4))
   names(d) <- paste0("x", 1:4)
@@ -260,6 +262,8 @@ test_that("the sweep summary pairs each cost with its own value", {
 })
 
 test_that("the sweep baseline is found for a value built with seq()", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   r <- hunt4_mtcars(outcome_goal = 30)
   # seq() gives 30.000000000000004, not 30
   values <- seq(0.1, 0.5, by = 0.1) * 100
