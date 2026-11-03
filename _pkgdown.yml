@@ -24,8 +24,10 @@ navbar:
 
 news:
   releases:
+  - text: "Version 1.1.1"
+    href: news/index.html#lagotrials-111
   - text: "Version 1.1.0"
-    href: news/index.html
+    href: news/index.html#lagotrials-110
 
 reference:
 - title: Optimization
