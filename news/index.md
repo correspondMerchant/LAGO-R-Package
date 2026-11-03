@@ -1,8 +1,6 @@
 # Changelog
 
-## LAGOtrials 1.1.0
-
-CRAN release: 2026-10-24
+## LAGOtrials 1.1.1
 
 - Fixed the shrinking method depending on the outcome’s units when the
   outcome is small, such as a rare binary outcome or a continuous
@@ -522,6 +520,10 @@ CRAN release: 2026-10-24
   given is now sent as a message like the other input notes, rather than
   printed with [`print()`](https://rdrr.io/r/base/print.html), so it no
   longer shows as `[1] "..."` in the output.
+
+## LAGOtrials 1.1.0
+
+CRAN release: 2026-10-24
 
 - Fixed two unclear refusals for fixed center and time effects. An all
   `NA` `center` column was refused with “values in
