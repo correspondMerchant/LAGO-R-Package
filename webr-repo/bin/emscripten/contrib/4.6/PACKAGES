@@ -1,12 +1,12 @@
 Package: LAGOtrials
-Version: 1.1.0
+Version: 1.1.1
 Depends: R (>= 2.10)
 Imports: rje, NlcOptim, cli, bslib, shiny, ggplot2, shinyjs, Rcpp
 LinkingTo: Rcpp
 Suggests: testthat (>= 3.0.0), tibble, knitr, rmarkdown, jsonlite,
         spelling
 License: GPL-3
-MD5sum: 2d12ea03519cbc67668d39d7ee51fda7
-Built: R 4.6.0; wasm32-unknown-emscripten; 2026-11-03 04:57:09 UTC;
+MD5sum: cd77e73e7569d62e0ec1051f8b0cdcf6
+Built: R 4.6.0; wasm32-unknown-emscripten; 2026-11-03 16:57:52 UTC;
         unix
-File: LAGOtrials_1.1.0.tgz
+File: LAGOtrials_1.1.1.tgz
