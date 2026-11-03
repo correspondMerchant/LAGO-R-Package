@@ -362,8 +362,9 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     best <- if (maximize) max(df$est_outcome[aff]) else min(df$est_outcome[aff])
     # goals that tie on the outcome all return the same intervention, so take
     # the furthest one in the improving direction, where the refinement belongs
-    # within rounding, since the solver's last digits differ from goal to goal
-    tied <- aff[abs(df$est_outcome[aff] - best) <= 1e-9 * max(1, abs(best))]
+    # within the solver's tolerance, since its last digits differ from goal to
+    # goal and from platform to platform
+    tied <- aff[abs(df$est_outcome[aff] - best) <= 1e-6 * max(abs(best), 1e-12)]
     tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
   }
 

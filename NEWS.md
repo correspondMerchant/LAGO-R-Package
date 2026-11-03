@@ -10,6 +10,8 @@
 
 * Fixed a binary `lago_budget()` for a rare outcome when maximizing, or for an outcome near 1 when minimizing. Its goal grid starts at 0.02 and ends at 0.98, so a budget that only affords goals beyond it was reported as infeasible. The grid now also fills that gap.
 
+* `lago_budget()` now treats estimated outcomes within 1e-6 of each other as tied. Goals below the no intervention outcome all give the same intervention, and on some platforms the solver noise between them was above the old tolerance, so it could refine a gap far below the best affordable goal and leave budget unspent.
+
 * Fixed `visualize_cost()` replacing an exact cubic coefficient with the slider's rounded value after the slider's range was narrowed.
 
 * `print()`, `summary()` and `lago_report()` now show values closer to 0 than 0.1 with 4 significant digits rather than 4 decimals. This covers the estimate, the interval bounds, the recommended intervention, the effective goal and the test statistic. Values closer to 0 than 1e-6 still show as 0.
