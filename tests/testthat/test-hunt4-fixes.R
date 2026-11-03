@@ -43,7 +43,8 @@ test_that("the unconditional power goal asks for power to show benefit", {
     ),
     "power goal cannot be reached"
   )
-  expect_equal(small, 1)
+  expect_equal(as.numeric(small), 1)
+  expect_true(attr(small, "unreachable"))
 })
 
 test_that("an unreachable conditional power goal is reported and not set to 0", {
@@ -54,7 +55,8 @@ test_that("an unreachable conditional power goal is reported and not set to 0", 
     ),
     "power goal cannot be reached"
   )
-  expect_equal(goal, 1)
+  expect_equal(as.numeric(goal), 1)
+  expect_true(attr(goal, "unreachable"))
 })
 
 # ---- shrinking --------------------------------------------------------------------

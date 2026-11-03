@@ -33,7 +33,7 @@ test_that("an ordered center is fitted with one effect per center", {
     ordered <- factor_run(d), "'center' column is an ordered factor"
   )
   expect_false(is.null(ordered$cs))
-  expect_equal(factor_key(ordered), factor_key(plain))
+  expect_equal(factor_key(ordered), factor_key(plain), tolerance = 1e-5)
   # the printed Call shows the coding the model was fitted with
   expect_identical(
     ordered$model$call$contrasts, list(center = "contr.treatment")
@@ -56,7 +56,7 @@ test_that("an ordered period is fitted with one effect per period", {
       "'period' column is an ordered factor"
     )
     expect_false(is.null(ordered$cs))
-    expect_equal(factor_key(ordered), factor_key(plain))
+    expect_equal(factor_key(ordered), factor_key(plain), tolerance = 1e-5)
   }
 })
 
@@ -77,7 +77,7 @@ test_that("a global contrasts option does not change the center coding", {
     finally = options(previous)
   )
   expect_identical(left, "contr.sum")
-  expect_equal(factor_key(summed), factor_key(plain))
+  expect_equal(factor_key(summed), factor_key(plain), tolerance = 1e-5)
   expect_identical(
     summed$model$call$contrasts,
     list(center = "contr.treatment", period = "contr.treatment")

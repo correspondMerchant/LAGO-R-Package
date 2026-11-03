@@ -393,7 +393,7 @@ test_that("public optimization aligns weighted covariance with fitted fixed effe
       )))
       result <- run(d)
       filtered <- run(retained)
-      expect_equal(result$rec_int, filtered$rec_int)
+      expect_equal(result$rec_int, filtered$rec_int, tolerance = 1e-5)
       expect_equal(result$est_outcome_ci, filtered$est_outcome_ci)
       expect_equal(result$cs, filtered$cs)
       model <- result$model

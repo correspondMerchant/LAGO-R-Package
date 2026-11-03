@@ -16,11 +16,12 @@
 
 # A numeric covariate observed in [5, 6], attached to the bundled BB_data. The
 # range is built by rescaling an existing column into [5, 6] deterministically,
-# so it never touches 0 and does not depend on a random seed.
+# so it never touches 0 and does not depend on a random seed. It is squared, so
+# it is not collinear with coaching_updt and glm() estimates it.
 bb_with_offset_covariate <- function() {
   bb <- as.data.frame(BB_data)
   x <- bb$coaching_updt
-  bb$clinic_size <- 5 + (x - min(x)) / (max(x) - min(x))
+  bb$clinic_size <- 5 + ((x - min(x)) / (max(x) - min(x)))^2
   bb
 }
 
@@ -73,7 +74,8 @@ test_that("the warning fires exactly once, listing every offending covariate", {
   bb <- bb_with_offset_covariate()
   # a second numeric covariate also observed away from 0, in a different range
   x <- bb$launch_duration
-  bb$staff_count <- 20 + (x - min(x)) / (max(x) - min(x)) * 10
+  # cubed, so it is not collinear with launch_duration and glm() estimates it
+  bb$staff_count <- 20 + ((x - min(x)) / (max(x) - min(x)))^3 * 10
   expect_gt(min(bb$staff_count), 0)
   # a THIRD numeric covariate observed spanning 0, which must NOT be named: it
   # is not held off its support. Included so the test pins that the message

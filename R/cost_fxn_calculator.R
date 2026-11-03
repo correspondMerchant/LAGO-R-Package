@@ -53,50 +53,60 @@ cost_fxn_calculator <- function(
       # curve does not depend on the units of the dose either
       if (!is.na(dose)) delta <- delta / (range_max - range_min)
 
-      # Define function to compute coefficients. The system is solved in x,
-      # or, when that is numerically singular, as for bounds far from 0, in
-      # u = x - range_min and converted back, which gives the same curve.
+      # Define function to compute coefficients. The system is solved in x and
+      # in u = (x - range_min) / width, which is well conditioned. The solve in
+      # x is used when its curve matches the curve in u, and otherwise the
+      # solve in u converted back to x. When neither matches, as for bounds far
+      # from 0 compared with their width, it returns NULL and a flatter curve
+      # is tried.
       solve_coefficients <- function(delta) {
-        tryCatch(solve_in(0, delta), error = function(e) {
-          shifted <- solve_in(range_min, delta)
-          m <- range_min
-          A3 <- shifted[1]
-          B2 <- shifted[2]
-          C1 <- shifted[3]
-          D0 <- shifted[4]
-          coeff <- c(
-            A3,
-            B2 - 3 * A3 * m,
-            C1 - 2 * B2 * m + 3 * A3 * m^2,
-            D0 - C1 * m + B2 * m^2 - A3 * m^3
-          )
-          # the curve in x must match the curve in u, which fails when the
-          # bounds are far from 0 compared with their width
-          x <- seq(range_min, range_max, length.out = 25)
-          u <- x - m
-          in_x <- coeff[1] * x^3 + coeff[2] * x^2 + coeff[3] * x + coeff[4]
-          in_u <- A3 * u^3 + B2 * u^2 + C1 * u + D0
-          if (max(abs(in_x - in_u)) > 1e-6 * max(abs(in_u), abs(unit_cost), 1e-12)) {
-            stop(paste(
-              "The default cubic cost cannot be computed for bounds this far",
-              "from 0 compared with their width. Give the costs with",
-              "cost_list_of_vectors, or use default_cost_fxn_type = \"linear\"."
-            ), call. = FALSE)
-          }
-          coeff
-        })
+        plain <- tryCatch(solve_in(0, 1, delta), error = function(e) NULL)
+        # the same curve, solved in u = (x - range_min) / width
+        m <- range_min
+        w <- range_max - range_min
+        scaled <- solve_in(m, w, delta)
+        # back to the powers of (x - m), then of x
+        A3 <- scaled[1] / w^3
+        B2 <- scaled[2] / w^2
+        C1 <- scaled[3] / w
+        D0 <- scaled[4]
+        coeff <- c(
+          A3,
+          B2 - 3 * A3 * m,
+          C1 - 2 * B2 * m + 3 * A3 * m^2,
+          D0 - C1 * m + B2 * m^2 - A3 * m^3
+        )
+        # a curve in x must match the curve in u to 0.1%, which fails when
+        # the bounds are far from 0 compared with their width. The plain solve
+        # is checked first, so a result it gave before is kept when accurate.
+        x <- seq(range_min, range_max, length.out = 25)
+        u <- (x - m) / w
+        curve_in_x <- function(k) k[1] * x^3 + k[2] * x^2 + k[3] * x + k[4]
+        in_u <- scaled[1] * u^3 + scaled[2] * u^2 + scaled[3] * u + scaled[4]
+        accurate <- function(k) {
+          all(is.finite(k)) &&
+            max(abs(curve_in_x(k) - in_u)) <= 1e-3 * max(abs(in_u), abs(unit_cost), 1e-12)
+        }
+        if (!is.null(plain) && accurate(as.numeric(plain))) {
+          return(as.numeric(plain))
+        }
+        if (accurate(coeff)) {
+          return(coeff)
+        }
+        # no accurate curve at this slope, so the loop below tries a smaller one
+        NULL
       }
-      # the coefficients of a u^3 + b u^2 + c u + d, where u = x - shift
-      solve_in <- function(shift, delta) {
-        u1 <- x1 - shift
-        u2 <- x2 - shift
-        u3 <- x3 - shift
-        lo <- range_min - shift
-        hi <- range_max - shift
+      # the coefficients of a u^3 + b u^2 + c u + d, where u = (x - shift) / scale
+      solve_in <- function(shift, scale, delta) {
+        u1 <- (x1 - shift) / scale
+        u2 <- (x2 - shift) / scale
+        u3 <- (x3 - shift) / scale
+        lo <- (range_min - shift) / scale
+        hi <- (range_max - shift) / scale
         last_row <- if (is.na(dose)) {
           c((hi^4 - lo^4) / 4, (hi^3 - lo^3) / 3, (hi^2 - lo^2) / 2, (hi - lo))
         } else {
-          u0 <- dose - shift
+          u0 <- (dose - shift) / scale
           c(u0^3, u0^2, u0, 1)
         }
         A <- matrix(c(
@@ -105,8 +115,9 @@ cost_fxn_calculator <- function(
           3 * u3^2, 2 * u3, 1, 0,
           last_row
         ), nrow = 4, byrow = TRUE)
-        last_value <- if (is.na(dose)) (range_max - range_min) * unit_cost else unit_cost
-        b_vec <- c(0, delta, 0, last_value)
+        # the slope condition and the average are taken in u
+        last_value <- if (is.na(dose)) (range_max - range_min) * unit_cost / scale else unit_cost
+        b_vec <- c(0, delta * scale, 0, last_value)
         solve(A, b_vec)
       }
 
@@ -121,8 +132,21 @@ cost_fxn_calculator <- function(
       }
 
       # Iteratively reduce |delta| if necessary
+      first_delta <- delta
       while (TRUE) {
         coeff <- solve_coefficients(delta)
+        if (is.null(coeff)) {
+          # a flatter curve has smaller coefficients, so it may be accurate
+          if (abs(delta) < 1e-8 * abs(first_delta)) {
+            stop(paste(
+              "The default cubic cost cannot be computed for bounds this far",
+              "from 0 compared with their width. Give the costs with",
+              "cost_list_of_vectors, or use default_cost_fxn_type = \"linear\"."
+            ), call. = FALSE)
+          }
+          delta <- delta * 0.9
+          next
+        }
 
         # Check if f(x) is negative anywhere in the range
         x_vals <- seq(range_min, range_max, length.out = 100)

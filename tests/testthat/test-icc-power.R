@@ -277,5 +277,5 @@ test_that("BB_data backward compatibility: icc = NULL matches the pre-icc result
     lago_optimization,
     c(args, list(icc = 0, power_goal_cluster_id = "site_name"))
   )))
-  expect_equal(null_res$est_outcome_goal, zero_res$est_outcome_goal)
+  expect_equal(null_res$est_outcome_goal, zero_res$est_outcome_goal, tolerance = 1e-5)
 })

@@ -1,5 +1,21 @@
 # LAGOtrials 1.1.0
 
+* Fixed the shrinking method depending on the outcome's units when the outcome is small, such as a rare binary outcome or a continuous outcome in large units. Its search stopped as soon as the outcome came within an absolute 1e-6 of the goal. It now stops within 1e-6 relative to the goal below 1.
+
+* The default cubic cost now handles wide bounds, such as 0 to 5000, which failed with a singular system. A badly conditioned solve is redone in each component's share of its range. Narrow bounds, such as 1 to 1.00001 or 10 to 10.0001, could give a cost curve whose average unit cost was far off, by 27% and 15% in these examples, and the default cubic is now checked against an accurate solve and made flatter until it matches. A curve the plain solve gave within 0.1% is unchanged.
+
+* Fixed the numerical optimizer refusing a reachable goal when all its diagonal restarts failed, before it tried the other starts and the point of the highest outcome.
+
+* An unreachable power goal now always uses the shrinking method, and shrinks to the stage-1 intervention on both links. On the identity link the model can predict the goal of 1 it is set to, so it used to optimize to that goal, and `lago_budget()` counted it as reached. `lago_budget()` now never counts a shrunk run as reached. The power goal warning now says the recommendation is shrunk, to the stage-1 intervention or to `prev_recommended_interventions` when given, and the run no longer also warns that the maximum achievable outcome is below the goal.
+
+* Fixed a binary `lago_budget()` for a rare outcome when maximizing, or for an outcome near 1 when minimizing. Its goal grid starts at 0.02 and ends at 0.98, so a budget that only affords goals beyond it was reported as infeasible. The grid now also fills that gap.
+
+* Fixed `visualize_cost()` replacing an exact cubic coefficient with the slider's rounded value after the slider's range was narrowed.
+
+* `print()`, `summary()` and `lago_report()` now show values closer to 0 than 0.1 with 4 significant digits rather than 4 decimals. This covers the estimate, the interval bounds, the recommended intervention, the effective goal and the test statistic. Values closer to 0 than 1e-6 still show as 0.
+
+* A covariate that `glm()` could not estimate is no longer also reported as held at 0, and a factor covariate with only some levels that `glm()` could not estimate is no longer reported as dropped. `get_confidence_set()` now refuses, with a clear message, a model with any other coefficient `glm()` could not estimate, instead of returning an empty set.
+
 * Center level data now keeps an explicit `include_center_effects = FALSE`. It used to fit center effects anyway with no message, since the argument could not tell FALSE from not given. Its default is now `NULL`, which means TRUE for center level data and FALSE otherwise. Center level data also refuses an `outcome_name` other than `"proportion"`, the column it is fitted on, instead of fitting `proportion` while other parts read the named column.
 
 * Fixed the shrinking method for center level data and weighted data. The stage-1 intervention it shrinks towards was the plain mean of the rows, so an unreachable goal gave a different recommendation than the same patients one row each. It is now weighted by `center_sample_size`, or by the `glm()` weights.

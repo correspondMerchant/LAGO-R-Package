@@ -199,10 +199,20 @@
   // set is used while the slider sits within half a step of it, as the server
   // reads it, so a small high order coefficient is not drawn as 0.
   function preferExact(value, exact) {
-    if (exact && isFinite(value) && Math.abs(value - exact.value) <= exact.step / 2) {
+    if (exact && isFinite(value) &&
+      (Math.abs(value - exact.value) <= exact.step / 2 || value === exact.stale)) {
       return exact.value;
     }
     return value;
+  }
+
+  // a slider reading through its exact value. The stale reading after a range
+  // edit lasts until the slider reports anything else.
+  function readThroughExact(value, exact) {
+    if (exact && isFinite(value) && exact.stale !== undefined && value !== exact.stale) {
+      exact.stale = undefined;
+    }
+    return preferExact(value, exact);
   }
 
   var math = {
@@ -213,7 +223,8 @@
     dragScale: dragScale,
     anchorXs: anchorXs,
     solveVandermonde: solveVandermonde,
-    preferExact: preferExact
+    preferExact: preferExact,
+    readThroughExact: readThroughExact
   };
 
   // Export for node (unit tests). Harmless in the browser.
@@ -236,11 +247,18 @@
 
   // the exact coefficient values the server set, by slider id
   var exactCoefs = {};
+  function readExact(id, value) {
+    return readThroughExact(value, exactCoefs[id]);
+  }
   Shiny.addCustomMessageHandler("lago-exact-coef", function (m) {
     if (m.value === null || m.value === undefined) {
       delete exactCoefs[m.id];
     } else {
-      exactCoefs[m.id] = { value: +m.value, step: +m.step };
+      exactCoefs[m.id] = {
+        value: +m.value,
+        step: +m.step,
+        stale: m.stale === null || m.stale === undefined ? undefined : +m.stale
+      };
     }
     drawAll();
   });
@@ -271,10 +289,10 @@
     if ($) {
       var irs = $(el).data("ionRangeSlider");
       if (irs && irs.result && isFinite(+irs.result.from)) {
-        return preferExact(+irs.result.from, exactCoefs[id]);
+        return readExact(id, +irs.result.from);
       }
     }
-    return preferExact(parseFloat(el.value), exactCoefs[id]);
+    return readExact(id, parseFloat(el.value));
   }
 
   // Gather a container's configuration from its data-* attributes and the

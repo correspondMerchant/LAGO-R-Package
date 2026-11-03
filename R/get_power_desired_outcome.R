@@ -122,7 +122,9 @@ get_power_desired_outcome <- function(
       "The power goal cannot be reached for the given next-stage size: no ",
       "outcome up to 1 gives the required power",
       if (!is.null(icc) && any(icc > 0)) " with the design effect implied by 'icc'",
-      ". The power-implied outcome goal is set to 1, which cannot be reached. ",
+      ". The power-implied outcome goal is set to 1, and the recommendation is ",
+      "shrunk to the stage-1 intervention, or to 'prev_recommended_interventions' ",
+      "when given. ",
       "Consider a larger next stage or a lower power goal."
     ), call. = FALSE)
   }
@@ -225,7 +227,7 @@ get_power_desired_outcome <- function(
       if (is.na(found)) {
         # no attainable outcome reaches the required power
         warn_power_goal_unreachable()
-        return(1)
+        return(structure(1, unreachable = TRUE))
       }
       found
     }
@@ -318,7 +320,7 @@ get_power_desired_outcome <- function(
         # max(0, outcome_goal), so the unreachable goal 1 is returned, as in the
         # unconditional approach.
         warn_power_goal_unreachable()
-        final_expit_value <- 1
+        final_expit_value <- structure(1, unreachable = TRUE)
       }
       return(final_expit_value)
     }

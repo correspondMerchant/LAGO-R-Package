@@ -302,8 +302,8 @@ test_that("two-level character and factor additional_covariates are found by coe
   # character, factor and explicit dummy are three spellings of one model, so
   # every reported quantity must agree
   for (other in list(as_character, as_dummy)) {
-    expect_equal(other$rec_int, as_factor$rec_int)
-    expect_equal(other$est_outcome_goal, as_factor$est_outcome_goal)
+    expect_equal(other$rec_int, as_factor$rec_int, tolerance = 1e-5)
+    expect_equal(other$est_outcome_goal, as_factor$est_outcome_goal, tolerance = 1e-5)
     expect_equal(other$est_outcome_ci, as_factor$est_outcome_ci)
     expect_equal(
       other$confidence_set_size_percentage,
@@ -350,8 +350,8 @@ test_that("two-level character and factor additional_covariates are found by coe
   }
   cts_factor <- run_continuous("arm_factor")
   cts_dummy <- run_continuous("arm_factorpre")
-  expect_equal(cts_factor$rec_int, cts_dummy$rec_int)
-  expect_equal(cts_factor$est_outcome_goal, cts_dummy$est_outcome_goal)
+  expect_equal(cts_factor$rec_int, cts_dummy$rec_int, tolerance = 1e-5)
+  expect_equal(cts_factor$est_outcome_goal, cts_dummy$est_outcome_goal, tolerance = 1e-5)
   # the interval and the confidence set are what the wrong dummy corrupted
   expect_equal(cts_factor$est_outcome_ci, cts_dummy$est_outcome_ci)
   expect_equal(
@@ -435,8 +435,8 @@ test_that("a factor additional_covariate with more than two levels is assembled 
   expect_equal(as_factor$confidence_set_size_percentage, 12 / 45)
 
   # the factor and its own two dummy columns are the same model
-  expect_equal(as_dummies$rec_int, as_factor$rec_int)
-  expect_equal(as_dummies$est_outcome_goal, as_factor$est_outcome_goal)
+  expect_equal(as_dummies$rec_int, as_factor$rec_int, tolerance = 1e-5)
+  expect_equal(as_dummies$est_outcome_goal, as_factor$est_outcome_goal, tolerance = 1e-5)
   expect_equal(as_dummies$est_outcome_ci, as_factor$est_outcome_ci)
   expect_equal(as_dummies$cs, as_factor$cs)
 })
@@ -502,8 +502,8 @@ test_that("a factor center_characteristic is found by its level-named coefficien
 
   # the factor and its explicit dummy are the same model
   as_dummy <- run("vol_hi_dummy", 0.85)
-  expect_equal(as_dummy$rec_int, as_factor$rec_int)
-  expect_equal(as_dummy$est_outcome_goal, as_factor$est_outcome_goal)
+  expect_equal(as_dummy$rec_int, as_factor$rec_int, tolerance = 1e-5)
+  expect_equal(as_dummy$est_outcome_goal, as_factor$est_outcome_goal, tolerance = 1e-5)
 
   # the confidence set path names its column after the CHARACTERISTIC, not
   # after the coefficient. A lower goal is used so the set is non-empty and

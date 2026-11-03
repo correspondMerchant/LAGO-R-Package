@@ -463,7 +463,15 @@ get_confidence_set <- function(
     # value that does not occur in the data, so the reported outcome and
     # interval are an extrapolation. Warn about that, once, naming each such
     # covariate and its range. Diagnostic only: no assembled value is changed.
-    warn_covariates_held_off_support(additional_covariates, predictors_data)
+    # a covariate glm() could not estimate at all is left out of the
+    # prediction, so it is not held at any value
+    model_coef_values <- coef(fitted_model)
+    names(model_coef_values) <- gsub("`", "", names(model_coef_values))
+    estimated <- Filter(function(covariate) {
+      covariate_coefs <- gsub("`", "", predictor_coef_names(covariate, coef_mapping))
+      !all(is.na(model_coef_values[covariate_coefs]))
+    }, additional_covariates)
+    warn_covariates_held_off_support(estimated, predictors_data)
     # one column per coefficient a covariate expands into, not one column per
     # covariate: a factor or character covariate is one coefficient per
     # non-reference level, so it needs that many columns. Every column is 0,
@@ -611,7 +619,7 @@ get_confidence_set <- function(
   model_coefs <- model_coefs[coef_positions]
   # an additional covariate glm() could not estimate (NA) adds nothing to the
   # fit, so its column is left out, as predict() leaves it out. Any other NA
-  # coefficient is kept, so the confidence set stays empty for it.
+  # coefficient is kept here and refused below, since it makes every interval NA.
   covariate_keys <- gsub("`", "", unlist(lapply(
     additional_covariates, predictor_coef_names, coef_mapping = coef_mapping
   )))
@@ -622,6 +630,15 @@ get_confidence_set <- function(
     model_coefs <- model_coefs[!aliased]
     coef_positions <- coef_positions[!aliased]
     column_keys <- column_keys[!aliased]
+  }
+  # any other NA coefficient makes every interval NA, so it is refused
+  if (anyNA(model_coefs)) {
+    stop(paste0(
+      "The coefficient(s) ", paste0("'", names(model_coefs)[is.na(model_coefs)], "'", collapse = ", "),
+      " of 'fitted_model' could not be estimated by glm() (they are NA), so no ",
+      "interval can be computed. They are usually collinear with other ",
+      "predictors. Refit the model without the collinear term."
+    ))
   }
 
   # get critical value based on the given alpha value

@@ -260,7 +260,10 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     if (maximize && length(effective) == length(target)) {
       target <- ifelse(is.na(effective), target, pmax(target, effective))
     }
-    reached <- ok & (if (maximize) {
+    # a shrunk run did not reach its goal, whatever its estimate
+    shrunk <- attr(sens, "shrinking_method_used")
+    not_shrunk <- if (length(shrunk) == length(target)) !(shrunk %in% TRUE) else TRUE
+    reached <- ok & not_shrunk & (if (maximize) {
       sens$est_outcome_goal >= target - tol
     } else {
       sens$est_outcome_goal <= target + tol
@@ -362,6 +365,34 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     # within rounding, since the solver's last digits differ from goal to goal
     tied <- aff[abs(df$est_outcome[aff] - best) <= 1e-9 * max(1, abs(best))]
     tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
+  }
+
+  # a rare binary outcome may afford only goals below the grid when maximizing,
+  # or above it when minimizing, so the grid also fills the gap the other way,
+  # towards 0 or 1, until a reached goal is affordable. Once some goal is
+  # reached, it stops when a pass makes the cheapest reached goal no cheaper,
+  # since the goals further on then cost the same, at the lower bounds.
+  if (identical(outcome_type, "binary")) {
+    inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
+    cheapest_reached <- function(df) {
+      costs <- df$rec_int_cost[df$reached]
+      if (length(costs)) min(costs) else NA_real_
+    }
+    passes <- 0L
+    cheapest <- cheapest_reached(fr)
+    while (is.na(best_idx(fr)) && passes < 30L) {
+      g0 <- if (maximize) min(fr$outcome_goal) else max(fr$outcome_goal)
+      gap <- if (maximize) g0 else 1 - g0
+      if (gap < 1e-6) break
+      new_goals <- if (maximize) g0 * inside else g0 + (1 - g0) * inside
+      fr <- rbind(fr, sweep(new_goals))
+      fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+      rownames(fr) <- NULL
+      passes <- passes + 1L
+      now <- cheapest_reached(fr)
+      if (!is.na(cheapest) && !(now < cheapest - 1e-9 * max(1, abs(cheapest)))) break
+      cheapest <- now
+    }
   }
 
   bi <- best_idx(fr)

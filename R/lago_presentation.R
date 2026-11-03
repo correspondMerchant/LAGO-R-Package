@@ -11,12 +11,17 @@
 
 # --- small formatting helpers -------------------------------------------------
 # Rounding kept consistent with print.lago / summary.lago:
-#   - recommendation values, estimated outcome: round(., 4)
+#   - recommendation values, estimated outcome: .lago_fmt_value()
 #   - recommended cost: signif(., 5)
 #   - confidence-set cost IQR: round(., 2)
 #   - p-values: signif(., 4)
 
-.lago_fmt_value <- function(v) round(v, 4)
+# 4 decimals, or 4 significant digits for values closer to 0 than 0.1, as the
+# interval bounds are stored, so a rare outcome keeps its digits. Values closer
+# to 0 than 1e-6 are solver noise and stay at 4 decimals, so they print as 0.
+.lago_fmt_value <- function(v) {
+  ifelse(abs(v) >= 0.1 | abs(v) < 1e-6 | !is.finite(v), round(v, 4), signif(v, 4))
+}
 
 # The recommended cost is produced by the numerical optimizer, whose trailing
 # digits differ across platforms and BLAS builds. At round(., 4) those

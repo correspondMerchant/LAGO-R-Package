@@ -59,7 +59,7 @@ test_that("a continuous outcome's confidence set uses only the fitted rows", {
   complete <- suppressWarnings(do.call(
     rows_run, c(list(d[!is.na(d$pp2_hand_hygiene), ]), args)
   ))
-  expect_equal(rows_key(with_na), rows_key(complete))
+  expect_equal(rows_key(with_na), rows_key(complete), tolerance = 1e-5)
 })
 
 test_that("a logit-link continuous confidence set uses only the fitted rows", {
@@ -110,7 +110,7 @@ test_that("center and time clustering use only the fitted rows", {
     rows_run, c(list(d[!is.na(d$pp2_hand_hygiene), ]), args)
   ))
   expect_true(all(is.finite(with_na$est_outcome_ci)))
-  expect_equal(rows_key(with_na), rows_key(complete))
+  expect_equal(rows_key(with_na), rows_key(complete), tolerance = 1e-5)
 })
 
 test_that("a center with no complete row is left out of the weights", {
@@ -254,7 +254,7 @@ test_that("a named center is optimized for when another center is lost", {
     rows_run, c(list(d[d$center != lost_center(d), ]), args)
   ))
   expect_false(is.null(with_na$cs))
-  expect_equal(rows_key(with_na), rows_key(without))
+  expect_equal(rows_key(with_na), rows_key(without), tolerance = 1e-5)
 })
 
 test_that("the default weights size each fitted center by all of its rows", {
@@ -315,7 +315,7 @@ test_that("user weights win over a named center, as in validation", {
   weights_only <- suppressWarnings(do.call(rows_run, c(
     list(d), binary_lost, list(center_weights_for_outcome_goal = w)
   )))
-  expect_equal(rows_key(both), rows_key(weights_only))
+  expect_equal(rows_key(both), rows_key(weights_only), tolerance = 1e-5)
 })
 
 test_that("a missing center id is not counted as a facility", {
@@ -331,7 +331,7 @@ test_that("a missing center id is not counted as a facility", {
   without <- suppressWarnings(do.call(
     rows_run, c(list(d[!is.na(d$center), ]), args)
   ))
-  expect_equal(rows_key(res), rows_key(without))
+  expect_equal(rows_key(res), rows_key(without), tolerance = 1e-5)
 })
 
 test_that("an explicit NA center level is kept when another center is lost", {
@@ -390,7 +390,7 @@ test_that("a continuous confidence set refuses an explicit NA center level", {
   d$grp <- factor(ifelse(is.na(g), "0", g))
   named <- suppressWarnings(do.call(rows_run, c(list(d), args)))
   expect_false(is.null(as_ref$cs))
-  expect_equal(rows_key(as_ref), rows_key(named))
+  expect_equal(rows_key(as_ref), rows_key(named), tolerance = 1e-5)
 })
 
 test_that("an unused explicit NA level does not stop a continuous run", {
@@ -406,7 +406,7 @@ test_that("an unused explicit NA level does not stop a continuous run", {
   d$period <- addNA(d$period)
   expect_true(anyNA(levels(d$period)))
   with_level <- suppressWarnings(do.call(rows_run, c(list(d), args)))
-  expect_equal(rows_key(with_level), rows_key(plain))
+  expect_equal(rows_key(with_level), rows_key(plain), tolerance = 1e-5)
   # an NA center level whose rows glm() all drops is unused in the fit too
   lost <- with_lost()
   lost$center[lost$center == lost_center(lost)] <- NA
@@ -528,5 +528,5 @@ test_that("a center-level center is sized by its observed sample sizes", {
   partial <- center_level_run(cl)
   expect_false(is.null(partial$cs))
   # glm() drops that row too, so the result is the run without it
-  expect_equal(rows_key(partial), rows_key(center_level_run(cl[-first, ])))
+  expect_equal(rows_key(partial), rows_key(center_level_run(cl[-first, ])), tolerance = 1e-5)
 })

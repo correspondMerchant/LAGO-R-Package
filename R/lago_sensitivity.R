@@ -342,8 +342,10 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   cost <- rep(NA_real_, n)
   est <- rep(NA_real_, n)
   status <- rep(NA_character_, n)
-  # the goal each run targeted, which a power goal can raise above its value
+  # the goal each run targeted, which a power goal can raise above its value,
+  # and whether it was shrunk
   effective <- rep(NA_real_, n)
+  shrunk <- rep(NA, n)
   for (i in seq_len(n)) {
     if (ok[i]) {
       r <- runs[[i]]
@@ -355,6 +357,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
       cost[i] <- as.numeric(r$rec_int_cost)
       est[i] <- as.numeric(r$est_outcome_goal)
       if (!is.null(r$effective_outcome_goal)) effective[i] <- as.numeric(r$effective_outcome_goal)
+      shrunk[i] <- isTRUE(r$shrinking_method_used)
       status[i] <- "ok"
     } else {
       status[i] <- "error"
@@ -387,6 +390,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   attr(df, "component_names") <- component_names
   attr(df, "baseline") <- baseline
   attr(df, "effective_outcome_goal") <- effective
+  attr(df, "shrinking_method_used") <- shrunk
   if (any(!ok)) {
     attr(df, "error_messages") <- stats::setNames(
       errors[!ok], as.character(values[!ok])

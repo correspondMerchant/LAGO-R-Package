@@ -490,9 +490,11 @@ visualize_cost <- function(
     exact <- new.env(parent = emptyenv())
     # the drawn curves read the same exact values, see preferExact() in
     # cost-curves.js
-    set_coef <- function(id, value, step) {
-      assign(id, list(value = value, step = step), envir = exact)
-      session$sendCustomMessage("lago-exact-coef", list(id = id, value = value, step = step))
+    # stale is the slider's reading when only its range changed: while the
+    # slider still reads that, it has not been moved and the exact value holds
+    set_coef <- function(id, value, step, stale = NULL) {
+      assign(id, list(value = value, step = step, stale = stale), envir = exact)
+      session$sendCustomMessage("lago-exact-coef", list(id = id, value = value, step = step, stale = stale))
     }
     drop_coef <- function(id) {
       if (exists(id, envir = exact, inherits = FALSE)) rm(list = id, envir = exact)
@@ -502,7 +504,17 @@ visualize_cost <- function(
       id <- paste0("coef_", component_idx, "_", i - 1)
       v <- input[[id]]
       e <- if (exists(id, envir = exact, inherits = FALSE)) get(id, envir = exact)
-      if (!is.null(v) && !is.null(e) && abs(v - e$value) <= e$step / 2) e$value else v
+      # the stale reading lasts until the slider reports anything else
+      if (!is.null(v) && !is.null(e$stale) && !isTRUE(v == e$stale)) {
+        e$stale <- NULL
+        assign(id, e, envir = exact)
+      }
+      if (!is.null(v) && !is.null(e) &&
+        (abs(v - e$value) <= e$step / 2 || isTRUE(v == e$stale))) {
+        e$value
+      } else {
+        v
+      }
     }
     for (component_idx in seq_len(n_components)) {
       for (i in seq_along(coefs_by_type[[default_cost_fxn_type]][[component_idx]])) {
@@ -655,23 +667,43 @@ visualize_cost <- function(
                 return()
               }
               # the stored exact value keeps the slider's new step, or is
-              # dropped when the new range leaves it out
+              # dropped when the new range leaves it out or the user has moved
+              # the slider away from it
               id <- paste0("coef_", component_idx, "_", i - 1)
+              kept <- NULL
               if (exists(id, envir = exact, inherits = FALSE)) {
-                kept <- get(id, envir = exact)$value
-                if (kept >= rmin && kept <= rmax) {
-                  set_coef(id, kept, slider_step(rmin, rmax))
+                e <- get(id, envir = exact)
+                kept <- e$value
+                cur <- isolate(input[[id]])
+                unmoved <- is.null(cur) || abs(cur - e$value) <= e$step / 2 ||
+                  isTRUE(cur == e$stale)
+                if (unmoved && kept >= rmin && kept <= rmax) {
+                  set_coef(id, kept, slider_step(rmin, rmax), stale = cur)
                 } else {
                   drop_coef(id)
+                  kept <- NULL
                 }
               }
-              updateSliderInput(
-                session,
-                inputId = id,
-                min = rmin,
-                max = rmax,
-                step = slider_step(rmin, rmax)
-              )
+              # the slider moves to the exact value, so at its new finer step it
+              # still reads as that value
+              if (is.null(kept)) {
+                updateSliderInput(
+                  session,
+                  inputId = id,
+                  min = rmin,
+                  max = rmax,
+                  step = slider_step(rmin, rmax)
+                )
+              } else {
+                updateSliderInput(
+                  session,
+                  inputId = id,
+                  value = kept,
+                  min = rmin,
+                  max = rmax,
+                  step = slider_step(rmin, rmax)
+                )
+              }
             },
             ignoreInit = TRUE
           )
