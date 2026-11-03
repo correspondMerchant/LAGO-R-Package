@@ -193,9 +193,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
         "of the package, or pass the lago_optimization() arguments directly."
       ))
     }
-    overrides <- list(...)
-    dots <- stored
-    for (nm in names(overrides)) dots[[nm]] <- overrides[[nm]]
+    dots <- merge_call_args(stored, list(...))
   } else {
     dots <- list(...)
   }
@@ -280,6 +278,16 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   } else {
     dots$intervention_components
   }
+  # each component gets a column of the result, next to these fixed ones
+  reserved <- c("value", "rec_int_cost", "est_outcome_goal", "status")
+  clashing <- intersect(gsub("`", "", guess_components), reserved)
+  if (length(clashing) > 0) {
+    stop(paste0(
+      "The intervention component(s) ", paste0("'", clashing, "'", collapse = ", "),
+      " have the name of a column of the lago_sensitivity() result (",
+      paste(reserved, collapse = ", "), "). Rename them in the data."
+    ))
+  }
 
   # --- run the sweep --------------------------------------------------------
   n <- length(values)
@@ -334,6 +342,10 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   cost <- rep(NA_real_, n)
   est <- rep(NA_real_, n)
   status <- rep(NA_character_, n)
+  # the goal each run targeted, which a power goal can raise above its value,
+  # and whether it was shrunk
+  effective <- rep(NA_real_, n)
+  shrunk <- rep(NA, n)
   for (i in seq_len(n)) {
     if (ok[i]) {
       r <- runs[[i]]
@@ -344,6 +356,8 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
       }
       cost[i] <- as.numeric(r$rec_int_cost)
       est[i] <- as.numeric(r$est_outcome_goal)
+      if (!is.null(r$effective_outcome_goal)) effective[i] <- as.numeric(r$effective_outcome_goal)
+      shrunk[i] <- isTRUE(r$shrinking_method_used)
       status[i] <- "ok"
     } else {
       status[i] <- "error"
@@ -366,13 +380,17 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   baseline_value <- if (cost_mode) 1 else dots[[parameter]]
   if (!is.null(baseline_value) && is.numeric(baseline_value) &&
     length(baseline_value) == 1L) {
-    idx <- which(values == baseline_value & ok)
+    # within rounding, so a value built with seq() still matches
+    idx <- which(abs(values - baseline_value) <= sqrt(.Machine$double.eps) *
+      max(1, abs(baseline_value)) & ok)
     if (length(idx) >= 1L) baseline <- runs[[idx[1]]]
   }
 
   attr(df, "parameter") <- parameter
   attr(df, "component_names") <- component_names
   attr(df, "baseline") <- baseline
+  attr(df, "effective_outcome_goal") <- effective
+  attr(df, "shrinking_method_used") <- shrunk
   if (any(!ok)) {
     attr(df, "error_messages") <- stats::setNames(
       errors[!ok], as.character(values[!ok])
@@ -441,13 +459,15 @@ print.lago_sensitivity <- function(x, ...) {
 
   ok <- x$status == "ok" & is.finite(x$rec_int_cost)
   if (any(ok)) {
-    cost <- x$rec_int_cost[ok]
-    vals <- x$value[ok]
+    # each cost is paired with its own value, in increasing order of value
+    ord <- order(x$value[ok])
+    cost <- x$rec_int_cost[ok][ord]
+    vals <- x$value[ok][ord]
     # pre-format so there are no glue braces in the interpolated string.
     msg <- sprintf(
-      "rec_int_cost ranges from %s to %s as %s goes from %s to %s.",
-      format(min(cost)), format(max(cost)), param,
-      format(vals[1]), format(vals[length(vals)])
+      "rec_int_cost is %s at %s = %s and %s at %s = %s.",
+      format(cost[1]), param, format(vals[1]),
+      format(cost[length(cost)]), param, format(vals[length(vals)])
     )
     cli::cli_text(msg)
   }
@@ -553,6 +573,27 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
     ) +
     ggplot2::theme_minimal(base_size = 14)
   p
+}
+
+# The stored call arguments of a result with the overrides applied. An override
+# of the unit cost settings drops a stored cost_list_of_vectors, which
+# lago_optimization() would otherwise use in their place. A result from version
+# 1.1.0 or older, which has no unit_cost_doses argument, stored FALSE for
+# include_center_effects as its default, which center level data turned into
+# TRUE. That FALSE is read as the default, so it is resolved again for the data.
+merge_call_args <- function(stored, overrides) {
+  merged <- stored
+  older <- !"unit_cost_doses" %in% names(stored)
+  if (older && identical(stored$include_center_effects, FALSE)) {
+    merged["include_center_effects"] <- list(NULL)
+  }
+  for (nm in names(overrides)) merged[[nm]] <- overrides[[nm]]
+  unit_settings <- c("unit_costs", "default_cost_fxn_type", "unit_cost_doses")
+  if (any(unit_settings %in% names(overrides)) &&
+    !"cost_list_of_vectors" %in% names(overrides) && !is.null(merged$unit_costs)) {
+    merged$cost_list_of_vectors <- NULL
+  }
+  merged
 }
 
 # Return a handler that shows each distinct input note or input warning once

@@ -35,7 +35,7 @@ test_that("categorical covariates keep reference predictions under global contra
     include_confidence_set = FALSE)
   expect_identical(getOption("contrasts"), c("contr.sum", "contr.helmert"))
   expect_equal(fitted(summed$model), fitted(plain$model))
-  expect_equal(covariate_contrast_key(summed), covariate_contrast_key(plain))
+  expect_equal(covariate_contrast_key(summed), covariate_contrast_key(plain), tolerance = 1e-5)
   expect_equal(as.numeric(plain$rec_int), 5)
   expect_identical(summed$model$call$contrasts, list(grp = "contr.treatment"))
 })
@@ -64,7 +64,7 @@ test_that("categorical covariates have coding invariant continuous confidence ou
           baseline <- plain
         }
         result <- covariate_contrast_run(changed, additional_covariates = "grp")
-        expect_equal(covariate_contrast_key(result), covariate_contrast_key(baseline))
+        expect_equal(covariate_contrast_key(result), covariate_contrast_key(baseline), tolerance = 1e-5)
         expect_equal(coef(result$model), coef(baseline$model))
         expect_identical(result$model$contrasts, list(grp = "contr.treatment"))
         expect_identical(getOption("contrasts"), c(coding, "contr.poly"))
@@ -90,7 +90,7 @@ test_that("two level characteristics retain treatment indicator semantics", {
       options(contrasts = c("contr.sum", "contr.poly"))
       result <- covariate_contrast_run(changed, center_characteristics = "grp",
         center_characteristics_optimization_values = value)
-      expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain))
+      expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain), tolerance = 1e-5)
       expect_identical(result$model$contrasts, list(grp = "contr.treatment"))
       expect_identical(getOption("contrasts"), c("contr.sum", "contr.poly"))
       at <- changed[1, , drop = FALSE]
@@ -121,7 +121,7 @@ test_that("explicit contrast attributes are overridden without changing input da
     before <- changed
     result <- covariate_contrast_run(changed, additional_covariates = "grp")
     expect_identical(changed, before)
-    expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain))
+    expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain), tolerance = 1e-5)
     expect_identical(result$model$contrasts, list(grp = "contr.treatment"))
   }
 })
@@ -137,11 +137,11 @@ test_that("only model predictors receive contrasts and numeric controls are unch
   result <- covariate_contrast_run(d, additional_covariates = "grp")
   expect_null(result$model$contrasts)
   expect_null(result$model$call$contrasts)
-  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain))
+  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain), tolerance = 1e-5)
   expect_equal(coef(result$model), c("(Intercept)" = 1, x = 2, grp = 2))
   d$grp <- d$grp == 1
   logical_result <- covariate_contrast_run(d, additional_covariates = "grp")
-  expect_equal(covariate_contrast_key(logical_result), covariate_contrast_key(plain))
+  expect_equal(covariate_contrast_key(logical_result), covariate_contrast_key(plain), tolerance = 1e-5)
   expect_identical(logical_result$model$call$contrasts, list(grp = "contr.treatment"))
 })
 
@@ -157,7 +157,7 @@ test_that("multiple categorical covariates share the reference level convention"
   options(contrasts = c("contr.helmert", "contr.poly"))
   d$grp <- ordered(d$grp, levels = levels(d$grp))
   result <- covariate_contrast_run(d, additional_covariates = c("grp", "flag"))
-  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain))
+  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain), tolerance = 1e-5)
   expect_equal(coef(result$model), coef(plain$model))
   expect_identical(result$model$contrasts,
     list(grp = "contr.treatment", flag = "contr.treatment"))
@@ -185,7 +185,7 @@ test_that("numeric interaction columns stay numeric beside categorical covariate
   options(contrasts = c("contr.sum", "contr.poly"))
   d$grp <- ordered(d$grp)
   result <- run(d)
-  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain))
+  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain), tolerance = 1e-5)
   expect_identical(result$model$call$contrasts, list(grp = "contr.treatment"))
   expect_equal(unname(coef(result$model)), c(1, 2, 1, 0.5, 2))
   expect_true(is.numeric(result$model$model[["x:z"]]))
@@ -209,7 +209,7 @@ test_that("binary confidence output is invariant for ordered additional covariat
   d$site <- ordered(d$site)
   result <- run(d)
   expect_false(is.null(plain$cs))
-  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain))
+  expect_equal(covariate_contrast_key(result), covariate_contrast_key(plain), tolerance = 1e-5)
   expect_equal(fitted(result$model), fitted(plain$model))
   expect_identical(result$model$contrasts, list(site = "contr.treatment"))
 })

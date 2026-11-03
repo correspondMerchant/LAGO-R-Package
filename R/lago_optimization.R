@@ -59,7 +59,8 @@
 #' @param unit_cost_doses A numeric vector or NULL. The dose of each
 #' intervention component at which its unit cost in `unit_costs` was measured,
 #' one per unit cost and within the bounds. The cubic cost is then pinned there,
-#' so the cost per unit at that dose is the unit cost. Without it the cubic cost
+#' so the cost per unit at that dose is the unit cost, and the curve does not
+#' depend on the units of the cost or of the dose. Without it the cubic cost
 #' only matches each unit cost on average over the bounds, and a warning says
 #' so. The linear cost is the unit cost at every dose, so it does not use this.
 #' Default value without user specification: NULL.
@@ -92,13 +93,16 @@
 #' estimated outcome and the confidence set are computed with, so they are the
 #' only ones that can be reported on the outcome scale the goal is stated on.
 #' Default value without user specification:
-#' "identity" for continuous outcomes, "logit" for binary outcomes.
+#' "logit" for binary outcomes and for the "quasibinomial" family, and
+#' "identity" otherwise.
 #' @param weights A numeric vector. The weights argument of the glm()
 #' outcome model. Continuous confidence covariance uses the actual fitted
 #' prior weights as relative observation weights, with zero weights excluded
 #' from covariance contributions and the identity residual degrees of freedom.
 #' See get_confidence_set() for the covariance formulas and family limits.
-#' A data column named weights does not replace this argument.
+#' A data column named weights does not replace this argument. For center
+#' level data it is ignored with a warning, since each row is weighted by its
+#' center_sample_size.
 #' @param center_characteristics A character vector. The names of the columns in
 #' the dataset that represent the center characteristics.
 #' Note, include_center_effects and center_characteristics cannot be used
@@ -126,8 +130,8 @@
 #' effect, and at least two centers need a row the outcome model can use.
 #' Note, include_center_effects and center_characteristics cannot be used
 #' together at the same time.
-#' Default value without user specification: FALSE for individual level data,
-#' TRUE for center level data.
+#' Default value without user specification (NULL): FALSE for individual level
+#' data, TRUE for center level data.
 #' @param center_effects_optimization_values A character string. The name of
 #' the center of interest (one of the values of the 'center' column) that will
 #' be used for center-specific LAGO optimization. This is only used when
@@ -273,6 +277,9 @@
 #' confidence set,
 #' overall intervention test results (test_results), a list with the test
 #' statistic and p-value; NULL unless a valid 'group' column is supplied.
+#' shrinking_method_used, TRUE when the outcome goal could not be reached and
+#' the shrinking method gave the recommendation, in which case no confidence set
+#' is computed.
 #' The confidence set fields are only present when include_confidence_set = TRUE.)
 #' The result also carries its own call arguments in the attribute
 #' `"lago_call_args"` (not a `$`-accessible field), so it can be passed directly
@@ -374,7 +381,7 @@ lago_optimization <- function(
     optimization_grid_search_step_size = NULL,
     confidence_set_grid_step_size = NULL,
     include_confidence_set = TRUE,
-    include_center_effects = FALSE,
+    include_center_effects = NULL,
     center_effects_optimization_values = NULL,
     include_time_effects = FALSE,
     include_interaction_terms = FALSE,
@@ -503,7 +510,8 @@ lago_optimization <- function(
     outcome_name = outcome_name,
     icc = icc,
     power_goal_cluster_id = power_goal_cluster_id,
-    input_data_structure = input_data_structure
+    input_data_structure = input_data_structure,
+    row_weights = weights
   )
   if (!quiet) Sys.sleep(0.25)
   if (!quiet) cli::cli_alert_success("Done")
@@ -601,6 +609,8 @@ lago_optimization <- function(
   # showed (input recap + model fit), which R users often read straight from the
   # command line.
   result_meta <- list(
+    # an unreachable goal is shrunk, and then no confidence set is computed
+    shrinking_method_used = isTRUE(rec_int_results$shrinking_method_used),
     intervention_components = intervention_components,
     display_components = display_components,
     outcome_type = outcome_type,

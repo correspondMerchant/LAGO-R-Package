@@ -144,8 +144,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
         "of the package, or pass the lago_optimization() arguments directly."
       ))
     }
-    base <- stored
-    for (nm in names(dots)) base[[nm]] <- dots[[nm]]
+    base <- merge_call_args(stored, dots)
   } else {
     base <- dots
   }
@@ -170,6 +169,21 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     stop(paste(
       "`data`, `outcome_name` and `outcome_type` must be available (via",
       "`object` or `...`) to run a budget search."
+    ))
+  }
+  # each component gets a column of the search table, next to these fixed ones
+  components <- if (isTRUE(base$include_interaction_terms) && !is.null(base$main_components)) {
+    base$main_components
+  } else {
+    base$intervention_components
+  }
+  reserved <- c("outcome_goal", "rec_int_cost", "est_outcome", "status", "reached", "affordable")
+  clashing <- intersect(gsub("`", "", components), reserved)
+  if (length(clashing) > 0) {
+    stop(paste0(
+      "The intervention component(s) ", paste0("'", clashing, "'", collapse = ", "),
+      " have the name of a column lago_budget() uses in its search (",
+      paste(reserved, collapse = ", "), "). Rename them in the data."
     ))
   }
   if (!outcome_name %in% names(data)) {
@@ -239,10 +253,20 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     # only goals the recommendation actually meets as `reached` (est reaches the
     # goal, up to a tolerance; overshoot from the grid counts as reached).
     tol <- 1e-6 * pmax(1, abs(sens$value))
-    reached <- ok & (if (maximize) {
-      sens$est_outcome_goal >= sens$value - tol
+    # with a power goal a run targets the higher power implied goal, so it
+    # reaches its goal only when it meets that one
+    target <- sens$value
+    effective <- attr(sens, "effective_outcome_goal")
+    if (maximize && length(effective) == length(target)) {
+      target <- ifelse(is.na(effective), target, pmax(target, effective))
+    }
+    # a shrunk run did not reach its goal, whatever its estimate
+    shrunk <- attr(sens, "shrinking_method_used")
+    not_shrunk <- if (length(shrunk) == length(target)) !(shrunk %in% TRUE) else TRUE
+    reached <- ok & not_shrunk & (if (maximize) {
+      sens$est_outcome_goal >= target - tol
     } else {
-      sens$est_outcome_goal <= sens$value + tol
+      sens$est_outcome_goal <= target + tol
     })
     data.frame(
       outcome_goal = sens$value,
@@ -280,10 +304,32 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   }
   # the span doubles with each extension, so 30 covers about 1e9 times the range
   extensions <- 0L
-  while (extreme_ok_afford(fr) && extensions < 30L) {
+  # a binary goal cannot pass 0 or 1, so the search stops once the improving
+  # most reached goal is at that limit, as on the identity link it can be
+  at_limit <- function(df) {
+    if (!identical(outcome_type, "binary")) {
+      return(FALSE)
+    }
+    g <- if (maximize) max(df$outcome_goal) else min(df$outcome_goal)
+    est <- df$est_outcome[df$outcome_goal == g][1]
+    gap <- if (maximize) 1 - g else g
+    gap < 1e-6 || (maximize && isTRUE(est >= 1)) || (!maximize && isTRUE(est <= 0))
+  }
+  while (extreme_ok_afford(fr) && !at_limit(fr) && extensions < 30L) {
     span <- diff(range(fr$outcome_goal))
     if (!is.finite(span) || span <= 0) span <- abs(fr$outcome_goal[1]) + 1
-    if (maximize) {
+    if (identical(outcome_type, "binary")) {
+      # a probability cannot pass 0 or 1, so the new goals fill the gap
+      # towards it, strictly inside
+      inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
+      new_goals <- if (maximize) {
+        g0 <- max(fr$outcome_goal)
+        g0 + (1 - g0) * inside
+      } else {
+        g0 <- min(fr$outcome_goal)
+        g0 * inside
+      }
+    } else if (maximize) {
       g0 <- max(fr$outcome_goal)
       new_goals <- seq(g0, g0 + span, length.out = n_grid + 1L)[-1]
     } else {
@@ -295,7 +341,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     rownames(fr) <- NULL
     extensions <- extensions + 1L
   }
-  if (extreme_ok_afford(fr)) {
+  if (extreme_ok_afford(fr) && !at_limit(fr)) {
     warning(paste(
       "The goal grid was extended 30 times and its best goal is still reached",
       "and affordable, so a better affordable outcome may exist. Check the",
@@ -316,8 +362,38 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     best <- if (maximize) max(df$est_outcome[aff]) else min(df$est_outcome[aff])
     # goals that tie on the outcome all return the same intervention, so take
     # the furthest one in the improving direction, where the refinement belongs
-    tied <- aff[df$est_outcome[aff] == best]
+    # within the solver's tolerance, since its last digits differ from goal to
+    # goal and from platform to platform
+    tied <- aff[abs(df$est_outcome[aff] - best) <= 1e-6 * max(abs(best), 1e-12)]
     tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
+  }
+
+  # a rare binary outcome may afford only goals below the grid when maximizing,
+  # or above it when minimizing, so the grid also fills the gap the other way,
+  # towards 0 or 1, until a reached goal is affordable. Once some goal is
+  # reached, it stops when a pass makes the cheapest reached goal no cheaper,
+  # since the goals further on then cost the same, at the lower bounds.
+  if (identical(outcome_type, "binary")) {
+    inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
+    cheapest_reached <- function(df) {
+      costs <- df$rec_int_cost[df$reached]
+      if (length(costs)) min(costs) else NA_real_
+    }
+    passes <- 0L
+    cheapest <- cheapest_reached(fr)
+    while (is.na(best_idx(fr)) && passes < 30L) {
+      g0 <- if (maximize) min(fr$outcome_goal) else max(fr$outcome_goal)
+      gap <- if (maximize) g0 else 1 - g0
+      if (gap < 1e-6) break
+      new_goals <- if (maximize) g0 * inside else g0 + (1 - g0) * inside
+      fr <- rbind(fr, sweep(new_goals))
+      fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+      rownames(fr) <- NULL
+      passes <- passes + 1L
+      now <- cheapest_reached(fr)
+      if (!is.na(cheapest) && !(now < cheapest - 1e-9 * max(1, abs(cheapest)))) break
+      cheapest <- now
+    }
   }
 
   bi <- best_idx(fr)
@@ -390,8 +466,12 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     } else if (n_reachable == 0L) {
       warning(paste(
         "No outcome goal in the searched range was reachable, so no",
-        "budget-constrained recommendation could be made. Check the model,",
-        "bounds and outcome type."
+        "budget-constrained recommendation could be made.",
+        if (!is.null(base$power_goal)) {
+          "Every run also has to reach the outcome the power goal implies, so check the power goal and the next-stage size, as well as the model and bounds."
+        } else {
+          "Check the model, bounds and outcome type."
+        }
       ), call. = FALSE)
     } else {
       warning(sprintf(paste(
@@ -459,9 +539,16 @@ print.lago_budget <- function(x, ...) {
     return(invisible(x))
   }
   if (!x$feasible) {
-    cli::cli_alert_warning(
-      "No reachable intervention fits this budget; increase the budget."
-    )
+    # the frontier holds the reached goals, so it is empty when none was reached
+    if (NROW(x$frontier) == 0L) {
+      cli::cli_alert_warning(
+        "No outcome goal in the searched range was reachable, so no budget would help."
+      )
+    } else {
+      cli::cli_alert_warning(
+        "No reachable intervention fits this budget; increase the budget."
+      )
+    }
     return(invisible(x))
   }
 
@@ -476,9 +563,10 @@ print.lago_budget <- function(x, ...) {
   cli::cli_text("Cost: {.val {x$rec_int_cost}} (of {.val {x$budget}}).")
   cli::cli_text("Estimated outcome: {.val {x$est_outcome}}.")
   if (!x$binding) {
-    cli::cli_alert_info(paste(
-      "The budget did not bind: the whole reachable outcome range fits it,",
-      "so this is the maximum reachable outcome."
+    best <- if (identical(x$intention, "minimize")) "minimum" else "maximum"
+    cli::cli_alert_info(paste0(
+      "The budget did not bind: the whole reachable outcome range fits it, ",
+      "so this is the ", best, " reachable outcome."
     ))
   }
   invisible(x)

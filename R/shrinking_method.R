@@ -97,7 +97,7 @@ shrinking_method <- function(
 
     beta_max <- find_needed_coefficient(function(b) {
       calculate_effect(b, X_fixed, c, other_boundaries, beta_vec[other_indices])
-    }, outcome_goal)
+    }, outcome_goal, near_one = link == "logit")
 
     # beta_max is the coefficient this component would need, at its upper
     # bound, to reach the outcome goal on its own. The recommendation is an
@@ -153,21 +153,29 @@ shrinking_method <- function(
 # by bisection. The search starts in [-100, 100]. A needed coefficient above
 # 100, which depends on the outcome's units, doubles the top of the bracket
 # until it holds it. A needed coefficient below -100 leaves no usable bracket
-# either way. Returns the midpoint that reaches the goal, or else the lower end
-# of the final bracket.
-find_needed_coefficient <- function(effect_at, outcome_goal) {
+# either way. The bracket is resolved to 1e-6, relative below 1, and a midpoint
+# within 1e-6 of the goal, relative below 1, is returned at once. Otherwise the
+# lower end of the final bracket is returned.
+find_needed_coefficient <- function(effect_at, outcome_goal, near_one = FALSE) {
+  # on the logit link a goal near 1 is a rare outcome being minimized, flipped,
+  # so the tolerance is relative to its distance from 1 as well
+  scale <- min(1, abs(outcome_goal), if (near_one) abs(1 - outcome_goal) else 1)
   left <- -100
   right <- 100
   for (k in 1:60) {
     if (effect_at(right) >= outcome_goal) break
     right <- right * 2
   }
-  while (abs(right - left) > 1e-6) {
+  # the bracket is resolved to 1e-6, or relative to the coefficient when it is
+  # small, so a component in large units keeps its precision
+  while (abs(right - left) > 1e-6 * min(1, max(abs(left), abs(right)))) {
     mid <- (left + right) / 2
     # at a very large scale the bracket can stop shrinking before 1e-6
     if (mid <= left || mid >= right) break
     effect <- effect_at(mid)
-    if (abs(effect - outcome_goal) < 1e-6) {
+    # within 1e-6 of the goal, relative to it below 1, so an outcome in small
+    # units is not stopped at the first rough step
+    if (abs(effect - outcome_goal) < 1e-6 * scale) {
       return(mid)
     } else if (effect < outcome_goal) {
       left <- mid

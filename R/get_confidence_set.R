@@ -75,9 +75,9 @@
 #' center_characteristics.
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
-#' @param cluster_id A list or NULL. Specifies the columns of data that will be
-#' used as clustering effects when the "outcome_type" is continuous, with one
-#' entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
+#' @param cluster_id A list of one or two vectors, a single vector, or NULL.
+#' Specifies the columns of data that will be used as clustering effects when
+#' the "outcome_type" is continuous, with one entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
 #' center and time effects already model the centers and periods.
 #' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
 #' used in the LAGO optimization.
@@ -293,12 +293,17 @@ get_confidence_set <- function(
   # Create a list to store sequences for each component
   sequences <- list()
   # Generate sequences for each intervention component
+  # each grid includes its upper bound, even when the step does not divide the
+  # range, as the optimizer's grid does
   for (i in seq_along(intervention_lower_bounds)) {
-    sequences[[i]] <- seq(
+    grid <- seq(
       from = intervention_lower_bounds[i],
       to = intervention_upper_bounds[i],
       by = confidence_set_grid_step_size[i]
     )
+    up <- intervention_upper_bounds[i]
+    if (up - grid[length(grid)] > 1e-8 * max(1, abs(up))) grid <- c(grid, up)
+    sequences[[i]] <- grid
   }
   # expand grid
   grid_x <- expand.grid(sequences)
@@ -458,7 +463,15 @@ get_confidence_set <- function(
     # value that does not occur in the data, so the reported outcome and
     # interval are an extrapolation. Warn about that, once, naming each such
     # covariate and its range. Diagnostic only: no assembled value is changed.
-    warn_covariates_held_off_support(additional_covariates, predictors_data)
+    # a covariate glm() could not estimate at all is left out of the
+    # prediction, so it is not held at any value
+    model_coef_values <- coef(fitted_model)
+    names(model_coef_values) <- gsub("`", "", names(model_coef_values))
+    estimated <- Filter(function(covariate) {
+      covariate_coefs <- gsub("`", "", predictor_coef_names(covariate, coef_mapping))
+      !all(is.na(model_coef_values[covariate_coefs]))
+    }, additional_covariates)
+    warn_covariates_held_off_support(estimated, predictors_data)
     # one column per coefficient a covariate expands into, not one column per
     # covariate: a factor or character covariate is one coefficient per
     # non-reference level, so it needs that many columns. Every column is 0,
@@ -606,7 +619,7 @@ get_confidence_set <- function(
   model_coefs <- model_coefs[coef_positions]
   # an additional covariate glm() could not estimate (NA) adds nothing to the
   # fit, so its column is left out, as predict() leaves it out. Any other NA
-  # coefficient is kept, so the confidence set stays empty for it.
+  # coefficient is kept here and refused below, since it makes every interval NA.
   covariate_keys <- gsub("`", "", unlist(lapply(
     additional_covariates, predictor_coef_names, coef_mapping = coef_mapping
   )))
@@ -617,6 +630,15 @@ get_confidence_set <- function(
     model_coefs <- model_coefs[!aliased]
     coef_positions <- coef_positions[!aliased]
     column_keys <- column_keys[!aliased]
+  }
+  # any other NA coefficient makes every interval NA, so it is refused
+  if (anyNA(model_coefs)) {
+    stop(paste0(
+      "The coefficient(s) ", paste0("'", names(model_coefs)[is.na(model_coefs)], "'", collapse = ", "),
+      " of 'fitted_model' could not be estimated by glm() (they are NA), so no ",
+      "interval can be computed. They are usually collinear with other ",
+      "predictors. Refit the model without the collinear term."
+    ))
   }
 
   # get critical value based on the given alpha value
@@ -646,9 +668,8 @@ get_confidence_set <- function(
     # link below. Computed once so the two link branches can differ ONLY in
     # that map, the way get_outcome() is written.
     linear_predictor <- new_data %*% model_coefs
-    se_linear_predictor <- sqrt(
-      diag((new_data) %*% model_vcov %*% t(new_data))
-    )
+    # the diagonal of X V X' without forming that n by n matrix
+    se_linear_predictor <- sqrt(rowSums((new_data %*% model_vcov) * new_data))
 
     # link is either "logit" or "identity", the only links the outcome
     # machinery implements, see supported_outcome_links(). Both this and the
@@ -931,11 +952,16 @@ get_confidence_set <- function(
       # one-way and the two-way paths pass through. The non-clustered path has
       # no cluster_id and is not reached (cluster_ids is NULL there).
       if (!is.null(cluster_ids)) {
-        cluster_vectors <- if (is.list(cluster_ids)) {
-          cluster_ids
-        } else {
-          list(cluster_ids)
+        # one clustering vector may be given on its own, and at most two are
+        # supported
+        if (!is.list(cluster_ids)) cluster_ids <- list(cluster_ids)
+        if (length(cluster_ids) > 2) {
+          stop(paste0(
+            "cluster_id can hold at most two clustering vectors, but it has ",
+            length(cluster_ids), "."
+          ))
         }
+        cluster_vectors <- cluster_ids
         for (cid in cluster_vectors) {
           if (anyNA(cid)) {
             stop(paste0(
@@ -1200,8 +1226,8 @@ get_confidence_set <- function(
   # rec_int inside the confidence set. NULL when it could not be computed.
   rec_int_ci <- if (valid_rows[1]) {
     c(
-      lower = round(unname(reported_ci_prob_all[1, 1]), 3),
-      upper = round(unname(reported_ci_prob_all[1, 2]), 3)
+      lower = round_interval_bound(unname(reported_ci_prob_all[1, 1])),
+      upper = round_interval_bound(unname(reported_ci_prob_all[1, 2]))
     )
   } else {
     NULL
@@ -1273,8 +1299,8 @@ get_confidence_set <- function(
   # cs_row_indices are grid_x row numbers, and ci_prob_all is indexed by the
   # same row numbers, so the bounds line up with the cs rows they belong to.
   cs_output_names <- names(cs)
-  ci_lower_bound <- round(reported_ci_prob_all[cs_row_indices, 1], 3)
-  ci_upper_bound <- round(reported_ci_prob_all[cs_row_indices, 2], 3)
+  ci_lower_bound <- round_interval_bound(reported_ci_prob_all[cs_row_indices, 1])
+  ci_upper_bound <- round_interval_bound(reported_ci_prob_all[cs_row_indices, 2])
 
   cs <- cbind(
     cs,
@@ -1301,6 +1327,12 @@ get_confidence_set <- function(
     rec_int_ci = rec_int_ci,
     cs = cs
   ))
+}
+
+# An interval bound to 3 decimals, or to 4 significant digits when it is below
+# 0.1, so a rare outcome or one in small units keeps its digits.
+round_interval_bound <- function(x) {
+  ifelse(abs(x) >= 0.1 | !is.finite(x), round(x, 3), signif(x, 4))
 }
 
 # the coefficient names glm() gave each term of a fitted model, as a list whose

@@ -105,9 +105,17 @@ bb_optimize <- function(...) {
 n_grid_points <- function(lower, upper, step) {
   prod(vapply(
     seq_along(lower),
-    function(i) length(seq(lower[i], upper[i], by = step[i])),
+    function(i) length(ref_axis(lower[i], upper[i], step[i])),
     numeric(1)
   ))
+}
+
+# one axis of the confidence set grid: the steps from the lower bound, and the
+# upper bound when the step does not land on it
+ref_axis <- function(lower, upper, step) {
+  axis <- seq(lower, upper, by = step)
+  if (upper - axis[length(axis)] > 1e-8 * max(1, abs(upper))) axis <- c(axis, upper)
+  axis
 }
 
 # The 95% interval for a binary/logit outcome at one prediction row, computed
@@ -1211,7 +1219,8 @@ test_that("a binary outcome's reported interval is confined to [0, 1]", {
     if (link == "logit") {
       bounds <- pmin(pmax(bounds, 0), 1)
     }
-    round(bounds, 3)
+    # 3 decimals, or 4 significant digits below 0.1
+    ifelse(abs(bounds) >= 0.1, round(bounds, 3), signif(bounds, 4))
   }
 
   for (link in c("logit", "identity")) {
@@ -1608,7 +1617,7 @@ test_that("one-way clustered logit vcov matches an independent recomputation", {
 
   # and the whole reported set carries bounds from the same clustered vcov, at
   # each grid point's own coordinates
-  grid <- expand.grid(x1 = seq(1, 40, by = 10), x2 = seq(1, 5, by = 2))
+  grid <- expand.grid(x1 = ref_axis(1, 40, 10), x2 = ref_axis(1, 5, 2))
   reference <- t(apply(grid, 1, function(r) {
     ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(r[["x1"]], r[["x2"]]))
   }))
@@ -1644,7 +1653,7 @@ test_that("two-way clustered logit vcov matches an independent CGM recomputation
   expect_equal(unname(res$rec_int_ci), unname(ci_ref), tolerance = 1e-6)
 
   # the two-way set and its bounds also come from the CGM vcov, per grid point
-  grid <- expand.grid(x1 = seq(1, 40, by = 10), x2 = seq(1, 5, by = 2))
+  grid <- expand.grid(x1 = ref_axis(1, 40, 10), x2 = ref_axis(1, 5, 2))
   reference <- t(apply(grid, 1, function(r) {
     ref_logit_ci_at(vcov_ref, coef(model), bb_pred_row_z(r[["x1"]], r[["x2"]]))
   }))

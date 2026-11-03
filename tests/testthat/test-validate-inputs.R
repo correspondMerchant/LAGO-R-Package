@@ -458,9 +458,10 @@ test_that("the weight checks cover the DEFAULT weights, not just supplied", {
   # and so carries that function's 1-d array shape, which is pre-existing and
   # not what this test is about.
   a$data$center_sample_size <- c(10, 20, 30, 40)
+  # the patient mean is 0.6, the goal, so the goal direction warning is expected
   expect_identical(
-    as.numeric(suppressMessages(do.call(LAGOtrials:::validate_inputs,
-      a))$center_weights_for_outcome_goal),
+    as.numeric(suppressWarnings(suppressMessages(do.call(LAGOtrials:::validate_inputs,
+      a)))$center_weights_for_outcome_goal),
     c(0.1, 0.2, 0.3, 0.4)
   )
 })

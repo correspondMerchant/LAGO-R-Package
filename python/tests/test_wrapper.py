@@ -226,6 +226,7 @@ def test_scalar_fields_are_scalars(bb_data):
         assert not isinstance(res["est_outcome_goal"], list)
         assert isinstance(res["rec_int_cost"], float)
         assert isinstance(res["confidence_set_size_percentage"], float)
+        assert isinstance(res["shrinking_method_used"], bool)
         # est_outcome_ci is a named c(lower, upper) -> stays a dict
         assert isinstance(res["est_outcome_ci"], dict)
         assert set(res["est_outcome_ci"].keys()) == {"lower", "upper"}

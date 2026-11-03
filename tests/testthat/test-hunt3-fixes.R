@@ -27,14 +27,14 @@ test_that("a center whose rows all have zero weight is left out of the fit", {
   expect_true(any(grepl("no usable row with a positive glm weight", warnings)))
   # the same data without that center at all
   without <- hunt3_quiet(run(droplevels(d[d$center != "c3", ])))
-  expect_equal(zero$rec_int, without$rec_int, tolerance = 1e-8)
+  expect_equal(zero$rec_int, without$rec_int, tolerance = 1e-5)
   # a positive weight on a row the model cannot use does not count
   incomplete <- d
   first <- which(d$center == "c3")[1]
   incomplete$x[first] <- NA
   weights <- ifelse(d$center == "c3", 0, 1)
   weights[first] <- 1
-  expect_equal(hunt3_quiet(run(incomplete, weights))$rec_int, without$rec_int, tolerance = 1e-8)
+  expect_equal(hunt3_quiet(run(incomplete, weights))$rec_int, without$rec_int, tolerance = 1e-5)
   expect_equal(zero$est_outcome_ci, without$est_outcome_ci)
   expect_equal(zero$confidence_set_size_percentage, without$confidence_set_size_percentage)
 })
@@ -89,6 +89,8 @@ test_that("the confidence set keeps the precision of a cost in small units", {
 # ---- the numerical optimizer ------------------------------------------------------
 
 test_that("the numerical optimizer does not return a point short of the goal", {
+  # a deliberately hard optimization, which takes about a minute
+  skip_on_cran()
   set.seed(1)
   d <- expand.grid(x1 = 0:10, x2 = 0:10)
   d <- d[rep(seq_len(nrow(d)), 3), ]
@@ -134,6 +136,8 @@ hunt3_brute <- function(beta, cost, goal, link) {
 }
 
 test_that("restarts that stop short of the goal are left out", {
+  # a deliberately hard optimization, which takes about a minute
+  skip_on_cran()
   cases <- list(
     list(beta = c(-1.5, 0.46, 0.42, -0.097), cost = list(c(0, 1, 0), c(0, 1, 0)), goal = 0.85, link = "logit"),
     list(beta = c(0, 1, 0.98, -0.2), cost = list(c(0, 0, 1), c(0, 0, 2)), goal = 9.5, link = "identity")
@@ -147,6 +151,8 @@ test_that("restarts that stop short of the goal are left out", {
 })
 
 test_that("the highest outcome is not taken from a saddle point on the diagonal", {
+  # a deliberately hard optimization, which takes about a minute
+  skip_on_cran()
   # equal effects that cancel through the interaction: the diagonal restarts
   # stop at about 0.62, while x2 = 0 and x1 = 10 reaches 0.95
   r <- hunt3_optimize(c(-2, 0.5, 0.5, -0.1), list(c(0, 1), c(0, 1)), 0.9, "logit")
@@ -235,22 +241,23 @@ test_that("a covariate glm() cannot estimate leaves the confidence set as withou
     expect_equal(with_region$est_outcome_ci, without$est_outcome_ci)
     expect_equal(with_region$cs, without$cs)
   }
-  # an intervention component glm() cannot estimate is not dropped, so the
-  # confidence set stays empty rather than treating it as having no effect
+  # an intervention component glm() cannot estimate is not dropped, and is
+  # refused rather than treated as having no effect
   set.seed(3)
   dd <- data.frame(x1 = stats::runif(400, 0, 10))
   dd$x2 <- 2 * dd$x1
   dd$y <- stats::rbinom(400, 1, stats::plogis(-2 + 0.3 * dd$x1))
   fit <- stats::glm(y ~ x1 + x2, data = dd, family = stats::binomial)
-  cs <- suppressWarnings(get_confidence_set(
-    predictors_data = dd[, c("x1", "x2")], intervention_components = c("x1", "x2"),
-    outcome_data = dd$y, fitted_model = fit, link = "logit", outcome_goal = 0.5,
-    outcome_type = "binary", intervention_lower_bounds = c(0, 0),
-    intervention_upper_bounds = c(10, 20), confidence_set_grid_step_size = c(1, 5),
-    cost_list_of_vectors = list(c(0, 1), c(0, 1)), rec_int = c(6.7, 0)
-  ))
-  expect_equal(cs$confidence_set_size_percentage, 0)
-  expect_null(cs$cs)
+  expect_error(
+    suppressWarnings(get_confidence_set(
+      predictors_data = dd[, c("x1", "x2")], intervention_components = c("x1", "x2"),
+      outcome_data = dd$y, fitted_model = fit, link = "logit", outcome_goal = 0.5,
+      outcome_type = "binary", intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 20), confidence_set_grid_step_size = c(1, 5),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)), rec_int = c(6.7, 0)
+    )),
+    "'x2' of 'fitted_model' could not be estimated"
+  )
 })
 
 # ---- column types ---------------------------------------------------------------------

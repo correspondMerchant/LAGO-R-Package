@@ -58,16 +58,11 @@ outcome_model_fitting <- function(
       "least two ", term, "s"
     )
   }
-  # center level data always fits center effects, so turning them off is no remedy
   turn_off <- function(term) {
-    if (term == "center" && input_data_structure == "center_level") {
-      ""
-    } else {
-      paste0(
-        ", or set include_", if (term == "center") "center" else "time",
-        "_effects = FALSE"
-      )
-    }
+    paste0(
+      ", or set include_", if (term == "center") "center" else "time",
+      "_effects = FALSE"
+    )
   }
   no_usable_row <- paste0(
     "No row has every model variable and its glm weight (center_sample_size ",
@@ -295,10 +290,22 @@ outcome_model_fitting <- function(
   # intended. Warn, naming the covariate, and let the optimization continue, in
   # keeping with the other non-fatal fit diagnostics below.
   if (!is.null(additional_covariates)) {
-    dropped_covariates <- Filter(function(covariate) {
+    na_share <- vapply(additional_covariates, function(covariate) {
       covariate_coefs <- predictor_coef_names(covariate, coef_mapping)
-      any(is.na(all_coefs[covariate_coefs]))
-    }, additional_covariates)
+      mean(is.na(all_coefs[covariate_coefs]))
+    }, numeric(1))
+    dropped_covariates <- additional_covariates[na_share == 1]
+    partly_dropped <- additional_covariates[na_share > 0 & na_share < 1]
+    if (length(partly_dropped) > 0) {
+      warning(paste0(
+        "Some levels of the additional covariate(s) ",
+        paste(partly_dropped, collapse = ", "),
+        " could not be estimated by glm() (their coefficient(s) are NA), so ",
+        "those levels are left out of the fit. This usually means they are ",
+        "collinear with other predictors. If that is not intended, drop or ",
+        "combine the covariate(s)."
+      ))
+    }
     if (length(dropped_covariates) > 0) {
       warning(paste0(
         "The additional covariate(s) ",

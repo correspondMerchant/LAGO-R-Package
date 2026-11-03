@@ -484,6 +484,48 @@ visualize_cost <- function(
   }
 
   server <- function(input, output, session) {
+    # A slider reports its value rounded to its step, which loses the small
+    # high order coefficients of a cubic. The server keeps the exact value it
+    # set, and a slider value within half a step of it is read as that value.
+    exact <- new.env(parent = emptyenv())
+    # the drawn curves read the same exact values, see preferExact() in
+    # cost-curves.js
+    # stale is the slider's reading when only its range changed: while the
+    # slider still reads that, it has not been moved and the exact value holds
+    set_coef <- function(id, value, step, stale = NULL) {
+      assign(id, list(value = value, step = step, stale = stale), envir = exact)
+      session$sendCustomMessage("lago-exact-coef", list(id = id, value = value, step = step, stale = stale))
+    }
+    drop_coef <- function(id) {
+      if (exists(id, envir = exact, inherits = FALSE)) rm(list = id, envir = exact)
+      session$sendCustomMessage("lago-exact-coef", list(id = id, value = NULL))
+    }
+    coef_input <- function(component_idx, i) {
+      id <- paste0("coef_", component_idx, "_", i - 1)
+      v <- input[[id]]
+      e <- if (exists(id, envir = exact, inherits = FALSE)) get(id, envir = exact)
+      # the stale reading lasts until the slider reports anything else
+      if (!is.null(v) && !is.null(e$stale) && !isTRUE(v == e$stale)) {
+        e$stale <- NULL
+        assign(id, e, envir = exact)
+      }
+      if (!is.null(v) && !is.null(e) &&
+        (abs(v - e$value) <= e$step / 2 || isTRUE(v == e$stale))) {
+        e$value
+      } else {
+        v
+      }
+    }
+    for (component_idx in seq_len(n_components)) {
+      for (i in seq_along(coefs_by_type[[default_cost_fxn_type]][[component_idx]])) {
+        set_coef(
+          paste0("coef_", component_idx, "_", i - 1),
+          coefs_by_type[[default_cost_fxn_type]][[component_idx]][i],
+          ranges_by_type[[default_cost_fxn_type]][[component_idx]][[i]]$step
+        )
+      }
+    }
+
     # Remove the resource-path prefix registered above when the app stops, so
     # relaunching does not leak "lago_cost_assets" process-globally across
     # launches. The addResourcePath above re-runs on the next launch.
@@ -509,7 +551,7 @@ visualize_cost <- function(
         sapply(
           seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
-            input[[paste0("coef_", component_idx, "_", i - 1)]]
+            coef_input(component_idx, i)
           }
         )
       })
@@ -518,7 +560,7 @@ visualize_cost <- function(
     # The `cost_list <- list(...)` snippet, ready to paste into R.
     cost_list_code <- reactive({
       coef_strings <- sapply(current_cost_list(), function(coefs) {
-        paste0("c(", paste(format_coef(coefs), collapse = ", "), ")")
+        paste0("c(", paste(format_coef_code(coefs), collapse = ", "), ")")
       })
       paste0(
         "cost_list <- list(\n    ",
@@ -588,6 +630,10 @@ visualize_cost <- function(
               inputId = paste0("range_max_", component_idx, "_", i - 1),
               value = rng$max
             )
+            set_coef(
+              paste0("coef_", component_idx, "_", i - 1),
+              coefs_by_type[[t]][[component_idx]][i], rng$step
+            )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
@@ -620,13 +666,44 @@ visualize_cost <- function(
                 !is.finite(rmin) || !is.finite(rmax) || rmin >= rmax) {
                 return()
               }
-              updateSliderInput(
-                session,
-                inputId = paste0("coef_", component_idx, "_", i - 1),
-                min = rmin,
-                max = rmax,
-                step = min((rmax - rmin) / 1000, 0.00001)
-              )
+              # the stored exact value keeps the slider's new step, or is
+              # dropped when the new range leaves it out or the user has moved
+              # the slider away from it
+              id <- paste0("coef_", component_idx, "_", i - 1)
+              kept <- NULL
+              if (exists(id, envir = exact, inherits = FALSE)) {
+                e <- get(id, envir = exact)
+                kept <- e$value
+                cur <- isolate(input[[id]])
+                unmoved <- is.null(cur) || abs(cur - e$value) <= e$step / 2 ||
+                  isTRUE(cur == e$stale)
+                if (unmoved && kept >= rmin && kept <= rmax) {
+                  set_coef(id, kept, slider_step(rmin, rmax), stale = cur)
+                } else {
+                  drop_coef(id)
+                  kept <- NULL
+                }
+              }
+              # the slider moves to the exact value, so at its new finer step it
+              # still reads as that value
+              if (is.null(kept)) {
+                updateSliderInput(
+                  session,
+                  inputId = id,
+                  min = rmin,
+                  max = rmax,
+                  step = slider_step(rmin, rmax)
+                )
+              } else {
+                updateSliderInput(
+                  session,
+                  inputId = id,
+                  value = kept,
+                  min = rmin,
+                  max = rmax,
+                  step = slider_step(rmin, rmax)
+                )
+              }
             },
             ignoreInit = TRUE
           )
@@ -638,10 +715,10 @@ visualize_cost <- function(
         current_coefs <- sapply(
           seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
-            input[[paste0("coef_", component_idx, "_", i - 1)]]
+            coef_input(component_idx, i)
           }
         )
-        paste0("c(", paste(format_coef(current_coefs), collapse = ", "), ")")
+        paste0("c(", paste(format_coef_code(current_coefs), collapse = ", "), ")")
       })
 
       # Add reactive expression for cost function validation
@@ -649,7 +726,7 @@ visualize_cost <- function(
         current_coefs <- sapply(
           seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
-            input[[paste0("coef_", component_idx, "_", i - 1)]]
+            coef_input(component_idx, i)
           }
         )
 
@@ -758,13 +835,17 @@ visualize_cost <- function(
                 value = new_max
               )
             }
+            set_coef(
+              paste0("coef_", component_idx, "_", i - 1), val,
+              slider_step(new_min, new_max)
+            )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
               value = val,
               min = new_min,
               max = new_max,
-              step = min((new_max - new_min) / 1000, 0.00001)
+              step = slider_step(new_min, new_max)
             )
           })
         },
@@ -778,7 +859,7 @@ visualize_cost <- function(
         current_coefs <- sapply(
           seq_len(n_coef(cur_type(), component_idx)),
           function(i) {
-            input[[paste0("coef_", component_idx, "_", i - 1)]]
+            coef_input(component_idx, i)
           }
         )
         lb <- intervention_lower_bounds[component_idx]
@@ -821,6 +902,10 @@ visualize_cost <- function(
               session,
               inputId = paste0("range_max_", component_idx, "_", i - 1),
               value = rng$max
+            )
+            set_coef(
+              paste0("coef_", component_idx, "_", i - 1),
+              coefs_by_type[[t]][[component_idx]][i], rng$step
             )
             updateSliderInput(
               session,
@@ -1062,15 +1147,28 @@ compute_slider_range <- function(init, unit_cost, k = 5) {
   # step: keep the historical fine 0.00001 step for the usual (wide) ranges,
   # and only go finer than that for a very narrow range (width < 0.01), so the
   # slider can still resolve values within it.
-  step <- min((upper - lower) / 1000, 0.00001)
-  list(min = lower, max = upper, step = step)
+  list(min = lower, max = upper, step = slider_step(lower, upper))
+}
+
+# The slider step for a range: 0.00001, finer for a narrow range, but not
+# below 1e-6, since the slider reads a smaller step written as 1e-07 as a
+# step of whole numbers.
+slider_step <- function(lower, upper) {
+  max(min((upper - lower) / 1000, 0.00001), 1e-6)
+}
+
+# Format a coefficient for the code the user copies or reads back into R, at
+# full precision (15 significant digits). A cubic's terms can nearly cancel when
+# the bounds are far from 0, so fewer digits can change the cost a lot.
+format_coef_code <- function(x) {
+  vapply(x, function(v) as.character(v), character(1))
 }
 
 # Format a number for display in the app: 3 decimal places by default, but
 # more places (up to 5) for small-magnitude values so that roughly 3
 # significant figures are preserved. Trailing zeros are dropped. This keeps
-# slider labels, range inputs, and the coefficient list readable instead of
-# showing values like -10.8629818181818 or 0.000000000.
+# the cost summary readable instead of showing values like -10.8629818181818.
+# The copied coefficient list uses format_coef_code() instead.
 format_coef <- function(x) {
   vapply(x, function(v) {
     if (!is.finite(v)) {

@@ -96,6 +96,11 @@ rank_deficient_outcome_message <- function(aliased_coef_names) {
 #' situation: there is nothing to select, and the only thing to tell the
 #' caller is what stopped the optimization and what to do about it.
 #'
+#' Only the max-achievable-outcome loop calls this now. When every restart of
+#' the cost loop fails, that loop tries the extra starts and then falls back to
+#' the max-outcome point, which is known to reach the goal, so it always has a
+#' candidate to choose from.
+#'
 #' WHICH of those to say depends on the cause, and the two causes want opposite
 #' advice, so the message branches on aliased_coef_names. A rank-deficient
 #' outcome model gets rank_deficient_outcome_message(), which does not
@@ -107,13 +112,11 @@ rank_deficient_outcome_message <- function(aliased_coef_names) {
 #' demonstrated, and recommended a method that fails on the same input.
 #'
 #' The condition and the message live here, once, rather than at each loop.
-#' The max-achievable-outcome loop had no such check at all while the cost loop
-#' had one, and the difference was not visible as a difference: an all-failed
+#' The max-achievable-outcome loop once had no such check at all: an all-failed
 #' max-outcome loop reached `which.max()` over all NAs, which is `integer(0)`,
 #' so the outcome it indexed was `numeric(0)` and the goal comparison two
 #' statements later failed with the R error "argument is of length zero". One
-#' guard both loops call is what stops a third loop from being written without
-#' one, and what keeps a single wording for a single situation.
+#' shared guard keeps a single wording for a single situation.
 #'
 #' @param results A numeric vector, one entry per restart, holding the value
 #' that restart converged to. NA marks a restart whose optimization failed.
@@ -255,8 +258,8 @@ off_diagonal_starts <- function(lo, up) {
 #' row per intervention component, holding the point each restart converged to.
 #' @param costs A numeric vector, one entry per column of restart_points, with
 #' the cost that restart converged to. NA marks a restart whose optimization
-#' failed. Not every entry may be NA: the caller refuses that case with its own
-#' message before calling this.
+#' failed. Not every entry may be NA: when every restart fails, the caller adds
+#' the max-outcome point and its cost before calling this.
 #' @param lower_bounds A numeric vector. The lower bounds of the intervention
 #' components.
 #' @param upper_bounds A numeric vector. The upper bounds of the intervention
@@ -274,11 +277,14 @@ select_restart_within_bounds <- function(restart_points,
                                          lower_bounds,
                                          upper_bounds,
                                          cost_fun) {
+  # solnl() can land a hair outside a bound, so a point within 1e-8 of the range
+  # counts as inside and is moved onto the bound below
+  slack <- 1e-8 * pmax(upper_bounds - lower_bounds, 1)
   in_box <- apply(
     restart_points, 2,
     function(x) {
-      all(x >= lower_bounds) &&
-        all(x <= upper_bounds)
+      all(x >= lower_bounds - slack) &&
+        all(x <= upper_bounds + slack)
     }
   )
   valid_indices <- which(!is.na(costs) & in_box)
@@ -401,6 +407,9 @@ select_restart_within_bounds <- function(restart_points,
 #' @param input_data_structure A character string, "individual_level" or
 #' "center_level". For center level data the power goal counts each row's
 #' center_sample_size patients.
+#' @param row_weights A numeric vector or NULL. The glm() weights of the rows,
+#' used to average the stage-1 intervention the shrinking method shrinks
+#' towards. Center level data uses center_sample_size instead.
 #'
 #' @return List(
 #' est_rec_int = recommended interventions,
@@ -445,7 +454,8 @@ get_recommended_interventions <- function(
     icc = NULL,
     power_goal_cluster_id = NULL,
     aliased_coef_names = character(0),
-    input_data_structure = "individual_level") {
+    input_data_structure = "individual_level",
+    row_weights = NULL) {
   # check if power goal is null, if not, calculate the desired outcome
   # value needed to achieve the power goal
   if (!is.null(power_goal)) {
@@ -474,8 +484,12 @@ get_recommended_interventions <- function(
     )
 
     effective_outcome_goal <- max(power_desired_outcome, outcome_goal)
+    # a power goal no outcome can meet is shrunk for, even where the model
+    # could predict the goal of 1 it is set to, as on the identity link
+    power_unreachable <- isTRUE(attr(power_desired_outcome, "unreachable"))
   } else {
     effective_outcome_goal <- outcome_goal
+    power_unreachable <- FALSE
   }
 
   # THE scale boundary on the way IN. outcome_goal arrives on the outcome scale
@@ -515,11 +529,23 @@ get_recommended_interventions <- function(
     }
     # drop = FALSE keeps a one-column selection as a data.frame; without it,
     # data[, single_col] collapses to a vector and colMeans() errors.
-    # every row counts here, since the stage-1 intervention was delivered either way
-    observed_mean_int_values <- colMeans(
-      data[, all_components, drop = FALSE],
-      na.rm = TRUE
-    )
+    # every row counts here, since the stage-1 intervention was delivered
+    # either way, weighted as glm() weights it, so a center level row counts
+    # its center_sample_size patients
+    if (input_data_structure == "center_level") row_weights <- data$center_sample_size
+    observed_mean_int_values <- if (is.null(row_weights)) {
+      colMeans(data[, all_components, drop = FALSE], na.rm = TRUE)
+    } else {
+      vapply(all_components, function(component) {
+        x <- data[[component]]
+        ok <- !is.na(x) & !is.na(row_weights)
+        if (any(ok) && sum(row_weights[ok]) > 0) {
+          stats::weighted.mean(x[ok], row_weights[ok])
+        } else {
+          mean(x, na.rm = TRUE)
+        }
+      }, numeric(1))
+    }
     # the shrinking method shrinks TOWARDS this vector and can return it
     # unchanged, so it is a candidate recommendation and has to be one the user
     # could actually implement, i.e. inside the bounds they gave. The observed
@@ -662,7 +688,7 @@ get_recommended_interventions <- function(
       # find the maximum outcome
       max_outcome <- max(all_outcomes)
 
-      if (max_outcome >= new_outcome_goal) {
+      if (max_outcome >= new_outcome_goal && !power_unreachable) {
         # 1) if the outcome goal is achievable
         valid_indices <- which(all_outcomes >= new_outcome_goal)
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
@@ -670,7 +696,8 @@ get_recommended_interventions <- function(
         est_rec_int <- as.numeric(full_grid[best_index, ])
         rec_int_cost <- all_costs[best_index]
       } else {
-        warning(unachievable_goal_message(lower_outcome_goal))
+        # an unreachable power goal was already reported with its own cause
+        if (!power_unreachable) warning(unachievable_goal_message(lower_outcome_goal))
         shrinking_results <- shrinking_method(
           lo = lo,
           up = up,
@@ -688,7 +715,15 @@ get_recommended_interventions <- function(
         )
 
         shrinking_method_used <- TRUE
-        est_rec_int <- as.numeric(shrinking_results)
+        # a power goal no outcome can meet needs an unbounded coefficient, so it
+        # shrinks all the way to the stage-1 intervention on every link, as the
+        # logit link already does. The identity link could otherwise reach the
+        # goal of 1 within the bounds and go to them.
+        est_rec_int <- if (power_unreachable) {
+          as.numeric(shrink_to_int_values)
+        } else {
+          as.numeric(shrinking_results)
+        }
 
         cost_functions <- lapply(cost_params, create_cost_function)
         cost <- sum(mapply(
@@ -828,7 +863,28 @@ get_recommended_interventions <- function(
       max_achievable_outcome <- results[max_position]
       max_point <- results_int_components[, max_position]
       # the diagonal restarts can stop at a saddle point, so the corners are
-      # tried too, and one is kept only when it reaches a clearly higher outcome
+      # tried too, and one is kept only when it reaches a clearly higher
+      # outcome. The last start, from the best point in each component's share
+      # of its range, guards against a component in large units stopping early.
+      span <- ifelse(up > lo, up - lo, 1)
+      to_x <- function(t) lo + t * span
+      scaled_max <- tryCatch(
+        NlcOptim::solnl(
+          X = (max_point - lo) / span,
+          objfun = function(t) obj_fun_for_max_outcome(to_x(t)),
+          lb = rep(0, length(lo)), ub = (up - lo) / span, maxIter = 100
+        ),
+        error = function(e) NULL
+      )
+      if (!is.null(scaled_max) && all(is.finite(scaled_max$par))) {
+        x <- pmin(pmax(to_x(scaled_max$par), lo), up)
+        outcome <- -obj_fun_for_max_outcome(x)
+        if (is.finite(outcome) &&
+          outcome > max_achievable_outcome + 1e-8 * max(1, abs(max_achievable_outcome))) {
+          max_achievable_outcome <- outcome
+          max_point <- x
+        }
+      }
       for (start in off_diagonal_starts(lo, up)) {
         result <- tryCatch(
           # few iterations, since a start that stalls at a corner is not worth the time
@@ -871,7 +927,7 @@ get_recommended_interventions <- function(
       cost_obj_fun_scaled <- function(x) cost_obj_fun(x) / cost_scale
 
       # 1) if the max achievable outcome is larger than the new outcome goal
-      if (max_achievable_outcome >= new_outcome_goal) {
+      if (max_achievable_outcome >= new_outcome_goal && !power_unreachable) {
         # If the goal is achievable, get the recommended intervention that
         # minimizes the total cost function
 
@@ -922,14 +978,12 @@ get_recommended_interventions <- function(
             error = function(e) NULL
           )
         }
-        solved <- logical(length(quantile_points))
 
         for (i in seq_along(quantile_points)) {
           start_points <- lo + quantile_points[i] * (up - lo)
           result <- solve_cost(start_points)
 
           if (!is.null(result)) {
-            solved[i] <- TRUE
             # result$fn is the NORMALIZED objective; record the true cost so the
             # cheapest-restart selection and the reported cost stay in real units.
             # A restart that does not reach the goal is not a solution.
@@ -940,11 +994,9 @@ get_recommended_interventions <- function(
           }
         }
 
-        # if numerical solution fails to find a solution. The same refusal the
-        # max-outcome loop above makes, from the same place and with the same
-        # cause, so the two loops cannot come to describe the same situation
-        # differently.
-        refuse_if_all_restarts_failed(ifelse(solved, 0, NA), aliased_coef_names)
+        # Every diagonal restart failing is not refused here: the extra starts
+        # below, and the point of the highest outcome, which reaches the goal,
+        # still give a recommendation.
 
         # Starts off the diagonal, and the point of the highest outcome, which
         # reaches the goal. One is kept only when it is clearly cheaper, or when
@@ -971,6 +1023,34 @@ get_recommended_interventions <- function(
             results_int_components <- cbind(results_int_components, result$par)
             cost_results <- c(cost_results, cost)
             best_cost <- cost
+          }
+        }
+        # solnl()'s tolerances are absolute in x, so a component in large units
+        # can stop early. A last start from the best point, solved in each
+        # component's share of its range, is kept by the same rules.
+        if (is.finite(best_cost)) {
+          span <- ifelse(up > lo, up - lo, 1)
+          to_x <- function(t) lo + t * span
+          best_point <- results_int_components[, which(cost_results == best_cost)[1]]
+          scaled <- tryCatch(
+            NlcOptim::solnl(
+              X = (best_point - lo) / span,
+              objfun = function(t) cost_obj_fun_scaled(to_x(t)),
+              confun = function(t) constraint_fun(to_x(t)),
+              lb = rep(0, length(lo)), ub = (up - lo) / span
+            ),
+            error = function(e) NULL
+          )
+          if (!is.null(scaled) && all(is.finite(scaled$par))) {
+            x <- pmin(pmax(to_x(scaled$par), lo), up)
+            cost <- cost_obj_fun(x)
+            clearly_cheaper <- cost < best_cost - 1e-3 * abs(best_cost)
+            if (reaches_goal(x) && (clearly_cheaper || reaches_goal(x, strict_tol)) &&
+              cost < best_cost - 1e-6 * abs(best_cost)) {
+              results_int_components <- cbind(results_int_components, x)
+              cost_results <- c(cost_results, cost)
+              best_cost <- cost
+            }
           }
         }
         if (!is.finite(best_cost)) {
@@ -1012,7 +1092,8 @@ get_recommended_interventions <- function(
           center_cha = center_cha
         )
       } else {
-        warning(unachievable_goal_message(lower_outcome_goal))
+        # an unreachable power goal was already reported with its own cause
+        if (!power_unreachable) warning(unachievable_goal_message(lower_outcome_goal))
 
         shrinking_results <- shrinking_method(
           lo = lo,
@@ -1030,7 +1111,15 @@ get_recommended_interventions <- function(
           stage_1_intervention = shrink_to_int_values
         )
         shrinking_method_used <- TRUE
-        est_rec_int <- as.numeric(shrinking_results)
+        # a power goal no outcome can meet needs an unbounded coefficient, so it
+        # shrinks all the way to the stage-1 intervention on every link, as the
+        # logit link already does. The identity link could otherwise reach the
+        # goal of 1 within the bounds and go to them.
+        est_rec_int <- if (power_unreachable) {
+          as.numeric(shrink_to_int_values)
+        } else {
+          as.numeric(shrinking_results)
+        }
 
         est_reachable_outcome <- get_est_reachable_outcome(
           x = est_rec_int,

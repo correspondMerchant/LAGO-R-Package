@@ -195,6 +195,26 @@
     return coefs;
   }
 
+  // A slider reports its value rounded to its step. The exact value the server
+  // set is used while the slider sits within half a step of it, as the server
+  // reads it, so a small high order coefficient is not drawn as 0.
+  function preferExact(value, exact) {
+    if (exact && isFinite(value) &&
+      (Math.abs(value - exact.value) <= exact.step / 2 || value === exact.stale)) {
+      return exact.value;
+    }
+    return value;
+  }
+
+  // a slider reading through its exact value. The stale reading after a range
+  // edit lasts until the slider reports anything else.
+  function readThroughExact(value, exact) {
+    if (exact && isFinite(value) && exact.stale !== undefined && value !== exact.stale) {
+      exact.stale = undefined;
+    }
+    return preferExact(value, exact);
+  }
+
   var math = {
     costAt: costAt,
     marginalAt: marginalAt,
@@ -202,7 +222,9 @@
     validate: validate,
     dragScale: dragScale,
     anchorXs: anchorXs,
-    solveVandermonde: solveVandermonde
+    solveVandermonde: solveVandermonde,
+    preferExact: preferExact,
+    readThroughExact: readThroughExact
   };
 
   // Export for node (unit tests). Harmless in the browser.
@@ -222,6 +244,24 @@
   }
 
   var $ = global.jQuery;
+
+  // the exact coefficient values the server set, by slider id
+  var exactCoefs = {};
+  function readExact(id, value) {
+    return readThroughExact(value, exactCoefs[id]);
+  }
+  Shiny.addCustomMessageHandler("lago-exact-coef", function (m) {
+    if (m.value === null || m.value === undefined) {
+      delete exactCoefs[m.id];
+    } else {
+      exactCoefs[m.id] = {
+        value: +m.value,
+        step: +m.step,
+        stale: m.stale === null || m.stale === undefined ? undefined : +m.stale
+      };
+    }
+    drawAll();
+  });
 
   // Fixed internal coordinate system. The <svg> is sized to 100% width with a
   // viewBox, so it scales with the card and never measures zero even when its
@@ -249,10 +289,10 @@
     if ($) {
       var irs = $(el).data("ionRangeSlider");
       if (irs && irs.result && isFinite(+irs.result.from)) {
-        return +irs.result.from;
+        return readExact(id, +irs.result.from);
       }
     }
-    return parseFloat(el.value);
+    return readExact(id, parseFloat(el.value));
   }
 
   // Gather a container's configuration from its data-* attributes and the

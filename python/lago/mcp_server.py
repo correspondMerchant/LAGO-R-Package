@@ -84,6 +84,7 @@ def _baseline_kwargs(
     link,
     center_characteristics,
     center_characteristics_optimization_values,
+    power_goal_settings=None,
 ):
     """Build the shared optional baseline kwargs for optimize/sensitivity.
 
@@ -105,6 +106,10 @@ def _baseline_kwargs(
         extra["center_characteristics_optimization_values"] = (
             center_characteristics_optimization_values
         )
+    # the next-stage size and clustering a power goal needs, when given
+    for name, value in (power_goal_settings or {}).items():
+        if value is not None:
+            extra[name] = value
     return extra
 
 
@@ -149,6 +154,11 @@ def optimize(
     link: str = "default",
     center_characteristics: list[str] | None = None,
     center_characteristics_optimization_values: list[float] | None = None,
+    num_centers_in_next_stage: int | None = None,
+    patients_per_center_in_next_stage: int | None = None,
+    power_goal_approach: str | None = None,
+    icc: float | None = None,
+    power_goal_cluster_id: str | None = None,
     confidence_set_grid_step_size: list[float] | None = None,
     include_confidence_set: bool = True,
 ) -> dict:
@@ -160,10 +170,15 @@ def optimize(
     columns and their per-component lower/upper bounds, and the cost functions
     as `cost_list_of_vectors` (one list of polynomial coefficients per
     component). At least one of `outcome_goal` or `power_goal` must be given.
+    A `power_goal` also needs `num_centers_in_next_stage` and
+    `patients_per_center_in_next_stage`, and can take `power_goal_approach`
+    ("unconditional" or "conditional"), `icc` and `power_goal_cluster_id`.
 
     Returns a JSON dict with `rec_int` (the recommended value per component),
     `rec_int_cost` (its cost), `est_outcome_goal` (the estimated outcome at the
-    recommendation), and, when a confidence set is computed, `est_outcome_ci`
+    recommendation), `shrinking_method_used` (True when the goal could not be
+    reached, in which case no confidence set is computed), and, when a
+    confidence set is computed, `est_outcome_ci`
     (lower/upper), `confidence_set_size_percentage`, and `confidence_set` (the
     confidence-set rows). On a bad input or optimization error it returns
     `{"error": "..."}` with a short message instead of raising.
@@ -178,6 +193,13 @@ def optimize(
             link,
             center_characteristics,
             center_characteristics_optimization_values,
+            {
+                "num_centers_in_next_stage": num_centers_in_next_stage,
+                "patients_per_center_in_next_stage": patients_per_center_in_next_stage,
+                "power_goal_approach": power_goal_approach,
+                "icc": icc,
+                "power_goal_cluster_id": power_goal_cluster_id,
+            },
         )
         extra["include_confidence_set"] = include_confidence_set
         if confidence_set_grid_step_size is not None:
@@ -200,6 +222,8 @@ def optimize(
             "rec_int": [_finite(v) for v in res["rec_int"]],
             "rec_int_cost": _finite(res["rec_int_cost"]),
             "est_outcome_goal": _finite(res["est_outcome_goal"]),
+            # True when the goal could not be reached, so no confidence set
+            "shrinking_method_used": bool(res.get("shrinking_method_used", False)),
         }
         ci = res.get("est_outcome_ci")
         if isinstance(ci, dict):
@@ -239,6 +263,11 @@ def sensitivity(
     link: str = "default",
     center_characteristics: list[str] | None = None,
     center_characteristics_optimization_values: list[float] | None = None,
+    num_centers_in_next_stage: int | None = None,
+    patients_per_center_in_next_stage: int | None = None,
+    power_goal_approach: str | None = None,
+    icc: float | None = None,
+    power_goal_cluster_id: str | None = None,
 ) -> Any:
     """Sweep one LAGO input and report how the recommendation moves.
 
@@ -267,6 +296,13 @@ def sensitivity(
             link,
             center_characteristics,
             center_characteristics_optimization_values,
+            {
+                "num_centers_in_next_stage": num_centers_in_next_stage,
+                "patients_per_center_in_next_stage": patients_per_center_in_next_stage,
+                "power_goal_approach": power_goal_approach,
+                "icc": icc,
+                "power_goal_cluster_id": power_goal_cluster_id,
+            },
         )
         df = lago.sensitivity(
             data=data,

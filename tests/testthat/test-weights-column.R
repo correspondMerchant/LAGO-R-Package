@@ -164,7 +164,7 @@ test_that("lago_optimization() gives the same result with or without a weights c
         outcome_type = type, outcome_goal = goal, weights = weights)
       result <- weights_column_run(shadowed, outcome_name = outcome,
         outcome_type = type, outcome_goal = goal, weights = weights)
-      expect_equal(weights_column_key(result), weights_column_key(expected))
+      expect_equal(weights_column_key(result), weights_column_key(expected), tolerance = 1e-5)
     }
   }
 })

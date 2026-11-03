@@ -132,3 +132,149 @@ test_that("the Linear/Cubic toggle switches the coefficient-vector length", {
     expect_equal(ncoef(output$coefficient_text_1), 2L)
   })
 })
+
+test_that("the cost list keeps the exact cubic coefficients the sliders round", {
+  builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
+  designer <- getFromNamespace(".designer_cubic_coefs", "LAGOtrials")
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
+  app <- suppressWarnings(builder(
+    component_names = "A", unit_costs = 1, default_cost_fxn_type = "cubic",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 100
+  ))
+  exact <- designer(0, 100, 1)
+  old <- options(lago_cost_list = NULL)
+  on.exit(options(old), add = TRUE)
+  shiny::testServer(app, {
+    # the slider reports each value rounded to 5 decimals, as the browser does
+    rounded <- round(exact, 5)
+    session$setInputs(
+      cost_type = "cubic", coef_1_0 = rounded[1], coef_1_1 = rounded[2],
+      coef_1_2 = rounded[3], coef_1_3 = rounded[4], coef_1_4 = rounded[5]
+    )
+    # the copied text keeps the small terms, so it reads back close to exact
+    shown <- eval(parse(text = output$coefficient_text_1))
+    expect_equal(shown, exact, tolerance = 1e-5)
+    try(session$setInputs(quit_button = 1), silent = TRUE)
+    returned <- getOption("lago_cost_list")[[1]]
+    expect_equal(returned, exact)
+    # the designer's curve costs the unit cost times the upper bound there
+    expect_equal(sum(returned * 100^(0:4)), 100, tolerance = 1e-8)
+  })
+})
+
+test_that("a range edit keeps small slider moves and the copied text keeps 6 digits", {
+  builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
+  designer <- getFromNamespace(".designer_cubic_coefs", "LAGOtrials")
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
+  app <- suppressWarnings(builder(
+    component_names = "A", unit_costs = 1, default_cost_fxn_type = "cubic",
+    intervention_lower_bounds = 30, intervention_upper_bounds = 60
+  ))
+  exact <- designer(30, 60, 1)
+  old <- options(lago_cost_list = NULL)
+  on.exit(options(old), add = TRUE)
+  shiny::testServer(app, {
+    rounded <- round(exact, 5)
+    session$setInputs(
+      cost_type = "cubic", coef_1_0 = rounded[1], coef_1_1 = rounded[2],
+      coef_1_2 = rounded[3], coef_1_3 = rounded[4], coef_1_4 = rounded[5]
+    )
+    # the copied text reads back as the curve
+    shown <- eval(parse(text = output$coefficient_text_1))
+    expect_equal(sum(shown * 60^(0:4)), 60, tolerance = 1e-8)
+    # a narrow range gives the top slider a step of 1e-6, and a move of 3 steps
+    # is read as moved
+    session$setInputs(range_min_1_4 = -1e-4, range_max_1_4 = 1e-4)
+    session$setInputs(coef_1_4 = exact[5] + 3e-6)
+    try(session$setInputs(quit_button = 1), silent = TRUE)
+    expect_equal(getOption("lago_cost_list")[[1]][5], exact[5] + 3e-6)
+  })
+})
+
+test_that("the copied cost text keeps a cubic far from 0 exact", {
+  builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
+  designer <- getFromNamespace(".designer_cubic_coefs", "LAGOtrials")
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
+  app <- suppressWarnings(builder(
+    component_names = "A", unit_costs = 8000, default_cost_fxn_type = "cubic",
+    intervention_lower_bounds = 100, intervention_upper_bounds = 103
+  ))
+  exact <- designer(100, 103, 8000)
+  shiny::testServer(app, {
+    rounded <- round(exact, 5)
+    session$setInputs(
+      cost_type = "cubic", coef_1_0 = rounded[1], coef_1_1 = rounded[2],
+      coef_1_2 = rounded[3], coef_1_3 = rounded[4], coef_1_4 = rounded[5]
+    )
+    # the coefficients nearly cancel, so the text must keep every digit
+    shown <- eval(parse(text = output$coefficient_text_1))
+    expect_equal(sum(shown * 103^(0:4)), sum(exact * 103^(0:4)), tolerance = 1e-8)
+  })
+})
+
+test_that("a range edit keeps the exact value while the slider is not moved", {
+  builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
+  designer <- getFromNamespace(".designer_cubic_coefs", "LAGOtrials")
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
+  app <- suppressWarnings(builder(
+    component_names = "A", unit_costs = 1, default_cost_fxn_type = "cubic",
+    intervention_lower_bounds = 30, intervention_upper_bounds = 60
+  ))
+  exact <- designer(30, 60, 1)
+  old <- options(lago_cost_list = NULL)
+  on.exit(options(old), add = TRUE)
+  shiny::testServer(app, {
+    rounded <- round(exact, 5)
+    session$setInputs(
+      cost_type = "cubic", coef_1_0 = rounded[1], coef_1_1 = rounded[2],
+      coef_1_2 = rounded[3], coef_1_3 = rounded[4], coef_1_4 = rounded[5]
+    )
+    # the top slider's range is narrowed, and then another slider moves
+    session$setInputs(range_min_1_4 = 0, range_max_1_4 = 1e-4)
+    session$setInputs(coef_1_0 = rounded[1] + 1e-5)
+    session$setInputs(coef_1_0 = rounded[1])
+    try(session$setInputs(quit_button = 1), silent = TRUE)
+    expect_equal(getOption("lago_cost_list")[[1]][5], exact[5])
+    # a real move, then a move back to the old reading, is read as moved
+    session$setInputs(coef_1_4 = 5e-05)
+    session$setInputs(coef_1_4 = rounded[5])
+    try(session$setInputs(quit_button = 1), silent = TRUE)
+    expect_equal(getOption("lago_cost_list")[[1]][5], rounded[5])
+  })
+})
+
+test_that("a range edit after a real slider move keeps the user's value", {
+  builder <- getFromNamespace(".build_visualize_cost_app", "LAGOtrials")
+  designer <- getFromNamespace(".designer_cubic_coefs", "LAGOtrials")
+  on.exit(suppressWarnings(
+    try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
+  ))
+  app <- suppressWarnings(builder(
+    component_names = "A", unit_costs = 1, default_cost_fxn_type = "cubic",
+    intervention_lower_bounds = 30, intervention_upper_bounds = 60
+  ))
+  exact <- designer(30, 60, 1)
+  old <- options(lago_cost_list = NULL)
+  on.exit(options(old), add = TRUE)
+  shiny::testServer(app, {
+    rounded <- round(exact, 5)
+    session$setInputs(
+      cost_type = "cubic", coef_1_0 = rounded[1], coef_1_1 = rounded[2],
+      coef_1_2 = rounded[3], coef_1_3 = rounded[4], coef_1_4 = rounded[5]
+    )
+    # the intercept is moved, and then its range is widened
+    session$setInputs(coef_1_0 = 45)
+    session$setInputs(range_min_1_0 = 0, range_max_1_0 = 100)
+    session$setInputs(coef_1_0 = 45)
+    try(session$setInputs(quit_button = 1), silent = TRUE)
+    expect_equal(getOption("lago_cost_list")[[1]][1], 45)
+  })
+})

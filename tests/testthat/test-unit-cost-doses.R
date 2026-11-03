@@ -64,6 +64,8 @@ test_that("the cubic cost warns when the measured doses are not given", {
 })
 
 test_that("a sweep shows the cubic cost warning once", {
+  # a budget sweep of many runs
+  skip_on_cran()
   r <- suppressWarnings(suppressMessages(dose_run(unit_costs = c(4, 6))))
   count <- function(expr) {
     n <- 0

@@ -75,9 +75,11 @@ test_that("center level data with an all NA center column gets a clear refusal",
     ))),
     error = conditionMessage
   )
+  # center level data can now be fitted without center effects too
   expect_identical(err, paste0(
     "Fixed center effects need at least two centers, but the data has no ",
-    "observed center. Fill in the center column."
+    "observed center. Fill in the center column, or set ",
+    "include_center_effects = FALSE."
   ))
 })
 

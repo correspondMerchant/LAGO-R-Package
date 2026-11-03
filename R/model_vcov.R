@@ -9,6 +9,17 @@ continuous_vcov <- function(X, model, outcome_data, link) {
   if (is.null(prior_weights)) prior_weights <- rep(1, n)
   unit_weights <- all(prior_weights == 1)
 
+  # a family other than gaussian weights its rows by its variance function,
+  # so on the identity link its model based variance is glm()'s own
+  if (link == "identity" && !identical(model$family$family, "gaussian")) {
+    v <- tryCatch(stats::vcov(model), error = function(e) NULL)
+    idx <- if (!is.null(v)) match(gsub("`", "", colnames(X)), gsub("`", "", rownames(v)))
+    if (!is.null(v) && !anyNA(idx)) {
+      vcov_matrix <- v[idx, idx, drop = FALSE]
+      dimnames(vcov_matrix) <- list(colnames(X), colnames(X))
+      return(vcov_matrix)
+    }
+  }
   if (link == "identity") {
     positive <- prior_weights > 0
     residual_df <- sum(positive) - n_params

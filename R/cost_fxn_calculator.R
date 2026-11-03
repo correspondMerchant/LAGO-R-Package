@@ -36,6 +36,10 @@ cost_fxn_calculator <- function(
     results <- lapply(unit_costs, function(x) c(0, x))
   } else if (default_cost_fxn_type == "cubic") {
     compute_abcd <- function(range_min, range_max, unit_cost, dose) {
+      # a component held at one dose has the linear cost there
+      if (range_max == range_min) {
+        return(c(0, unit_cost, 0, 0, 0))
+      }
       # Percentiles for derivative constraints
       x1 <- range_min + 0 * (range_max - range_min)
       x2 <- range_min + 0.33 * (range_max - range_min) # adjust as needed
@@ -45,28 +49,75 @@ cost_fxn_calculator <- function(
       # cost, so restating the costs in other units only rescales the curve.
       # A unit cost of 0 then gives the zero curve at once.
       delta <- -0.8 * unit_cost # Adjustable
+      # with a measured dose the slope is also per dose unit, so the pinned
+      # curve does not depend on the units of the dose either
+      if (!is.na(dose)) delta <- delta / (range_max - range_min)
 
-      # Define function to compute coefficients
+      # Define function to compute coefficients. The system is solved in x and
+      # in u = (x - range_min) / width, which is well conditioned. The solve in
+      # x is used when its curve matches the curve in u, and otherwise the
+      # solve in u converted back to x. When neither matches, as for bounds far
+      # from 0 compared with their width, it returns NULL and a flatter curve
+      # is tried.
       solve_coefficients <- function(delta) {
+        plain <- tryCatch(solve_in(0, 1, delta), error = function(e) NULL)
+        # the same curve, solved in u = (x - range_min) / width
+        m <- range_min
+        w <- range_max - range_min
+        scaled <- solve_in(m, w, delta)
+        # back to the powers of (x - m), then of x
+        A3 <- scaled[1] / w^3
+        B2 <- scaled[2] / w^2
+        C1 <- scaled[3] / w
+        D0 <- scaled[4]
+        coeff <- c(
+          A3,
+          B2 - 3 * A3 * m,
+          C1 - 2 * B2 * m + 3 * A3 * m^2,
+          D0 - C1 * m + B2 * m^2 - A3 * m^3
+        )
+        # a curve in x must match the curve in u to 0.1%, which fails when
+        # the bounds are far from 0 compared with their width. The plain solve
+        # is checked first, so a result it gave before is kept when accurate.
+        x <- seq(range_min, range_max, length.out = 25)
+        u <- (x - m) / w
+        curve_in_x <- function(k) k[1] * x^3 + k[2] * x^2 + k[3] * x + k[4]
+        in_u <- scaled[1] * u^3 + scaled[2] * u^2 + scaled[3] * u + scaled[4]
+        accurate <- function(k) {
+          all(is.finite(k)) &&
+            max(abs(curve_in_x(k) - in_u)) <= 1e-3 * max(abs(in_u), abs(unit_cost), 1e-12)
+        }
+        if (!is.null(plain) && accurate(as.numeric(plain))) {
+          return(as.numeric(plain))
+        }
+        if (accurate(coeff)) {
+          return(coeff)
+        }
+        # no accurate curve at this slope, so the loop below tries a smaller one
+        NULL
+      }
+      # the coefficients of a u^3 + b u^2 + c u + d, where u = (x - shift) / scale
+      solve_in <- function(shift, scale, delta) {
+        u1 <- (x1 - shift) / scale
+        u2 <- (x2 - shift) / scale
+        u3 <- (x3 - shift) / scale
+        lo <- (range_min - shift) / scale
+        hi <- (range_max - shift) / scale
         last_row <- if (is.na(dose)) {
-          c(
-            (range_max^4 - range_min^4) / 4,
-            (range_max^3 - range_min^3) / 3,
-            (range_max^2 - range_min^2) / 2,
-            (range_max - range_min)
-          )
+          c((hi^4 - lo^4) / 4, (hi^3 - lo^3) / 3, (hi^2 - lo^2) / 2, (hi - lo))
         } else {
-          c(dose^3, dose^2, dose, 1)
+          u0 <- (dose - shift) / scale
+          c(u0^3, u0^2, u0, 1)
         }
         A <- matrix(c(
-          3 * x1^2, 2 * x1, 1, 0,
-          3 * x2^2, 2 * x2, 1, 0,
-          3 * x3^2, 2 * x3, 1, 0,
+          3 * u1^2, 2 * u1, 1, 0,
+          3 * u2^2, 2 * u2, 1, 0,
+          3 * u3^2, 2 * u3, 1, 0,
           last_row
         ), nrow = 4, byrow = TRUE)
-
-        last_value <- if (is.na(dose)) (range_max - range_min) * unit_cost else unit_cost
-        b_vec <- c(0, delta, 0, last_value)
+        # the slope condition and the average are taken in u
+        last_value <- if (is.na(dose)) (range_max - range_min) * unit_cost / scale else unit_cost
+        b_vec <- c(0, delta * scale, 0, last_value)
         solve(A, b_vec)
       }
 
@@ -81,8 +132,21 @@ cost_fxn_calculator <- function(
       }
 
       # Iteratively reduce |delta| if necessary
+      first_delta <- delta
       while (TRUE) {
         coeff <- solve_coefficients(delta)
+        if (is.null(coeff)) {
+          # a flatter curve has smaller coefficients, so it may be accurate
+          if (abs(delta) < 1e-8 * abs(first_delta)) {
+            stop(paste(
+              "The default cubic cost cannot be computed for bounds this far",
+              "from 0 compared with their width. Give the costs with",
+              "cost_list_of_vectors, or use default_cost_fxn_type = \"linear\"."
+            ), call. = FALSE)
+          }
+          delta <- delta * 0.9
+          next
+        }
 
         # Check if f(x) is negative anywhere in the range
         x_vals <- seq(range_min, range_max, length.out = 100)
