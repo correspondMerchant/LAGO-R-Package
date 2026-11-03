@@ -102,6 +102,8 @@ test_that("a sweep shows a repeated message that is not an input note for every 
 })
 
 test_that("progress messages are still shown for every run when quiet is FALSE", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   args <- c(sweep_messages_args(), list(quiet = FALSE))
   # a sweep turns the confidence set off, so the single run does too
   single <- sweep_messages_collect(do.call(lago_optimization, c(

@@ -260,6 +260,8 @@ test_that("an infeasible design effect warns instead of silently dropping the go
 })
 
 test_that("BB_data backward compatibility: icc = NULL matches the pre-icc result", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   bb <- BB_data
   bb$group <- ifelse(bb$pre_post == 0, "control", "treatment")
   args <- list(

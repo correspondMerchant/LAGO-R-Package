@@ -45,6 +45,8 @@ dose_run <- function(...) {
 }
 
 test_that("the cubic cost warns when the measured doses are not given", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   expect_warning(
     suppressMessages(dose_run(unit_costs = c(4, 6))),
     "'unit_cost_doses' is not given"
@@ -83,6 +85,8 @@ test_that("a sweep shows the cubic cost warning once", {
 })
 
 test_that("lago_optimization() uses the pinned cubic cost", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   r <- suppressWarnings(suppressMessages(dose_run(
     unit_costs = c(4, 6), unit_cost_doses = c(4, 18), optimization_method = "grid_search"
   )))

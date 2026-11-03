@@ -26,6 +26,8 @@ run_budget <- function(budget, ...) {
 }
 
 test_that("a feasible budget returns a well-formed lago_budget within budget", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   b <- run_budget(60)
 
   expect_s3_class(b, "lago_budget")
@@ -52,6 +54,8 @@ test_that("a feasible budget returns a well-formed lago_budget within budget", {
 })
 
 test_that("more budget buys at least as good an outcome (monotone)", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   outs <- vapply(c(40, 60, 100, 200), function(bg) run_budget(bg)$est_outcome,
     numeric(1))
   expect_false(anyNA(outs))
@@ -59,6 +63,8 @@ test_that("more budget buys at least as good an outcome (monotone)", {
 })
 
 test_that("every affordable frontier point respects the budget", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   b <- run_budget(80)
   aff <- b$frontier[b$frontier$affordable, , drop = FALSE]
   expect_true(nrow(aff) > 0)
@@ -68,6 +74,8 @@ test_that("every affordable frontier point respects the budget", {
 })
 
 test_that("a very large budget does not bind (returns the max reachable)", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   big <- run_budget(1e7)
   expect_true(big$feasible)
   expect_false(big$binding)
@@ -89,6 +97,8 @@ test_that("a budget below the cheapest reachable is infeasible and warns", {
 })
 
 test_that("the object-reuse form matches passing the arguments directly", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   opt <- suppressMessages(do.call(
     lago_optimization,
     c(mtcars_base, list(
@@ -102,6 +112,8 @@ test_that("the object-reuse form matches passing the arguments directly", {
 })
 
 test_that("minimize direction picks the lowest reachable outcome within budget", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   min_base <- modifyList(mtcars_base, list(outcome_goal_intention = "minimize"))
   run_min <- function(bg) {
     suppressWarnings(suppressMessages(do.call(
@@ -139,6 +151,8 @@ test_that("input validation rejects bad budget / n_grid / object", {
 })
 
 test_that("print returns its argument invisibly (both feasible and not)", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   b <- run_budget(60)
   # cli routes its output through its own sink, so assert the invisible-return
   # contract rather than capturing text.
@@ -150,6 +164,8 @@ test_that("print returns its argument invisibly (both feasible and not)", {
 })
 
 test_that("plot returns a ggplot for a feasible result", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   skip_if_not_installed("ggplot2")
   b <- run_budget(60)
   p <- plot(b)
@@ -157,6 +173,8 @@ test_that("plot returns a ggplot for a feasible result", {
 })
 
 test_that("works for a binary outcome (goals span (0, 1))", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   # binary path builds the goal grid over (0, 1); assert it runs and stays
   # within budget when feasible.
   b <- suppressWarnings(suppressMessages(lago_budget(
@@ -175,6 +193,8 @@ test_that("works for a binary outcome (goals span (0, 1))", {
 })
 
 test_that("outcome_goal_intention defaults to maximize when omitted", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   args <- mtcars_base
   args$outcome_goal_intention <- NULL
   b <- suppressWarnings(suppressMessages(do.call(
@@ -238,6 +258,8 @@ test_that("an unfittable model yields feasible = FALSE and an empty frontier", {
 })
 
 test_that("print notes when the budget does not bind", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   big <- suppressWarnings(run_budget(1e7))
   expect_false(big$binding)
   expect_invisible(print(big))

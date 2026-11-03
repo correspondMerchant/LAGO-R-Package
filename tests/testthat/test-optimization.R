@@ -89,6 +89,8 @@ test_that("mtcars continuous (identity link) is stable", {
 })
 
 test_that("numerical and grid_search agree on the mtcars recommendation", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   common <- list(
     data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
     glm_family = "gaussian", link = "identity",
@@ -145,6 +147,8 @@ test_that("return value has the expected shape", {
 })
 
 test_that("the overall test result is returned (not just printed) when a group column is present", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   bb <- BB_data
   bb$group <- ifelse(bb$pre_post == 0, "control", "treatment")
   common <- list(
@@ -183,6 +187,8 @@ test_that("the overall test result is returned (not just printed) when a group c
 })
 
 test_that("a single intervention component does not crash the optimizer (#54)", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   # data[, one_col] used to collapse to a vector, breaking colMeans() (shrinking
   # path) and the confidence-set construction (data[[col]] / apply over rows).
   # Uses a base data.frame (not a tibble) so the [, ] drop actually triggers.

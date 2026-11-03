@@ -1,5 +1,14 @@
 # cran-comments
 
+## Resubmission
+
+This is a resubmission. The incoming pretest on r-devel-windows-x86_64 gave
+the NOTE "Overall checktime 11 min > 10 min". The tests took 461 seconds
+there. The 28 slowest tests are now skipped on CRAN with `skip_on_cran()` and
+still run in our continuous integration. On win-builder R-devel the tests now
+take 165 seconds and the whole check 359 seconds, with `Status: OK`. The tests
+that failed in the MKL check still run on CRAN.
+
 ## Submission
 
 This is an update of LAGOtrials 1.1.0, which was published on CRAN on
@@ -21,11 +30,12 @@ cannot be reached. The changes are listed in NEWS.md.
 * Local: R 4.5.3 on x86_64 Linux (Amazon Linux 2023).
 * GitHub Actions: macOS (release), Windows (release), and Linux
   (devel, release, oldrel-1) via the standard `r-lib/actions` R-CMD-check
-  workflow.
+  workflow. All five pass.
 * R-hub containers, run locally with docker: `mkl` (Fedora 44, R-devel
   2026-11-02 r90827, Intel MKL 2025.3) and `atlas` (Fedora, R-devel, ATLAS).
   Both give `Status: OK`.
-* win-builder: R-devel and R-release.
+* win-builder: R-devel (2026-11-02 r90827) and R-release (4.6.2). Both give
+  `Status: OK`.
 
 ## R CMD check results
 

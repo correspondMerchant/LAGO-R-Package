@@ -156,6 +156,8 @@ test_that("get_confidence_set() refuses a model with an NA center coefficient", 
 })
 
 test_that("a binary budget for a rare outcome reaches goals below the grid", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   set.seed(1)
   d <- data.frame(x1 = stats::runif(20000, 0, 3), x2 = stats::runif(20000, 0, 3))
   d$y <- stats::rbinom(20000, 1, stats::plogis(-6 + 0.6 * d$x1 + 0.4 * d$x2))
@@ -210,6 +212,8 @@ test_that("a binary budget below the cheapest cost does not keep filling", {
 })
 
 test_that("a binary budget fills below the grid when no grid goal is reached", {
+  # slow, so it runs in CI and coverage but not in the CRAN check
+  skip_on_cran()
   set.seed(3)
   d <- data.frame(x1 = stats::runif(40000, 0, 3))
   d$y <- stats::rbinom(40000, 1, stats::plogis(-6 + 0.3 * d$x1))
