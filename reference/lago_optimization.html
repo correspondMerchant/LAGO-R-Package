@@ -115,7 +115,7 @@ but do not use polynomial contrasts. Numeric predictors keep their values.</p>
 <span>  optimization_grid_search_step_size <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  confidence_set_grid_step_size <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  include_confidence_set <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  include_center_effects <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  include_center_effects <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  center_effects_optimization_values <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  include_time_effects <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  include_interaction_terms <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -264,7 +264,8 @@ Default value without user specification: NULL.</p></dd>
 <dd><p>A numeric vector or NULL. The dose of each
 intervention component at which its unit cost in `unit_costs` was measured,
 one per unit cost and within the bounds. The cubic cost is then pinned there,
-so the cost per unit at that dose is the unit cost. Without it the cubic cost
+so the cost per unit at that dose is the unit cost, and the curve does not
+depend on the units of the cost or of the dose. Without it the cubic cost
 only matches each unit cost on average over the bounds, and a warning says
 so. The linear cost is the unit cost at every dose, so it does not use this.
 Default value without user specification: NULL.</p></dd>
@@ -306,7 +307,8 @@ Must be either "logit" or "identity": those are the links whose inverse the
 estimated outcome and the confidence set are computed with, so they are the
 only ones that can be reported on the outcome scale the goal is stated on.
 Default value without user specification:
-"identity" for continuous outcomes, "logit" for binary outcomes.</p></dd>
+"logit" for binary outcomes and for the "quasibinomial" family, and
+"identity" otherwise.</p></dd>
 
 
 <dt id="arg-optimization-method">optimization_method<a class="anchor" aria-label="anchor" href="#arg-optimization-method"></a></dt>
@@ -333,7 +335,9 @@ outcome model. Continuous confidence covariance uses the actual fitted
 prior weights as relative observation weights, with zero weights excluded
 from covariance contributions and the identity residual degrees of freedom.
 See get_confidence_set() for the covariance formulas and family limits.
-A data column named weights does not replace this argument.</p></dd>
+A data column named weights does not replace this argument. For center
+level data it is ignored with a warning, since each row is weighted by its
+center_sample_size.</p></dd>
 
 
 <dt id="arg-center-characteristics">center_characteristics<a class="anchor" aria-label="anchor" href="#arg-center-characteristics"></a></dt>
@@ -435,8 +439,8 @@ ordered factor is converted to an unordered one, so each center gets its own
 effect, and at least two centers need a row the outcome model can use.
 Note, include_center_effects and center_characteristics cannot be used
 together at the same time.
-Default value without user specification: FALSE for individual level data,
-TRUE for center level data.</p></dd>
+Default value without user specification (NULL): FALSE for individual level
+data, TRUE for center level data.</p></dd>
 
 
 <dt id="arg-center-effects-optimization-values">center_effects_optimization_values<a class="anchor" aria-label="anchor" href="#arg-center-effects-optimization-values"></a></dt>
@@ -509,6 +513,9 @@ confidence set percentage (at level 1 - confidence_set_alpha),
 confidence set,
 overall intervention test results (test_results), a list with the test
 statistic and p-value; NULL unless a valid 'group' column is supplied.
+shrinking_method_used, TRUE when the outcome goal could not be reached and
+the shrinking method gave the recommendation, in which case no confidence set
+is computed.
 The confidence set fields are only present when include_confidence_set = TRUE.)
 The result also carries its own call arguments in the attribute
 `"lago_call_args"` (not a `$`-accessible field), so it can be passed directly
@@ -596,12 +603,13 @@ to [lago_sensitivity()] to sweep one input without retyping the call.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> parity: 2.0927</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 128.11</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.3347</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (set include_confidence_set =</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> TRUE)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (the goal could not be reached,</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> so the shrinking method was used and no confidence set is computed)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.5</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Confidence set</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Not computed (set include_confidence_set = TRUE to compute it).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Not computed: the goal could not be reached, so the shrinking method was used</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> and no confidence set is computed.</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Fuller examples, including the confidence-set grid search, which is</span></span></span>
 <span class="r-in"><span><span class="co"># inherently slower. Wrapped in \donttest{} so they are still checkable</span></span></span>
@@ -762,16 +770,17 @@ to [lago_sensitivity()] to sweep one input without retyping the call.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> values 'treatment' or 'control' (binary outcomes only).</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 38.9887</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 38.9881</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 4.7929</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 104620</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.838</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (set include_confidence_set =</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> TRUE)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (the goal could not be reached,</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> so the shrinking method was used and no confidence set is computed)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Confidence set</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Not computed (set include_confidence_set = TRUE to compute it).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Not computed: the goal could not be reached, so the shrinking method was used</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> and no confidence set is computed.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

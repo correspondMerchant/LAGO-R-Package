@@ -51,7 +51,7 @@ lago_optimization(
   optimization_grid_search_step_size = NULL,
   confidence_set_grid_step_size = NULL,
   include_confidence_set = TRUE,
-  include_center_effects = FALSE,
+  include_center_effects = NULL,
   center_effects_optimization_values = NULL,
   include_time_effects = FALSE,
   include_interaction_terms = FALSE,
@@ -193,10 +193,11 @@ lago_optimization(
   A numeric vector or NULL. The dose of each intervention component at
   which its unit cost in \`unit_costs\` was measured, one per unit cost
   and within the bounds. The cubic cost is then pinned there, so the
-  cost per unit at that dose is the unit cost. Without it the cubic cost
-  only matches each unit cost on average over the bounds, and a warning
-  says so. The linear cost is the unit cost at every dose, so it does
-  not use this. Default value without user specification: NULL.
+  cost per unit at that dose is the unit cost, and the curve does not
+  depend on the units of the cost or of the dose. Without it the cubic
+  cost only matches each unit cost on average over the bounds, and a
+  warning says so. The linear cost is the unit cost at every dose, so it
+  does not use this. Default value without user specification: NULL.
 
 - default_cost_fxn_type:
 
@@ -230,8 +231,9 @@ lago_optimization(
   be either "logit" or "identity": those are the links whose inverse the
   estimated outcome and the confidence set are computed with, so they
   are the only ones that can be reported on the outcome scale the goal
-  is stated on. Default value without user specification: "identity" for
-  continuous outcomes, "logit" for binary outcomes.
+  is stated on. Default value without user specification: "logit" for
+  binary outcomes and for the "quasibinomial" family, and "identity"
+  otherwise.
 
 - optimization_method:
 
@@ -258,6 +260,8 @@ lago_optimization(
   covariance contributions and the identity residual degrees of freedom.
   See get_confidence_set() for the covariance formulas and family
   limits. A data column named weights does not replace this argument.
+  For center level data it is ignored with a warning, since each row is
+  weighted by its center_sample_size.
 
 - center_characteristics:
 
@@ -356,8 +360,8 @@ lago_optimization(
   is converted to an unordered one, so each center gets its own effect,
   and at least two centers need a row the outcome model can use. Note,
   include_center_effects and center_characteristics cannot be used
-  together at the same time. Default value without user specification:
-  FALSE for individual level data, TRUE for center level data.
+  together at the same time. Default value without user specification
+  (NULL): FALSE for individual level data, TRUE for center level data.
 
 - center_effects_optimization_values:
 
@@ -425,11 +429,13 @@ estimated outcome mean/probability for the intervention group,
 confidence set percentage (at level 1 - confidence_set_alpha),
 confidence set, overall intervention test results (test_results), a list
 with the test statistic and p-value; NULL unless a valid 'group' column
-is supplied. The confidence set fields are only present when
-include_confidence_set = TRUE.) The result also carries its own call
-arguments in the attribute \`"lago_call_args"\` (not a \`\$\`-accessible
-field), so it can be passed directly to \[lago_sensitivity()\] to sweep
-one input without retyping the call.
+is supplied. shrinking_method_used, TRUE when the outcome goal could not
+be reached and the shrinking method gave the recommendation, in which
+case no confidence set is computed. The confidence set fields are only
+present when include_confidence_set = TRUE.) The result also carries its
+own call arguments in the attribute \`"lago_call_args"\` (not a
+\`\$\`-accessible field), so it can be passed directly to
+\[lago_sensitivity()\] to sweep one input without retyping the call.
 
 ## See also
 
@@ -514,12 +520,13 @@ lago_optimization(
 #> parity: 2.0927
 #> Cost: 128.11
 #> Estimated outcome: 0.3347
-#> 95% CI for the estimated outcome: not available (set include_confidence_set =
-#> TRUE)
+#> 95% CI for the estimated outcome: not available (the goal could not be reached,
+#> so the shrinking method was used and no confidence set is computed)
 #> Outcome goal: 0.5
 #> 
 #> ── Confidence set 
-#> Not computed (set include_confidence_set = TRUE to compute it).
+#> Not computed: the goal could not be reached, so the shrinking method was used
+#> and no confidence set is computed.
 
 # Fuller examples, including the confidence-set grid search, which is
 # inherently slower. Wrapped in \donttest{} so they are still checkable
@@ -680,15 +687,16 @@ lago_optimization(
 #> values 'treatment' or 'control' (binary outcomes only).
 #> 
 #> ── Recommended intervention 
-#> coaching_updt: 38.9887
+#> coaching_updt: 38.9881
 #> launch_duration: 4.7929
 #> Cost: 104620
 #> Estimated outcome: 0.838
-#> 95% CI for the estimated outcome: not available (set include_confidence_set =
-#> TRUE)
+#> 95% CI for the estimated outcome: not available (the goal could not be reached,
+#> so the shrinking method was used and no confidence set is computed)
 #> Outcome goal: 0.85
 #> 
 #> ── Confidence set 
-#> Not computed (set include_confidence_set = TRUE to compute it).
+#> Not computed: the goal could not be reached, so the shrinking method was used
+#> and no confidence set is computed.
 # }
 ```

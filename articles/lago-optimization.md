@@ -336,7 +336,7 @@ sens
 #> 2  0.80             1        2.438484     21207.88        0.8000000     ok
 #> 3  0.85             1        2.778472     23927.77        0.8500000     ok
 #> 4  0.90             1        3.230045     27540.36        0.9000000     ok
-#> rec_int_cost ranges from 18961.37 to 27540.36 as outcome_goal goes from 0.75 to
+#> rec_int_cost is 18961.37 at outcome_goal = 0.75 and 27540.36 at outcome_goal =
 #> 0.9.
 ```
 

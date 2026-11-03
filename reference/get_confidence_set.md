@@ -168,11 +168,11 @@ get_confidence_set(
 
 - cluster_id:
 
-  A list or NULL. Specifies the columns of data that will be used as
-  clustering effects when the "outcome_type" is continuous, with one
-  entry per fitted row. \[lago_optimization()\] leaves it NULL, since
-  its fixed center and time effects already model the centers and
-  periods.
+  A list of one or two vectors, a single vector, or NULL. Specifies the
+  columns of data that will be used as clustering effects when the
+  "outcome_type" is continuous, with one entry per fitted row.
+  \[lago_optimization()\] leaves it NULL, since its fixed center and
+  time effects already model the centers and periods.
 
 - cost_list_of_vectors:
 

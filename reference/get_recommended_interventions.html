@@ -82,7 +82,8 @@ interventions based on an outcome goal and/or a power goal.</p>
 <span>  icc <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  power_goal_cluster_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  aliased_coef_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span>,</span>
-<span>  input_data_structure <span class="op">=</span> <span class="st">"individual_level"</span></span>
+<span>  input_data_structure <span class="op">=</span> <span class="st">"individual_level"</span>,</span>
+<span>  row_weights <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -268,6 +269,12 @@ outcome at all, since the two need opposite advice.</p></dd>
 <dd><p>A character string, "individual_level" or
 "center_level". For center level data the power goal counts each row's
 center_sample_size patients.</p></dd>
+
+
+<dt id="arg-row-weights">row_weights<a class="anchor" aria-label="anchor" href="#arg-row-weights"></a></dt>
+<dd><p>A numeric vector or NULL. The glm() weights of the rows,
+used to average the stage-1 intervention the shrinking method shrinks
+towards. Center level data uses center_sample_size instead.</p></dd>
 
 </dl></div>
     <div class="section level2">

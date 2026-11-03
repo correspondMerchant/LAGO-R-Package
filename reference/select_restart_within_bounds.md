@@ -27,8 +27,8 @@ select_restart_within_bounds(
 
   A numeric vector, one entry per column of restart_points, with the
   cost that restart converged to. NA marks a restart whose optimization
-  failed. Not every entry may be NA: the caller refuses that case with
-  its own message before calling this.
+  failed. Not every entry may be NA: when every restart fails, the
+  caller adds the max-outcome point and its cost before calling this.
 
 - lower_bounds:
 
