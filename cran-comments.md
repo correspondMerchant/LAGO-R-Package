@@ -5,9 +5,9 @@
 This is a resubmission. The incoming pretest on r-devel-windows-x86_64 gave
 the NOTE "Overall checktime 11 min > 10 min". The tests took 461 seconds
 there. The 28 slowest tests are now skipped on CRAN with `skip_on_cran()` and
-still run in our continuous integration, which cuts the time of the tests on
-CRAN by about two thirds. The tests that failed in the MKL check still run
-on CRAN.
+still run in our continuous integration. On win-builder R-devel the tests now
+take 165 seconds and the whole check 359 seconds, with `Status: OK`. The tests
+that failed in the MKL check still run on CRAN.
 
 ## Submission
 
