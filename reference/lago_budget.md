@@ -181,9 +181,9 @@ b
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.000000, qsec = 9.296989
-#> Cost: 99.7819364800384 (of 100).
-#> Estimated outcome: 35.1051272439266.
+#> Recommended intervention: gear = 10.00000, qsec = 9.29699
+#> Cost: 99.7819384081165 (of 100).
+#> Estimated outcome: 35.1051278351624.
 plot(b)
 
 
@@ -203,8 +203,8 @@ lago_budget(opt, budget = 100)
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.000000, qsec = 9.296989
-#> Cost: 99.7819364800384 (of 100).
-#> Estimated outcome: 35.1051272439266.
+#> Recommended intervention: gear = 10.00000, qsec = 9.29699
+#> Cost: 99.7819384081165 (of 100).
+#> Estimated outcome: 35.1051278351624.
 # }
 ```

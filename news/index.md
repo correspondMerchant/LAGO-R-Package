@@ -2,6 +2,8 @@
 
 ## LAGOtrials 1.1.1
 
+CRAN release: 2026-11-04
+
 - Fixed the shrinking method depending on the outcome’s units when the
   outcome is small, such as a rare binary outcome or a continuous
   outcome in large units. Its search stopped as soon as the outcome came
