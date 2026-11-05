@@ -92,3 +92,40 @@ test_that("a cost restart outside the bounds does not hide a cheaper one inside 
   expect_equal(off$rec_int_cost, clean$rec_int_cost, tolerance = 1e-6)
   expect_true(all(off$rec_int >= 0 & off$rec_int <= up))
 })
+
+test_that("an extra start that stops short of the goal is skipped", {
+  case <- solver_case_shrinking()
+  d <- case$data
+  run <- function() solver_quiet(lago_optimization(
+    data = d, outcome_name = "y", outcome_type = "continuous",
+    glm_family = "gaussian", link = "identity",
+    intervention_components = c("a", "a:b"), main_components = c("a", "b"),
+    include_interaction_terms = TRUE, intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(4, 4), cost_list_of_vectors = list(c(0, 1), c(0, 2)),
+    outcome_goal = 4, outcome_goal_intention = "maximize",
+    include_confidence_set = FALSE, quiet = TRUE
+  ))
+  clean <- run()
+  expect_false(clean$shrinking_method_used)
+  k <- 0
+  local_mocked_bindings(
+    solnl = function(X = NULL, objfun = NULL, confun = NULL, lb = NULL, ...) {
+      r <- real_solnl(X = X, objfun = objfun, confun = confun, lb = lb, ...)
+      if (!is.null(confun)) {
+        k <<- k + 1
+        # after the diagonal restarts, one start, and the run that finishes
+        # it, stop a hair short of the goal for a saving under 0.1%. The
+        # others stop at the lower bounds, which cost the least and do not
+        # reach the goal.
+        if (k %in% 12:13) r$par <- clean$rec_int * (1 - 1e-7)
+        if (k > 13) r$par <- lb
+      }
+      r
+    },
+    .package = "NlcOptim"
+  )
+  off <- run()
+  expect_gt(k, 11)
+  expect_equal(off$rec_int_cost, clean$rec_int_cost, tolerance = 1e-6)
+  expect_gte(off$est_outcome_goal, 4 - 1e-6)
+})
