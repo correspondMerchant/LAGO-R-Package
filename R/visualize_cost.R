@@ -116,7 +116,9 @@ visualize_cost <- function(
       default_cost_fxn_type = default_cost_fxn_type,
       intervention_lower_bounds = intervention_lower_bounds,
       intervention_upper_bounds = intervention_upper_bounds
-    )
+    ),
+    # only this computer can reach the app
+    host = "127.0.0.1"
   )
   if (!is.null(cost_list)) {
     message(
