@@ -840,9 +840,13 @@ get_recommended_interventions <- function(
           }
         )
 
-        if (!is.null(result)) {
-          results[i] <- -result$fn
-          results_int_components[, i] <- result$par
+        if (!is.null(result) && all(is.finite(result$par))) {
+          # solnl() can return a point outside the bounds, far outside with
+          # some BLAS libraries, so the outcome is the one at the point moved
+          # onto the bounds, which is the point that can be recommended
+          x <- pmin(pmax(result$par, lo), up)
+          results[i] <- -obj_fun_for_max_outcome(x)
+          results_int_components[, i] <- x
         } else {
           results[i] <- NA # Assign NA if the optimization failed
         }
@@ -983,12 +987,16 @@ get_recommended_interventions <- function(
           start_points <- lo + quantile_points[i] * (up - lo)
           result <- solve_cost(start_points)
 
-          if (!is.null(result)) {
+          if (!is.null(result) && all(is.finite(result$par))) {
             # result$fn is the NORMALIZED objective; record the true cost so the
             # cheapest-restart selection and the reported cost stay in real units.
-            # A restart that does not reach the goal is not a solution.
-            cost_results[i] <- if (reaches_goal(result$par)) cost_obj_fun(result$par) else NA
-            results_int_components[, i] <- result$par
+            # The cost and the goal are judged at the point moved onto the
+            # bounds, since a point outside them can look cheaper than any
+            # point inside. A restart that does not reach the goal there is not
+            # a solution.
+            x <- pmin(pmax(result$par, lo), up)
+            cost_results[i] <- if (reaches_goal(x)) cost_obj_fun(x) else NA
+            results_int_components[, i] <- x
           } else {
             cost_results[i] <- NA # Assign NA if the optimization failed
           }
@@ -1007,20 +1015,21 @@ get_recommended_interventions <- function(
         for (start in extra_starts) {
           result <- solve_cost(start, maxIter = 100)
           if (is.null(result) || any(!is.finite(result$par))) next
+          x <- pmin(pmax(result$par, lo), up)
           # a cheaper start not yet at the goal is finished with full iterations
-          if (is.finite(best_cost) && !reaches_goal(result$par, strict_tol) &&
-            cost_obj_fun(result$par) < best_cost) {
-            polished <- solve_cost(result$par)
-            if (!is.null(polished)) result <- polished
+          if (is.finite(best_cost) && !reaches_goal(x, strict_tol) &&
+            cost_obj_fun(x) < best_cost) {
+            polished <- solve_cost(x)
+            if (!is.null(polished) && all(is.finite(polished$par))) x <- pmin(pmax(polished$par, lo), up)
           }
-          if (!reaches_goal(result$par)) next
-          cost <- cost_obj_fun(result$par)
+          if (!reaches_goal(x)) next
+          cost <- cost_obj_fun(x)
           # a start must not win a small saving by falling a little short of
           # the goal, so a saving under 0.1% needs the goal met strictly
           clearly_cheaper <- cost < best_cost - 1e-3 * abs(best_cost)
-          if (is.finite(best_cost) && !clearly_cheaper && !reaches_goal(result$par, strict_tol)) next
+          if (is.finite(best_cost) && !clearly_cheaper && !reaches_goal(x, strict_tol)) next
           if (!is.finite(best_cost) || cost < best_cost - 1e-6 * abs(best_cost)) {
-            results_int_components <- cbind(results_int_components, result$par)
+            results_int_components <- cbind(results_int_components, x)
             cost_results <- c(cost_results, cost)
             best_cost <- cost
           }
