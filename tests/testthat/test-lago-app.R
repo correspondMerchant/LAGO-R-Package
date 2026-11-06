@@ -467,3 +467,139 @@ test_that("a failed upload says so in every step", {
     expect_match(as.character(output$checklist$html), "Load the data first")
   })
 })
+
+test_that("the arguments carry center characteristics, covariates and every power setting", {
+  d <- as.data.frame(BB_data)
+  spec <- .app_defaults(d, "BB_data")
+  spec$center_mode <- "chars"
+  spec$center_chars <- "birth_volume_100"
+  spec$center_char_values <- 1.6
+  spec$covariates <- "staff_nurse"
+  spec$goal_mode <- "both"
+  spec$arm_col <- "pre_post"
+  spec$arm_value <- "1"
+  spec$approach <- "conditional"
+  spec$icc <- c(0.04, 0.06)
+  spec$cluster_col <- "site_name"
+  b <- .app_build(spec, d)
+  expect_identical(b$args$center_characteristics, "birth_volume_100")
+  expect_equal(b$args$center_characteristics_optimization_values, 1.6)
+  expect_identical(b$args$additional_covariates, "staff_nurse")
+  expect_identical(b$args$power_goal_approach, "conditional")
+  expect_equal(b$args$icc, c(0.04, 0.06))
+  expect_identical(b$args$power_goal_cluster_id, "site_name")
+  expect_equal(nrow(.app_problems(spec, d)), 0)
+})
+
+test_that("the remaining checks and notes say what to change", {
+  expect_true(is.na(.app_default_goal(data.frame(y = c(NA_real_, NA_real_)), "y", "continuous")))
+  d1 <- data.frame(y = c(0, 1), txt = c("a", "b"))
+  expect_true(any(grepl("at least two numeric columns", .app_problems(.app_defaults(d1, "d1"), d1)$message)))
+  d <- data.frame(y = c(0, 1, 0, 1), a = 1:4, site = c("s1", "s1", "s1", "s1"), arm = c("t", NA, "c", "t"),
+    group = c("x", "x", "x", "x"))
+  spec <- .app_defaults(d, "d")
+  spec$center_mode <- "effects"
+  spec$center_col <- "site"
+  expect_true(any(grepl("at least two centers", .app_problems(spec, d)$message)))
+  spec$center_mode <- "none"
+  spec$goal_mode <- "power"
+  spec$arm_col <- "arm"
+  spec$arm_value <- "t"
+  expect_true(any(grepl("has missing values", .app_problems(spec, d)$message)))
+  expect_true(any(grepl("named group", .app_notes(spec, d))))
+  one <- data.frame(abc = 1:3)
+  path <- tempfile(fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  writeLines(c("a,b", "1,2"), path)
+  expect_length(.app_renamed(path, ",", one), 0)
+  expect_length(.app_renamed(path, ";", data.frame(a = 1, b = 2, c = 3)), 0)
+})
+
+app_upload <- function(session, path, name = basename(path)) {
+  session$setInputs(file = data.frame(name = name, size = file.size(path), type = "text/csv", datapath = path, stringsAsFactors = FALSE))
+}
+
+test_that("the server reads an upload, lists renamed columns and reports a file it cannot read", {
+  good <- tempfile(fileext = ".csv")
+  bad <- tempfile(fileext = ".csv")
+  on.exit(unlink(c(good, bad)), add = TRUE)
+  writeLines(c("y,dose level,visits", "1,2.5,3", "0,1,1", "1,3,4", "0,0.5,2"), good)
+  writeLines(c("a,b", "1,2,3,4"), bad)
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "upload", sep = ",", dec = ".")
+    app_upload(session, good, "trial.csv")
+    expect_identical(names(current_data()), c("y", "dose.level", "visits"))
+    expect_match(loaded()$name, "read.csv\\(\"trial.csv\"")
+    html <- as.character(output$data_info$html)
+    expect_match(html, "dose level \\(now dose.level\\)")
+    app_upload(session, bad, "bad.csv")
+    expect_null(loaded())
+    expect_match(as.character(output$data_info$html), "could not be read with these settings")
+  })
+})
+
+test_that("the server fills the choices that follow a column the user picks", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "BB_data", sep = ",", dec = ".")
+    session$setInputs(outcome = "pp3_oxytocin_mother", components = c("coaching_updt", "launch_duration"))
+    session$setInputs(goal_mode = "power", arm_col = "pre_post", arm_value = "1")
+    session$setInputs(center_mode = "effects", center_col = "site_name", center_for = "Auras")
+    session$setInputs(time_on = TRUE, period_col = "pilot_phase", period_value = "2")
+    session$setInputs(outcome = "pp2_hand_hygiene")
+    expect_false(applying_defaults())
+    expect_identical(spec()$center_col, "site_name")
+    session$setInputs(cost_mode = "coef", center_mode = "chars", center_chars = "birth_volume_100")
+    rows <- as.character(output$component_rows$html)
+    expect_match(rows, "Cost coefficients")
+    expect_match(as.character(output$center_char_values$html), "Optimize at birth_volume_100")
+    expect_false(stale())
+  })
+})
+
+test_that("the results show the shrinking method and its actions", {
+  skip_on_cran()
+  d <- as.data.frame(BB_data)
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "BB_data", sep = ",", dec = ".")
+    session$setInputs(
+      outcome = "pp3_oxytocin_mother", outcome_type = "binary", goal_mode = "outcome", goal = 0.99,
+      intention = "maximize", components = c("coaching_updt", "launch_duration"), cost_mode = "unit",
+      cost_type = "linear", center_mode = "none", include_cs = TRUE, approach = "unconditional"
+    )
+    app_server_inputs(session, col_id, c("coaching_updt", "launch_duration"), list(c(0, 5), c(0, 1)))
+    session$setInputs(run = 1)
+    r <- run_state()$run$value
+    expect_true(r$shrinking_method_used)
+    html <- as.character(output$results$html)
+    expect_match(html, "Widen the bounds")
+    expect_match(as.character(output$cs_ui$html), "shrinking method was used")
+    session$setInputs(fix_goal = 1)
+    session$setInputs(fix_bounds = 1)
+  })
+})
+
+test_that("the results show the confidence set, its table and the intervention test", {
+  skip_on_cran()
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "BB_data", sep = ",", dec = ".")
+    session$setInputs(
+      outcome = "pp3_oxytocin_mother", outcome_type = "binary", goal_mode = "both", goal = 0.85,
+      intention = "maximize", components = c("coaching_updt", "launch_duration"), cost_mode = "unit",
+      cost_type = "linear", center_mode = "none", include_cs = TRUE, approach = "unconditional",
+      arm_col = "pre_post", arm_value = "1", power_goal = 0.8, n_centers = 10, n_patients = 30
+    )
+    app_server_inputs(session, col_id, c("coaching_updt", "launch_duration"), list(c(0, 40), c(0, 3)))
+    session$setInputs(run = 1)
+    r <- run_state()$run$value
+    expect_false(is.null(r$cs))
+    expect_match(as.character(output$cs_ui$html), "of the grid is in the confidence set")
+    expect_type(output$cs_plot, "list")
+    expect_match(as.character(output$test_ui$html), "effect of the intervention as a whole")
+    expect_match(output$cs_table, "coaching_updt")
+    # three components list the set as a table
+    session$setInputs(components = c("coaching_updt", "launch_duration", "staff_nurse"))
+    app_server_inputs(session, col_id, c("coaching_updt", "launch_duration", "staff_nurse"), list(c(0, 40), c(0, 3), c(0, 10)))
+    session$setInputs(run = 2)
+    expect_match(as.character(output$cs_ui$html), "listed as a table")
+  })
+})
