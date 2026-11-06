@@ -12,6 +12,8 @@ Main user-facing functions.
   : Budget-constrained LAGO optimization
 - [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   : Visualize and choose intervention cost functions
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  : Run a LAGO optimization in a point and click app
 
 ## Reporting
 

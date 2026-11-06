@@ -40,16 +40,17 @@ interventions.
 
 1.  [How to install the R package](#how-to-install-the-r-package)
 2.  [The main functions](#the-main-functions)
-3.  [Basic use case](#basic-use-case)
-4.  [More advanced use case](#more-advanced-use-case)
-5.  [Sensitivity analysis](#sensitivity-analysis)
-6.  [Budget-constrained optimization](#budget-constrained-optimization)
-7.  [How to run additional examples](#how-to-run-additional-examples)
-8.  [Using LAGOtrials from Python](#using-lagotrials-from-python)
-9.  [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
-10. [Relevant LAGO papers](#relevant-lago-papers)
-11. [Citation](#citation)
-12. [How to get help](#how-to-get-help)
+3.  [Point and click app](#point-and-click-app)
+4.  [Basic use case](#basic-use-case)
+5.  [More advanced use case](#more-advanced-use-case)
+6.  [Sensitivity analysis](#sensitivity-analysis)
+7.  [Budget-constrained optimization](#budget-constrained-optimization)
+8.  [How to run additional examples](#how-to-run-additional-examples)
+9.  [Using LAGOtrials from Python](#using-lagotrials-from-python)
+10. [Using LAGOtrials with AI agents](#using-lagotrials-with-ai-agents)
+11. [Relevant LAGO papers](#relevant-lago-papers)
+12. [Citation](#citation)
+13. [How to get help](#how-to-get-help)
 
 ## How to install the R package
 
@@ -77,13 +78,14 @@ playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html)
 
 ## The main functions
 
-The LAGOtrials R package has five user-facing functions
+The LAGOtrials R package has six user-facing functions
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
 [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),
 [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md),
+[`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md),
 and
-[`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md).
+[`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md).
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 carries out the LAGO optimizations,
@@ -97,6 +99,9 @@ helps you choose cost functions for the intervention components, and
 [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
 renders a self-contained, interactive HTML report of an optimization
 result.
+[`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+runs the whole optimization in a point and click app, with no R code to
+write.
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 returns an object of class `"lago"` with
@@ -140,6 +145,33 @@ HIGHLY recommended, please do this before moving on to the examples)**:
     help(lago_budget)
     help(visualize_cost)
     help(lago_report)
+    help(lago_app)
+
+## Point and click app
+
+If you prefer not to write R code,
+[`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+opens the whole LAGO optimization as an app in your web browser:
+
+    library(LAGOtrials)
+    lago_app()          # starts with the BB_data example
+    lago_app(my_data)   # or with your own data frame
+
+The app walks you through four steps: the data, the outcome and goal
+(including a power goal), the intervention components with their bounds
+and costs, and how the model accounts for centers and time. Each step
+says what is missing, every setting has a short explanation, and the
+bundled examples run as they are. The result shows the recommended
+intervention, its cost, the estimated outcome with its confidence
+interval, the confidence set, and any warnings to check. The R code tab
+shows the code that reproduces the run, so you can save it in a script.
+When you click **Done**, the app closes and returns the last result to
+R.
+
+The app runs on your own computer and only your computer can reach it.
+Unlike the
+[playground](https://correspondmerchant.github.io/LAGO-R-Package/playground.html),
+it needs no internet connection and your data never leaves your machine.
 
 ## Basic use case
 

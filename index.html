@@ -27,7 +27,7 @@
 
     <a class="navbar-brand me-2" href="index.html">LAGOtrials</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -86,6 +86,7 @@
 <ol style="list-style-type: decimal">
 <li><a href="#how-to-install-the-r-package">How to install the R package</a></li>
 <li><a href="#the-main-functions">The main functions</a></li>
+<li><a href="#point-and-click-app">Point and click app</a></li>
 <li><a href="#basic-use-case">Basic use case</a></li>
 <li><a href="#more-advanced-use-case">More advanced use case</a></li>
 <li><a href="#sensitivity-analysis">Sensitivity analysis</a></li>
@@ -118,8 +119,8 @@
 <div class="section level2">
 <h2 id="the-main-functions">The main functions<a class="anchor" aria-label="anchor" href="#the-main-functions"></a>
 </h2>
-<p>The LAGOtrials R package has five user-facing functions <code><a href="reference/lago_optimization.html">lago_optimization()</a></code>, <code><a href="reference/lago_sensitivity.html">lago_sensitivity()</a></code>, <code><a href="reference/lago_budget.html">lago_budget()</a></code>, <code><a href="reference/visualize_cost.html">visualize_cost()</a></code>, and <code><a href="reference/lago_report.html">lago_report()</a></code>.</p>
-<p><code><a href="reference/lago_optimization.html">lago_optimization()</a></code> carries out the LAGO optimizations, <code><a href="reference/lago_sensitivity.html">lago_sensitivity()</a></code> checks how robust the recommendation is to your assumptions, <code><a href="reference/lago_budget.html">lago_budget()</a></code> answers the reverse question (“given a fixed budget, what is the best outcome I can reach?”), <code><a href="reference/visualize_cost.html">visualize_cost()</a></code> helps you choose cost functions for the intervention components, and <code><a href="reference/lago_report.html">lago_report()</a></code> renders a self-contained, interactive HTML report of an optimization result.</p>
+<p>The LAGOtrials R package has six user-facing functions <code><a href="reference/lago_optimization.html">lago_optimization()</a></code>, <code><a href="reference/lago_sensitivity.html">lago_sensitivity()</a></code>, <code><a href="reference/lago_budget.html">lago_budget()</a></code>, <code><a href="reference/visualize_cost.html">visualize_cost()</a></code>, <code><a href="reference/lago_report.html">lago_report()</a></code>, and <code><a href="reference/lago_app.html">lago_app()</a></code>.</p>
+<p><code><a href="reference/lago_optimization.html">lago_optimization()</a></code> carries out the LAGO optimizations, <code><a href="reference/lago_sensitivity.html">lago_sensitivity()</a></code> checks how robust the recommendation is to your assumptions, <code><a href="reference/lago_budget.html">lago_budget()</a></code> answers the reverse question (“given a fixed budget, what is the best outcome I can reach?”), <code><a href="reference/visualize_cost.html">visualize_cost()</a></code> helps you choose cost functions for the intervention components, and <code><a href="reference/lago_report.html">lago_report()</a></code> renders a self-contained, interactive HTML report of an optimization result. <code><a href="reference/lago_app.html">lago_app()</a></code> runs the whole optimization in a point and click app, with no R code to write.</p>
 <p><code><a href="reference/lago_optimization.html">lago_optimization()</a></code> returns an object of class <code>"lago"</code> with <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> methods: <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> (and the identical <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>) shows the full result on the console, including an inputs recap, the fitted outcome-model coefficient table, the overall intervention-effect test, the recommended intervention with its cost and estimated-outcome confidence interval, and the confidence set; <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> visualizes the confidence set. <code>lago_report(result)</code> writes those same sections, plus a session-info footer, to a shareable HTML file, with the confidence set and the cost functions drawn as interactive D3 charts.</p>
 <p><code><a href="reference/lago_optimization.html">lago_optimization()</a></code> supports three goal modes: an <strong>outcome goal alone</strong>, a <strong>power goal alone</strong>, or <strong>both together</strong>. At least one of <code>outcome_goal</code> or <code>power_goal</code> must be provided. When both are provided, the effective outcome goal used for the optimization is the higher of the outcome goal and the outcome level implied by the power goal (the “whichever is higher” rule). A power goal is only supported for binary outcomes and requires a <code>group</code> column plus <code>num_centers_in_next_stage</code> and <code>patients_per_center_in_next_stage</code>; it cannot be combined with <code>outcome_goal_intention = "minimize"</code>. When participants are clustered within centers, pass the intra-cluster correlation to <code>icc</code> (a single value, or <code>c(control, treatment)</code>) and identify the clustering column with <code>power_goal_cluster_id</code>. The power calculation then inflates the variance of the test statistic by the design effect, so meeting the same power goal requires a stronger intervention. Without <code>icc</code>, the power calculation treats participants as independent.</p>
 <p>These functions take many arguments. To understand the input arguments, read the help files by running the following code in R <strong>(this step is HIGHLY recommended, please do this before moving on to the examples)</strong>:</p>
@@ -127,7 +128,18 @@
 <span><span class="fu"><a href="https://rdrr.io/r/utils/help.html" class="external-link">help</a></span><span class="op">(</span><span class="va">lago_sensitivity</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/help.html" class="external-link">help</a></span><span class="op">(</span><span class="va">lago_budget</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/help.html" class="external-link">help</a></span><span class="op">(</span><span class="va">visualize_cost</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/help.html" class="external-link">help</a></span><span class="op">(</span><span class="va">lago_report</span><span class="op">)</span></span></code></pre>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/help.html" class="external-link">help</a></span><span class="op">(</span><span class="va">lago_report</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/help.html" class="external-link">help</a></span><span class="op">(</span><span class="va">lago_app</span><span class="op">)</span></span></code></pre>
+</div>
+<div class="section level2">
+<h2 id="point-and-click-app">Point and click app<a class="anchor" aria-label="anchor" href="#point-and-click-app"></a>
+</h2>
+<p>If you prefer not to write R code, <code><a href="reference/lago_app.html">lago_app()</a></code> opens the whole LAGO optimization as an app in your web browser:</p>
+<pre><code><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://correspondmerchant.github.io/LAGO-R-Package/">LAGOtrials</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/lago_app.html">lago_app</a></span><span class="op">(</span><span class="op">)</span>          <span class="co"># starts with the BB_data example</span></span>
+<span><span class="fu"><a href="reference/lago_app.html">lago_app</a></span><span class="op">(</span><span class="va">my_data</span><span class="op">)</span>   <span class="co"># or with your own data frame</span></span></code></pre>
+<p>The app walks you through four steps: the data, the outcome and goal (including a power goal), the intervention components with their bounds and costs, and how the model accounts for centers and time. Each step says what is missing, every setting has a short explanation, and the bundled examples run as they are. The result shows the recommended intervention, its cost, the estimated outcome with its confidence interval, the confidence set, and any warnings to check. The R code tab shows the code that reproduces the run, so you can save it in a script. When you click <strong>Done</strong>, the app closes and returns the last result to R.</p>
+<p>The app runs on your own computer and only your computer can reach it. Unlike the <a href="https://correspondmerchant.github.io/LAGO-R-Package/playground.html">playground</a>, it needs no internet connection and your data never leaves your machine.</p>
 </div>
 <div class="section level2">
 <h2 id="basic-use-case">Basic use case<a class="anchor" aria-label="anchor" href="#basic-use-case"></a>
@@ -396,7 +408,7 @@ First rows of the confidence set (use $cs for all):
 </h2>
 <p><code><a href="reference/lago_optimization.html">lago_optimization()</a></code> finds the least costly intervention that reaches an outcome goal. <code><a href="reference/lago_budget.html">lago_budget()</a></code> answers the reverse question a trial designer often has: <strong>given a fixed budget, what is the best outcome I can reach, and with which intervention?</strong></p>
 <p>The best-outcome-within-budget intervention lies on the same least-cost frontier <code><a href="reference/lago_optimization.html">lago_optimization()</a></code> traces out, so <code><a href="reference/lago_budget.html">lago_budget()</a></code> searches the outcome goal to find the most ambitious one whose recommended cost still fits the budget. Like <code><a href="reference/lago_sensitivity.html">lago_sensitivity()</a></code>, it reuses a fitted result’s call (or takes the arguments directly), and it never computes the confidence set.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">b</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/lago_budget.html">lago_budget</a></span><span class="op">(</span></span>
 <span>  <span class="va">result</span>,        <span class="co"># reuse the call from the fit above</span></span>
 <span>  budget <span class="op">=</span> <span class="fl">100</span></span>
@@ -424,31 +436,31 @@ First rows of the confidence set (use $cs for all):
 <h2 id="using-lagotrials-from-python">Using LAGOtrials from Python<a class="anchor" aria-label="anchor" href="#using-lagotrials-from-python"></a>
 </h2>
 <p>A Python wrapper lives in <a href="https://github.com/correspondMerchant/LAGO-R-Package/tree/main/python" class="external-link"><code>python/</code></a> (importable as <code>lago</code>) for people who work in Python. It calls the real R functions through <a href="https://rpy2.github.io/" class="external-link"><code>rpy2</code></a>, so the results are exactly the ones the R package produces. Because it embeds R, you need R and the installed LAGOtrials R package as well as the Python package.</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="im">import</span> lago</span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a></span>
-<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>res <span class="op">=</span> lago.optimize(</span>
-<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>    data<span class="op">=</span>df,                                  <span class="co"># a pandas DataFrame</span></span>
-<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>    outcome_name<span class="op">=</span><span class="st">"Y"</span>,</span>
-<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>    outcome_type<span class="op">=</span><span class="st">"binary"</span>,</span>
-<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>    intervention_components<span class="op">=</span>[<span class="st">"comp1"</span>, <span class="st">"comp2"</span>],</span>
-<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
-<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
-<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>    cost_list<span class="op">=</span>[[<span class="dv">0</span>, <span class="fl">1.7</span>], [<span class="dv">0</span>, <span class="dv">8</span>]],</span>
-<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>    outcome_goal<span class="op">=</span><span class="fl">0.85</span>,</span>
-<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>)</span>
-<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>res[<span class="st">"rec_int"</span>]           <span class="co"># recommended intervention, a Python list</span></span>
-<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a>res[<span class="st">"est_outcome_goal"</span>]  <span class="co"># estimated outcome, a float</span></span>
-<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a></span>
-<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a><span class="co"># visualize_cost() launches the same interactive R app in your browser and</span></span>
-<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a><span class="co"># returns the cost list to Python when you close it:</span></span>
-<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a>cost_list <span class="op">=</span> lago.visualize_cost(</span>
-<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a>    component_names<span class="op">=</span>[<span class="st">"comp1"</span>, <span class="st">"comp2"</span>],</span>
-<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a>    unit_costs<span class="op">=</span>[<span class="fl">0.5</span>, <span class="dv">1</span>],</span>
-<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a>    default_cost_fxn_type<span class="op">=</span><span class="st">"cubic"</span>,</span>
-<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
-<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
-<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="im">import</span> lago</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>res <span class="op">=</span> lago.optimize(</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>    data<span class="op">=</span>df,                                  <span class="co"># a pandas DataFrame</span></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>    outcome_name<span class="op">=</span><span class="st">"Y"</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>    outcome_type<span class="op">=</span><span class="st">"binary"</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>    intervention_components<span class="op">=</span>[<span class="st">"comp1"</span>, <span class="st">"comp2"</span>],</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>    cost_list<span class="op">=</span>[[<span class="dv">0</span>, <span class="fl">1.7</span>], [<span class="dv">0</span>, <span class="dv">8</span>]],</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>    outcome_goal<span class="op">=</span><span class="fl">0.85</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>)</span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>res[<span class="st">"rec_int"</span>]           <span class="co"># recommended intervention, a Python list</span></span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>res[<span class="st">"est_outcome_goal"</span>]  <span class="co"># estimated outcome, a float</span></span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a></span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a><span class="co"># visualize_cost() launches the same interactive R app in your browser and</span></span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a><span class="co"># returns the cost list to Python when you close it:</span></span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>cost_list <span class="op">=</span> lago.visualize_cost(</span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a>    component_names<span class="op">=</span>[<span class="st">"comp1"</span>, <span class="st">"comp2"</span>],</span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a>    unit_costs<span class="op">=</span>[<span class="fl">0.5</span>, <span class="dv">1</span>],</span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a>    default_cost_fxn_type<span class="op">=</span><span class="st">"cubic"</span>,</span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a>)</span></code></pre></div>
 <p>The Python package also ships an <a href="https://modelcontextprotocol.io/" class="external-link">MCP</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>optimize</code> and <code>sensitivity</code> as tools any MCP-aware AI agent can call. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for installation, the MCP server, and the full API.</p>
 </div>
 <div class="section level2">
@@ -474,7 +486,7 @@ First rows of the confidence set (use $cs for all):
 </h2>
 <p>If you use this package, please cite both the software and the LAGO methodology.</p>
 <p>To get the software citation in R:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"LAGOtrials"</span><span class="op">)</span></span></code></pre></div>
 <p>For the methodology, please cite Bing et al. (2025): &gt; Bing A, Spiegelman D, Nevo D, Lok JJ. Learn-As-you-GO (LAGO) Trials: Optimizing Treatments and Preventing Trial Failure Through Ongoing Learning. Biometrics, 81(2), ujaf061. <a href="https://doi.org/10.1093/biomtc/ujaf061" class="external-link uri">https://doi.org/10.1093/biomtc/ujaf061</a></p>
 <p>A machine-readable citation is also provided in <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/CITATION.cff" class="external-link">CITATION.cff</a>, which powers the “Cite this repository” button on GitHub.</p>

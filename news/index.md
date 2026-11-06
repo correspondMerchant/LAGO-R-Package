@@ -2,6 +2,25 @@
 
 ## LAGOtrials (development version)
 
+- New
+  [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  runs the whole LAGO optimization in a point and click Shiny app on
+  your own computer, with no R code to write
+  ([\#37](https://github.com/correspondMerchant/LAGO-R-Package/issues/37)).
+  It covers the data (your own data frame, the bundled examples or a CSV
+  file), the outcome and goal with the power goal, the intervention
+  components with their bounds and costs, interaction terms, center
+  characteristics, fixed center and time effects, and additional
+  covariates. Each step says what is missing before a run, every setting
+  has a short explanation, and the result shows the recommendation, the
+  confidence set and the package’s warnings. The app shows the R code
+  that reproduces the run, and returns the last result to R when you
+  click Done. It is reachable only from your own computer.
+
+- [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  now also serves its app only to your own computer, even when the
+  `shiny.host` option is set to another address.
+
 - Fixed the numerical optimizer trusting a solver result outside the
   intervention bounds.
   [`NlcOptim::solnl()`](https://rdrr.io/pkg/NlcOptim/man/solnl.html) can
