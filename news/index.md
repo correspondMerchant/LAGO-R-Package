@@ -1,5 +1,20 @@
 # Changelog
 
+## LAGOtrials (development version)
+
+- Fixed the numerical optimizer trusting a solver result outside the
+  intervention bounds.
+  [`NlcOptim::solnl()`](https://rdrr.io/pkg/NlcOptim/man/solnl.html) can
+  return such a point, far outside the bounds with some BLAS libraries,
+  as on Ubuntu 26.04 with OpenBLAS 0.3.32. The highest outcome search
+  then took an outcome only reachable outside the bounds, so an
+  unreachable goal looked reachable and the recommendation was the upper
+  bounds instead of the shrinking method. The cost search let such a
+  point set the lowest cost, so cheaper points inside the bounds were
+  left out and a costlier recommendation was returned. Every solver
+  result is now moved onto the bounds before its outcome, its cost and
+  the goal are checked, so results no longer depend on the platform.
+
 ## LAGOtrials 1.1.1
 
 CRAN release: 2026-11-04

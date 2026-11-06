@@ -42,9 +42,13 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/v1.1.1/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="lagotrials-development-version">LAGOtrials (development version)<a class="anchor" aria-label="anchor" href="#lagotrials-development-version"></a></h2>
+<ul><li>Fixed the numerical optimizer trusting a solver result outside the intervention bounds. <code><a href="https://rdrr.io/pkg/NlcOptim/man/solnl.html" class="external-link">NlcOptim::solnl()</a></code> can return such a point, far outside the bounds with some BLAS libraries, as on Ubuntu 26.04 with OpenBLAS 0.3.32. The highest outcome search then took an outcome only reachable outside the bounds, so an unreachable goal looked reachable and the recommendation was the upper bounds instead of the shrinking method. The cost search let such a point set the lowest cost, so cheaper points inside the bounds were left out and a costlier recommendation was returned. Every solver result is now moved onto the bounds before its outcome, its cost and the goal are checked, so results no longer depend on the platform.</li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.1.1" id="lagotrials-111">LAGOtrials 1.1.1<a class="anchor" aria-label="anchor" href="#lagotrials-111"></a></h2><p class="text-muted">CRAN release: 2026-11-04</p>
 <ul><li><p>Fixed the shrinking method depending on the outcome’s units when the outcome is small, such as a rare binary outcome or a continuous outcome in large units. Its search stopped as soon as the outcome came within an absolute 1e-6 of the goal. It now stops within 1e-6 relative to the goal below 1.</p></li>
