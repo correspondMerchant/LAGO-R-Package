@@ -37,6 +37,7 @@ reference:
   - lago_sensitivity
   - lago_budget
   - visualize_cost
+  - lago_app
 - title: Reporting
   desc: Generate a shareable report from an optimization result.
   contents:

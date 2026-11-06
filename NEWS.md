@@ -1,5 +1,9 @@
 # LAGOtrials (development version)
 
+* New `lago_app()` runs the whole LAGO optimization in a point and click Shiny app on your own computer, with no R code to write (#37). It covers the data (your own data frame, the bundled examples or a CSV file), the outcome and goal with the power goal, the intervention components with their bounds and costs, interaction terms, center characteristics, fixed center and time effects, and additional covariates. Each step says what is missing before a run, every setting has a short explanation, and the result shows the recommendation, the confidence set and the package's warnings. The app shows the R code that reproduces the run, and returns the last result to R when you click Done. It is reachable only from your own computer.
+
+* `visualize_cost()` now also serves its app only to your own computer, even when the `shiny.host` option is set to another address.
+
 * Fixed the numerical optimizer trusting a solver result outside the intervention bounds. `NlcOptim::solnl()` can return such a point, far outside the bounds with some BLAS libraries, as on Ubuntu 26.04 with OpenBLAS 0.3.32. The highest outcome search then took an outcome only reachable outside the bounds, so an unreachable goal looked reachable and the recommendation was the upper bounds instead of the shrinking method. The cost search let such a point set the lowest cost, so cheaper points inside the bounds were left out and a costlier recommendation was returned. Every solver result is now moved onto the bounds before its outcome, its cost and the goal are checked, so results no longer depend on the platform.
 
 # LAGOtrials 1.1.1
