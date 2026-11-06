@@ -898,6 +898,9 @@ lago_app <- function(data = NULL,
     # refresh, which opens a new session, does not
     session$onSessionEnded(function() {
       shared$sessions <- shared$sessions - 1L
+      if (!shiny::isRunning()) {
+        return()
+      }
       later::later(function() {
         if (shared$sessions == 0L && shiny::isRunning()) shiny::stopApp(shared$result)
       }, delay = 5)
