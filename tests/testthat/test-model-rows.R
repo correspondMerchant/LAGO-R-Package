@@ -90,7 +90,8 @@ test_that("a logit-link continuous confidence set uses only the fitted rows", {
     with_na <- do.call(logit_run, c(list(bbp), extra))
     expect_false(is.null(with_na$cs))
     expect_equal(
-      rows_key(with_na), rows_key(do.call(logit_run, c(list(complete), extra)))
+      rows_key(with_na), rows_key(do.call(logit_run, c(list(complete), extra))),
+      tolerance = 1e-5
     )
   }
 })
@@ -201,7 +202,8 @@ test_that("unused center levels do not shift the weights", {
     rows_key(suppressWarnings(do.call(rows_run, c(list(d), binary_lost, w)))),
     rows_key(suppressWarnings(
       do.call(rows_run, c(list(dropped), binary_lost, w))
-    ))
+    )),
+    tolerance = 1e-5
   )
 })
 

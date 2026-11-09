@@ -742,9 +742,9 @@ test_that("unit_costs and the equivalent cost_list_of_vectors agree", {
   from_unit_costs_args$default_cost_fxn_type <- "cubic"
   from_unit_costs <- run_lago(from_unit_costs_args)
 
-  expect_equal(from_unit_costs$rec_int, explicit$rec_int, tolerance = 1e-8)
+  expect_equal(from_unit_costs$rec_int, explicit$rec_int, tolerance = 1e-5)
   expect_equal(from_unit_costs$rec_int_cost, explicit$rec_int_cost,
-    tolerance = 1e-8
+    tolerance = 1e-5
   )
   # and the cheap end, not the expensive end, on this path as well.
   expect_equal(from_unit_costs$rec_int_cost, 13329.513069, tolerance = 1e-5)

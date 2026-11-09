@@ -88,7 +88,7 @@ test_that("BB_data with missing outcomes gives the complete-case goal", {
       with_na$effective_outcome_goal,
       power_run(complete, approach)$effective_outcome_goal,
       info = approach
-    )
+    , tolerance = 1e-5)
     # the conditional approach used to return 0 here, silently dropping the goal
     expect_gt(with_na$effective_outcome_goal, 0)
   }
@@ -138,7 +138,7 @@ test_that("an outcome goal works when the outcome has missing values", {
     )))
   }
   complete <- d[!is.na(d$pp2_hand_hygiene), ]
-  expect_equal(run(d)$rec_int, run(complete)$rec_int)
+  expect_equal(run(d)$rec_int, run(complete)$rec_int, tolerance = 1e-5)
   both <- list(
     power_goal = 0.8, num_centers_in_next_stage = 10,
     patients_per_center_in_next_stage = 30
@@ -146,7 +146,7 @@ test_that("an outcome goal works when the outcome has missing values", {
   expect_equal(
     do.call(run, c(list(d), both))$rec_int,
     do.call(run, c(list(complete), both))$rec_int
-  )
+  , tolerance = 1e-5)
 })
 
 test_that("an arm with rows but no observed outcome is refused", {

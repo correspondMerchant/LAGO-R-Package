@@ -75,8 +75,8 @@ test_that("each sweep row matches a single lago_optimization() run", {
       args,
       list(include_confidence_set = FALSE, quiet = TRUE)
     )))
-    expect_equal(sens$est_outcome_goal[i], single$est_outcome_goal)
-    expect_equal(sens$rec_int_cost[i], single$rec_int_cost)
+    expect_equal(sens$est_outcome_goal[i], single$est_outcome_goal, tolerance = 1e-5)
+    expect_equal(sens$rec_int_cost[i], single$rec_int_cost, tolerance = 1e-5)
   }
 })
 

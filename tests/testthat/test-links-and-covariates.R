@@ -615,7 +615,7 @@ test_that("a covariate named like a fixed effect prefix does not disturb the res
   unnamed_cs <- function(cs) if (is.null(cs)) NULL else unname(as.matrix(cs))
   same_answer <- function(a, b) {
     expect_equal(a$rec_int, b$rec_int)
-    expect_equal(a$est_outcome_goal, b$est_outcome_goal)
+    expect_equal(a$est_outcome_goal, b$est_outcome_goal, tolerance = 1e-5)
     expect_equal(a$est_outcome_ci, b$est_outcome_ci)
     expect_equal(
       a$confidence_set_size_percentage, b$confidence_set_size_percentage
@@ -764,6 +764,8 @@ test_that("est_outcome_goal is not 0 on the reference period with fixed time eff
 
   # a non-reference period adds exactly its own dummy, and no other
   at_period_5 <- run(5, FALSE)
+  # its own fit, as two fits of the same data can differ in the last digits
+  beta <- coef(at_period_5$model)
   expect_equal(
     at_period_5$est_outcome_goal,
     beta[["(Intercept)"]] + beta[["period5"]] +

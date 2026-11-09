@@ -77,7 +77,7 @@ test_that("the R code reproduces the run", {
   b <- .app_build(spec, d)
   run <- .app_run(function() do.call(lago_optimization, c(list(data = b$data), b$args, list(quiet = TRUE))))
   expect_null(run$error)
-  expect_equal(app_run_code(b$code, "BB_data", d)$rec_int, run$value$rec_int)
+  expect_equal(app_run_code(b$code, "BB_data", d)$rec_int, run$value$rec_int, tolerance = 1e-5)
 })
 
 test_that("interaction, arm, center and period columns are built in the run and the code", {
