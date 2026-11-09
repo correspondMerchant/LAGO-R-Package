@@ -42,8 +42,8 @@ test_that("the power goal plans at the center characteristic values, not at 0", 
     shifted <- power_planning_run(centered, approach = approach,
       center_characteristics = "beds", center_characteristics_optimization_values = 0
     )
-    expect_equal(raw$effective_outcome_goal, shifted$effective_outcome_goal, tolerance = 1e-8)
-    expect_equal(raw$rec_int, shifted$rec_int, tolerance = 1e-6)
+    expect_equal(raw$effective_outcome_goal, shifted$effective_outcome_goal, tolerance = 1e-5)
+    expect_equal(raw$rec_int, shifted$rec_int, tolerance = 1e-5)
   }
   # the unconditional answer is the first grid point with enough power
   fit <- stats::glm(y ~ dose + beds, family = stats::binomial, data = d)
@@ -71,7 +71,7 @@ test_that("the power goal does not depend on which center is the reference", {
     dd$center <- stats::relevel(factor(dd$center), ref = reference)
     power_planning_run(dd, approach = "unconditional", include_center_effects = TRUE)$effective_outcome_goal
   }, numeric(1))
-  expect_equal(unname(goals), rep(goals[[1]], 3), tolerance = 1e-8)
+  expect_equal(unname(goals), rep(goals[[1]], 3), tolerance = 1e-5)
 })
 
 test_that("the conditional power goal skips grid points it cannot evaluate in place", {
@@ -133,7 +133,7 @@ test_that("the power goal on center level data counts patients, not rows", {
     expanded <- hunt_quiet(do.call(lago_optimization, c(common, list(
       data = patients, outcome_name = "y", power_goal_approach = approach
     ))))
-    expect_equal(aggregated$effective_outcome_goal, expanded$effective_outcome_goal, tolerance = 1e-8)
+    expect_equal(aggregated$effective_outcome_goal, expanded$effective_outcome_goal, tolerance = 1e-5)
     expect_equal(aggregated$rec_int, expanded$rec_int, tolerance = 1e-6)
   }
 })

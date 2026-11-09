@@ -176,7 +176,9 @@ test_that("numeric interaction columns stay numeric beside categorical covariate
     intervention_components = c("x", "z", "x:z"),
     main_components = c("x", "z"), include_interaction_terms = TRUE,
     intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(4, 2),
-    cost_list_of_vectors = list(c(0, 1), c(0, 1)), outcome_goal = 10.5,
+    # z costs a little more, and no grid point is exactly at the goal, so the
+    # cheapest grid point is unique and does not move with rounding
+    cost_list_of_vectors = list(c(0, 1), c(0, 1.1)), outcome_goal = 10.4,
     additional_covariates = "grp", optimization_method = "grid_search",
     optimization_grid_search_step_size = c(0.5, 0.5),
     confidence_set_grid_step_size = c(0.25, 0.25), quiet = TRUE

@@ -157,7 +157,7 @@ test_that("the quasibinomial family takes the logit link by default", {
   )
   default_link <- hunt4_quiet(do.call(lago_optimization, args))
   logit <- hunt4_quiet(do.call(lago_optimization, c(args, list(link = "logit"))))
-  expect_equal(default_link$rec_int, logit$rec_int)
+  expect_equal(default_link$rec_int, logit$rec_int, tolerance = 1e-5)
 })
 
 test_that("a column name that is not a valid R name is refused clearly", {

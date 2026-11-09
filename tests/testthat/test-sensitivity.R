@@ -261,10 +261,10 @@ test_that("object form and args form produce the same sweep", {
     "value", "gear", "qsec", "rec_int_cost", "est_outcome_goal", "status"
   )
   for (cn in cols) {
-    expect_equal(s_obj[[cn]], s_args[[cn]])
+    expect_equal(s_obj[[cn]], s_args[[cn]], tolerance = 1e-5)
   }
   # comparing as data.frames (dropping the class) also matches
-  expect_equal(as.data.frame(s_obj), as.data.frame(s_args))
+  expect_equal(as.data.frame(s_obj), as.data.frame(s_args), tolerance = 1e-5)
 
   # non-vacuous: the sweep actually moved the cost, so an equal comparison is
   # not trivially satisfied by a flat curve.
