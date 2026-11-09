@@ -182,8 +182,8 @@ b
 #> 
 #> Budget: 100 (maximize).
 #> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819384081165 (of 100).
-#> Estimated outcome: 35.1051278351624.
+#> Cost: 99.7819396146112 (of 100).
+#> Estimated outcome: 35.1051282051282.
 plot(b)
 
 
@@ -204,7 +204,7 @@ lago_budget(opt, budget = 100)
 #> 
 #> Budget: 100 (maximize).
 #> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819384081165 (of 100).
-#> Estimated outcome: 35.1051278351624.
+#> Cost: 99.7819396146112 (of 100).
+#> Estimated outcome: 35.1051282051282.
 # }
 ```
