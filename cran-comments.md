@@ -1,41 +1,33 @@
 # cran-comments
 
-## Resubmission
-
-This is a resubmission. The incoming pretest on r-devel-windows-x86_64 gave
-the NOTE "Overall checktime 11 min > 10 min". The tests took 461 seconds
-there. The 28 slowest tests are now skipped on CRAN with `skip_on_cran()` and
-still run in our continuous integration. On win-builder R-devel the tests now
-take 165 seconds and the whole check 359 seconds, with `Status: OK`. The tests
-that failed in the MKL check still run on CRAN.
-
 ## Submission
 
-This is an update of LAGOtrials 1.1.0, which was published on CRAN on
-2026-10-24.
+This is an update of LAGOtrials 1.1.1, which was published on CRAN on
+2026-11-04.
 
-It fixes the test failures in the MKL additional check
-(https://www.stats.ox.ac.uk/pub/bdr/Rblas/MKL/LAGOtrials.out). Six tests
-compared the results of two model fits exactly, and under MKL these differ by
-about 1e-7. Those comparisons now use a tolerance of 1e-5, which is far below
-the changes the tests check for.
+It fixes the remaining test failure in the MKL additional check
+(https://www.stats.ox.ac.uk/pub/bdr/Rblas/MKL/LAGOtrials.out). One test
+compared a sweep with a direct run at a tolerance of 1e-8, and under MKL the
+two costs differ by about 2.6e-8 relative. To find every comparison of this
+kind at once, we reran the test suite with a relative noise of 1e-8 on the
+fitted coefficients, about the size of a BLAS difference. That found 23
+comparisons of two separate fits or runs, which now use a tolerance of 1e-5.
 
-It also fixes several results that were silently wrong in 1.1.0, among them
-the power goal's control rate, the confidence interval of the weighted average
-center on the logit link, and the shrinking method used when the outcome goal
-cannot be reached. The changes are listed in NEWS.md.
+It also fixes a bug in the numerical optimizer that showed on Ubuntu 26.04
+with OpenBLAS 0.3.32, where the solver returned points outside the
+intervention bounds, and it adds `lago_app()`, a Shiny app that runs on the
+loopback interface only. The changes are listed in NEWS.md.
 
 ## Test environments
 
 * Local: R 4.5.3 on x86_64 Linux (Amazon Linux 2023).
 * GitHub Actions: macOS (release), Windows (release), and Linux
   (devel, release, oldrel-1) via the standard `r-lib/actions` R-CMD-check
-  workflow. All five pass.
-* R-hub containers, run locally with docker: `mkl` (Fedora 44, R-devel
-  2026-11-02 r90827, Intel MKL 2025.3) and `atlas` (Fedora, R-devel, ATLAS).
-  Both give `Status: OK`.
-* win-builder: R-devel (2026-11-02 r90827) and R-release (4.6.2). Both give
+  workflow, on both the Ubuntu 24.04 and the Ubuntu 26.04 runners. All pass.
+* R-hub containers, run locally with docker: `mkl` (Fedora 44, R-devel,
+  Intel MKL 2025.3) and `atlas` (Fedora, R-devel, ATLAS). Both give
   `Status: OK`.
+* win-builder: R-devel and R-release.
 
 ## R CMD check results
 
