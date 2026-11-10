@@ -27,11 +27,18 @@ loopback interface only. The changes are listed in NEWS.md.
 * R-hub containers, run locally with docker: `mkl` (Fedora 44, R-devel,
   Intel MKL 2025.3) and `atlas` (Fedora, R-devel, ATLAS). Both give
   `Status: OK`.
-* win-builder: R-devel and R-release.
+* win-builder: R-devel (2026-11-07 r90850) and R-release (4.6.2). Both give
+  1 NOTE, explained below.
 
 ## R CMD check results
 
 There were no ERRORs or WARNINGs.
+
+win-builder (R-devel and R-release) gives 1 NOTE:
+
+* CRAN incoming feasibility: "Days since last update: 6". This update is
+  sent early because it fixes the MKL additional check failure that CRAN
+  asked us to fix by 2026-11-21, see above.
 
 The local check (`R CMD check --as-cran`) gives 3 NOTEs, all from the local
 environment:
