@@ -249,7 +249,7 @@ lago_app <- function(data = NULL,
           class = "mb-3",
           shiny::actionButton("open_designer", "Shape the costs visually", icon = shiny::icon("chart-line"), class = "btn-outline-primary btn-sm"),
           " ",
-          .app_help("", "Opens the cost designer, which draws the total and marginal cost of each component and lets you shape them with sliders or by dragging the curve. Use these costs then puts them in as cost coefficients.")
+          .app_help("", "Opens the cost designer, which draws the total and marginal cost of each component and lets you shape them with sliders or by dragging the curve. Its button \"Use these costs\" then puts them in as cost coefficients.")
         ),
         shiny::uiOutput("component_rows"),
         shiny::uiOutput("notes_intervention"),
@@ -567,7 +567,7 @@ lago_app <- function(data = NULL,
         rng <- range(d[[cc]], na.rm = TRUE)
         cost_ui <- if (coef_mode) {
           from_designer <- designer_text(cc)
-          shiny::textInput(coef_id(cc), .app_help("Cost coefficients c0, c1, ...", "The total cost at level x is c0 + c1 x + c2 x^2 and so on. Enter the numbers separated by commas, such as 0, 2."), value = keep(coef_id(cc), if (is.null(from_designer)) "0, 1" else from_designer))
+          shiny::textInput(coef_id(cc), width = "100%", label = .app_help("Cost coefficients c0, c1, ...", "The total cost at level x is c0 + c1 x + c2 x^2 and so on. Enter the numbers separated by commas, such as 0, 2."), value = keep(coef_id(cc), if (is.null(from_designer)) "0, 1" else from_designer))
         } else {
           shiny::numericInput(col_id("cost", cc), .app_help("Unit cost", "The cost of one unit of this component, such as the cost of one coaching visit. The defaults of 1 are placeholders: enter your own costs."), value = keep(col_id("cost", cc), 1), min = 0)
         }
@@ -752,11 +752,21 @@ lago_app <- function(data = NULL,
           shiny::showNotification("The costs from the designer are now in use, as cost coefficients.", type = "message")
         }
       )
+      unfit_note <- if (length(start$unfit)) {
+        htmltools::div(
+          class = "alert alert-warning", role = "status",
+          sprintf(
+            "The cost coefficients of %s do not fit the %s form of the designer, so it starts on its own curve for them. \"Use these costs\" replaces them.",
+            paste(start$unfit, collapse = ", "), start$form
+          )
+        )
+      }
       shiny::showModal(shiny::modalDialog(
         title = "Shape the costs",
+        unfit_note,
         parts$ui,
         size = "xl", easyClose = TRUE,
-        footer = shiny::modalButton("Cancel")
+        footer = htmltools::tagList(shiny::modalButton("Cancel"), parts$apply_ui)
       ), session = session)
       shiny::moduleServer(id, parts$server)
     })

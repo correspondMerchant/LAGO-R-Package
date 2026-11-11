@@ -390,14 +390,15 @@ visualize_cost <- function(
       div(
         style = "padding: 12px 16px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
         h5("Cost coefficients for the app"),
-        verbatimTextOutput(ns("complete_coef_list")),
-        actionButton(
-          inputId = ns("apply"),
-          label = "Use these costs",
-          class = "btn-primary",
-          icon = icon("circle-check")
-        )
+        verbatimTextOutput(ns("complete_coef_list"))
       )
+    )
+    # the app places this button in the dialog's footer, next to Cancel
+    apply_ui <- actionButton(
+      inputId = ns("apply"),
+      label = "Use these costs",
+      class = "btn-primary",
+      icon = icon("circle-check")
     )
   } else {
     # bslib warns that navbarPage's direct children should all be nav panels; this
@@ -1076,7 +1077,7 @@ visualize_cost <- function(
       }
   }
 
-  list(ui = ui, server = server)
+  list(ui = ui, server = server, apply_ui = if (embedded) apply_ui)
 }
 
 # Assemble the visualize_cost() shinyApp. The component configuration can come

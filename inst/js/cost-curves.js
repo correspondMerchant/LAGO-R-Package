@@ -705,7 +705,44 @@
     });
   }
 
+  // ionRangeSlider fakes a click at the handle when its track gets the focus,
+  // which moves the value by a pixel's worth of the range when a keyboard user
+  // only tabs through. Focus now only makes the slider the one the arrow keys
+  // move, which is what the fake click was for, and leaves its value alone.
+  function keepValueOnFocus() {
+    if (!$ || !$.fn || !$.fn.ionRangeSlider) {
+      return;
+    }
+    $("input.js-range-slider").each(function () {
+      var inst = $(this).data("ionRangeSlider");
+      if (!inst) {
+        return;
+      }
+      var proto = Object.getPrototypeOf(inst);
+      if (proto && !proto._lagoFocusPatched) {
+        proto.pointerFocus = function () {
+          // what the fake click set up for the arrow keys: this slider, its
+          // single handle, and the pointer at the handle's center
+          this.current_plugin = this.plugin_count;
+          if (this.options.type === "single" && this.coords) {
+            this.target = "single";
+            this.coords.p_gap = this.coords.p_handle / 2;
+            this.coords.p_pointer = this.coords.p_single_fake + this.coords.p_gap;
+          }
+        };
+        proto._lagoFocusPatched = true;
+      }
+      // a slider made before the patch bound the old handler, so rebind it.
+      // A slider made or rebuilt later binds the patched one itself.
+      if (inst.$cache && inst.$cache.line) {
+        var ev = "focus.irs_" + inst.plugin_count;
+        inst.$cache.line.off(ev).on(ev, inst.pointerFocus.bind(inst));
+      }
+    });
+  }
+
   function init() {
+    keepValueOnFocus();
     bindSliders();
     drawAll();
   }

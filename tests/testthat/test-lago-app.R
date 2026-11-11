@@ -620,12 +620,22 @@ test_that("the cost designer starts on the costs now in use", {
   start <- .app_designer_start(spec)
   expect_identical(start$form, "cubic")
   expect_equal(start$coefs[[1]], c(1, 2, 3, 4, 5))
-  # a polynomial the designer has no form for opens on the default curve
+  # a linear cost beside a cubic one opens as the same curve in the cubic form
+  spec$coefs <- list(c(0, 4), c(0, 0.5, 0, 0, 0.0185))
+  start <- .app_designer_start(spec)
+  expect_identical(start$form, "cubic")
+  expect_equal(start$coefs[[1]], c(0, 4, 0, 0, 0))
+  expect_length(start$unfit, 0)
+  # a polynomial the designer has no form for is named
   spec$coefs <- list(c(0, 2), c(0, 1, 1))
   start <- .app_designer_start(spec)
   expect_identical(start$form, "linear")
   expect_null(start$coefs[[2]])
-  expect_equal(start$unit_costs, c(2, 1))
+  expect_identical(start$unfit, "qsec")
+  # the unit cost is the average cost per unit over the bounds
+  expect_equal(start$unit_costs[1], 2)
+  q <- function(x) x + x^2
+  expect_equal(start$unit_costs[2], (q(spec$upper[2]) - q(spec$lower[2])) / (spec$upper[2] - spec$lower[2]))
 })
 
 test_that("the embedded cost designer hands its costs to the app", {
@@ -639,7 +649,7 @@ test_that("the embedded cost designer hands its costs to the app", {
   html <- as.character(parts$ui)
   expect_match(html, "des-coef_1_1")
   expect_match(html, "data-ns=\"des-\"")
-  expect_match(html, "des-apply")
+  expect_match(as.character(parts$apply_ui), "des-apply")
   expect_false(grepl("quit_button", html))
   shiny::testServer(function(id) shiny::moduleServer(id, parts$server), args = list(id = "des"), {
     # before the sliders report, the designer reads the values it set
@@ -676,6 +686,9 @@ test_that("the designer asks for the components and bounds first", {
     session$setInputs(source = "mtcars", sep = ",", dec = ".")
     session$setInputs(outcome = "mpg", components = character(0))
     session$setInputs(open_designer = 1)
-    expect_identical(designer_count, 0L)
+    # no designer opened, so its apply button does nothing
+    session$setInputs(`designer_1-apply` = 1)
+    expect_identical(designer_version(), 0L)
+    expect_length(designer_costs(), 0)
   })
 })
