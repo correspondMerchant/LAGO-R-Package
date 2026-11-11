@@ -24,6 +24,8 @@ navbar:
 
 news:
   releases:
+  - text: "Version 1.2.0"
+    href: news/index.html#lagotrials-120
   - text: "Version 1.1.1"
     href: news/index.html#lagotrials-111
   - text: "Version 1.1.0"
