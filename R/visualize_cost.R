@@ -137,12 +137,24 @@ visualize_cost <- function(
 # visualize_cost() (which runs the app locally) and .build_visualize_cost_app()
 # (which wraps these into a request-driven shinyApp), so a single source of truth
 # builds the UI and server for a config.
+#
+# The same parts also run inside lago_app(), as a module: `ns` namespaces every
+# id, `embedded = TRUE` leaves out the page frame and the buttons that only the
+# stand alone app has, and `on_apply(cost_list, form)` is called when the user
+# applies the costs. `initial_coefs` starts the designer on given coefficients,
+# one vector per component of the starting form's length, instead of the
+# defaults. The server works both as a plain server and in moduleServer(),
+# since it reads its namespace from the session.
 .build_cost_parts <- function(
     component_names,
     unit_costs,
     default_cost_fxn_type,
     intervention_lower_bounds,
-    intervention_upper_bounds) {
+    intervention_upper_bounds,
+    ns = shiny::NS(NULL),
+    embedded = FALSE,
+    initial_coefs = NULL,
+    on_apply = NULL) {
   # Precompute the initial coefficients and per-coefficient slider ranges for
   # BOTH cost-function forms, so the app can switch between them at runtime with
   # a Linear/Cubic toggle. A linear total cost has 2 coefficients, a cubic
@@ -172,6 +184,15 @@ visualize_cost <- function(
       )
     })
   )
+  # the starting form opens on the given coefficients where they fit it
+  if (!is.null(initial_coefs)) {
+    for (ci in seq_along(initial_coefs)) {
+      v <- initial_coefs[[ci]]
+      if (length(v) == length(coefs_by_type[[default_cost_fxn_type]][[ci]]) && all(is.finite(v))) {
+        coefs_by_type[[default_cost_fxn_type]][[ci]] <- as.numeric(v)
+      }
+    }
+  }
   ranges_by_type <- stats::setNames(lapply(cost_types, function(t) {
     lapply(seq_along(coefs_by_type[[t]]), function(ci) {
       lapply(coefs_by_type[[t]][[ci]], function(init) {
@@ -207,263 +228,284 @@ visualize_cost <- function(
   # addResourcePath + tags$script avoids a new hard dependency on htmltools
   # (htmlDependency is not re-exported by shiny); addResourcePath and tags are
   # both provided by shiny, which is already imported.
-  js_dir <- system.file("js", package = "LAGOtrials")
-  addResourcePath("lago_cost_assets", js_dir)
+  if (!embedded) {
+    js_dir <- system.file("js", package = "LAGOtrials")
+    addResourcePath("lago_cost_assets", js_dir)
+  }
 
-  # bslib warns that navbarPage's direct children should all be nav panels; this
-  # app deliberately also passes useShinyjs() and the form-toggle header, so the
-  # warning is expected and benign. Suppress it so it does not clutter the
-  # console on every launch.
-  ui <- suppressWarnings(navbarPage(
-    title = "Cost Functions Visualization",
-    theme = bs_theme(version = 5, bootswatch = "flatly"),
-
-    # Load the vendored D3 first, then the cost-curve binding (tags$head content
-    # is hoisted to <head>). The Linear/Cubic form toggle sits alongside it in
-    # the header so it shows above every component tab and switches all
-    # components at once.
-    header = tagList(
-      tags$head(
-        # shinylive runs this app in a same-origin iframe whose URL does NOT
-        # carry the parent tab's ?components=... deep link (that query lives on
-        # the top /visualize-cost/ tab). Without it the app would always fall
-        # back to the example, so the designer never receives the components the
-        # playground handed off. Adopt the parent's query into this iframe's own
-        # URL (a one-time reload) so the normal request/clientData query parsing
-        # below picks it up. Guarded: only when we are in an iframe, the parent
-        # has a query, and this frame does not yet (prevents a reload loop); a
-        # cross-origin parent throws and is ignored. No-op outside an iframe
-        # (e.g. a local visualize_cost() launch), where window.top === window.
-        tags$script(shiny::HTML(paste0(
-          "(function(){try{",
-          "if (window.top === window) return;",           # not in an iframe (local launch)
-          "var q = window.top.location.search;",           # parent tab's query, same-origin
-          "if (!q || q.indexOf('components=') === -1) return;", # only a cost-designer deep link
-          "if (window.location.search) return;",           # this frame already carries a query
-          "var seen = false;",
-          "try { seen = !!sessionStorage.getItem('lago_cost_adopted');",
-          "  if (!seen) sessionStorage.setItem('lago_cost_adopted', '1'); } catch (e) {}",
-          "if (!seen) window.location.replace(window.location.pathname + q);", # adopt once
-          "}catch(e){}})();"
-        ))),
-        tags$script(src = "lago_cost_assets/d3.v7.min.js"),
-        tags$script(src = "lago_cost_assets/cost-curves.js")
-      ),
-      div(
-        style = paste(
-          "padding: 10px 16px; background-color: #f8f9fa;",
-          "border-bottom: 1px solid #dee2e6;"
-        ),
-        radioButtons(
-          inputId = "cost_type",
-          label = "Cost function form",
-          choices = c("Linear" = "linear", "Cubic" = "cubic"),
-          selected = default_cost_fxn_type,
-          inline = TRUE
-        )
-      )
+  form_toggle <- div(
+    style = paste(
+      "padding: 10px 16px; background-color: #f8f9fa;",
+      "border-bottom: 1px solid #dee2e6;"
     ),
+    radioButtons(
+      inputId = ns("cost_type"),
+      label = "Cost function form",
+      choices = c("Linear" = "linear", "Cubic" = "cubic"),
+      selected = default_cost_fxn_type,
+      inline = TRUE
+    )
+  )
 
-    # Include shinyjs
-    useShinyjs(),
-
-    # Add footer panel for cost function list
-    # footer = div(
-    #     style = "padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
-    #     h4("Using these cost functions in optimization"),
-    #     p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
-    #     verbatimTextOutput("complete_coef_list"),
-    #     p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
-    # ),
-    footer = div(
-      style = "padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
+  # One nav panel per component
+  panels <- lapply(seq_len(n_components), function(component_idx) {
+    nav_panel(
+      paste("Component", component_idx, ":", component_names[component_idx]),
       fluidRow(
         column(
-          8, # Takes up 8/12 of the width for the coefficient list
-          h4("Using these cost functions in optimization"),
-          p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
-          verbatimTextOutput("complete_coef_list"),
-          div(
-            style = "margin-bottom: 10px;",
-            actionButton(
-              inputId = "copy_button",
-              label = "Copy to clipboard",
-              class = "btn-primary btn-sm",
-              icon = icon("clipboard")
-            ),
-            # Send the current cost functions back to the playground tab that
-            # opened this designer (see the postMessage in the observer below).
-            actionButton(
-              inputId = "send_to_playground",
-              label = "Use these costs in the playground",
-              class = "btn-primary btn-sm",
-              icon = icon("arrow-left")
-            ),
-            span(
-              id = "copy_confirmation",
-              style = "color: #198754; margin-left: 10px; display: none;",
-              "Copied!"
-            ),
-            span(
-              id = "send_confirmation",
-              style = "color: #198754; margin-left: 10px; display: none;",
-              "Sent to the playground."
-            ),
-            span(
-              id = "send_error",
-              style = "color: #7a2020; margin-left: 10px; display: none;",
-              "Open the cost designer from the playground to send costs back."
+          5,
+          card(
+            card_header("Adjust coefficients using sliders"),
+            card_body(
+              # Create sliders for the component's coefficients. Every form's
+              # rows are rendered (up to the cubic's 5); rows beyond the
+              # starting form's length are hidden and revealed when the user
+              # switches form. Each slider has its own default range
+              # (compute_slider_range) plus two numeric inputs for a custom
+              # range. Each row is wrapped in an id'd div so the cost_type
+              # observer can show or hide it.
+              lapply(
+                seq_len(max_ncoef[component_idx]),
+                function(i) {
+                  seed <- seed_row(component_idx, i - 1)
+                  rng <- seed$rng
+                  hidden <- (i - 1) >= n_coef(default_cost_fxn_type, component_idx)
+                  div(
+                    id = ns(paste0("coef_row_", component_idx, "_", i - 1)),
+                    style = if (hidden) "display: none;" else NULL,
+                    div(
+                      style = paste(
+                        "display: flex; gap: 10px; align-items: flex-end;",
+                        "margin-bottom: 5px;"
+                      ),
+                      numericInput(
+                        inputId = ns(paste0(
+                          "range_min_", component_idx, "_", i - 1
+                        )),
+                        label = "Range min",
+                        value = rng$min,
+                        width = "120px"
+                      ),
+                      numericInput(
+                        inputId = ns(paste0(
+                          "range_max_", component_idx, "_", i - 1
+                        )),
+                        label = "Range max",
+                        value = rng$max,
+                        width = "120px"
+                      )
+                    ),
+                    sliderInput(
+                      inputId = ns(paste0("coef_", component_idx, "_", i - 1)),
+                      label = paste0(
+                        component_names[component_idx], "^", i - 1,
+                        " coefficient"
+                      ),
+                      min = rng$min,
+                      max = rng$max,
+                      value = seed$value,
+                      step = rng$step,
+                      width = "100%"
+                    )
+                  )
+                }
+              ),
+              hr(),
+              # Add reset button
+              actionButton(
+                inputId = ns(paste0("reset_", component_idx)),
+                label = "Reset Coefficients",
+                class = "btn-warning"
+              ),
+              hr(),
+              h4(paste("Coefficient vector for", component_names[component_idx], ":")),
+              # Add warning message below coefficient vector
+              div(
+                id = ns(paste0("coef_warning_", component_idx)),
+                style = "color: red; margin-top: 10px; display: none;",
+                "Warning: Current coefficients may lead to negative marginal costs!"
+              ),
+              verbatimTextOutput(ns(paste0("coefficient_text_", component_idx)))
             )
-          ),
-          p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
+          )
         ),
         column(
-          4, # Takes up 4/12 of the width for the finish button
-          div(
-            style = "text-align: right; padding-top: 20px;",
-            actionButton(
-              inputId = "quit_button",
-              label = "Return list to R & close",
-              class = "btn-danger",
-              icon = icon("circle-check")
+          7,
+          card(
+            card_header("Visualization"),
+            card_body(
+              # Add warning messages above plot
+              div(
+                id = ns(paste0("plot_warning_", component_idx)),
+                style = "color: red; margin-bottom: 5px; display: none;",
+                "Warning: Total cost function should be non-decreasing!"
+              ),
+              div(
+                id = ns(paste0("negative_cost_warning_", component_idx)),
+                style = "color: red; margin-bottom: 10px; display: none;",
+                "Warning: Marginal cost function should always be positive!"
+              ),
+              # Client-side D3 (v7) target. cost-curves.js reads the coefs
+              # straight from this component's sliders and the bounds / unit
+              # cost from these data-* attributes, then renders both SVGs and
+              # redraws instantly as the sliders move (no server round-trip).
+              # The right endpoint of the total-cost curve is draggable; the
+              # drag writes rescaled coefficients back via
+              # input$dragged_coefs_<component> (see the observeEvent below).
+              # data-ns is the namespace prefix of the slider and drag ids.
+              div(
+                id = ns(paste0("cost_curves_", component_idx)),
+                class = "lago-cost-curves",
+                `data-component` = component_idx,
+                `data-ns` = ns(""),
+                # data-ncoef is the currently selected form's coefficient count
+                # (the number of coefficients the curve reads); it is updated
+                # when the form changes. data-maxncoef is the number of slider
+                # rows rendered (so the JS binds them all up front, including
+                # rows that a later form switch reveals).
+                `data-ncoef` = n_coef(default_cost_fxn_type, component_idx),
+                `data-maxncoef` = max_ncoef[component_idx],
+                `data-lb` = intervention_lower_bounds[component_idx],
+                `data-ub` = intervention_upper_bounds[component_idx],
+                `data-unit-cost` = unit_costs[component_idx],
+                `data-name` = component_names[component_idx]
+              ),
+              hr(),
+              # Key numeric values over the intervention range, so the user
+              # can target a known cost rather than only eyeballing the curve.
+              verbatimTextOutput(ns(paste0("cost_summary_", component_idx)))
             )
           )
         )
       )
-    ),
+    )
+  })
 
-    # Add nav panels for each component
-    !!!lapply(seq_len(n_components), function(component_idx) {
-      nav_panel(
-        paste("Component", component_idx, ":", component_names[component_idx]),
+  if (embedded) {
+    # inside lago_app(): the app loads the scripts, and the user applies the
+    # costs to the app instead of copying them or returning them to R
+    ui <- tagList(
+      form_toggle,
+      do.call(bslib::navset_card_tab, panels),
+      div(
+        style = "padding: 12px 16px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
+        h5("Cost coefficients for the app"),
+        verbatimTextOutput(ns("complete_coef_list")),
+        actionButton(
+          inputId = ns("apply"),
+          label = "Use these costs",
+          class = "btn-primary",
+          icon = icon("circle-check")
+        )
+      )
+    )
+  } else {
+    # bslib warns that navbarPage's direct children should all be nav panels; this
+    # app deliberately also passes useShinyjs() and the form-toggle header, so the
+    # warning is expected and benign. Suppress it so it does not clutter the
+    # console on every launch.
+    ui <- suppressWarnings(navbarPage(
+      title = "Cost Functions Visualization",
+      theme = bs_theme(version = 5, bootswatch = "flatly"),
+
+      # Load the vendored D3 first, then the cost-curve binding (tags$head content
+      # is hoisted to <head>). The Linear/Cubic form toggle sits alongside it in
+      # the header so it shows above every component tab and switches all
+      # components at once.
+      header = tagList(
+        tags$head(
+          # shinylive runs this app in a same-origin iframe whose URL does NOT
+          # carry the parent tab's ?components=... deep link (that query lives on
+          # the top /visualize-cost/ tab). Without it the app would always fall
+          # back to the example, so the designer never receives the components the
+          # playground handed off. Adopt the parent's query into this iframe's own
+          # URL (a one-time reload) so the normal request/clientData query parsing
+          # below picks it up. Guarded: only when we are in an iframe, the parent
+          # has a query, and this frame does not yet (prevents a reload loop); a
+          # cross-origin parent throws and is ignored. No-op outside an iframe
+          # (e.g. a local visualize_cost() launch), where window.top === window.
+          tags$script(shiny::HTML(paste0(
+            "(function(){try{",
+            "if (window.top === window) return;",           # not in an iframe (local launch)
+            "var q = window.top.location.search;",           # parent tab's query, same-origin
+            "if (!q || q.indexOf('components=') === -1) return;", # only a cost-designer deep link
+            "if (window.location.search) return;",           # this frame already carries a query
+            "var seen = false;",
+            "try { seen = !!sessionStorage.getItem('lago_cost_adopted');",
+            "  if (!seen) sessionStorage.setItem('lago_cost_adopted', '1'); } catch (e) {}",
+            "if (!seen) window.location.replace(window.location.pathname + q);", # adopt once
+            "}catch(e){}})();"
+          ))),
+          tags$script(src = "lago_cost_assets/d3.v7.min.js"),
+          tags$script(src = "lago_cost_assets/cost-curves.js")
+        ),
+        form_toggle
+      ),
+
+      # Include shinyjs
+      useShinyjs(),
+
+      footer = div(
+        style = "padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6;",
         fluidRow(
           column(
-            5,
-            card(
-              card_header("Adjust coefficients using sliders"),
-              card_body(
-                # Create sliders for the component's coefficients. Every form's
-                # rows are rendered (up to the cubic's 5); rows beyond the
-                # starting form's length are hidden and revealed when the user
-                # switches form. Each slider has its own default range
-                # (compute_slider_range) plus two numeric inputs for a custom
-                # range. Each row is wrapped in an id'd div so the cost_type
-                # observer can show or hide it.
-                lapply(
-                  seq_len(max_ncoef[component_idx]),
-                  function(i) {
-                    seed <- seed_row(component_idx, i - 1)
-                    rng <- seed$rng
-                    hidden <- (i - 1) >= n_coef(default_cost_fxn_type, component_idx)
-                    div(
-                      id = paste0("coef_row_", component_idx, "_", i - 1),
-                      style = if (hidden) "display: none;" else NULL,
-                      div(
-                        style = paste(
-                          "display: flex; gap: 10px; align-items: flex-end;",
-                          "margin-bottom: 5px;"
-                        ),
-                        numericInput(
-                          inputId = paste0(
-                            "range_min_", component_idx, "_", i - 1
-                          ),
-                          label = "Range min",
-                          value = rng$min,
-                          width = "120px"
-                        ),
-                        numericInput(
-                          inputId = paste0(
-                            "range_max_", component_idx, "_", i - 1
-                          ),
-                          label = "Range max",
-                          value = rng$max,
-                          width = "120px"
-                        )
-                      ),
-                      sliderInput(
-                        inputId = paste0("coef_", component_idx, "_", i - 1),
-                        label = paste0(
-                          component_names[component_idx], "^", i - 1,
-                          " coefficient"
-                        ),
-                        min = rng$min,
-                        max = rng$max,
-                        value = seed$value,
-                        step = rng$step,
-                        width = "100%"
-                      )
-                    )
-                  }
-                ),
-                hr(),
-                # Add reset button
-                actionButton(
-                  inputId = paste0("reset_", component_idx),
-                  label = "Reset Coefficients",
-                  class = "btn-warning"
-                ),
-                hr(),
-                h4(paste("Coefficient vector for", component_names[component_idx], ":")),
-                # Add warning message below coefficient vector
-                div(
-                  id = paste0("coef_warning_", component_idx),
-                  style = "color: red; margin-top: 10px; display: none;",
-                  "Warning: Current coefficients may lead to negative marginal costs!"
-                ),
-                verbatimTextOutput(paste0("coefficient_text_", component_idx))
+            8, # Takes up 8/12 of the width for the coefficient list
+            h4("Using these cost functions in optimization"),
+            p("If you are satisfied with the cost functions for all intervention components, use the following coefficient list when running lago_optimization():"),
+            verbatimTextOutput("complete_coef_list"),
+            div(
+              style = "margin-bottom: 10px;",
+              actionButton(
+                inputId = "copy_button",
+                label = "Copy to clipboard",
+                class = "btn-primary btn-sm",
+                icon = icon("clipboard")
+              ),
+              # Send the current cost functions back to the playground tab that
+              # opened this designer (see the postMessage in the observer below).
+              actionButton(
+                inputId = "send_to_playground",
+                label = "Use these costs in the playground",
+                class = "btn-primary btn-sm",
+                icon = icon("arrow-left")
+              ),
+              span(
+                id = "copy_confirmation",
+                style = "color: #198754; margin-left: 10px; display: none;",
+                "Copied!"
+              ),
+              span(
+                id = "send_confirmation",
+                style = "color: #198754; margin-left: 10px; display: none;",
+                "Sent to the playground."
+              ),
+              span(
+                id = "send_error",
+                style = "color: #7a2020; margin-left: 10px; display: none;",
+                "Open the cost designer from the playground to send costs back."
               )
-            )
+            ),
+            p("Example usage: lago_optimization(..., cost_list_of_vectors = cost_list)")
           ),
           column(
-            7,
-            card(
-              card_header("Visualization"),
-              card_body(
-                # Add warning messages above plot
-                div(
-                  id = paste0("plot_warning_", component_idx),
-                  style = "color: red; margin-bottom: 5px; display: none;",
-                  "Warning: Total cost function should be non-decreasing!"
-                ),
-                div(
-                  id = paste0("negative_cost_warning_", component_idx),
-                  style = "color: red; margin-bottom: 10px; display: none;",
-                  "Warning: Marginal cost function should always be positive!"
-                ),
-                # Client-side D3 (v7) target. cost-curves.js reads the coefs
-                # straight from this component's sliders and the bounds / unit
-                # cost from these data-* attributes, then renders both SVGs and
-                # redraws instantly as the sliders move (no server round-trip).
-                # The right endpoint of the total-cost curve is draggable; the
-                # drag writes rescaled coefficients back via
-                # input$dragged_coefs_<component> (see the observeEvent below).
-                div(
-                  id = paste0("cost_curves_", component_idx),
-                  class = "lago-cost-curves",
-                  `data-component` = component_idx,
-                  # data-ncoef is the currently selected form's coefficient count
-                  # (the number of coefficients the curve reads); it is updated
-                  # when the form changes. data-maxncoef is the number of slider
-                  # rows rendered (so the JS binds them all up front, including
-                  # rows that a later form switch reveals).
-                  `data-ncoef` = n_coef(default_cost_fxn_type, component_idx),
-                  `data-maxncoef` = max_ncoef[component_idx],
-                  `data-lb` = intervention_lower_bounds[component_idx],
-                  `data-ub` = intervention_upper_bounds[component_idx],
-                  `data-unit-cost` = unit_costs[component_idx],
-                  `data-name` = component_names[component_idx]
-                ),
-                hr(),
-                # Key numeric values over the intervention range, so the user
-                # can target a known cost rather than only eyeballing the curve.
-                verbatimTextOutput(paste0("cost_summary_", component_idx))
+            4, # Takes up 4/12 of the width for the finish button
+            div(
+              style = "text-align: right; padding-top: 20px;",
+              actionButton(
+                inputId = "quit_button",
+                label = "Return list to R & close",
+                class = "btn-danger",
+                icon = icon("circle-check")
               )
             )
           )
         )
-      )
-    })
-  ))
+      ),
+
+      # Add nav panels for each component
+      !!!panels
+    ))
+  }
 
   calculate_cost <- function(coefficients, x) {
     degree <- length(coefficients) - 1
@@ -496,16 +538,21 @@ visualize_cost <- function(
     # slider still reads that, it has not been moved and the exact value holds
     set_coef <- function(id, value, step, stale = NULL) {
       assign(id, list(value = value, step = step, stale = stale), envir = exact)
-      session$sendCustomMessage("lago-exact-coef", list(id = id, value = value, step = step, stale = stale))
+      session$sendCustomMessage("lago-exact-coef", list(id = session$ns(id), value = value, step = step, stale = stale))
     }
     drop_coef <- function(id) {
       if (exists(id, envir = exact, inherits = FALSE)) rm(list = id, envir = exact)
-      session$sendCustomMessage("lago-exact-coef", list(id = id, value = NULL))
+      session$sendCustomMessage("lago-exact-coef", list(id = session$ns(id), value = NULL))
     }
     coef_input <- function(component_idx, i) {
       id <- paste0("coef_", component_idx, "_", i - 1)
       v <- input[[id]]
       e <- if (exists(id, envir = exact, inherits = FALSE)) get(id, envir = exact)
+      # a slider that has not reported yet, as in a dialog that just opened,
+      # reads as the value the server set
+      if (is.null(v)) {
+        return(if (is.null(e)) NA_real_ else e$value)
+      }
       # the stale reading lasts until the slider reports anything else
       if (!is.null(v) && !is.null(e$stale) && !isTRUE(v == e$stale)) {
         e$stale <- NULL
@@ -531,7 +578,7 @@ visualize_cost <- function(
     # Remove the resource-path prefix registered above when the app stops, so
     # relaunching does not leak "lago_cost_assets" process-globally across
     # launches. The addResourcePath above re-runs on the next launch.
-    onStop(function() removeResourcePath("lago_cost_assets"))
+    if (!embedded) onStop(function() removeResourcePath("lago_cost_assets"))
 
     # Add function to check if cost function is non-decreasing
     is_non_decreasing <- function(x_vals, y_vals) {
@@ -574,41 +621,6 @@ visualize_cost <- function(
     # Create output for complete coefficient list
     output$complete_coef_list <- renderText({
       cost_list_code()
-    })
-
-    # Copy the coefficient-list snippet to the clipboard, with a brief
-    # "Copied!" confirmation. Uses the async Clipboard API when available and
-    # falls back to a hidden textarea + execCommand for older/insecure
-    # (non-HTTPS) contexts.
-    observeEvent(input$copy_button, {
-      code <- cost_list_code()
-      # encode the snippet as a JS string literal without adding a jsonlite
-      # dependency: escape backslashes, quotes, and newlines, then wrap in
-      # double quotes.
-      esc <- gsub("\\\\", "\\\\\\\\", code)
-      esc <- gsub("\"", "\\\\\"", esc)
-      esc <- gsub("\n", "\\\\n", esc)
-      code_js <- paste0("\"", esc, "\"")
-      runjs(sprintf(
-        '(function() {
-          var text = %s;
-          var done = function() {
-            var el = document.getElementById("copy_confirmation");
-            if (el) { el.style.display = "inline";
-              setTimeout(function(){ el.style.display = "none"; }, 2000); }
-          };
-          if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(done, done);
-          } else {
-            var ta = document.createElement("textarea");
-            ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-            document.body.appendChild(ta); ta.focus(); ta.select();
-            try { document.execCommand("copy"); } catch (e) {}
-            document.body.removeChild(ta); done();
-          }
-        })();',
-        code_js
-      ))
     })
 
     # Create reactive expressions and outputs for each component
@@ -720,6 +732,7 @@ visualize_cost <- function(
             coef_input(component_idx, i)
           }
         )
+        req(all(is.finite(current_coefs)))
         paste0("c(", paste(format_coef_code(current_coefs), collapse = ", "), ")")
       })
 
@@ -731,6 +744,7 @@ visualize_cost <- function(
             coef_input(component_idx, i)
           }
         )
+        req(all(is.finite(current_coefs)))
 
         x_vals <- seq(
           intervention_lower_bounds[component_idx],
@@ -767,14 +781,14 @@ visualize_cost <- function(
         # outline plus the inline warnings convey the problem without it.
         if (!is_non_decreasing_valid || !is_positive_valid) {
           runjs(sprintf(
-            'var w = document.getElementById("plot_warning_%1$s");
+            'var w = document.getElementById("%1$s");
              var card = w ? w.closest(".card") : null;
              if (card) {
                card.style.transition = "box-shadow 0.4s";
                card.style.boxShadow = "0 0 0 3px rgba(220,53,69,0.6)";
                setTimeout(function(){ card.style.boxShadow = "none"; }, 600);
              }',
-            component_idx
+            session$ns(paste0("plot_warning_", component_idx))
           ))
         }
       })
@@ -864,6 +878,7 @@ visualize_cost <- function(
             coef_input(component_idx, i)
           }
         )
+        req(all(is.finite(current_coefs)))
         lb <- intervention_lower_bounds[component_idx]
         ub <- intervention_upper_bounds[component_idx]
         cost_lb <- calculate_cost(current_coefs, lb)
@@ -927,96 +942,138 @@ visualize_cost <- function(
       # single data-ncoef update covers every curve; then redraw them all.
       runjs(sprintf(
         paste0(
-          "document.querySelectorAll('.lago-cost-curves')",
+          "document.querySelectorAll('.lago-cost-curves[data-ns=\"%s\"]')",
           ".forEach(function(c){ c.setAttribute('data-ncoef', %d); });",
           " if (window.LAGOCostCurves && LAGOCostCurves.redraw) {",
           " LAGOCostCurves.redraw(); }"
         ),
-        n_coef(t, 1)
+        session$ns(""), n_coef(t, 1)
       ))
     }, ignoreInit = TRUE)
 
-    # Send the current cost functions back to the playground tab that opened this
-    # designer. window.opener is that tab (the designer is opened with a plain
-    # window.open, no noopener), so postMessage hands over the component names and
-    # their coefficient vectors same-origin; the playground uses them as
-    # cost_list_of_vectors. If there is no opener (the designer was opened
-    # directly), show a hint instead of failing silently.
-    observeEvent(input$send_to_playground, {
-      cl <- current_cost_list()
-      # escape names for a JS string literal (mirrors the copy-button path):
-      # backslash, double quote, and newline/carriage return, which would
-      # otherwise break the literal.
-      esc <- gsub("\\\\", "\\\\\\\\", component_names)
-      esc <- gsub("\"", "\\\\\"", esc)
-      esc <- gsub("\n", "\\\\n", esc)
-      esc <- gsub("\r", "\\\\r", esc)
-      comp_json <- paste0(
-        "[", paste0("\"", esc, "\"", collapse = ","), "]"
-      )
-      costs_json <- paste0(
-        "[",
-        paste(
-          vapply(
-            cl,
-            function(v) paste0("[", paste(v, collapse = ","), "]"),
-            character(1)
-          ),
-          collapse = ","
-        ),
-        "]"
-      )
-      # Deliver to the playground. shinylive runs this app inside a same-origin
-      # iframe, so window.opener here is null (the opener lives on the top tab);
-      # a same-origin BroadcastChannel reaches the playground tab regardless of
-      # the frame/opener relationship. The confirmation is gated on an opener
-      # existing (window.top.opener, else window.opener) rather than on the
-      # broadcast, since the broadcast cannot detect a missing listener: opened
-      # from the playground shows "sent", a standalone launch shows the hint.
-      runjs(sprintf(
-        'var msg = {type: "lago-cost-designer", components: %s, costs: %s};
-         /* Best-effort broadcast: reaches the playground tab across the
-            same-origin shinylive iframe. BroadcastChannel cannot confirm
-            receipt (postMessage succeeds even with no listener), so it does not
-            drive the confirmation. */
-         try {
-           var bc = new BroadcastChannel("lago-cost-designer");
-           bc.postMessage(msg); bc.close();
-         } catch (e) {}
-         /* Confirm only when this designer was launched from a tab (the
-            playground) via an opener; also deliver through it, idempotently with
-            the broadcast. A standalone launch has no opener, so show the hint. */
-         var launched = false;
-         try {
-           var op = (window.top && window.top.opener) || window.opener;
-           if (op && !op.closed) {
-             op.postMessage(msg, window.location.origin); launched = true;
-           }
-         } catch (e) {}
-         var el = document.getElementById(launched ? "send_confirmation" : "send_error");
-         if (el) { el.style.display = "inline";
-           setTimeout(function(){ el.style.display = "none"; }, launched ? 2500 : 4000); }',
-        comp_json, costs_json
-      ))
-    })
+    if (embedded) {
+      # inside lago_app(): hand the costs and the form to the app
+      observeEvent(input$apply, {
+        if (is.function(on_apply)) on_apply(current_cost_list(), cur_type())
+      })
+    } else {
+      # Copy the coefficient-list snippet to the clipboard, with a brief
+      # "Copied!" confirmation. Uses the async Clipboard API when available and
+      # falls back to a hidden textarea + execCommand for older/insecure
+      # (non-HTTPS) contexts.
+      observeEvent(input$copy_button, {
+        code <- cost_list_code()
+        # encode the snippet as a JS string literal without adding a jsonlite
+        # dependency: escape backslashes, quotes, and newlines, then wrap in
+        # double quotes.
+        esc <- gsub("\\\\", "\\\\\\\\", code)
+        esc <- gsub("\"", "\\\\\"", esc)
+        esc <- gsub("\n", "\\\\n", esc)
+        code_js <- paste0("\"", esc, "\"")
+        runjs(sprintf(
+          '(function() {
+            var text = %s;
+            var done = function() {
+              var el = document.getElementById("copy_confirmation");
+              if (el) { el.style.display = "inline";
+                setTimeout(function(){ el.style.display = "none"; }, 2000); }
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+              navigator.clipboard.writeText(text).then(done, done);
+            } else {
+              var ta = document.createElement("textarea");
+              ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+              document.body.appendChild(ta); ta.focus(); ta.select();
+              try { document.execCommand("copy"); } catch (e) {}
+              document.body.removeChild(ta); done();
+            }
+          })();',
+          code_js
+        ))
+      })
 
-    # Closing the app returns the current cost list to R, so the result can be
-    # captured (e.g. cost_list <- visualize_cost(...)) instead of only copied.
-    observeEvent(input$quit_button, {
-      cl <- current_cost_list()
-      # Store the list in the `lago_cost_list` option so it is available even
-      # when the app was launched with a bare visualize_cost(...) call (no
-      # assignment). Using options() rather than assigning into the global
-      # environment keeps this CRAN-clean (package code may not write to
-      # globalenv()) while preserving the convenience: the caller can retrieve
-      # it with getOption("lago_cost_list"). This overwrites any existing value.
-      # Returning it via stopApp() is what lets visualize_cost() report the save
-      # (runApp() returns this list only on a button-close). In the browser
-      # (shinylive) there is no R session to return to: options() is harmless and
-      # stopApp() simply ends the app.
-      options(lago_cost_list = cl)
-      stopApp(cl)
-    })
+      # Send the current cost functions back to the playground tab that opened this
+      # designer. window.opener is that tab (the designer is opened with a plain
+      # window.open, no noopener), so postMessage hands over the component names and
+      # their coefficient vectors same-origin; the playground uses them as
+      # cost_list_of_vectors. If there is no opener (the designer was opened
+      # directly), show a hint instead of failing silently.
+      observeEvent(input$send_to_playground, {
+        cl <- current_cost_list()
+        # escape names for a JS string literal (mirrors the copy-button path):
+        # backslash, double quote, and newline/carriage return, which would
+        # otherwise break the literal.
+        esc <- gsub("\\\\", "\\\\\\\\", component_names)
+        esc <- gsub("\"", "\\\\\"", esc)
+        esc <- gsub("\n", "\\\\n", esc)
+        esc <- gsub("\r", "\\\\r", esc)
+        comp_json <- paste0(
+          "[", paste0("\"", esc, "\"", collapse = ","), "]"
+        )
+        costs_json <- paste0(
+          "[",
+          paste(
+            vapply(
+              cl,
+              function(v) paste0("[", paste(v, collapse = ","), "]"),
+              character(1)
+            ),
+            collapse = ","
+          ),
+          "]"
+        )
+        # Deliver to the playground. shinylive runs this app inside a same-origin
+        # iframe, so window.opener here is null (the opener lives on the top tab);
+        # a same-origin BroadcastChannel reaches the playground tab regardless of
+        # the frame/opener relationship. The confirmation is gated on an opener
+        # existing (window.top.opener, else window.opener) rather than on the
+        # broadcast, since the broadcast cannot detect a missing listener: opened
+        # from the playground shows "sent", a standalone launch shows the hint.
+        runjs(sprintf(
+          'var msg = {type: "lago-cost-designer", components: %s, costs: %s};
+           /* Best-effort broadcast: reaches the playground tab across the
+              same-origin shinylive iframe. BroadcastChannel cannot confirm
+              receipt (postMessage succeeds even with no listener), so it does not
+              drive the confirmation. */
+           try {
+             var bc = new BroadcastChannel("lago-cost-designer");
+             bc.postMessage(msg); bc.close();
+           } catch (e) {}
+           /* Confirm only when this designer was launched from a tab (the
+              playground) via an opener; also deliver through it, idempotently with
+              the broadcast. A standalone launch has no opener, so show the hint. */
+           var launched = false;
+           try {
+             var op = (window.top && window.top.opener) || window.opener;
+             if (op && !op.closed) {
+               op.postMessage(msg, window.location.origin); launched = true;
+             }
+           } catch (e) {}
+           var el = document.getElementById(launched ? "send_confirmation" : "send_error");
+           if (el) { el.style.display = "inline";
+             setTimeout(function(){ el.style.display = "none"; }, launched ? 2500 : 4000); }',
+          comp_json, costs_json
+        ))
+      })
+
+      # Closing the app returns the current cost list to R, so the result can be
+      # captured (e.g. cost_list <- visualize_cost(...)) instead of only copied.
+      observeEvent(input$quit_button, {
+        cl <- current_cost_list()
+        # Store the list in the `lago_cost_list` option so it is available even
+        # when the app was launched with a bare visualize_cost(...) call (no
+        # assignment). Using options() rather than assigning into the global
+        # environment keeps this CRAN-clean (package code may not write to
+        # globalenv()) while preserving the convenience: the caller can retrieve
+        # it with getOption("lago_cost_list"). This overwrites any existing value.
+        # Returning it via stopApp() is what lets visualize_cost() report the save
+        # (runApp() returns this list only on a button-close). In the browser
+        # (shinylive) there is no R session to return to: options() is harmless and
+        # stopApp() simply ends the app.
+        options(lago_cost_list = cl)
+        stopApp(cl)
+      })
+      }
   }
 
   list(ui = ui, server = server)

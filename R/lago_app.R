@@ -22,7 +22,10 @@
 #'   treatment arm column you choose.
 #' * **Intervention and costs:** `intervention_components`, their bounds, and
 #'   the costs as `unit_costs` with `default_cost_fxn_type` and
-#'   `unit_cost_doses`, or as `cost_list_of_vectors`. Interaction terms set
+#'   `unit_cost_doses`, or as `cost_list_of_vectors`. The "Shape the costs
+#'   visually" button opens the cost designer of [visualize_cost()] in a dialog,
+#'   which starts on the costs in use and puts the shaped costs in as cost
+#'   coefficients. Interaction terms set
 #'   `include_interaction_terms` and `main_components`, and the app builds each
 #'   product column.
 #' * **Centers, time and covariates:** `center_characteristics` with their
@@ -66,6 +69,7 @@ lago_app <- function(data = NULL,
     stop("`data` must be a data.frame, or NULL to start with the BB_data example.", call. = FALSE)
   }
   app <- .build_lago_app(data = data, data_name = data_name)
+  on.exit(try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE), add = TRUE)
   old <- options(shiny.maxRequestSize = 100 * 1024^2)
   on.exit(options(old), add = TRUE)
   out <- .lago_run_app(app, port = port, launch.browser = launch.browser)
@@ -116,6 +120,8 @@ lago_app <- function(data = NULL,
 "
 
 .build_lago_app <- function(data = NULL, data_name = NULL) {
+  # the cost designer's D3 curves, served from the package, with no CDN
+  shiny::addResourcePath("lago_cost_assets", system.file("js", package = "LAGOtrials"))
   sources <- c(
     "BetterBirth example (BB_data)" = "BB_data",
     "mtcars, an R example with a continuous outcome" = "mtcars",
@@ -131,7 +137,11 @@ lago_app <- function(data = NULL,
     sidebar = bslib::sidebar(
       width = 330,
       shinyjs::useShinyjs(),
-      htmltools::tags$head(htmltools::tags$style(htmltools::HTML(.app_css))),
+      htmltools::tags$head(
+        htmltools::tags$style(htmltools::HTML(.app_css)),
+        htmltools::tags$script(src = "lago_cost_assets/d3.v7.min.js"),
+        htmltools::tags$script(src = "lago_cost_assets/cost-curves.js")
+      ),
       htmltools::tags$strong("Ready to run"),
       shiny::uiOutput("checklist"),
       bslib::input_task_button("run", "Find recommendation", label_busy = "Running..."),
@@ -234,6 +244,12 @@ lago_app <- function(data = NULL,
             "cost_type", .app_help("Cost shape", "Linear keeps the same cost for each unit. Cubic lets the cost per unit change with the level, with the unit cost as its average, or as its value at the dose where it was measured."),
             c("Linear" = "linear", "Cubic" = "cubic"), inline = TRUE
           )
+        ),
+        htmltools::div(
+          class = "mb-3",
+          shiny::actionButton("open_designer", "Shape the costs visually", icon = shiny::icon("chart-line"), class = "btn-outline-primary btn-sm"),
+          " ",
+          .app_help("", "Opens the cost designer, which draws the total and marginal cost of each component and lets you shape them with sliders or by dragging the curve. Use these costs then puts them in as cost coefficients.")
         ),
         shiny::uiOutput("component_rows"),
         shiny::uiOutput("notes_intervention"),
@@ -377,6 +393,7 @@ lago_app <- function(data = NULL,
       shiny::updateSelectInput(session, "period_col", choices = c("Choose a column" = "", ch$others), selected = ch$period_col)
       shiny::updateSelectInput(session, "period_value", choices = ch$periods, selected = ch$period)
       shiny::updateSelectizeInput(session, "covariates", choices = ch$covariates, selected = character(0))
+      designer_costs(list())
       run_state(NULL)
     }
 
@@ -394,6 +411,17 @@ lago_app <- function(data = NULL,
 
     current_data <- shiny::reactive(loaded()$data)
     col_id <- function(prefix, col) paste0(prefix, "_", generation(), "_", match(col, names(current_data())))
+    # costs applied from the cost designer, by component. The coefficient
+    # inputs carry the designer version in their ids, so an apply redraws them
+    # with the new values and keeps the bounds.
+    designer_costs <- shiny::reactiveVal(list())
+    designer_version <- shiny::reactiveVal(0L)
+    designer_count <- 0L
+    coef_id <- function(col) paste0(col_id("coef", col), "_", designer_version())
+    designer_text <- function(col) {
+      v <- designer_costs()[[col]]
+      if (is.null(v)) NULL else paste(format_coef_code(v), collapse = ", ")
+    }
 
     # Choices that depend on the outcome and the components.
     shiny::observeEvent(list(current_data(), input$outcome), {
@@ -538,7 +566,8 @@ lago_app <- function(data = NULL,
       rows <- lapply(comps, function(cc) {
         rng <- range(d[[cc]], na.rm = TRUE)
         cost_ui <- if (coef_mode) {
-          shiny::textInput(col_id("coef", cc), .app_help("Cost coefficients c0, c1, ...", "The total cost at level x is c0 + c1 x + c2 x^2 and so on. Enter the numbers separated by commas, such as 0, 2."), value = keep(col_id("coef", cc), "0, 1"))
+          from_designer <- designer_text(cc)
+          shiny::textInput(coef_id(cc), .app_help("Cost coefficients c0, c1, ...", "The total cost at level x is c0 + c1 x + c2 x^2 and so on. Enter the numbers separated by commas, such as 0, 2."), value = keep(coef_id(cc), if (is.null(from_designer)) "0, 1" else from_designer))
         } else {
           shiny::numericInput(col_id("cost", cc), .app_help("Unit cost", "The cost of one unit of this component, such as the cost of one coaching visit. The defaults of 1 are placeholders: enter your own costs."), value = keep(col_id("cost", cc), 1), min = 0)
         }
@@ -612,7 +641,12 @@ lago_app <- function(data = NULL,
       s$cost_type <- pick(input$cost_type, s$cost_type)
       s$unit_costs <- vapply(comps, function(cc) num(input[[col_id("cost", cc)]]), numeric(1), USE.NAMES = FALSE)
       s$doses <- vapply(comps, function(cc) num(input[[col_id("dose", cc)]]), numeric(1), USE.NAMES = FALSE)
-      s$coefs <- lapply(comps, function(cc) .app_parse_coefs(input[[col_id("coef", cc)]]))
+      s$coefs <- lapply(comps, function(cc) {
+        text <- input[[coef_id(cc)]]
+        # until the redrawn input reports, the designer's costs hold
+        if (is.null(text)) text <- designer_text(cc)
+        .app_parse_coefs(text)
+      })
       pairs <- if (length(comps) >= 2) vapply(utils::combn(comps, 2, simplify = FALSE), paste, character(1), collapse = ":") else character(0)
       s$interactions <- intersect(pick(input$interactions, character(0)), pairs)
       s$include_cs <- !isFALSE(input$include_cs)
@@ -687,6 +721,46 @@ lago_app <- function(data = NULL,
         shiny::observeEvent(input[[paste0("go_", target)]], bslib::nav_select("steps", target))
       })
     }
+    # The cost designer in a dialog, started on the costs now in use. It runs as
+    # a module under a new id each time, so no value carries over from an
+    # earlier opening.
+    shiny::observeEvent(input$open_designer, {
+      s <- spec()
+      comps <- s$components
+      ok <- length(comps) && all(is.finite(c(s$lower, s$upper))) && all(s$lower < s$upper)
+      if (!ok) {
+        shiny::showNotification("Choose the components and give each a lower bound below its upper bound first.", type = "warning")
+        return()
+      }
+      start <- .app_designer_start(s)
+      designer_count <<- designer_count + 1L
+      id <- paste0("designer_", designer_count)
+      parts <- .build_cost_parts(
+        component_names = comps,
+        unit_costs = start$unit_costs,
+        default_cost_fxn_type = start$form,
+        intervention_lower_bounds = s$lower,
+        intervention_upper_bounds = s$upper,
+        ns = shiny::NS(id),
+        embedded = TRUE,
+        initial_coefs = start$coefs,
+        on_apply = function(cost_list, form) {
+          designer_costs(stats::setNames(cost_list, comps))
+          shiny::updateRadioButtons(session, "cost_mode", selected = "coef")
+          designer_version(designer_version() + 1L)
+          shiny::removeModal(session)
+          shiny::showNotification("The costs from the designer are now in use, as cost coefficients.", type = "message")
+        }
+      )
+      shiny::showModal(shiny::modalDialog(
+        title = "Shape the costs",
+        parts$ui,
+        size = "xl", easyClose = TRUE,
+        footer = shiny::modalButton("Cancel")
+      ), session = session)
+      shiny::moduleServer(id, parts$server)
+    })
+
     shiny::observeEvent(input$next_data, bslib::nav_select("steps", "outcome"))
     shiny::observeEvent(input$next_outcome, bslib::nav_select("steps", "intervention"))
     shiny::observeEvent(input$next_intervention, bslib::nav_select("steps", "centers"))

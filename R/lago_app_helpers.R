@@ -673,3 +673,28 @@
     "Narrow or widen the bounds, or lower the goal."
   )
 }
+
+# Where the cost designer starts: the costs now in use, in the form that holds
+# them. Cost coefficients of length 2 or 5 open in the linear or cubic form,
+# and unit costs open on the curve the package computes from them.
+.app_designer_start <- function(spec) {
+  n <- length(spec$components)
+  if (identical(spec$cost_mode, "coef")) {
+    lens <- vapply(spec$coefs, length, integer(1))
+    form <- if (n && all(lens == 5L)) "cubic" else "linear"
+    want <- if (form == "cubic") 5L else 2L
+    coefs <- lapply(spec$coefs, function(v) if (length(v) == want) v else NULL)
+    unit_costs <- vapply(spec$coefs, function(v) {
+      if (length(v) >= 2 && is.finite(v[2]) && v[2] > 0) v[2] else 1
+    }, numeric(1))
+  } else {
+    form <- spec$cost_type
+    unit_costs <- ifelse(is.finite(spec$unit_costs) & spec$unit_costs >= 0, spec$unit_costs, 1)
+    doses <- if (identical(form, "cubic") && any(!is.na(spec$doses)) && !anyNA(spec$doses)) spec$doses else NULL
+    coefs <- tryCatch(
+      cost_fxn_calculator(spec$lower, spec$upper, unit_costs, form, unit_cost_doses = doses),
+      error = function(e) NULL
+    )
+  }
+  list(form = form, unit_costs = unit_costs, coefs = coefs)
+}
