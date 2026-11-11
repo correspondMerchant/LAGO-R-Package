@@ -692,3 +692,29 @@ test_that("the designer asks for the components and bounds first", {
     expect_length(designer_costs(), 0)
   })
 })
+
+test_that("the designer falls back to a unit cost of 1 when the costs give none", {
+  d <- datasets::mtcars
+  spec <- .app_defaults(d, "mtcars")
+  spec$cost_mode <- "coef"
+  # no coefficients for gear, and a cost that falls over the bounds for qsec
+  spec$coefs <- list(NULL, c(10, -1))
+  start <- .app_designer_start(spec)
+  expect_equal(start$unit_costs, c(1, 1))
+  expect_identical(start$unfit, "gear")
+})
+
+test_that("the designer opens with a note when costs do not fit it", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    session$setInputs(outcome = "mpg", components = c("gear", "qsec"), cost_mode = "coef")
+    app_server_inputs(session, col_id, c("gear", "qsec"), list(c(3, 5), c(14, 20)))
+    do.call(session$setInputs, stats::setNames(list("0, 1, 0.5", "0, 2"), c(coef_id("gear"), coef_id("qsec"))))
+    session$setInputs(open_designer = 1)
+    expect_identical(.app_designer_start(spec())$unfit, "gear")
+    session$setInputs(`designer_1-coef_1_0` = 0, `designer_1-coef_1_1` = 1, `designer_1-coef_2_0` = 0,
+      `designer_1-coef_2_1` = 2, `designer_1-cost_type` = "linear")
+    session$setInputs(`designer_1-apply` = 1)
+    expect_identical(designer_version(), 1L)
+  })
+})
