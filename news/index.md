@@ -2,6 +2,27 @@
 
 ## LAGOtrials (development version)
 
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  now opens the cost designer of
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  in a dialog, from the “Shape the costs visually” button in the
+  intervention step. The designer starts on the costs in use, draws the
+  total and marginal cost of each component, and lets you shape them
+  with sliders or by dragging the curve. “Use these costs” puts them in
+  as cost coefficients and keeps the bounds. Costs that do not fit the
+  designer’s linear or cubic form are named in the dialog, since
+  applying replaces them.
+
+- Fixed the sliders of
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  moving a coefficient when they only got the keyboard focus. A slider
+  now keeps its value when you tab through it, and the arrow keys move
+  it by one step.
+
+## LAGOtrials 1.2.0
+
+CRAN release: 2026-11-11
+
 - New
   [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
   runs the whole LAGO optimization in a point and click Shiny app on

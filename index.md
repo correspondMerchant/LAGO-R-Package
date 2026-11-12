@@ -159,14 +159,16 @@ opens the whole LAGO optimization as an app in your web browser:
 
 The app walks you through four steps: the data, the outcome and goal
 (including a power goal), the intervention components with their bounds
-and costs, and how the model accounts for centers and time. Each step
-says what is missing, every setting has a short explanation, and the
-bundled examples run as they are. The result shows the recommended
-intervention, its cost, the estimated outcome with its confidence
-interval, the confidence set, and any warnings to check. The R code tab
-shows the code that reproduces the run, so you can save it in a script.
-When you click **Done**, the app closes and returns the last result to
-R.
+and costs, and how the model accounts for centers and time. In the costs
+step, “Shape the costs visually” opens the cost designer of
+[`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md),
+so you can draw each cost curve and use it right away. Each step says
+what is missing, every setting has a short explanation, and the bundled
+examples run as they are. The result shows the recommended intervention,
+its cost, the estimated outcome with its confidence interval, the
+confidence set, and any warnings to check. The R code tab shows the code
+that reproduces the run, so you can save it in a script. When you click
+**Done**, the app closes and returns the last result to R.
 
 The app runs on your own computer and only your computer can reach it.
 Unlike the

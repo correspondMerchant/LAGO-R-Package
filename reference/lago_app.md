@@ -55,9 +55,12 @@ a binary outcome the power goal: \`power_goal\`,
 builds the \`group\` column from the treatment arm column you choose. \*
 \*\*Intervention and costs:\*\* \`intervention_components\`, their
 bounds, and the costs as \`unit_costs\` with \`default_cost_fxn_type\`
-and \`unit_cost_doses\`, or as \`cost_list_of_vectors\`. Interaction
-terms set \`include_interaction_terms\` and \`main_components\`, and the
-app builds each product column. \* \*\*Centers, time and covariates:\*\*
+and \`unit_cost_doses\`, or as \`cost_list_of_vectors\`. The "Shape the
+costs visually" button opens the cost designer of \[visualize_cost()\]
+in a dialog, which starts on the costs in use and puts the shaped costs
+in as cost coefficients. Interaction terms set
+\`include_interaction_terms\` and \`main_components\`, and the app
+builds each product column. \* \*\*Centers, time and covariates:\*\*
 \`center_characteristics\` with their values, or fixed center effects
 with \`include_center_effects\` and
 \`center_effects_optimization_values\`, fixed time effects with

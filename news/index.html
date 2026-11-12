@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">LAGOtrials</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.1.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.2.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -23,6 +23,7 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#lagotrials-120">Version 1.2.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#lagotrials-111">Version 1.1.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#lagotrials-110">Version 1.1.0</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -47,6 +48,11 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="development version" id="lagotrials-development-version">LAGOtrials (development version)<a class="anchor" aria-label="anchor" href="#lagotrials-development-version"></a></h2>
+<ul><li><p><code><a href="../reference/lago_app.html">lago_app()</a></code> now opens the cost designer of <code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> in a dialog, from the “Shape the costs visually” button in the intervention step. The designer starts on the costs in use, draws the total and marginal cost of each component, and lets you shape them with sliders or by dragging the curve. “Use these costs” puts them in as cost coefficients and keeps the bounds. Costs that do not fit the designer’s linear or cubic form are named in the dialog, since applying replaces them.</p></li>
+<li><p>Fixed the sliders of <code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> moving a coefficient when they only got the keyboard focus. A slider now keeps its value when you tab through it, and the arrow keys move it by one step.</p></li>
+</ul></div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.2.0" id="lagotrials-120">LAGOtrials 1.2.0<a class="anchor" aria-label="anchor" href="#lagotrials-120"></a></h2><p class="text-muted">CRAN release: 2026-11-11</p>
 <ul><li><p>New <code><a href="../reference/lago_app.html">lago_app()</a></code> runs the whole LAGO optimization in a point and click Shiny app on your own computer, with no R code to write (<a href="https://github.com/correspondMerchant/LAGO-R-Package/issues/37" class="external-link">#37</a>). It covers the data (your own data frame, the bundled examples or a CSV file), the outcome and goal with the power goal, the intervention components with their bounds and costs, interaction terms, center characteristics, fixed center and time effects, and additional covariates. Each step says what is missing before a run, every setting has a short explanation, and the result shows the recommendation, the confidence set and the package’s warnings. The app shows the R code that reproduces the run, and returns the last result to R when you click Done. It is reachable only from your own computer.</p></li>
 <li><p><code><a href="../reference/visualize_cost.html">visualize_cost()</a></code> now also serves its app only to your own computer, even when the <code>shiny.host</code> option is set to another address.</p></li>
 <li><p>Fixed the numerical optimizer trusting a solver result outside the intervention bounds. <code><a href="https://rdrr.io/pkg/NlcOptim/man/solnl.html" class="external-link">NlcOptim::solnl()</a></code> can return such a point, far outside the bounds with some BLAS libraries, as on Ubuntu 26.04 with OpenBLAS 0.3.32. The highest outcome search then took an outcome only reachable outside the bounds, so an unreachable goal looked reachable and the recommendation was the upper bounds instead of the shrinking method. The cost search let such a point set the lowest cost, so cheaper points inside the bounds were left out and a costlier recommendation was returned. Every solver result is now moved onto the bounds before its outcome, its cost and the goal are checked, so results no longer depend on the platform.</p></li>
