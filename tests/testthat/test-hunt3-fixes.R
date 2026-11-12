@@ -135,19 +135,23 @@ hunt3_brute <- function(beta, cost, goal, link) {
   min(total[outcome >= goal])
 }
 
-test_that("restarts that stop short of the goal are left out", {
-  # a deliberately hard optimization, which takes about a minute
+# a deliberately hard optimization, which takes about a minute, in two cases
+# that are separate tests so they can run at the same time
+hunt3_check_restarts <- function(case) {
+  r <- do.call(hunt3_optimize, case)
+  expect_false(r$shrinking_method_used)
+  expect_gte(r$est_reachable_outcome, case$goal - 1e-6)
+  expect_equal(r$rec_int_cost, do.call(hunt3_brute, case), tolerance = 2e-3)
+}
+
+test_that("restarts that stop short of the goal are left out on the logit link", {
   skip_on_cran()
-  cases <- list(
-    list(beta = c(-1.5, 0.46, 0.42, -0.097), cost = list(c(0, 1, 0), c(0, 1, 0)), goal = 0.85, link = "logit"),
-    list(beta = c(0, 1, 0.98, -0.2), cost = list(c(0, 0, 1), c(0, 0, 2)), goal = 9.5, link = "identity")
-  )
-  for (case in cases) {
-    r <- do.call(hunt3_optimize, case)
-    expect_false(r$shrinking_method_used)
-    expect_gte(r$est_reachable_outcome, case$goal - 1e-6)
-    expect_equal(r$rec_int_cost, do.call(hunt3_brute, case), tolerance = 2e-3)
-  }
+  hunt3_check_restarts(list(beta = c(-1.5, 0.46, 0.42, -0.097), cost = list(c(0, 1, 0), c(0, 1, 0)), goal = 0.85, link = "logit"))
+})
+
+test_that("restarts that stop short of the goal are left out on the identity link", {
+  skip_on_cran()
+  hunt3_check_restarts(list(beta = c(0, 1, 0.98, -0.2), cost = list(c(0, 0, 1), c(0, 0, 2)), goal = 9.5, link = "identity"))
 })
 
 test_that("the highest outcome is not taken from a saddle point on the diagonal", {
