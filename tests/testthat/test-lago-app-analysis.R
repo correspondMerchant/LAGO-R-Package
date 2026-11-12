@@ -53,11 +53,72 @@ test_that("a sweep starts on values around the current settings", {
   expect_equal(c(patients$from, patients$to), c(1, 5))
   expect_equal(.app_sweep_defaults("icc", analysis_spec(icc = c(0.04, 0.08)), d)$to, 0.16)
   expect_equal(.app_sweep_defaults("icc", analysis_spec(), d)$to, 0.1)
-  # the periods are typed, as only they make sense
-  dp <- data.frame(period = c("Q1", "Q2", "Q3"))
-  expect_identical(.app_sweep_defaults("time_effect_optimization_value", analysis_spec(period_col = "period"), dp)$typed, "1, 2, 3")
+  # the periods are chosen by name, as only they make sense
+  dp <- data.frame(period = c("Q2", "Q1", "Q3"))
+  expect_identical(.app_sweep_defaults("time_effect_optimization_value", analysis_spec(period_col = "period"), dp)$periods, c("Q1", "Q2", "Q3"))
   dn <- data.frame(period = c(2019, 2020))
-  expect_identical(.app_sweep_defaults("time_effect_optimization_value", analysis_spec(period_col = "period"), dn)$typed, "2019, 2020")
+  expect_identical(.app_sweep_defaults("time_effect_optimization_value", analysis_spec(period_col = "period"), dn)$periods, c("2019", "2020"))
+  # an outcome with one value, or a count the user cleared, still gives a range
+  flat <- data.frame(mpg = c(20, 20))
+  expect_equal(.app_sweep_defaults("outcome_goal", analysis_spec(goal = 20), flat)[c("from", "to")], list(from = 17, to = 23))
+  expect_equal(.app_sweep_defaults("num_centers_in_next_stage", analysis_spec(n_centers = NA), d)[c("from", "to")], list(from = 5, to = 15))
+})
+
+test_that("a period sweep runs the periods chosen by name, as the model numbers them", {
+  dp <- data.frame(period = c("Q2", "Q1", "Q3", "Q1"))
+  v <- .app_sweep_period_values(c("Q3", "Q1"), dp, "period")
+  expect_equal(v$values, c(1, 3))
+  expect_identical(v$labels, c("Q1", "Q3"))
+  expect_match(.app_sweep_period_values("Q1", dp, "period")$error, "at least two periods")
+  expect_match(.app_sweep_period_values(c("Q1", "Q2"), dp, "none")$error, "at least two periods")
+  expect_equal(.app_sweep_period_values(c("2019", "2021"), data.frame(period = c(2019, 2020, 2021)), "period")$values, c(2019, 2021))
+  d <- transform(datasets::mtcars, quarter = c("Q1", "Q2", "Q3", "Q4")[(seq_len(32) - 1) %% 4 + 1])
+  shiny::testServer(.build_lago_app(data = d, data_name = "d"), {
+    session$setInputs(source = "passed", sep = ",", dec = ".")
+    session$setInputs(
+      outcome = "mpg", outcome_type = "continuous", goal_mode = "outcome", goal = 25, intention = "maximize",
+      components = c("gear", "qsec"), cost_mode = "unit", cost_type = "linear", center_mode = "none",
+      include_cs = FALSE, approach = "unconditional", time_on = TRUE, period_col = "quarter", period_value = "Q4"
+    )
+    do.call(session$setInputs, stats::setNames(list(3, 5, 2, 14, 20, 1), c(col_id("lb", "gear"), col_id("ub", "gear"), col_id("cost", "gear"), col_id("lb", "qsec"), col_id("ub", "qsec"), col_id("cost", "qsec"))))
+    expect_true("time_effect_optimization_value" %in% sweep_choices())
+    session$setInputs(sweep_param = "time_effect_optimization_value", sweep_periods = c("Q2", "Q4"))
+    expect_match(as.character(output$sweep_preview$html), "Runs 2 optimizations, at Q2, Q4")
+    skip_on_cran()
+    session$setInputs(run = 1)
+    session$setInputs(run_sweep = 1)
+    expect_null(sweep_state()$run$error)
+    expect_equal(sweep_state()$run$value$value, c(2, 4))
+    expect_match(output$sweep_table, "Q2")
+    expect_match(as.character(output$sweep_results$html), "at the lowest value, Q2")
+  })
+})
+
+test_that("the sweep values follow the settings they start from", {
+  sent <- list()
+  local_mocked_bindings(
+    updateNumericInput = function(session, inputId, label = NULL, value = NULL, ...) sent[[length(sent) + 1]] <<- list(id = inputId, value = value),
+    .package = "shiny"
+  )
+  shiny::testServer(.build_lago_app(), {
+    analysis_setup(session, col_id)
+    session$setInputs(sweep_param = "outcome_goal")
+    session$setInputs(goal = 15)
+  })
+  from <- Filter(function(m) identical(m$id, "sweep_from"), sent)
+  span <- diff(range(datasets::mtcars$mpg))
+  expect_equal(from[[length(from)]]$value, signif(15 - 0.15 * span, 3))
+})
+
+test_that("a recommendation that costs nothing says why the budget is empty", {
+  local_mocked_bindings(lago_optimization = function(...) structure(list(rec_int = c(gear = 3, qsec = 14), rec_int_cost = 0, est_outcome_goal = 25), class = "lago"))
+  shiny::testServer(.build_lago_app(), {
+    analysis_setup(session, col_id)
+    session$setInputs(run = 1)
+    expect_null(budget_prefill())
+    session$setInputs(budget = NA, budget_grid = 25)
+    expect_match(budget_problem(), "costs nothing")
+  })
 })
 
 test_that("sweep values come from even steps or a typed list, and say what to fix", {
@@ -128,6 +189,8 @@ test_that("a sweep table names failed, shrunk and raised runs", {
   attr(s, "effective_outcome_goal") <- c(21, 25, NA)
   attr(s, "shrinking_method_used") <- c(FALSE, TRUE, NA)
   attr(s, "error_messages") <- c(`30` = "no fit")
+  expect_identical(.app_sweep_table(s, c("A", "B", "C"))[[1]], c("A", "B", "C"))
+  expect_match(.app_sweep_sentence(s, c("A", "B", "C")), "at the lowest value, A, and 12 at the highest value, B")
   tab <- .app_sweep_table(s)
   expect_identical(names(tab), c("Outcome goal", "gear", "Cost", "Estimated outcome", "Note"))
   expect_identical(tab$Note, c("The power goal raised the goal to 21.", "The goal is out of reach, so the shrinking method was used.", "This run failed: no fit"))
@@ -164,7 +227,10 @@ test_that("the app sweeps, searches a budget, and returns both with their code",
     expect_identical(current_result(), r)
     expect_null(output$sweep_gate$html)
     expect_equal(budget_prefill(), signif(r$rec_int_cost, 4))
-    expect_match(as.character(output$results$html), "Report and next steps")
+    results_html <- as.character(output$results$html)
+    expect_match(results_html, "Report and next steps")
+    # the confidence set is off, so the report is not said to have it
+    expect_match(results_html, "the recommendation, the outcome model")
 
     session$setInputs(sweep_param = "outcome_goal", sweep_how = "steps", sweep_from = 20, sweep_to = 30, sweep_steps = 3)
     expect_match(as.character(output$sweep_preview$html), "Runs 3 optimizations, at 20, 25, 30")
@@ -188,6 +254,7 @@ test_that("the app sweeps, searches a budget, and returns both with their code",
     html <- as.character(output$budget_results$html)
     expect_match(html, "With a budget of")
     expect_match(html, "Use this outcome as the goal")
+    expect_match(html, "gives the full result for it.<")
     expect_type(output$budget_plot, "list")
     expect_match(output$budget_table, "Within budget")
     expect_true(file.exists(output$download_budget))
@@ -255,6 +322,10 @@ test_that("the report downloads, or says what to install", {
     path <- output$download_report
     html <- paste(readLines(path, warn = FALSE), collapse = "\n")
     expect_match(html, "Trial plan")
+    # a blank title gets the usual one
+    session$setInputs(report_title = " ")
+    html <- paste(readLines(output$download_report, warn = FALSE), collapse = "\n")
+    expect_match(html, "LAGO optimization report")
   })
   local_mocked_bindings(.app_report_missing = function(...) "Install the report packages.")
   shiny::testServer(.build_lago_app(), {

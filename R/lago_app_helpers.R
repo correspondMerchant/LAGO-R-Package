@@ -743,7 +743,7 @@
 }
 
 # Where a sweep of `param` starts: From, To and Steps around the current
-# value, or the values to type when only some values make sense.
+# value, or for the period the periods to choose from.
 .app_sweep_defaults <- function(param, spec, data) {
   clamp <- function(x, lo, hi) min(max(x, lo), hi)
   around <- function(x, by, lo, hi) list(from = signif(clamp(x - by, lo, hi), 3), to = signif(clamp(x + by, lo, hi), 3), steps = 5L)
@@ -766,12 +766,28 @@
       list(from = lo, to = max(round(n * 1.5), lo + 4), steps = 5L)
     },
     icc = list(from = 0, to = signif(max(0.1, 2 * suppressWarnings(max(spec$icc, na.rm = TRUE))), 2), steps = 5L),
-    time_effect_optimization_value = {
-      p <- if (spec$period_col %in% names(data)) .app_periods(data[[spec$period_col]]) else NULL
-      values <- if (is.null(p)) numeric(0) else if (p$numeric) as.numeric(p$labels) else seq_along(p$labels)
-      list(typed = paste(format(values, trim = TRUE), collapse = ", "))
-    }
+    time_effect_optimization_value = list(periods = .app_period_values(data, spec$period_col)$labels)
   )
+}
+
+# The periods of a column, and the numbers the model knows them by: the period
+# itself when it is a number, else its place in time order.
+.app_period_values <- function(data, period_col) {
+  if (!isTRUE(period_col %in% names(data))) {
+    return(list(labels = character(0), values = numeric(0)))
+  }
+  p <- .app_periods(data[[period_col]])
+  list(labels = p$labels, values = if (p$numeric) as.numeric(p$labels) else seq_along(p$labels))
+}
+
+# The values of a period sweep, from the periods chosen by name.
+.app_sweep_period_values <- function(chosen, data, period_col) {
+  p <- .app_period_values(data, period_col)
+  keep <- p$labels %in% chosen
+  if (sum(keep) < 2) {
+    return(list(values = NULL, labels = NULL, error = "Choose at least two periods."))
+  }
+  list(values = p$values[keep], labels = p$labels[keep], error = NULL)
 }
 
 # The values of a sweep, from even steps or a typed list, with the problem to
@@ -895,9 +911,9 @@
 # A sweep as the app shows it: the swept value, the recommendation, its cost
 # and outcome, and a note for a run that failed, was shrunk, or had its goal
 # raised by the power goal.
-.app_sweep_table <- function(s) {
+.app_sweep_table <- function(s, labels = NULL) {
   param <- attr(s, "parameter")
-  out <- data.frame(value = s$value)
+  out <- data.frame(value = if (length(labels) == nrow(s)) labels else s$value)
   names(out) <- .app_sweep_label(param)
   for (cc in attr(s, "component_names")) out[[cc]] <- s[[cc]]
   out$Cost <- s$rec_int_cost
@@ -923,8 +939,9 @@
   note
 }
 
-# One plain sentence on how the cost moves across a sweep.
-.app_sweep_sentence <- function(s) {
+# One plain sentence on how the cost moves across a sweep. `labels` name the
+# values, such as the periods.
+.app_sweep_sentence <- function(s, labels = NULL) {
   fmt <- function(v) vapply(.lago_fmt_value(v), format, character(1), big.mark = ",")
   ok <- s$status == "ok" & is.finite(s$rec_int_cost)
   if (!any(ok)) {
@@ -932,10 +949,10 @@
   }
   ord <- order(s$value[ok])
   cost <- s$rec_int_cost[ok][ord]
-  vals <- s$value[ok][ord]
+  vals <- if (length(labels) == nrow(s)) labels[ok][ord] else fmt(s$value[ok][ord])
   out <- sprintf(
     "The cost of the recommendation is %s at the lowest value, %s, and %s at the highest value, %s.",
-    fmt(cost[1]), fmt(vals[1]), fmt(cost[length(cost)]), fmt(vals[length(vals)])
+    fmt(cost[1]), vals[1], fmt(cost[length(cost)]), vals[length(vals)]
   )
   if (any(!ok)) out <- paste(out, sprintf("%d of %d runs failed, as the table shows.", sum(!ok), nrow(s)))
   out

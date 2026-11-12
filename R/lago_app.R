@@ -333,10 +333,17 @@ lago_app <- function(data = NULL,
         bslib::layout_columns(
           fill = FALSE,
           shiny::selectInput("sweep_param", .app_help("Input to vary", "The input whose value changes from run to run. Everything else stays as in Results. A cost multiplier of 1.2 makes every cost 20% higher."), choices = NULL, selectize = FALSE),
-          shiny::radioButtons("sweep_how", .app_help("Values", "Even steps from From to To, or a list of the values you want."), c("Even steps" = "steps", "Type the values" = "typed"), inline = TRUE)
+          shiny::conditionalPanel(
+            "input.sweep_param != 'time_effect_optimization_value'",
+            shiny::radioButtons("sweep_how", .app_help("Values", "Even steps from From to To, or a list of the values you want."), c("Even steps" = "steps", "Type the values" = "typed"), inline = TRUE)
+          )
         ),
         shiny::conditionalPanel(
-          "input.sweep_how == 'steps'",
+          "input.sweep_param == 'time_effect_optimization_value'",
+          shiny::selectizeInput("sweep_periods", .app_help("Periods", "The periods to optimize for, one run each."), choices = NULL, multiple = TRUE, width = "100%")
+        ),
+        shiny::conditionalPanel(
+          "input.sweep_param != 'time_effect_optimization_value' && input.sweep_how == 'steps'",
           bslib::layout_columns(
             fill = FALSE,
             shiny::numericInput("sweep_from", "From", value = NA),
@@ -345,7 +352,7 @@ lago_app <- function(data = NULL,
           )
         ),
         shiny::conditionalPanel(
-          "input.sweep_how == 'typed'",
+          "input.sweep_param != 'time_effect_optimization_value' && input.sweep_how == 'typed'",
           shiny::textInput("sweep_typed", .app_help("Values", "Numbers separated by commas, such as 0.7, 0.8, 0.9. Up to 25 values."), value = "", width = "100%")
         ),
         shiny::uiOutput("sweep_preview"),
@@ -357,7 +364,7 @@ lago_app <- function(data = NULL,
         value = "budget",
         htmltools::p(class = "lago-intro", "Find the best outcome a budget can buy, and the intervention that reaches it. The search runs the result in Results across a range of outcome goals, without the confidence set."),
         shiny::uiOutput("budget_gate"),
-        shiny::numericInput("budget", .app_help("Budget", "The most the intervention may cost, in the units of the costs in step 3. It starts at the cost of the recommendation."), value = NA, min = 0),
+        shiny::numericInput("budget", .app_help("Budget", "The most the intervention may cost, in the units of the costs in step 3. It starts at the cost of the recommendation when that is above 0."), value = NA, min = 0),
         bslib::accordion(
           open = FALSE,
           bslib::accordion_panel(
@@ -977,7 +984,7 @@ lago_app <- function(data = NULL,
           bslib::card_header("Report and next steps"),
           htmltools::p(
             "The Sensitivity tab shows how this recommendation moves when an input changes, and the Budget tab finds the best outcome for a budget. ",
-            "The report is one HTML file with the recommendation, the confidence set, the outcome model and interactive cost curves, to keep or share."
+            sprintf("The report is one HTML file with the recommendation, %sthe outcome model and interactive cost curves, to keep or share.", if (is.null(r$cs)) "" else "the confidence set, ")
           ),
           if (is.null(report_missing)) {
             htmltools::tagList(
@@ -1113,16 +1120,27 @@ lago_app <- function(data = NULL,
       kept <- intersect(shiny::isolate(input$sweep_param), ch)
       shiny::updateSelectInput(session, "sweep_param", choices = ch, selected = if (length(kept)) kept else ch[1])
     })
-    # a new input, or a new dataset, starts on values around the current one
-    shiny::observeEvent(list(input$sweep_param, generation()), {
+    # The values start around the current setting of the input, and follow it
+    # when it changes in the steps, as on a new dataset.
+    sweep_basis <- shiny::reactive({
+      s <- spec()
+      list(input$sweep_param, generation(), s$outcome, s$outcome_type, s$goal, s$power_goal, s$n_centers, s$n_patients, s$icc, s$period_col)
+    })
+    shown_basis <- NULL
+    shiny::observe({
+      basis <- sweep_basis()
       param <- input$sweep_param
-      shiny::req(param, current_data())
+      if (identical(basis, shown_basis) || is.null(param) || !nzchar(param)) {
+        return()
+      }
+      new_param <- !identical(param, shown_basis[[1]])
+      shown_basis <<- basis
       start <- .app_sweep_defaults(param, shiny::isolate(spec()), current_data())
-      if (!is.null(start$typed)) {
-        shiny::updateRadioButtons(session, "sweep_how", selected = "typed")
-        shiny::updateTextInput(session, "sweep_typed", value = start$typed)
+      if (!is.null(start$periods)) {
+        shiny::updateSelectizeInput(session, "sweep_periods", choices = start$periods, selected = start$periods)
       } else {
-        shiny::updateRadioButtons(session, "sweep_how", selected = "steps")
+        # a list the user typed is kept when only the settings change
+        if (new_param) shiny::updateRadioButtons(session, "sweep_how", selected = "steps")
         shiny::updateNumericInput(session, "sweep_from", value = start$from)
         shiny::updateNumericInput(session, "sweep_to", value = start$to)
         shiny::updateNumericInput(session, "sweep_steps", value = start$steps)
@@ -1132,6 +1150,9 @@ lago_app <- function(data = NULL,
       param <- input$sweep_param
       if (is.null(param) || !nzchar(param)) {
         return(list(values = NULL, error = "Choose the input to vary."))
+      }
+      if (identical(param, "time_effect_optimization_value")) {
+        return(.app_sweep_period_values(input$sweep_periods, current_data(), spec()$period_col))
       }
       .app_sweep_values(
         param, input$sweep_how %||% "steps", num(input$sweep_from), num(input$sweep_to),
@@ -1145,7 +1166,7 @@ lago_app <- function(data = NULL,
       }
       htmltools::p(class = "text-muted", sprintf(
         "Runs %d optimizations, at %s.", length(v$values),
-        paste(format(v$values, trim = TRUE, drop0trailing = TRUE), collapse = ", ")
+        paste(if (is.null(v$labels)) format(v$values, trim = TRUE, drop0trailing = TRUE) else v$labels, collapse = ", ")
       ))
     })
     shiny::observe({
@@ -1164,7 +1185,7 @@ lago_app <- function(data = NULL,
         })
         shiny::setProgress(1)
       })
-      sweep_state(list(run = res, run_id = run_id(), code = .app_sweep_code(param, v$values, s)))
+      sweep_state(list(run = res, run_id = run_id(), labels = v$labels, code = .app_sweep_code(param, v$values, s)))
       if (is.null(res$error)) {
         shared$result$sensitivity <- res$value
         shared$result$code <- code_lines()
@@ -1192,7 +1213,7 @@ lago_app <- function(data = NULL,
         if (!current_for(st)) {
           htmltools::div(class = "alert alert-warning", role = "status", "This sweep is from an earlier result. Run it again to update it.")
         },
-        htmltools::p(class = "lead", .app_sweep_sentence(s)),
+        htmltools::p(class = "lead", .app_sweep_sentence(s, st$labels)),
         notes_card_for(run),
         shiny::radioButtons("sweep_show", "Plot", c("Cost of the recommendation" = "cost", "Level of each component" = "components"), inline = TRUE),
         shiny::plotOutput("sweep_plot", height = "380px"),
@@ -1208,9 +1229,9 @@ lago_app <- function(data = NULL,
       p + ggplot2::labs(x = .app_sweep_label(attr(s, "parameter")))
     })
     output$sweep_table <- shiny::renderTable({
-      s <- sweep_state()$run$value
-      shiny::req(s)
-      .app_sweep_table(s)
+      st <- sweep_state()
+      shiny::req(st$run$value)
+      .app_sweep_table(st$run$value, st$labels)
     }, digits = 4)
     output$download_sweep <- shiny::downloadHandler(
       filename = function() "lago_sensitivity.csv",
@@ -1236,7 +1257,12 @@ lago_app <- function(data = NULL,
       b <- num(input$budget)
       g <- num(input$budget_grid)
       if (!is.finite(b) || b <= 0) {
-        "Give a budget above 0."
+        r <- current_result()
+        if (!is.null(r) && isTRUE(r$rec_int_cost == 0)) {
+          "The recommendation costs nothing, so the budget cannot start from its cost. Give a budget above 0."
+        } else {
+          "Give a budget above 0."
+        }
       } else if (!is.finite(g) || g != round(g) || g < 2 || g > 25) {
         "Goals to try must be a whole number from 2 to 25."
       }
@@ -1299,7 +1325,11 @@ lago_app <- function(data = NULL,
               htmltools::p(
                 shiny::actionButton("use_budget_goal", "Use this outcome as the goal", class = "btn-outline-primary btn-sm"),
                 " ",
-                htmltools::tags$small(class = "text-muted", "Puts it in step 2, so Find recommendation gives the full result for it, with the confidence set.")
+                htmltools::tags$small(class = "text-muted", if (isTRUE(spec()$include_cs)) {
+                  "Puts it in step 2, so Find recommendation gives the full result for it, with the confidence set."
+                } else {
+                  "Puts it in step 2, so Find recommendation gives the full result for it."
+                })
               )
             }
           )
