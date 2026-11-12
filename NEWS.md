@@ -2,6 +2,8 @@
 
 * `lago_app()` now opens the cost designer of `visualize_cost()` in a dialog, from the "Shape the costs visually" button in the intervention step. The designer starts on the costs in use, draws the total and marginal cost of each component, and lets you shape them with sliders or by dragging the curve. "Use these costs" puts them in as cost coefficients and keeps the bounds. Costs that do not fit the designer's linear or cubic form are named in the dialog, since applying replaces them.
 
+* `lago_app()` has two new tabs that start from the result of a run. Sensitivity runs `lago_sensitivity()` over even steps or typed values of the outcome goal, a multiplier of all costs, the power goal settings or the period, and shows a plot, a table and a CSV download. Budget runs `lago_budget()` for a budget that starts at the cost of the recommendation, explains whether the budget binds, plots the goals searched, and can put the best outcome in as the outcome goal. The Results tab can download the HTML report of `lago_report()`. The R code tab and the value returned by Done include the sweep and the budget search.
+
 * Fixed the sliders of `visualize_cost()` moving a coefficient when they only got the keyboard focus. A slider now keeps its value when you tab through it, and the arrow keys move it by one step.
 
 # LAGOtrials 1.2.0

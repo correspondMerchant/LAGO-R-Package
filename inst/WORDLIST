@@ -43,6 +43,8 @@ intra
 ITT
 JJ
 js
+jsonlite
+knitr
 LAGO
 LAGOtrials
 lago
@@ -60,6 +62,7 @@ OpenBLAS
 optimisation
 optimizer's
 oxytocin
+pandoc
 pasteable
 pkgdown
 PMC
