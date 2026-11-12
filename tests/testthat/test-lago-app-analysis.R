@@ -110,8 +110,23 @@ test_that("the sweep values follow the settings they start from", {
   expect_equal(from[[length(from)]]$value, signif(15 - 0.15 * span, 3))
 })
 
+# A real result with one field changed. A bare list would fail in print() and
+# leave a cli list open for the tests that follow.
+analysis_real_run <- function(change) {
+  real <- lago_optimization
+  function(...) {
+    args <- list(...)
+    args$include_confidence_set <- FALSE
+    args$confidence_set_grid_step_size <- NULL
+    change(do.call(real, args))
+  }
+}
+
 test_that("a recommendation that costs nothing says why the budget is empty", {
-  local_mocked_bindings(lago_optimization = function(...) structure(list(rec_int = c(gear = 3, qsec = 14), rec_int_cost = 0, est_outcome_goal = 25), class = "lago"))
+  local_mocked_bindings(lago_optimization = analysis_real_run(function(r) {
+    r$rec_int_cost <- 0
+    r
+  }))
   shiny::testServer(.build_lago_app(), {
     analysis_setup(session, col_id)
     session$setInputs(run = 1)
@@ -337,7 +352,7 @@ test_that("the report downloads, or says what to install", {
 
 test_that("a budget search with the confidence set on says the new run will have it", {
   local_mocked_bindings(
-    lago_optimization = function(...) structure(list(rec_int = c(gear = 3, qsec = 14), rec_int_cost = 20, est_outcome_goal = 25), class = "lago"),
+    lago_optimization = analysis_real_run(identity),
     lago_budget = function(...) structure(list(
       budget = 20, feasible = TRUE, binding = FALSE, rec_int = c(gear = 3, qsec = 14), rec_int_cost = 20,
       est_outcome = 25, frontier = data.frame(), component_names = c("gear", "qsec"), intention = "maximize"
