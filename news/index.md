@@ -13,6 +13,21 @@
   designer’s linear or cubic form are named in the dialog, since
   applying replaces them.
 
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  has two new tabs that start from the result of a run. Sensitivity runs
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  over even steps or typed values of the outcome goal, a multiplier of
+  all costs, the power goal settings or the period, and shows a plot, a
+  table and a CSV download. Budget runs
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  for a budget that starts at the cost of the recommendation, explains
+  whether the budget binds, plots the goals searched, and can put the
+  best outcome in as the outcome goal. The Results tab can download the
+  HTML report of
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md).
+  The R code tab and the value returned by Done include the sweep and
+  the budget search.
+
 - Fixed the sliders of
   [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   moving a coefficient when they only got the keyboard focus. A slider
