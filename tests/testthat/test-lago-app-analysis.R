@@ -334,3 +334,19 @@ test_that("the report downloads, or says what to install", {
     expect_match(as.character(output$results$html), "Install the report packages.")
   })
 })
+
+test_that("a budget search with the confidence set on says the new run will have it", {
+  local_mocked_bindings(
+    lago_optimization = function(...) structure(list(rec_int = c(gear = 3, qsec = 14), rec_int_cost = 20, est_outcome_goal = 25), class = "lago"),
+    lago_budget = function(...) structure(list(
+      budget = 20, feasible = TRUE, binding = FALSE, rec_int = c(gear = 3, qsec = 14), rec_int_cost = 20,
+      est_outcome = 25, frontier = data.frame(), component_names = c("gear", "qsec"), intention = "maximize"
+    ), class = "lago_budget")
+  )
+  shiny::testServer(.build_lago_app(), {
+    analysis_setup(session, col_id)
+    session$setInputs(include_cs = TRUE, run = 1)
+    session$setInputs(budget = 20, budget_grid = 25, run_budget = 1)
+    expect_match(as.character(output$budget_results$html), "gives the full result for it, with the confidence set.")
+  })
+})
