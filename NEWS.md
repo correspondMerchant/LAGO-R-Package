@@ -1,3 +1,9 @@
+# LAGOtrials (development version)
+
+* `lago_app()` now opens the cost designer of `visualize_cost()` in a dialog, from the "Shape the costs visually" button in the intervention step. The designer starts on the costs in use, draws the total and marginal cost of each component, and lets you shape them with sliders or by dragging the curve. "Use these costs" puts them in as cost coefficients and keeps the bounds. Costs that do not fit the designer's linear or cubic form are named in the dialog, since applying replaces them.
+
+* Fixed the sliders of `visualize_cost()` moving a coefficient when they only got the keyboard focus. A slider now keeps its value when you tab through it, and the arrow keys move it by one step.
+
 # LAGOtrials 1.2.0
 
 * New `lago_app()` runs the whole LAGO optimization in a point and click Shiny app on your own computer, with no R code to write (#37). It covers the data (your own data frame, the bundled examples or a CSV file), the outcome and goal with the power goal, the intervention components with their bounds and costs, interaction terms, center characteristics, fixed center and time effects, and additional covariates. Each step says what is missing before a run, every setting has a short explanation, and the result shows the recommendation, the confidence set and the package's warnings. The app shows the R code that reproduces the run, and returns the last result to R when you click Done. It is reachable only from your own computer.

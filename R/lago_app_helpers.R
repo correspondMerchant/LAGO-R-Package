@@ -673,3 +673,45 @@
     "Narrow or widen the bounds, or lower the goal."
   )
 }
+
+# Where the cost designer starts: the costs now in use, in the form that holds
+# them. Cost coefficients open in the cubic form when any component has 5 of
+# them, where a linear cost of 2 is the same curve padded with zeros, and in
+# the linear form otherwise. A component whose coefficients fit neither form
+# opens on the designer's own curve, and is named in `unfit`. Unit costs open
+# on the curve the package computes from them.
+.app_designer_start <- function(spec) {
+  comps <- spec$components
+  if (identical(spec$cost_mode, "coef")) {
+    lens <- vapply(spec$coefs, length, integer(1))
+    form <- if (any(lens == 5L)) "cubic" else "linear"
+    want <- if (form == "cubic") 5L else 2L
+    coefs <- lapply(spec$coefs, function(v) {
+      if (length(v) == want) v else if (want == 5L && length(v) == 2L) c(v, 0, 0, 0) else NULL
+    })
+    fits <- !vapply(coefs, is.null, logical(1))
+    # the average cost per unit over the bounds, for the designer's ranges
+    unit_costs <- vapply(seq_along(comps), function(k) {
+      v <- spec$coefs[[k]]
+      lo <- spec$lower[k]
+      up <- spec$upper[k]
+      if (is.null(v) || !is.finite(lo) || !is.finite(up) || up <= lo) {
+        return(1)
+      }
+      total <- function(x) sum(v * x^(seq_along(v) - 1))
+      per_unit <- (total(up) - total(lo)) / (up - lo)
+      if (is.finite(per_unit) && per_unit > 0) per_unit else 1
+    }, numeric(1))
+    unfit <- comps[!fits]
+  } else {
+    form <- spec$cost_type
+    unit_costs <- ifelse(is.finite(spec$unit_costs) & spec$unit_costs >= 0, spec$unit_costs, 1)
+    doses <- if (identical(form, "cubic") && any(!is.na(spec$doses)) && !anyNA(spec$doses)) spec$doses else NULL
+    coefs <- tryCatch(
+      cost_fxn_calculator(spec$lower, spec$upper, unit_costs, form, unit_cost_doses = doses),
+      error = function(e) NULL
+    )
+    unfit <- character(0)
+  }
+  list(form = form, unit_costs = unit_costs, coefs = coefs, unfit = unfit)
+}

@@ -603,3 +603,118 @@ test_that("the results show the confidence set, its table and the intervention t
     expect_match(as.character(output$cs_ui$html), "listed as a table")
   })
 })
+
+test_that("the cost designer starts on the costs now in use", {
+  d <- datasets::mtcars
+  spec <- .app_defaults(d, "mtcars")
+  spec$unit_costs <- c(2, 3)
+  start <- .app_designer_start(spec)
+  expect_identical(start$form, "linear")
+  expect_equal(start$coefs, list(c(0, 2), c(0, 3)))
+  spec$cost_type <- "cubic"
+  start <- .app_designer_start(spec)
+  expect_identical(start$form, "cubic")
+  expect_equal(start$coefs, cost_fxn_calculator(spec$lower, spec$upper, c(2, 3), "cubic"))
+  spec$cost_mode <- "coef"
+  spec$coefs <- list(c(1, 2, 3, 4, 5), c(0, 1, 0, 0, 0))
+  start <- .app_designer_start(spec)
+  expect_identical(start$form, "cubic")
+  expect_equal(start$coefs[[1]], c(1, 2, 3, 4, 5))
+  # a linear cost beside a cubic one opens as the same curve in the cubic form
+  spec$coefs <- list(c(0, 4), c(0, 0.5, 0, 0, 0.0185))
+  start <- .app_designer_start(spec)
+  expect_identical(start$form, "cubic")
+  expect_equal(start$coefs[[1]], c(0, 4, 0, 0, 0))
+  expect_length(start$unfit, 0)
+  # a polynomial the designer has no form for is named
+  spec$coefs <- list(c(0, 2), c(0, 1, 1))
+  start <- .app_designer_start(spec)
+  expect_identical(start$form, "linear")
+  expect_null(start$coefs[[2]])
+  expect_identical(start$unfit, "qsec")
+  # the unit cost is the average cost per unit over the bounds
+  expect_equal(start$unit_costs[1], 2)
+  q <- function(x) x + x^2
+  expect_equal(start$unit_costs[2], (q(spec$upper[2]) - q(spec$lower[2])) / (spec$upper[2] - spec$lower[2]))
+})
+
+test_that("the embedded cost designer hands its costs to the app", {
+  applied <- NULL
+  parts <- .build_cost_parts(
+    component_names = c("a", "b"), unit_costs = c(2, 3), default_cost_fxn_type = "linear",
+    intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(4, 4),
+    ns = shiny::NS("des"), embedded = TRUE, initial_coefs = list(c(0, 2.5), c(1, 3)),
+    on_apply = function(cost_list, form) applied <<- list(cost_list = cost_list, form = form)
+  )
+  html <- as.character(parts$ui)
+  expect_match(html, "des-coef_1_1")
+  expect_match(html, "data-ns=\"des-\"")
+  expect_match(as.character(parts$apply_ui), "des-apply")
+  expect_false(grepl("quit_button", html))
+  shiny::testServer(function(id) shiny::moduleServer(id, parts$server), args = list(id = "des"), {
+    # before the sliders report, the designer reads the values it set
+    expect_equal(current_cost_list(), list(c(0, 2.5), c(1, 3)))
+    session$setInputs(coef_1_0 = 0, coef_1_1 = 4, coef_2_0 = 1, coef_2_1 = 3, cost_type = "linear")
+    session$setInputs(apply = 1)
+  })
+  expect_equal(applied$cost_list, list(c(0, 4), c(1, 3)))
+  expect_identical(applied$form, "linear")
+})
+
+test_that("applying the designer's costs fills the cost coefficients and keeps the bounds", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    session$setInputs(outcome = "mpg", components = c("gear", "qsec"), cost_mode = "unit", cost_type = "linear")
+    app_server_inputs(session, col_id, c("gear", "qsec"), list(c(3, 5), c(14, 20)), costs = c(2, 3))
+    session$setInputs(open_designer = 1)
+    session$setInputs(`designer_1-coef_1_0` = 0, `designer_1-coef_1_1` = 4, `designer_1-coef_2_0` = 0,
+      `designer_1-coef_2_1` = 3, `designer_1-cost_type` = "linear")
+    session$setInputs(`designer_1-apply` = 1)
+    expect_equal(designer_costs(), list(gear = c(0, 4), qsec = c(0, 3)))
+    expect_identical(designer_version(), 1L)
+    session$setInputs(cost_mode = "coef")
+    s <- spec()
+    expect_equal(s$coefs, list(c(0, 4), c(0, 3)))
+    expect_equal(s$upper, c(5, 20))
+    expect_equal(.app_build(s, current_data())$args$cost_list_of_vectors, list(c(0, 4), c(0, 3)))
+    expect_match(as.character(output$component_rows$html), "0, 4")
+  })
+})
+
+test_that("the designer asks for the components and bounds first", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    session$setInputs(outcome = "mpg", components = character(0))
+    session$setInputs(open_designer = 1)
+    # no designer opened, so its apply button does nothing
+    session$setInputs(`designer_1-apply` = 1)
+    expect_identical(designer_version(), 0L)
+    expect_length(designer_costs(), 0)
+  })
+})
+
+test_that("the designer falls back to a unit cost of 1 when the costs give none", {
+  d <- datasets::mtcars
+  spec <- .app_defaults(d, "mtcars")
+  spec$cost_mode <- "coef"
+  # no coefficients for gear, and a cost that falls over the bounds for qsec
+  spec$coefs <- list(NULL, c(10, -1))
+  start <- .app_designer_start(spec)
+  expect_equal(start$unit_costs, c(1, 1))
+  expect_identical(start$unfit, "gear")
+})
+
+test_that("the designer opens with a note when costs do not fit it", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    session$setInputs(outcome = "mpg", components = c("gear", "qsec"), cost_mode = "coef")
+    app_server_inputs(session, col_id, c("gear", "qsec"), list(c(3, 5), c(14, 20)))
+    do.call(session$setInputs, stats::setNames(list("0, 1, 0.5", "0, 2"), c(coef_id("gear"), coef_id("qsec"))))
+    session$setInputs(open_designer = 1)
+    expect_identical(.app_designer_start(spec())$unfit, "gear")
+    session$setInputs(`designer_1-coef_1_0` = 0, `designer_1-coef_1_1` = 1, `designer_1-coef_2_0` = 0,
+      `designer_1-coef_2_1` = 2, `designer_1-cost_type` = "linear")
+    session$setInputs(`designer_1-apply` = 1)
+    expect_identical(designer_version(), 1L)
+  })
+})

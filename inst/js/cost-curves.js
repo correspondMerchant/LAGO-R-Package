@@ -300,12 +300,16 @@
   function readConfig(container) {
     var comp = +container.getAttribute("data-component");
     var ncoef = +container.getAttribute("data-ncoef");
+    // the namespace prefix of the slider and drag ids, empty in the stand alone
+    // app and the module id inside lago_app()
+    var ns = container.getAttribute("data-ns") || "";
     var coefs = [];
     for (var i = 0; i < ncoef; i++) {
-      coefs.push(readSlider("coef_" + comp + "_" + i));
+      coefs.push(readSlider(ns + "coef_" + comp + "_" + i));
     }
     return {
       comp: comp,
+      ns: ns,
       ncoef: ncoef,
       lb: +container.getAttribute("data-lb"),
       ub: +container.getAttribute("data-ub"),
@@ -636,7 +640,7 @@
           // A plain click (no drag) leaves reshaped false and writes nothing.
           if (reshaped) {
             Shiny.setInputValue(
-              "dragged_coefs_" + cfg.comp,
+              cfg.ns + "dragged_coefs_" + cfg.comp,
               { coefs: working, nonce: Date.now() },
               { priority: "event" }
             );
@@ -669,6 +673,7 @@
       }
       container._bound = true;
       var comp = container.getAttribute("data-component");
+      var ns = container.getAttribute("data-ns") || "";
       // Bind every rendered slider row (data-maxncoef), not just the current
       // form's data-ncoef, so sliders a Linear/Cubic form switch reveals also
       // trigger a client-side redraw. Falls back to data-ncoef if maxncoef is
@@ -677,7 +682,7 @@
         +container.getAttribute("data-maxncoef") ||
         +container.getAttribute("data-ncoef");
       for (var i = 0; i < ncoef; i++) {
-        var id = "coef_" + comp + "_" + i;
+        var id = ns + "coef_" + comp + "_" + i;
         var el = document.getElementById(id);
         if (!el) {
           continue;
@@ -700,7 +705,44 @@
     });
   }
 
+  // ionRangeSlider fakes a click at the handle when its track gets the focus,
+  // which moves the value by a pixel's worth of the range when a keyboard user
+  // only tabs through. Focus now only makes the slider the one the arrow keys
+  // move, which is what the fake click was for, and leaves its value alone.
+  function keepValueOnFocus() {
+    if (!$ || !$.fn || !$.fn.ionRangeSlider) {
+      return;
+    }
+    $("input.js-range-slider").each(function () {
+      var inst = $(this).data("ionRangeSlider");
+      if (!inst) {
+        return;
+      }
+      var proto = Object.getPrototypeOf(inst);
+      if (proto && !proto._lagoFocusPatched) {
+        proto.pointerFocus = function () {
+          // what the fake click set up for the arrow keys: this slider, its
+          // single handle, and the pointer at the handle's center
+          this.current_plugin = this.plugin_count;
+          if (this.options.type === "single" && this.coords) {
+            this.target = "single";
+            this.coords.p_gap = this.coords.p_handle / 2;
+            this.coords.p_pointer = this.coords.p_single_fake + this.coords.p_gap;
+          }
+        };
+        proto._lagoFocusPatched = true;
+      }
+      // a slider made before the patch bound the old handler, so rebind it.
+      // A slider made or rebuilt later binds the patched one itself.
+      if (inst.$cache && inst.$cache.line) {
+        var ev = "focus.irs_" + inst.plugin_count;
+        inst.$cache.line.off(ev).on(ev, inst.pointerFocus.bind(inst));
+      }
+    });
+  }
+
   function init() {
+    keepValueOnFocus();
     bindSliders();
     drawAll();
   }
@@ -708,7 +750,9 @@
   // Redraw hook for the server: the Linear/Cubic form toggle updates each
   // container's data-ncoef and then calls this to repaint the curves with the
   // new coefficient count.
-  global.LAGOCostCurves = { redraw: drawAll };
+  // init binds the sliders of curves added after the page loaded, such as the
+  // cost designer that lago_app() opens in a dialog, and draws them.
+  global.LAGOCostCurves = { redraw: drawAll, init: init };
 
   // Draw once the client is connected (sliders exist by then). Also redraw when
   // a nav tab is shown (an inactive tab may have laid out at an odd size) and on
@@ -717,6 +761,10 @@
   if ($) {
     $(document).on("shown.bs.tab", function () {
       setTimeout(drawAll, 30);
+    });
+    // a dialog lays out its content only once it is shown
+    $(document).on("shown.bs.modal", function () {
+      setTimeout(init, 30);
     });
   }
   global.addEventListener("resize", function () {
