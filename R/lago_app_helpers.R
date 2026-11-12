@@ -715,3 +715,228 @@
   }
   list(form = form, unit_costs = unit_costs, coefs = coefs, unfit = unfit)
 }
+
+# The inputs a sensitivity sweep can vary for these settings, as label =
+# argument. Each is offered only when the run uses it.
+.app_sweep_choices <- function(spec) {
+  out <- character(0)
+  if (!identical(spec$goal_mode, "power")) out["Outcome goal"] <- "outcome_goal"
+  out["All costs, by a multiplier"] <- "cost_multiplier"
+  if (.app_power_on(spec)) {
+    out["Power goal"] <- "power_goal"
+    out["Centers in the next stage"] <- "num_centers_in_next_stage"
+    out["Patients per center"] <- "patients_per_center_in_next_stage"
+    # an ICC above 0 needs the center column of the power goal
+    if (nzchar(spec$cluster_col)) out["ICC"] <- "icc"
+  }
+  if (isTRUE(spec$time_on)) out["Period to optimize for"] <- "time_effect_optimization_value"
+  out
+}
+
+.app_sweep_label <- function(param) {
+  labels <- c(
+    outcome_goal = "Outcome goal", cost_multiplier = "Cost multiplier", power_goal = "Power goal",
+    num_centers_in_next_stage = "Centers in the next stage", patients_per_center_in_next_stage = "Patients per center",
+    icc = "ICC", time_effect_optimization_value = "Period"
+  )
+  if (param %in% names(labels)) labels[[param]] else param
+}
+
+# Where a sweep of `param` starts: From, To and Steps around the current
+# value, or the values to type when only some values make sense.
+.app_sweep_defaults <- function(param, spec, data) {
+  clamp <- function(x, lo, hi) min(max(x, lo), hi)
+  around <- function(x, by, lo, hi) list(from = signif(clamp(x - by, lo, hi), 3), to = signif(clamp(x + by, lo, hi), 3), steps = 5L)
+  binary <- identical(spec$outcome_type, "binary")
+  switch(param,
+    outcome_goal = {
+      y <- suppressWarnings(as.numeric(data[[spec$outcome]]))
+      span <- if (binary) 1 else diff(range(y[is.finite(y)]))
+      goal <- if (is.finite(spec$goal)) spec$goal else 0
+      if (!is.finite(span) || span <= 0) span <- max(abs(goal), 1)
+      if (binary) around(goal, 0.15, 0.01, 0.99) else around(goal, 0.15 * span, -Inf, Inf)
+    },
+    cost_multiplier = list(from = 0.5, to = 1.5, steps = 5L),
+    power_goal = around(if (is.finite(spec$power_goal)) spec$power_goal else 0.8, 0.1, 0.05, 0.99),
+    num_centers_in_next_stage = ,
+    patients_per_center_in_next_stage = {
+      n <- if (param == "num_centers_in_next_stage") spec$n_centers else spec$n_patients
+      if (!is.finite(n)) n <- 10
+      lo <- max(if (param == "num_centers_in_next_stage") 2 else 1, round(n / 2))
+      list(from = lo, to = max(round(n * 1.5), lo + 4), steps = 5L)
+    },
+    icc = list(from = 0, to = signif(max(0.1, 2 * suppressWarnings(max(spec$icc, na.rm = TRUE))), 2), steps = 5L),
+    time_effect_optimization_value = {
+      p <- if (spec$period_col %in% names(data)) .app_periods(data[[spec$period_col]]) else NULL
+      values <- if (is.null(p)) numeric(0) else if (p$numeric) as.numeric(p$labels) else seq_along(p$labels)
+      list(typed = paste(format(values, trim = TRUE), collapse = ", "))
+    }
+  )
+}
+
+# The values of a sweep, from even steps or a typed list, with the problem to
+# fix when they do not work for `param`.
+.app_sweep_values <- function(param, how, from, to, steps, typed, outcome_type = "binary") {
+  bad <- function(msg) list(values = NULL, error = msg)
+  if (identical(how, "typed")) {
+    values <- .app_parse_coefs(typed)
+    if (is.null(values)) {
+      return(bad("Type the values as numbers separated by commas, such as 0.7, 0.8, 0.9."))
+    }
+    values <- unique(values)
+  } else {
+    if (!is.finite(from) || !is.finite(to)) {
+      return(bad("Give a From and a To value."))
+    }
+    if (from == to) {
+      return(bad("From and To must differ."))
+    }
+    if (!is.finite(steps) || steps != round(steps) || steps < 2 || steps > 25) {
+      return(bad("Steps must be a whole number from 2 to 25."))
+    }
+    values <- seq(from, to, length.out = steps)
+    if (param %in% c("num_centers_in_next_stage", "patients_per_center_in_next_stage")) values <- unique(round(values))
+    values <- signif(values, 6)
+  }
+  if (length(values) > 25) {
+    return(bad("A sweep takes at most 25 values."))
+  }
+  if (length(values) < 2) {
+    return(bad("A sweep needs at least two different values."))
+  }
+  msg <- switch(param,
+    outcome_goal = if (identical(outcome_type, "binary") && any(values <= 0 | values >= 1)) "A goal for a binary outcome must be between 0 and 1.",
+    cost_multiplier = if (any(values <= 0)) "Cost multipliers must be above 0.",
+    power_goal = if (any(values <= 0 | values >= 1)) "A power goal must be between 0 and 1.",
+    num_centers_in_next_stage = if (any(values < 2 | values != round(values))) "The number of centers must be a whole number of 2 or more.",
+    patients_per_center_in_next_stage = if (any(values < 1 | values != round(values))) "The number of patients must be a whole number of 1 or more.",
+    icc = if (any(values < 0 | values >= 1)) "An ICC must be 0 or more and below 1.",
+    NULL
+  )
+  if (!is.null(msg)) bad(msg) else list(values = values, error = NULL)
+}
+
+# The arguments a sweep adds to the stored call of the result. A cost
+# multiplier scales the cost coefficients, which the result holds even when it
+# was run with unit costs. An ICC above 0 needs the center column.
+.app_sweep_extra <- function(param, spec, result) {
+  extra <- list()
+  if (identical(param, "cost_multiplier") && identical(spec$cost_mode, "unit")) {
+    extra$cost_list_of_vectors <- result$cost_list_of_vectors
+  }
+  if (identical(param, "icc")) extra$power_goal_cluster_id <- spec$cluster_col
+  extra
+}
+
+# The R code of a sweep and a budget search, run on `result` from the code above.
+.app_sweep_code <- function(param, values, spec) {
+  extra <- c(
+    if (identical(param, "cost_multiplier") && identical(spec$cost_mode, "unit")) "  cost_list_of_vectors = result$cost_list_of_vectors",
+    if (identical(param, "icc")) sprintf("  power_goal_cluster_id = %s", deparse1(spec$cluster_col))
+  )
+  c(
+    "sensitivity <- lago_sensitivity(",
+    paste0(c("  result", sprintf("  parameter = %s", deparse1(param)), sprintf("  values = %s", paste(deparse(values, width.cutoff = 500L), collapse = " ")), extra), collapse = ",\n"),
+    ")"
+  )
+}
+
+.app_budget_code <- function(budget, n_grid) {
+  sprintf("budget_result <- lago_budget(result, budget = %s, n_grid = %s)", deparse1(budget), deparse1(as.integer(n_grid)))
+}
+
+# What a budget search found, in plain sentences.
+.app_budget_sentence <- function(b) {
+  fmt <- function(v) vapply(.lago_fmt_value(v), format, character(1), big.mark = ",")
+  if (!is.null(b$run_error)) {
+    return(paste("The search could not run, because every optimization failed:", b$run_error))
+  }
+  if (!isTRUE(b$feasible)) {
+    if (!NROW(b$frontier)) {
+      return("No outcome goal in the searched range could be reached within the bounds, so no budget would help. Widen the bounds in step 3.")
+    }
+    return(sprintf(
+      "No intervention that reaches a goal costs %s or less. The cheapest one found costs %s.",
+      fmt(b$budget), fmt(min(b$frontier$rec_int_cost, na.rm = TRUE))
+    ))
+  }
+  levels <- paste(sprintf("%s at %s", b$component_names, fmt(b$rec_int)), collapse = ", ")
+  best <- if (identical(b$intention, "minimize")) "lowest" else "best"
+  first <- sprintf(
+    "With a budget of %s, the %s estimated outcome is %s. It sets %s, for a cost of %s.",
+    fmt(b$budget), best, fmt(b$est_outcome), levels, fmt(b$rec_int_cost)
+  )
+  second <- if (isTRUE(b$binding)) {
+    "A better outcome can be reached, but it costs more than the budget."
+  } else {
+    "The budget is not the limit: this is the best outcome the bounds allow, and it costs less than the budget."
+  }
+  paste(first, second)
+}
+
+# NULL when the report can be made, else what to install.
+.app_report_missing <- function(has_pkg = function(p) requireNamespace(p, quietly = TRUE),
+                                has_pandoc = function() rmarkdown::pandoc_available()) {
+  pkgs <- c("rmarkdown", "knitr", "jsonlite")
+  missing <- pkgs[!vapply(pkgs, has_pkg, logical(1))]
+  if (length(missing)) {
+    return(sprintf(
+      "The report needs the %s package%s. Install with install.packages(c(%s)) and restart the app.",
+      paste(missing, collapse = ", "), if (length(missing) > 1) "s" else "",
+      paste0("\"", missing, "\"", collapse = ", ")
+    ))
+  }
+  if (!isTRUE(has_pandoc())) {
+    return("The report needs pandoc, which comes with RStudio. Install pandoc from pandoc.org or run the app from RStudio.")
+  }
+  NULL
+}
+
+# A sweep as the app shows it: the swept value, the recommendation, its cost
+# and outcome, and a note for a run that failed, was shrunk, or had its goal
+# raised by the power goal.
+.app_sweep_table <- function(s) {
+  param <- attr(s, "parameter")
+  out <- data.frame(value = s$value)
+  names(out) <- .app_sweep_label(param)
+  for (cc in attr(s, "component_names")) out[[cc]] <- s[[cc]]
+  out$Cost <- s$rec_int_cost
+  out[["Estimated outcome"]] <- s$est_outcome_goal
+  out$Note <- .app_sweep_notes(s)
+  out
+}
+
+.app_sweep_notes <- function(s) {
+  note <- rep("", nrow(s))
+  eff <- attr(s, "effective_outcome_goal")
+  if (identical(attr(s, "parameter"), "outcome_goal") && length(eff) == nrow(s)) {
+    raised <- is.finite(eff) & eff > s$value + 1e-9
+    note[raised] <- sprintf("The power goal raised the goal to %s.", format(signif(eff[raised], 4)))
+  }
+  shrunk <- attr(s, "shrinking_method_used")
+  if (length(shrunk) == nrow(s)) note[shrunk %in% TRUE] <- "The goal is out of reach, so the shrinking method was used."
+  errs <- attr(s, "error_messages")
+  if (length(errs)) {
+    at <- match(names(errs), as.character(s$value))
+    note[at[!is.na(at)]] <- paste("This run failed:", errs[!is.na(at)])
+  }
+  note
+}
+
+# One plain sentence on how the cost moves across a sweep.
+.app_sweep_sentence <- function(s) {
+  fmt <- function(v) vapply(.lago_fmt_value(v), format, character(1), big.mark = ",")
+  ok <- s$status == "ok" & is.finite(s$rec_int_cost)
+  if (!any(ok)) {
+    return("Every run of the sweep failed. The table says why.")
+  }
+  ord <- order(s$value[ok])
+  cost <- s$rec_int_cost[ok][ord]
+  vals <- s$value[ok][ord]
+  out <- sprintf(
+    "The cost of the recommendation is %s at the lowest value, %s, and %s at the highest value, %s.",
+    fmt(cost[1]), fmt(vals[1]), fmt(cost[length(cost)]), fmt(vals[length(vals)])
+  )
+  if (any(!ok)) out <- paste(out, sprintf("%d of %d runs failed, as the table shows.", sum(!ok), nrow(s)))
+  out
+}
