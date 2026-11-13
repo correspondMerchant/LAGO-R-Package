@@ -79,7 +79,7 @@ visualize_cost(
 }
 }
 \seealso{
-[lago_optimization()]
+\code{\link[=lago_optimization]{lago_optimization()}}
 
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},

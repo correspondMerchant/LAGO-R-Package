@@ -32,8 +32,10 @@ that intervention.}
 }
 \value{
 A list with:
-- int_components: the chosen intervention, projected onto the bounds.
-- rec_int_cost: cost_fun() evaluated at int_components.
+\itemize{
+\item int_components: the chosen intervention, projected onto the bounds.
+\item rec_int_cost: cost_fun() evaluated at int_components.
+}
 }
 \description{
 Internal function that picks the recommended intervention out

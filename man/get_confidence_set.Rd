@@ -125,7 +125,7 @@ the confidence set calculations.}
 
 \item{cluster_id}{A list of one or two vectors, a single vector, or NULL.
 Specifies the columns of data that will be used as clustering effects when
-the "outcome_type" is continuous, with one entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
+the "outcome_type" is continuous, with one entry per fitted row. \code{\link[=lago_optimization]{lago_optimization()}} leaves it NULL, since its fixed
 center and time effects already model the centers and periods.}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. The cost vectors
@@ -136,33 +136,33 @@ from the optimization step.}
 }
 \value{
 List(
-  confidence_set_size_percentage = <number, the size of the confidence set
-    as a fraction of the grid. Both the count of qualifying interventions
-    and the size of the grid count grid interventions only, so rec_int is
-    excluded from each>,
-  rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
-    the confidence interval at rec_int. Computed whether or not it covers
-    the outcome goal, so callers never have to look for rec_int inside cs.
-    For a binary outcome on the logit link both bounds are confined to
-    [0, 1], where the estimate is a probability by construction and the
-    interval around it therefore belongs in that range; the interval is
-    still the delta-method one and a bound at exactly 0 or 1 is one that has
-    been truncated to the range. Not confined on the identity link, where the
-    estimate is the linear predictor and is itself unbounded, so confining
-    the interval would report one that excludes its own estimate. That
-    estimate leaving [0, 1] is a defect in its own right and not this one;
-    lago_optimization() now warns when it does, so it is flagged rather than
-    silent, and the interval is still reported as computed for the same
-    reason as before. Not confined for a continuous outcome either, whose
-    range is not knowable here. The exception, for both outcome types, is
-    the weighted average center on the logit link, whose estimate is the
-    weighted mean of the centers' probabilities: its interval is the delta
-    method interval of that mean and is confined to [0, 1]. NULL when that
-    interval is not computable>,
-  cs = <data.frame of the grid interventions whose confidence interval
-    covers the outcome goal, with their interval bounds and cost. rec_int is
-    never one of its rows, and need not be a grid intervention at all.
-    NULL when no grid intervention qualifies>
+confidence_set_size_percentage = <number, the size of the confidence set
+as a fraction of the grid. Both the count of qualifying interventions
+and the size of the grid count grid interventions only, so rec_int is
+excluded from each>,
+rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
+the confidence interval at rec_int. Computed whether or not it covers
+the outcome goal, so callers never have to look for rec_int inside cs.
+For a binary outcome on the logit link both bounds are confined to
+[0, 1], where the estimate is a probability by construction and the
+interval around it therefore belongs in that range; the interval is
+still the delta-method one and a bound at exactly 0 or 1 is one that has
+been truncated to the range. Not confined on the identity link, where the
+estimate is the linear predictor and is itself unbounded, so confining
+the interval would report one that excludes its own estimate. That
+estimate leaving [0, 1] is a defect in its own right and not this one;
+lago_optimization() now warns when it does, so it is flagged rather than
+silent, and the interval is still reported as computed for the same
+reason as before. Not confined for a continuous outcome either, whose
+range is not knowable here. The exception, for both outcome types, is
+the weighted average center on the logit link, whose estimate is the
+weighted mean of the centers' probabilities: its interval is the delta
+method interval of that mean and is confined to [0, 1]. NULL when that
+interval is not computable>,
+cs = <data.frame of the grid interventions whose confidence interval
+covers the outcome goal, with their interval bounds and cost. rec_int is
+never one of its rows, and need not be a grid intervention at all.
+NULL when no grid intervention qualifies>
 )
 }
 \description{
@@ -269,7 +269,7 @@ head(cs$cs)
 
 }
 \seealso{
-[lago_optimization()]
+\code{\link[=lago_optimization]{lago_optimization()}}
 
 Other LAGO functions:
 \code{\link[=lago_budget]{lago_budget()}},

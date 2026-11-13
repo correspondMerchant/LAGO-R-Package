@@ -75,10 +75,12 @@
 #' - First component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3
 #' - Second component: cost = 4 + 6x_2
 #' - Third component: cost = 5 + 4x_3 + 3x_3^2
+#'
 #' list(c(0, 2), c(0, 6), c(0, 4)) represents:
 #' - First component: cost = 2x_1
 #' - Second component: cost = 6x_2
 #' - Third component: cost = 4x_3
+#'
 #' Default value without user specification: NULL.
 #' Please note that either the unit_costs or cost_list_of_vectors must be
 #' specified. If both are specified, the cost_list_of_vectors will be used.
@@ -194,6 +196,7 @@
 #' intervention package compositions in LAGO optimization.
 #' - Use "numerical" if you want to use gradient-based technique in LAGO
 #' optimization.
+#'
 #' Note: if optimization_grid_search_step_size is provided while this is
 #' "numerical", it is automatically switched to "grid_search" (with a message).
 #' @param optimization_grid_search_step_size A numeric vector. Specifies the

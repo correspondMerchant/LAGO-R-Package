@@ -7,12 +7,12 @@
 \method{plot}{lago_budget}(x, ...)
 }
 \arguments{
-\item{x}{A `"lago_budget"` object from [lago_budget()].}
+\item{x}{A \code{"lago_budget"} object from \code{\link[=lago_budget]{lago_budget()}}.}
 
 \item{...}{Ignored.}
 }
 \value{
-A [ggplot2][ggplot2::ggplot] object, or `NULL` invisibly when there is
+A \link[ggplot2:ggplot]{ggplot2} object, or \code{NULL} invisibly when there is
 nothing reachable to plot.
 }
 \description{
