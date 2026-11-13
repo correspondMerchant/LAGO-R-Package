@@ -85,15 +85,15 @@ get_outcome <- function(
 #' warn_if_outcome_outside_range
 #'
 #' @description Non-fatal check that the estimated outcome REPORTED for a
-#' binary outcome is a probability, i.e. that it lies in [0, 1]. Warns, never
+#' binary outcome is a probability, i.e. that it lies in \[0, 1\]. Warns, never
 #' raises, and never alters a value.
 #'
 #' @details A binary outcome's estimate is a probability, and on the "logit"
-#' link it is expit() of the linear predictor and is inside [0, 1] by
+#' link it is expit() of the linear predictor and is inside \[0, 1\] by
 #' construction. On the "identity" link the model is a linear probability model
 #' and the estimate IS the linear predictor, so it is not confined to anything.
 #' A fit whose every fitted value on the DATA is a probability still
-#' extrapolates outside [0, 1] at an intervention outside the range its
+#' extrapolates outside \[0, 1\] at an intervention outside the range its
 #' components were fitted over, which is exactly what intervention bounds
 #' reaching beyond that range ask for. glm() does not object, because it only
 #' ever sees the data. So "Estimated outcome: 1.5351" was reported for a
@@ -118,7 +118,7 @@ get_outcome <- function(
 #' NOT placed inside get_outcome(), which is the single place the estimate is
 #' produced, for two reasons that are each sufficient. First, outcome_type does
 #' not reach it and neither do its callers carry one, so it cannot know that
-#' [0, 1] is the right range and a guard there would fire on a continuous
+#' \[0, 1\] is the right range and a guard there would fire on a continuous
 #' outcome, whose range is not knowable. Second, and decisively, get_outcome()
 #' is evaluated on the FLIPPED outcome scale under
 #' outcome_goal_intention = "minimize", where the identity-link flip is a

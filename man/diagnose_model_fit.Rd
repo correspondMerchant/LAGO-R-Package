@@ -22,10 +22,12 @@ Invisibly NULL. Called for its side effect of issuing warnings.
 Checks the fitted glm for signs that the fit is unreliable and issues
 warnings (never errors) so LAGO optimization can continue. Covers three
 Tier-1 checks:
-  1. glm fit warnings captured during fitting (separation signal).
-  2. separation / near-non-identifiability, detected via extremely large
-     coefficient standard errors relative to the estimates.
-  3. intervention-component effects that are not statistically significant,
-     which make the corresponding part of the recommendation unreliable.
+\enumerate{
+\item glm fit warnings captured during fitting (separation signal).
+\item separation / near-non-identifiability, detected via extremely large
+coefficient standard errors relative to the estimates.
+\item intervention-component effects that are not statistically significant,
+which make the corresponding part of the recommendation unreliable.
+}
 }
 \keyword{internal}

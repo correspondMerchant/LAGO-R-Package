@@ -1385,7 +1385,7 @@ validate_inputs <- function(
 #' between the smallest and the largest of them. A negative weight breaks
 #' exactly that, and summing to 1 does not rule one out: weights of -10 and 11
 #' sum to 1 and gave 10.95 for a logit outcome, i.e. a reported "probability"
-#' outside [0, 1] for a binary outcome. That is a wrong number rather than an
+#' outside \[0, 1\] for a binary outcome. That is a wrong number rather than an
 #' error, so it is refused and not clamped: a caller who passed a negative
 #' weight did not mean a weight of 0, and quietly substituting one would answer
 #' a question they did not ask.

@@ -7,23 +7,23 @@
 \method{print}{lago}(x, ...)
 }
 \arguments{
-\item{x}{A "lago" object returned by [lago_optimization()].}
+\item{x}{A "lago" object returned by \code{\link[=lago_optimization]{lago_optimization()}}.}
 
 \item{...}{Ignored.}
 }
 \value{
-`x`, invisibly.
+\code{x}, invisibly.
 }
 \description{
 Full console display of the object returned by
-[lago_optimization()], rendered with boxed, colour-accented [cli][cli::cli]
+\code{\link[=lago_optimization]{lago_optimization()}}, rendered with boxed, colour-accented \link[cli:cli]{cli}
 sections: an inputs recap (data dimensions, outcome, intervention components,
 model family/link and fixed effects, goals, costs and bounds), the fitted
 outcome-model coefficient table, the overall intervention-effect test, the
 recommended intervention with its cost and the estimated outcome (and its
-confidence interval, 95\% by default), and the confidence set (size, cost
+confidence interval, 95\\% by default), and the confidence set (size, cost
 IQR, and first rows). Everything is shown on the console so results can be
-read without further calls. [summary.lago()] renders the same output.
+read without further calls. \code{\link[=summary.lago]{summary.lago()}} renders the same output.
 }
 \examples{
 # lago_optimization() already prints the result, so quiet = TRUE avoids

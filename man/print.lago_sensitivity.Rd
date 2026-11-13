@@ -7,17 +7,17 @@
 \method{print}{lago_sensitivity}(x, ...)
 }
 \arguments{
-\item{x}{A `"lago_sensitivity"` object from [lago_sensitivity()].}
+\item{x}{A \code{"lago_sensitivity"} object from \code{\link[=lago_sensitivity]{lago_sensitivity()}}.}
 
 \item{...}{Ignored.}
 }
 \value{
-`x`, invisibly.
+\code{x}, invisibly.
 }
 \description{
 Prints a short header naming the varied parameter, the number
-of runs and how many failed, then the sensitivity `data.frame`, then a
-one-line summary of how `rec_int_cost` ranges over the sweep.
+of runs and how many failed, then the sensitivity \code{data.frame}, then a
+one-line summary of how \code{rec_int_cost} ranges over the sweep.
 }
 \examples{
 \donttest{

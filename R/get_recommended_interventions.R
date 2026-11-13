@@ -344,6 +344,7 @@ select_restart_within_bounds <- function(restart_points,
 #' - First component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3
 #' - Second component: cost = 4 + 6x_2
 #' - Third component: cost = 5 + 4x_3 + 3x_3^2
+#'
 #' list(c(0, 2), c(0, 6), c(0, 4)) represents:
 #' - First component: cost = 2x_1
 #' - Second component: cost = 6x_2

@@ -7,83 +7,83 @@
 lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
 }
 \arguments{
-\item{object}{An optional `lago` result from [lago_optimization()]. When
+\item{object}{An optional \code{lago} result from \code{\link[=lago_optimization]{lago_optimization()}}. When
 supplied, the baseline optimization arguments are taken from the call it
-carries (so the whole call need not be retyped), and any arguments in `...`
-override those stored values. When `NULL` (the default), the baseline
-arguments come from `...`. Passing an object that is not a `lago` result is
-an error, as is passing a `lago` result from an older version of the package
+carries (so the whole call need not be retyped), and any arguments in \code{...}
+override those stored values. When \code{NULL} (the default), the baseline
+arguments come from \code{...}. Passing an object that is not a \code{lago} result is
+an error, as is passing a \code{lago} result from an older version of the package
 that did not record its call arguments.}
 
-\item{...}{The baseline [lago_optimization()] arguments (the user's own
-optimization call). They are forwarded unchanged to every run. When `object`
+\item{...}{The baseline \code{\link[=lago_optimization]{lago_optimization()}} arguments (the user's own
+optimization call). They are forwarded unchanged to every run. When \code{object}
 is not supplied, these are the baseline arguments and the user typically
-copies their `lago_optimization(...)` call in and simply adds `parameter` and
-`values`. When `object` is supplied, anything here overrides the arguments
-stored on the object. `include_confidence_set` and `quiet` supplied here are
+copies their \code{lago_optimization(...)} call in and simply adds \code{parameter} and
+\code{values}. When \code{object} is supplied, anything here overrides the arguments
+stored on the object. \code{include_confidence_set} and \code{quiet} supplied here are
 overridden (see Details).}
 
 \item{parameter}{A single character string naming what to vary. Two modes:
 \enumerate{
-  \item The name of a scalar numeric argument of [lago_optimization()] that
-  affects the recommendation (for example `"outcome_goal"`, `"power_goal"`,
-  or `"icc"`). Each run overrides that argument with one
-  element of `values`. Vector-valued arguments such as
-  `intervention_lower_bounds`, and confidence-set-only arguments such as
-  `confidence_set_alpha` (the confidence set is not computed during a sweep),
-  are rejected.
-  \item The special string `"cost_multiplier"`: each run multiplies every
-  coefficient of every vector in the baseline `cost_list_of_vectors` by one
-  element of `values`, so `values = c(0.8, 1, 1.2)` evaluates the costs at
-  80\%, 100\%, and 120\%. This mode requires `cost_list_of_vectors` in
-  `...` and all `values` must be positive.
+\item The name of a scalar numeric argument of \code{\link[=lago_optimization]{lago_optimization()}} that
+affects the recommendation (for example \code{"outcome_goal"}, \code{"power_goal"},
+or \code{"icc"}). Each run overrides that argument with one
+element of \code{values}. Vector-valued arguments such as
+\code{intervention_lower_bounds}, and confidence-set-only arguments such as
+\code{confidence_set_alpha} (the confidence set is not computed during a sweep),
+are rejected.
+\item The special string \code{"cost_multiplier"}: each run multiplies every
+coefficient of every vector in the baseline \code{cost_list_of_vectors} by one
+element of \code{values}, so \code{values = c(0.8, 1, 1.2)} evaluates the costs at
+80\\%, 100\\%, and 120\\%. This mode requires \code{cost_list_of_vectors} in
+\code{...} and all \code{values} must be positive.
 }}
 
 \item{values}{A non-empty numeric vector, all finite. One run per element.}
 
-\item{quiet}{A boolean forwarded to [lago_optimization()]. Defaults to
-`TRUE` so the sweep is not noisy. Genuine warnings about the data or model
+\item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}}. Defaults to
+\code{TRUE} so the sweep is not noisy. Genuine warnings about the data or model
 fit from each run are still shown.}
 }
 \value{
-An object of class `"lago_sensitivity"`, which is a `data.frame`
-with one row per element of `values` and columns:
+An object of class \code{"lago_sensitivity"}, which is a \code{data.frame}
+with one row per element of \code{values} and columns:
 \describe{
-  \item{value}{The swept value for that run.}
-  \item{<component>}{One numeric column per intervention component, named by
-  the component, holding its recommended value for that run.}
-  \item{rec_int_cost}{The cost of the recommended intervention.}
-  \item{est_outcome_goal}{The estimated outcome at the recommendation.}
-  \item{status}{`"ok"` for a successful run, otherwise `"error"`.}
+\item{value}{The swept value for that run.}
+\item{\if{html}{\out{<component>}}}{One numeric column per intervention component, named by
+the component, holding its recommended value for that run.}
+\item{rec_int_cost}{The cost of the recommended intervention.}
+\item{est_outcome_goal}{The estimated outcome at the recommendation.}
+\item{status}{\code{"ok"} for a successful run, otherwise \code{"error"}.}
 }
-The object carries attributes `parameter` (the swept string),
-`component_names` (the component column names), `baseline` (the full
-[lago_optimization()] result at the baseline value, i.e. multiplier 1 for
-`"cost_multiplier"` or the value supplied in `...` for a named parameter, or
-`NULL` if not present), and, when any run failed, `error_messages` (the
+The object carries attributes \code{parameter} (the swept string),
+\code{component_names} (the component column names), \code{baseline} (the full
+\code{\link[=lago_optimization]{lago_optimization()}} result at the baseline value, i.e. multiplier 1 for
+\code{"cost_multiplier"} or the value supplied in \code{...} for a named parameter, or
+\code{NULL} if not present), and, when any run failed, \code{error_messages} (the
 error text named by the failed values).
 }
 \description{
 Trial designers often are unsure about some of the inputs to
-[lago_optimization()], chiefly the outcome goal and the assumed intervention
-costs. `lago_sensitivity()` answers "how much does the recommendation move
-if that input is different?" by re-running [lago_optimization()] across a
+\code{\link[=lago_optimization]{lago_optimization()}}, chiefly the outcome goal and the assumed intervention
+costs. \code{lago_sensitivity()} answers "how much does the recommendation move
+if that input is different?" by re-running \code{\link[=lago_optimization]{lago_optimization()}} across a
 sweep of one input and reporting how the recommended intervention, its cost,
 and the estimated outcome change. This turns a single point recommendation
 into a robustness picture: a stringency curve for the outcome goal, or a
 straight line for a uniform cost rescaling.
 
-The confidence set is the slow part of [lago_optimization()] and is not
+The confidence set is the slow part of \code{\link[=lago_optimization]{lago_optimization()}} and is not
 needed to see how a recommendation moves, so every run is forced to
-`include_confidence_set = FALSE` for speed. A single run failing does not
-abort the sweep: its outputs are recorded as `NA` and a single warning names
+\code{include_confidence_set = FALSE} for speed. A single run failing does not
+abort the sweep: its outputs are recorded as \code{NA} and a single warning names
 the failed values afterwards.
 }
 \details{
-Each run builds the modified argument list from `...`, forces
-`include_confidence_set = FALSE`, sets `quiet = quiet`, and calls
-[lago_optimization()] inside `tryCatch()`. A run that errors contributes a
-row of `NA` outputs with a non-`"ok"` status instead of stopping the sweep.
+Each run builds the modified argument list from \code{...}, forces
+\code{include_confidence_set = FALSE}, sets \code{quiet = quiet}, and calls
+\code{\link[=lago_optimization]{lago_optimization()}} inside \code{tryCatch()}. A run that errors contributes a
+row of \code{NA} outputs with a non-\code{"ok"} status instead of stopping the sweep.
 }
 \examples{
 \donttest{
@@ -146,7 +146,7 @@ cost_sens
 
 }
 \seealso{
-[lago_optimization()]
+\code{\link[=lago_optimization]{lago_optimization()}}
 
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},

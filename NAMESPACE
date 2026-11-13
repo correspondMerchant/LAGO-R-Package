@@ -22,11 +22,15 @@ import(stats)
 importFrom(NlcOptim,solnl)
 importFrom(Rcpp,sourceCpp)
 importFrom(ggplot2,.data)
-importFrom(rje,expit)
-importFrom(rje,logit)
-importFrom(shinyjs,hide)
-importFrom(shinyjs,runjs)
-importFrom(shinyjs,show)
-importFrom(shinyjs,useShinyjs)
+importFrom(rje,
+  expit,
+  logit
+)
+importFrom(shinyjs,
+  hide,
+  runjs,
+  show,
+  useShinyjs
+)
 importFrom(utils,head)
 useDynLib(LAGOtrials, .registration = TRUE)

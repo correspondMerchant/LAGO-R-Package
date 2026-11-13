@@ -93,20 +93,20 @@
 #'     the confidence interval at rec_int. Computed whether or not it covers
 #'     the outcome goal, so callers never have to look for rec_int inside cs.
 #'     For a binary outcome on the logit link both bounds are confined to
-#'     [0, 1], where the estimate is a probability by construction and the
+#'     \[0, 1\], where the estimate is a probability by construction and the
 #'     interval around it therefore belongs in that range; the interval is
 #'     still the delta-method one and a bound at exactly 0 or 1 is one that has
 #'     been truncated to the range. Not confined on the identity link, where the
 #'     estimate is the linear predictor and is itself unbounded, so confining
 #'     the interval would report one that excludes its own estimate. That
-#'     estimate leaving [0, 1] is a defect in its own right and not this one;
+#'     estimate leaving \[0, 1\] is a defect in its own right and not this one;
 #'     lago_optimization() now warns when it does, so it is flagged rather than
 #'     silent, and the interval is still reported as computed for the same
 #'     reason as before. Not confined for a continuous outcome either, whose
 #'     range is not knowable here. The exception, for both outcome types, is
 #'     the weighted average center on the logit link, whose estimate is the
 #'     weighted mean of the centers' probabilities: its interval is the delta
-#'     method interval of that mean and is confined to [0, 1]. NULL when that
+#'     method interval of that mean and is confined to \[0, 1\]. NULL when that
 #'     interval is not computable>,
 #'   cs = <data.frame of the grid interventions whose confidence interval
 #'     covers the outcome goal, with their interval bounds and cost. rec_int is

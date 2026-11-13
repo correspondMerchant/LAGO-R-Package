@@ -7,25 +7,25 @@
 \method{plot}{lago_sensitivity}(x, show = c("cost", "components"), ...)
 }
 \arguments{
-\item{x}{A `"lago_sensitivity"` object from [lago_sensitivity()].}
+\item{x}{A \code{"lago_sensitivity"} object from \code{\link[=lago_sensitivity]{lago_sensitivity()}}.}
 
-\item{show}{One of `"cost"` (default, plot `rec_int_cost`) or
-`"components"` (plot the per-component recommended values).}
+\item{show}{One of \code{"cost"} (default, plot \code{rec_int_cost}) or
+\code{"components"} (plot the per-component recommended values).}
 
 \item{...}{Ignored.}
 }
 \value{
-A [ggplot2][ggplot2::ggplot] object, or `NULL` invisibly when
-`show = "components"` and no components are recorded.
+A \link[ggplot2:ggplot]{ggplot2} object, or \code{NULL} invisibly when
+\code{show = "components"} and no components are recorded.
 }
 \description{
-Draws the sensitivity curve with [ggplot2][ggplot2::ggplot].
-By default (`show = "cost"`) it plots the recommended cost against the swept
-value as a line with points: for an `"outcome_goal"` sweep this is the
-cost-of-stringency curve, and for a `"cost_multiplier"` sweep it is a
-straight line. With `show = "components"` it instead plots the recommended
+Draws the sensitivity curve with \link[ggplot2:ggplot]{ggplot2}.
+By default (\code{show = "cost"}) it plots the recommended cost against the swept
+value as a line with points: for an \code{"outcome_goal"} sweep this is the
+cost-of-stringency curve, and for a \code{"cost_multiplier"} sweep it is a
+straight line. With \code{show = "components"} it instead plots the recommended
 value of each intervention component against the swept value, one coloured
-line per component. Rows with `NA` outputs are dropped with a message.
+line per component. Rows with \code{NA} outputs are dropped with a message.
 }
 \examples{
 \donttest{

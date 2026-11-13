@@ -148,7 +148,7 @@ intervention component.
 Default value without user specification: NULL.}
 
 \item{unit_cost_doses}{A numeric vector or NULL. The dose of each
-intervention component at which its unit cost in `unit_costs` was measured,
+intervention component at which its unit cost in \code{unit_costs} was measured,
 one per unit cost and within the bounds. The cubic cost is then pinned there,
 so the cost per unit at that dose is the unit cost, and the curve does not
 depend on the units of the cost or of the dose. Without it the cubic cost
@@ -165,13 +165,19 @@ functions for each intervention component. Each numeric vector in the list
 contains coefficients of the cost function for one intervention component.
 For example:
 list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents:
-- First component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3
-- Second component: cost = 4 + 6x_2
-- Third component: cost = 5 + 4x_3 + 3x_3^2
+\itemize{
+\item First component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3
+\item Second component: cost = 4 + 6x_2
+\item Third component: cost = 5 + 4x_3 + 3x_3^2
+}
+
 list(c(0, 2), c(0, 6), c(0, 4)) represents:
-- First component: cost = 2x_1
-- Second component: cost = 6x_2
-- Third component: cost = 4x_3
+\itemize{
+\item First component: cost = 2x_1
+\item Second component: cost = 6x_2
+\item Third component: cost = 4x_3
+}
+
 Default value without user specification: NULL.
 Please note that either the unit_costs or cost_list_of_vectors must be
 specified. If both are specified, the cost_list_of_vectors will be used.}
@@ -191,10 +197,13 @@ Default value without user specification:
 \item{optimization_method}{A character string. Specifies the method used for
 LAGO optimization. Must be either "numerical" or "grid_search".
 Default value without user specification: "numerical".
-- Use "grid_search" if you want to exhaustively test every possible
+\itemize{
+\item Use "grid_search" if you want to exhaustively test every possible
 intervention package compositions in LAGO optimization.
-- Use "numerical" if you want to use gradient-based technique in LAGO
+\item Use "numerical" if you want to use gradient-based technique in LAGO
 optimization.
+}
+
 Note: if optimization_grid_search_step_size is provided while this is
 "numerical", it is automatically switched to "grid_search" (with a message).}
 
@@ -356,8 +365,8 @@ the shrinking method gave the recommendation, in which case no confidence set
 is computed.
 The confidence set fields are only present when include_confidence_set = TRUE.)
 The result also carries its own call arguments in the attribute
-`"lago_call_args"` (not a `$`-accessible field), so it can be passed directly
-to [lago_sensitivity()] to sweep one input without retyping the call.
+\code{"lago_call_args"} (not a \code{$}-accessible field), so it can be passed directly
+to \code{\link[=lago_sensitivity]{lago_sensitivity()}} to sweep one input without retyping the call.
 }
 \description{
 Fits the outcome model, calculates the recommended
@@ -431,7 +440,7 @@ lago_optimization(
 
 }
 \seealso{
-[get_confidence_set()], [visualize_cost()], [lago_report()]
+\code{\link[=get_confidence_set]{get_confidence_set()}}, \code{\link[=visualize_cost]{visualize_cost()}}, \code{\link[=lago_report]{lago_report()}}
 
 Other LAGO functions:
 \code{\link[=get_confidence_set]{get_confidence_set()}},

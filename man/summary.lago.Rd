@@ -7,18 +7,18 @@
 \method{summary}{lago}(object, ...)
 }
 \arguments{
-\item{object}{A "lago" object returned by [lago_optimization()].}
+\item{object}{A "lago" object returned by \code{\link[=lago_optimization]{lago_optimization()}}.}
 
 \item{...}{Ignored.}
 }
 \value{
-`object`, invisibly.
+\code{object}, invisibly.
 }
 \description{
-Renders the same full console display as [print.lago()]: the
+Renders the same full console display as \code{\link[=print.lago]{print.lago()}}: the
 inputs recap, outcome-model coefficient table, overall intervention-effect
 test, recommended intervention (with cost and the estimated-outcome CI), and
-the confidence set. Provided so `summary()` works as expected on a "lago"
+the confidence set. Provided so \code{summary()} works as expected on a "lago"
 object.
 }
 \examples{

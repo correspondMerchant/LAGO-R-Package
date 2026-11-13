@@ -7,12 +7,12 @@
 \method{print}{lago_budget}(x, ...)
 }
 \arguments{
-\item{x}{A `"lago_budget"` object from [lago_budget()].}
+\item{x}{A \code{"lago_budget"} object from \code{\link[=lago_budget]{lago_budget()}}.}
 
 \item{...}{Ignored.}
 }
 \value{
-`x`, invisibly.
+\code{x}, invisibly.
 }
 \description{
 Prints a short header with the budget and whether it binds, then

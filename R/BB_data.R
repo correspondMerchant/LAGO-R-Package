@@ -23,8 +23,8 @@
 #'   \item{pp2_hand_hygiene}{fada_op2_handwashing}
 #'   \item{pp3_oxytocin_mother}{fada_op3_oxytocin_administered}
 #'   \item{center_type}{Phase of the pilot studies}
-#'   \item{coach5}{Number of coaching vissts accrued divided by 5}
-#'   \item{coach3}{Number of coaching vissts accrued divided by 3}
+#'   \item{coach5}{Number of coaching visits accrued divided by 5}
+#'   \item{coach3}{Number of coaching visits accrued divided by 3}
 #' }
 #' @source \doi{10.1186/s13012-015-0309-y}
 #' @source \doi{10.1056/NEJMoa1701075}

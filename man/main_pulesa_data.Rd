@@ -7,21 +7,21 @@
 \format{
 A data frame with 192 rows and 15 variables:
 \describe{
-  \item{Clinic}{Clinic (cluster) identifier}
-  \item{Period}{Study time period}
-  \item{AccessBPMachines}{Intervention component: access to blood-pressure machines}
-  \item{AccessMedicines}{Intervention component: access to medicines}
-  \item{DeliveryA}{Intervention component: care delivery mode A}
-  \item{DeliveryB}{Intervention component: care delivery mode B}
-  \item{HypertensionTraining}{Intervention component: hypertension training}
-  \item{MI_DeliveryB}{Interaction term involving delivery mode B}
-  \item{MI_PerformanceImprovement}{Interaction term involving performance improvement}
-  \item{MI_RemoteMonitoring}{Interaction term involving remote monitoring}
-  \item{PerformanceImprovement}{Intervention component: performance improvement}
-  \item{Proportions}{Outcome: proportion of successes at the clinic-period}
-  \item{RemoteMonitoring}{Intervention component: remote monitoring}
-  \item{Success}{Outcome: number of successes at the clinic-period}
-  \item{Total_visit}{Number of visits at the clinic-period}
+\item{Clinic}{Clinic (cluster) identifier}
+\item{Period}{Study time period}
+\item{AccessBPMachines}{Intervention component: access to blood-pressure machines}
+\item{AccessMedicines}{Intervention component: access to medicines}
+\item{DeliveryA}{Intervention component: care delivery mode A}
+\item{DeliveryB}{Intervention component: care delivery mode B}
+\item{HypertensionTraining}{Intervention component: hypertension training}
+\item{MI_DeliveryB}{Interaction term involving delivery mode B}
+\item{MI_PerformanceImprovement}{Interaction term involving performance improvement}
+\item{MI_RemoteMonitoring}{Interaction term involving remote monitoring}
+\item{PerformanceImprovement}{Intervention component: performance improvement}
+\item{Proportions}{Outcome: proportion of successes at the clinic-period}
+\item{RemoteMonitoring}{Intervention component: remote monitoring}
+\item{Success}{Outcome: number of successes at the clinic-period}
+\item{Total_visit}{Number of visits at the clinic-period}
 }
 }
 \usage{
