@@ -171,8 +171,9 @@ get_confidence_set(
   A list of one or two vectors, a single vector, or NULL. Specifies the
   columns of data that will be used as clustering effects when the
   "outcome_type" is continuous, with one entry per fitted row.
-  \[lago_optimization()\] leaves it NULL, since its fixed center and
-  time effects already model the centers and periods.
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  leaves it NULL, since its fixed center and time effects already model
+  the centers and periods.
 
 - cost_list_of_vectors:
 
@@ -247,7 +248,7 @@ separate from observation weights.
 
 ## See also
 
-\[lago_optimization()\]
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 
 Other LAGO functions:
 [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md),

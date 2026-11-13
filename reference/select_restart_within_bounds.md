@@ -45,8 +45,11 @@ select_restart_within_bounds(
 
 ## Value
 
-A list with: - int_components: the chosen intervention, projected onto
-the bounds. - rec_int_cost: cost_fun() evaluated at int_components.
+A list with:
+
+- int_components: the chosen intervention, projected onto the bounds.
+
+- rec_int_cost: cost_fun() evaluated at int_components.
 
 ## Details
 

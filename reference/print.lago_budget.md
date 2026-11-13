@@ -15,7 +15,8 @@ print(x, ...)
 
 - x:
 
-  A \`"lago_budget"\` object from \[lago_budget()\].
+  A `"lago_budget"` object from
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md).
 
 - ...:
 
@@ -23,7 +24,7 @@ print(x, ...)
 
 ## Value
 
-\`x\`, invisibly.
+`x`, invisibly.
 
 ## Examples
 
@@ -44,7 +45,7 @@ print(b)
 #> 
 #> Budget: 100 (maximize).
 #> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819384081165 (of 100).
-#> Estimated outcome: 35.1051278351624.
+#> Cost: 99.7819396146112 (of 100).
+#> Estimated outcome: 35.1051282051282.
 # }
 ```

@@ -82,11 +82,21 @@ get_recommended_interventions(
   A list of numeric vectors. Specifies the cost functions for each
   intervention component. Each numeric vector in the list contains
   coefficients of the cost function for one intervention component. For
-  example: list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents: - First
-  component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3 - Second component: cost
-  = 4 + 6x_2 - Third component: cost = 5 + 4x_3 + 3x_3^2 list(c(0, 2),
-  c(0, 6), c(0, 4)) represents: - First component: cost = 2x_1 - Second
-  component: cost = 6x_2 - Third component: cost = 4x_3
+  example: list(c(1, 2, 3, 4), c(4, 6), c(5, 4, 3)) represents:
+
+  - First component: cost = 1 + 2x_1 + 3x_1^2 + 4x_1^3
+
+  - Second component: cost = 4 + 6x_2
+
+  - Third component: cost = 5 + 4x_3 + 3x_3^2
+
+  list(c(0, 2), c(0, 6), c(0, 4)) represents:
+
+  - First component: cost = 2x_1
+
+  - Second component: cost = 6x_2
+
+  - Third component: cost = 4x_3
 
 - intervention_lower_bounds:
 
@@ -109,10 +119,13 @@ get_recommended_interventions(
 
   A character string. Specifies the method used for LAGO optimization.
   Must be either "numerical" or "grid_search". Default value without
-  user specification: "numerical". - Use "grid_search" if you want to
-  exhaustively test every possible intervention package compositions in
-  LAGO optimization. - Use "numerical" if you want to use gradient-based
-  technique in LAGO optimization.
+  user specification: "numerical".
+
+  - Use "grid_search" if you want to exhaustively test every possible
+    intervention package compositions in LAGO optimization.
+
+  - Use "numerical" if you want to use gradient-based technique in LAGO
+    optimization.
 
 - optimization_grid_search_step_size:
 

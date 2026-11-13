@@ -15,7 +15,8 @@ plot(x, ...)
 
 - x:
 
-  A \`"lago_budget"\` object from \[lago_budget()\].
+  A `"lago_budget"` object from
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md).
 
 - ...:
 
@@ -23,8 +24,8 @@ plot(x, ...)
 
 ## Value
 
-A \[ggplot2\]\[ggplot2::ggplot\] object, or \`NULL\` invisibly when
-there is nothing reachable to plot.
+A [ggplot2](https://ggplot2.tidyverse.org/reference/ggplot.html) object,
+or `NULL` invisibly when there is nothing reachable to plot.
 
 ## Examples
 

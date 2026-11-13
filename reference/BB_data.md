@@ -91,11 +91,11 @@ A data frame with 6124 rows and 21 variables:
 
 - coach5:
 
-  Number of coaching vissts accrued divided by 5
+  Number of coaching visits accrued divided by 5
 
 - coach3:
 
-  Number of coaching vissts accrued divided by 3
+  Number of coaching visits accrued divided by 3
 
 ## Source
 

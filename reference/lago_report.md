@@ -1,19 +1,23 @@
 # Generate an HTML report for a LAGO optimization result
 
 Renders a self-contained, interactive HTML report for the object
-returned by \[lago_optimization()\]. The report knits a bundled
-parameterized R Markdown template and lays out the same sections, in the
-same order and with the same labels, as the console methods
-(\[print.lago()\] / \[summary.lago()\]): the recommended intervention,
-its cost, the estimated outcome (with its confidence interval, 95% by
-default) and goal, the power goal (when present), the confidence set
-(size, cost IQR, and first rows), the overall intervention-effect test
-(when present), and the fitted outcome-model coefficient table. A
-\`sessionInfo()\` footer records the environment the report was produced
-in.
+returned by
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
+The report knits a bundled parameterized R Markdown template and lays
+out the same sections, in the same order and with the same labels, as
+the console methods
+([`print.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago.md)
+/
+[`summary.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.md)):
+the recommended intervention, its cost, the estimated outcome (with its
+confidence interval, 95\\ present), the confidence set (size, cost IQR,
+and first rows), the overall intervention-effect test (when present),
+and the fitted outcome-model coefficient table. A
+[`sessionInfo()`](https://rdrr.io/r/utils/sessionInfo.html) footer
+records the environment the report was produced in.
 
 No new statistics are computed; every value is taken verbatim from an
-existing field on \`x\` and formatted exactly as the console output
+existing field on `x` and formatted exactly as the console output
 formats it.
 
 ## Usage
@@ -32,12 +36,13 @@ lago_report(
 
 - x:
 
-  A "lago" object returned by \[lago_optimization()\].
+  A "lago" object returned by
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
 
 - output_file:
 
-  A character string. The path to write the HTML report to. If \`NULL\`
-  (the default), a temporary file with a \`.html\` extension is used.
+  A character string. The path to write the HTML report to. If `NULL`
+  (the default), a temporary file with a `.html` extension is used.
 
 - title:
 
@@ -46,13 +51,14 @@ lago_report(
 
 - open:
 
-  A boolean. If \`TRUE\`, opens the rendered report in a browser via
-  \[utils::browseURL()\]. Default value without user specification:
-  \`FALSE\`.
+  A boolean. If `TRUE`, opens the rendered report in a browser via
+  [`utils::browseURL()`](https://rdrr.io/r/utils/browseURL.html).
+  Default value without user specification: `FALSE`.
 
 - ...:
 
-  Additional arguments passed to \[rmarkdown::render()\].
+  Additional arguments passed to
+  [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html).
 
 ## Value
 
@@ -61,9 +67,9 @@ The path to the rendered HTML file, invisibly.
 ## Details
 
 The report is interactive and drawn entirely client-side with the
-bundled D3 v7 library (\`inst/js/d3.v7.min.js\`) plus
-\`inst/js/lago-report.js\`, both inlined into the HTML so the output is
-a single self-contained, offline file with no external asset references
+bundled D3 v7 library (`inst/js/d3.v7.min.js`) plus
+`inst/js/lago-report.js`, both inlined into the HTML so the output is a
+single self-contained, offline file with no external asset references
 (no CDN, no Shiny, no additional widget frameworks). It adds two
 interactive views:
 
@@ -71,8 +77,9 @@ interactive views:
   two-component intervention (with the recommended intervention
   highlighted) or a one-dimensional strip for a single component. For 3+
   components, or when the interactive view is not applicable, it falls
-  back to the static \[plot.lago()\] figure; when no confidence set is
-  available the section is omitted.
+  back to the static
+  [`plot.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago.md)
+  figure; when no confidence set is available the section is omitted.
 
 - interactive cost curves: for each intervention component, its
   total-cost curve and marginal (per-unit) cost curve, each with a hover
@@ -84,7 +91,7 @@ is raised.
 
 ## See also
 
-\[lago_optimization()\]
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 
 Other LAGO functions:
 [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),

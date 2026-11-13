@@ -1,8 +1,8 @@
 # Print a LAGO sensitivity analysis
 
 Prints a short header naming the varied parameter, the number of runs
-and how many failed, then the sensitivity \`data.frame\`, then a
-one-line summary of how \`rec_int_cost\` ranges over the sweep.
+and how many failed, then the sensitivity `data.frame`, then a one-line
+summary of how `rec_int_cost` ranges over the sweep.
 
 ## Usage
 
@@ -15,7 +15,8 @@ print(x, ...)
 
 - x:
 
-  A \`"lago_sensitivity"\` object from \[lago_sensitivity()\].
+  A `"lago_sensitivity"` object from
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md).
 
 - ...:
 
@@ -23,7 +24,7 @@ print(x, ...)
 
 ## Value
 
-\`x\`, invisibly.
+`x`, invisibly.
 
 ## Examples
 

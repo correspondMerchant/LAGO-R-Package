@@ -1,12 +1,13 @@
 # Plot a LAGO sensitivity analysis
 
-Draws the sensitivity curve with \[ggplot2\]\[ggplot2::ggplot\]. By
-default (\`show = "cost"\`) it plots the recommended cost against the
-swept value as a line with points: for an \`"outcome_goal"\` sweep this
-is the cost-of-stringency curve, and for a \`"cost_multiplier"\` sweep
-it is a straight line. With \`show = "components"\` it instead plots the
+Draws the sensitivity curve with
+[ggplot2](https://ggplot2.tidyverse.org/reference/ggplot.html). By
+default (`show = "cost"`) it plots the recommended cost against the
+swept value as a line with points: for an `"outcome_goal"` sweep this is
+the cost-of-stringency curve, and for a `"cost_multiplier"` sweep it is
+a straight line. With `show = "components"` it instead plots the
 recommended value of each intervention component against the swept
-value, one coloured line per component. Rows with \`NA\` outputs are
+value, one coloured line per component. Rows with `NA` outputs are
 dropped with a message.
 
 ## Usage
@@ -20,12 +21,13 @@ plot(x, show = c("cost", "components"), ...)
 
 - x:
 
-  A \`"lago_sensitivity"\` object from \[lago_sensitivity()\].
+  A `"lago_sensitivity"` object from
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md).
 
 - show:
 
-  One of \`"cost"\` (default, plot \`rec_int_cost\`) or \`"components"\`
-  (plot the per-component recommended values).
+  One of `"cost"` (default, plot `rec_int_cost`) or `"components"` (plot
+  the per-component recommended values).
 
 - ...:
 
@@ -33,8 +35,9 @@ plot(x, show = c("cost", "components"), ...)
 
 ## Value
 
-A \[ggplot2\]\[ggplot2::ggplot\] object, or \`NULL\` invisibly when
-\`show = "components"\` and no components are recorded.
+A [ggplot2](https://ggplot2.tidyverse.org/reference/ggplot.html) object,
+or `NULL` invisibly when `show = "components"` and no components are
+recorded.
 
 ## Examples
 

@@ -2,6 +2,14 @@
 
 ## LAGOtrials (development version)
 
+- The help pages now render their formatting. Markdown was never turned
+  on for the package, so a link such as \[lago_optimization()\] and the
+  code marks around an argument name were printed as typed. Links now
+  work, code is set in code font, and the lists of cost functions and of
+  optimization methods are real lists. The text itself is unchanged,
+  apart from three places where a sentence that followed a list ran into
+  its last item.
+
 - [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
   now opens the cost designer of
   [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)

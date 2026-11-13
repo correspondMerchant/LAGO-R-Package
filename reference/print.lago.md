@@ -1,15 +1,17 @@
 # Print a LAGO optimization result
 
-Full console display of the object returned by \[lago_optimization()\],
-rendered with boxed, colour-accented \[cli\]\[cli::cli\] sections: an
-inputs recap (data dimensions, outcome, intervention components, model
+Full console display of the object returned by
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+rendered with boxed, colour-accented
+[cli](https://cli.r-lib.org/reference/cli.html) sections: an inputs
+recap (data dimensions, outcome, intervention components, model
 family/link and fixed effects, goals, costs and bounds), the fitted
 outcome-model coefficient table, the overall intervention-effect test,
 the recommended intervention with its cost and the estimated outcome
-(and its confidence interval, 95% by default), and the confidence set
-(size, cost IQR, and first rows). Everything is shown on the console so
-results can be read without further calls. \[summary.lago()\] renders
-the same output.
+(and its confidence interval, 95\\ IQR, and first rows). Everything is
+shown on the console so results can be read without further calls.
+[`summary.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.md)
+renders the same output.
 
 ## Usage
 
@@ -22,7 +24,8 @@ print(x, ...)
 
 - x:
 
-  A "lago" object returned by \[lago_optimization()\].
+  A "lago" object returned by
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
 
 - ...:
 
@@ -30,7 +33,7 @@ print(x, ...)
 
 ## Value
 
-\`x\`, invisibly.
+`x`, invisibly.
 
 ## Examples
 

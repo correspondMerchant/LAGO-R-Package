@@ -3,17 +3,17 @@
 without writing R code. You load a dataset, choose the outcome and the goal,
 choose the intervention components with their bounds and costs, and say how
 the model accounts for centers and time. The app then finds the recommended
-intervention with [lago_optimization()] and shows the result, the confidence
+intervention with lago_optimization() and shows the result, the confidence
 set and the R code that reproduces the run. From that result it can sweep
-one input with [lago_sensitivity()], find the best outcome for a budget with
-[lago_budget()], and save a report with [lago_report()]."><meta property="og:description" content="Opens a Shiny app in your web browser that runs the whole LAGO optimization
+one input with lago_sensitivity(), find the best outcome for a budget with
+lago_budget(), and save a report with lago_report()."><meta property="og:description" content="Opens a Shiny app in your web browser that runs the whole LAGO optimization
 without writing R code. You load a dataset, choose the outcome and the goal,
 choose the intervention components with their bounds and costs, and say how
 the model accounts for centers and time. The app then finds the recommended
-intervention with [lago_optimization()] and shows the result, the confidence
+intervention with lago_optimization() and shows the result, the confidence
 set and the R code that reproduces the run. From that result it can sweep
-one input with [lago_sensitivity()], find the best outcome for a budget with
-[lago_budget()], and save a report with [lago_report()]."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
+one input with lago_sensitivity(), find the best outcome for a budget with
+lago_budget(), and save a report with lago_report()."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -66,10 +66,10 @@ one input with [lago_sensitivity()], find the best outcome for a budget with
 without writing R code. You load a dataset, choose the outcome and the goal,
 choose the intervention components with their bounds and costs, and say how
 the model accounts for centers and time. The app then finds the recommended
-intervention with [lago_optimization()] and shows the result, the confidence
+intervention with <code><a href="lago_optimization.html">lago_optimization()</a></code> and shows the result, the confidence
 set and the R code that reproduces the run. From that result it can sweep
-one input with [lago_sensitivity()], find the best outcome for a budget with
-[lago_budget()], and save a report with [lago_report()].</p>
+one input with <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code>, find the best outcome for a budget with
+<code><a href="lago_budget.html">lago_budget()</a></code>, and save a report with <code><a href="lago_report.html">lago_report()</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -82,8 +82,8 @@ one input with [lago_sensitivity()], find the best outcome for a budget with
 
 
 <dl><dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>A data.frame to start with, or `NULL` to start with the
-bundled `BB_data` example.</p></dd>
+<dd><p>A data.frame to start with, or <code>NULL</code> to start with the
+bundled <code>BB_data</code> example.</p></dd>
 
 
 <dt id="arg-launch-browser">launch.browser<a class="anchor" aria-label="anchor" href="#arg-launch-browser"></a></dt>
@@ -92,70 +92,68 @@ it opens in an interactive session.</p></dd>
 
 
 <dt id="arg-port">port<a class="anchor" aria-label="anchor" href="#arg-port"></a></dt>
-<dd><p>The port to listen on, or `NULL` for a free one.</p></dd>
+<dd><p>The port to listen on, or <code>NULL</code> for a free one.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Invisibly, when you click **Done** or close the browser tab, a list
-  with the last `result` of [lago_optimization()] (or `NULL` if nothing was
-  run), the last `sensitivity` of [lago_sensitivity()] and `budget` of
-  [lago_budget()] run from it (or `NULL`), the R `code` of all of them as a
-  character vector, and the `arguments` of the optimization. The same list
-  is stored in the `lago_app_result` option.</p>
+    <p>Invisibly, when you click <strong>Done</strong> or close the browser tab, a list
+with the last <code>result</code> of <code><a href="lago_optimization.html">lago_optimization()</a></code> (or <code>NULL</code> if nothing was
+run), the last <code>sensitivity</code> of <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> and <code>budget</code> of
+<code><a href="lago_budget.html">lago_budget()</a></code> run from it (or <code>NULL</code>), the R <code>code</code> of all of them as a
+character vector, and the <code>arguments</code> of the optimization. The same list
+is stored in the <code>lago_app_result</code> option.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The app runs on your own computer and is reachable only from it, at
-`127.0.0.1`. Nothing is sent over the network.</p>
-<p>The app has these steps.</p>
-<p>* **Data:** the `data` you pass, the bundled `BB_data`, R's `mtcars`, or a
-  CSV file you upload. Each example opens on a setup that runs as is.
-* **Outcome and goal:** `outcome_name`, `outcome_type`, `outcome_goal`,
-  `outcome_goal_intention`, and for a binary outcome the power goal:
-  `power_goal`, `num_centers_in_next_stage`,
-  `patients_per_center_in_next_stage`, `power_goal_approach`, `icc` and
-  `power_goal_cluster_id`. The app builds the `group` column from the
-  treatment arm column you choose.
-* **Intervention and costs:** `intervention_components`, their bounds, and
-  the costs as `unit_costs` with `default_cost_fxn_type` and
-  `unit_cost_doses`, or as `cost_list_of_vectors`. The "Shape the costs
-  visually" button opens the cost designer of [visualize_cost()] in a dialog,
-  which starts on the costs in use and puts the shaped costs in as cost
-  coefficients. Interaction terms set
-  `include_interaction_terms` and `main_components`, and the app builds each
-  product column.
-* **Centers, time and covariates:** `center_characteristics` with their
-  values, or fixed center effects with `include_center_effects` and
-  `center_effects_optimization_values`, fixed time effects with
-  `include_time_effects` and `time_effect_optimization_value`, and
-  `additional_covariates`. The app builds the `center` and `period` columns
-  from the columns you choose.</p>
-<p>A step that needs attention says what to change, and the run button stays
+<code>127.0.0.1</code>. Nothing is sent over the network.</p>
+<p>The app has these steps.</p><ul><li><p><strong>Data:</strong> the <code>data</code> you pass, the bundled <code>BB_data</code>, R's <code>mtcars</code>, or a
+CSV file you upload. Each example opens on a setup that runs as is.</p></li>
+<li><p><strong>Outcome and goal:</strong> <code>outcome_name</code>, <code>outcome_type</code>, <code>outcome_goal</code>,
+<code>outcome_goal_intention</code>, and for a binary outcome the power goal:
+<code>power_goal</code>, <code>num_centers_in_next_stage</code>,
+<code>patients_per_center_in_next_stage</code>, <code>power_goal_approach</code>, <code>icc</code> and
+<code>power_goal_cluster_id</code>. The app builds the <code>group</code> column from the
+treatment arm column you choose.</p></li>
+<li><p><strong>Intervention and costs:</strong> <code>intervention_components</code>, their bounds, and
+the costs as <code>unit_costs</code> with <code>default_cost_fxn_type</code> and
+<code>unit_cost_doses</code>, or as <code>cost_list_of_vectors</code>. The "Shape the costs
+visually" button opens the cost designer of <code><a href="visualize_cost.html">visualize_cost()</a></code> in a dialog,
+which starts on the costs in use and puts the shaped costs in as cost
+coefficients. Interaction terms set
+<code>include_interaction_terms</code> and <code>main_components</code>, and the app builds each
+product column.</p></li>
+<li><p><strong>Centers, time and covariates:</strong> <code>center_characteristics</code> with their
+values, or fixed center effects with <code>include_center_effects</code> and
+<code>center_effects_optimization_values</code>, fixed time effects with
+<code>include_time_effects</code> and <code>time_effect_optimization_value</code>, and
+<code>additional_covariates</code>. The app builds the <code>center</code> and <code>period</code> columns
+from the columns you choose.</p></li>
+</ul><p>A step that needs attention says what to change, and the run button stays
 off until every step is ready. Warnings from the package are listed with
 the result.</p>
-<p>After a run, these tabs start from its result.</p>
-<p>* **Results:** the recommendation, the confidence set with a CSV download,
-  the outcome model, the intervention test, and the report download of
-  [lago_report()], which needs the rmarkdown, knitr and jsonlite packages
-  and pandoc.
-* **Sensitivity:** [lago_sensitivity()] with `parameter` and `values`. It
-  varies the outcome goal, a multiplier of all costs, and with a power goal
-  the power goal, the centers and patients of the next stage, and the ICC.
-  With time effects it varies the period. The values are even steps from a
-  start to an end, or a typed list. A plot, a table and a CSV download show
-  the result.
-* **Budget:** [lago_budget()] with `budget` and `n_grid`. The budget starts
-  at the cost of the recommendation. The best outcome it buys can be put in
-  as the outcome goal.
-* **R code:** the code of the run, followed by the code of the last sweep
-  and budget search of that result.</p>
-    </div>
+<p>After a run, these tabs start from its result.</p><ul><li><p><strong>Results:</strong> the recommendation, the confidence set with a CSV download,
+the outcome model, the intervention test, and the report download of
+<code><a href="lago_report.html">lago_report()</a></code>, which needs the rmarkdown, knitr and jsonlite packages
+and pandoc.</p></li>
+<li><p><strong>Sensitivity:</strong> <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> with <code>parameter</code> and <code>values</code>. It
+varies the outcome goal, a multiplier of all costs, and with a power goal
+the power goal, the centers and patients of the next stage, and the ICC.
+With time effects it varies the period. The values are even steps from a
+start to an end, or a typed list. A plot, a table and a CSV download show
+the result.</p></li>
+<li><p><strong>Budget:</strong> <code><a href="lago_budget.html">lago_budget()</a></code> with <code>budget</code> and <code>n_grid</code>. The budget starts
+at the cost of the recommendation. The best outcome it buys can be put in
+as the outcome goal.</p></li>
+<li><p><strong>R code:</strong> the code of the run, followed by the code of the last sweep
+and budget search of that result.</p></li>
+</ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p>[lago_optimization()] for the function the app runs,
-  [lago_sensitivity()], [lago_budget()] and [lago_report()] for the tabs
-  that start from its result, and [visualize_cost()] for the cost designer.</p></div>
+    <div class="dont-index"><p><code><a href="lago_optimization.html">lago_optimization()</a></code> for the function the app runs,
+<code><a href="lago_sensitivity.html">lago_sensitivity()</a></code>, <code><a href="lago_budget.html">lago_budget()</a></code> and <code><a href="lago_report.html">lago_report()</a></code> for the tabs
+that start from its result, and <code><a href="visualize_cost.html">visualize_cost()</a></code> for the cost designer.</p></div>
     </div>
 
     <div class="section level2">

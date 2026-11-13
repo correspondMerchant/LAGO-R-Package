@@ -2,19 +2,23 @@
 
 Answers the reverse of the usual LAGO question. Instead of "what is the
 least costly intervention that reaches an outcome goal?"
-(\[lago_optimization()\]), \`lago_budget()\` asks "given a fixed budget,
-what is the best outcome I can reach, and with which intervention?".
+([`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)),
+`lago_budget()` asks "given a fixed budget, what is the best outcome I
+can reach, and with which intervention?".
 
 The best-outcome-within-budget intervention always lies on the same
-least-cost frontier that \[lago_optimization()\] traces out (for any
-target outcome, the cheapest way to reach it is what the optimizer
-already finds), so \`lago_budget()\` sweeps the outcome goal across the
-outcome's range with \[lago_sensitivity()\], reads the recommended cost
-and estimated outcome at each goal, and returns the reachable goal whose
-recommended cost is highest without exceeding the budget (for
-\`outcome_goal_intention = "maximize"\`; the lowest reachable outcome
-within budget for \`"minimize"\`). It does not touch the optimizer
-internals, so it inherits the same model, cost functions and bounds.
+least-cost frontier that
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+traces out (for any target outcome, the cheapest way to reach it is what
+the optimizer already finds), so `lago_budget()` sweeps the outcome goal
+across the outcome's range with
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md),
+reads the recommended cost and estimated outcome at each goal, and
+returns the reachable goal whose recommended cost is highest without
+exceeding the budget (for `outcome_goal_intention = "maximize"`; the
+lowest reachable outcome within budget for `"minimize"`). It does not
+touch the optimizer internals, so it inherits the same model, cost
+functions and bounds.
 
 ## Usage
 
@@ -26,46 +30,50 @@ lago_budget(object = NULL, ..., budget, n_grid = 25L, quiet = TRUE)
 
 - object:
 
-  An optional \`lago\` result from \[lago_optimization()\]. When
-  supplied, the baseline optimization arguments are read from the call
-  it carries, so the whole call need not be retyped, and anything in
-  \`...\` overrides those stored values. When \`NULL\` (the default),
-  the baseline arguments come from \`...\`. Passing a non-\`lago\`
-  object, or a \`lago\` result from a version that did not record its
-  call arguments, is an error.
+  An optional `lago` result from
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
+  When supplied, the baseline optimization arguments are read from the
+  call it carries, so the whole call need not be retyped, and anything
+  in `...` overrides those stored values. When `NULL` (the default), the
+  baseline arguments come from `...`. Passing a non-`lago` object, or a
+  `lago` result from a version that did not record its call arguments,
+  is an error.
 
 - ...:
 
-  The baseline \[lago_optimization()\] arguments (the user's own
-  optimization call), forwarded unchanged to every run. \`outcome_goal\`
-  is swept and so need not be supplied; \`include_confidence_set\` and
-  \`quiet\` are overridden (the confidence set is never computed during
-  the search).
+  The baseline
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  arguments (the user's own optimization call), forwarded unchanged to
+  every run. `outcome_goal` is swept and so need not be supplied;
+  `include_confidence_set` and `quiet` are overridden (the confidence
+  set is never computed during the search).
 
 - budget:
 
   A single positive, finite numeric value. The maximum total cost
-  allowed, in the same units as the supplied \`cost_list_of_vectors\`
-  (or \`unit_costs\`).
+  allowed, in the same units as the supplied `cost_list_of_vectors` (or
+  `unit_costs`).
 
 - n_grid:
 
   A single integer (\>= 2) giving how many outcome goals to try across
   the outcome's range. Larger values give a finer, more precise answer
   at the cost of more optimization runs. A second refinement pass tries
-  \`n_grid\` more goals strictly inside the gap at the affordability
-  boundary, so the effective resolution is finer than \`n_grid\` alone.
+  `n_grid` more goals strictly inside the gap at the affordability
+  boundary, so the effective resolution is finer than `n_grid` alone.
   Default 25.
 
 - quiet:
 
-  A boolean forwarded to \[lago_optimization()\] via
-  \[lago_sensitivity()\]. Defaults to \`TRUE\` so the search is not
-  noisy.
+  A boolean forwarded to
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  via
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md).
+  Defaults to `TRUE` so the search is not noisy.
 
 ## Value
 
-An object of class \`"lago_budget"\`, a list with:
+An object of class `"lago_budget"`, a list with:
 
 - budget:
 
@@ -73,37 +81,37 @@ An object of class \`"lago_budget"\`, a list with:
 
 - feasible:
 
-  \`TRUE\` if at least one reachable intervention was affordable.
+  `TRUE` if at least one reachable intervention was affordable.
 
 - binding:
 
-  \`TRUE\` if the budget constrained the choice: a strictly better
-  outcome was reachable but cost more than the budget. \`FALSE\` if the
-  best reachable outcome was already affordable.
+  `TRUE` if the budget constrained the choice: a strictly better outcome
+  was reachable but cost more than the budget. `FALSE` if the best
+  reachable outcome was already affordable.
 
 - rec_int:
 
-  The recommended intervention (one value per component), or \`NA\` when
-  not \`feasible\`.
+  The recommended intervention (one value per component), or `NA` when
+  not `feasible`.
 
 - rec_int_cost:
 
-  Its cost (at most \`budget\`), or \`NA\`.
+  Its cost (at most `budget`), or `NA`.
 
 - est_outcome:
 
-  Its estimated outcome, or \`NA\`.
+  Its estimated outcome, or `NA`.
 
 - outcome_goal:
 
   The outcome goal that produced the recommendation (equal to
-  \`est_outcome\` up to the grid resolution), or \`NA\`.
+  `est_outcome` up to the grid resolution), or `NA`.
 
 - frontier:
 
-  A \`data.frame\` of the reachable goals searched (the cost/outcome
-  tradeoff curve): \`outcome_goal\`, \`rec_int_cost\`, \`est_outcome\`,
-  \`affordable\`, \`status\`.
+  A `data.frame` of the reachable goals searched (the cost/outcome
+  tradeoff curve): `outcome_goal`, `rec_int_cost`, `est_outcome`,
+  `affordable`, `status`.
 
 - component_names:
 
@@ -111,45 +119,48 @@ An object of class \`"lago_budget"\`, a list with:
 
 - intention:
 
-  The \`outcome_goal_intention\` used.
+  The `outcome_goal_intention` used.
 
 - run_error:
 
   The error of the first failed run when every run of a sweep failed,
-  otherwise \`NULL\`.
+  otherwise `NULL`.
 
 ## Details
 
-The candidate outcome goals span the outcome's range: \`(0, 1)\` for a
+The candidate outcome goals span the outcome's range: `(0, 1)` for a
 binary outcome, or the observed range of the outcome column (padded by
 half a span on each side) for a continuous one. Each goal is one
-\[lago_optimization()\] run with the confidence set off. A goal beyond
-the reachable range does not error: the optimizer's shrinking method
-returns a recommendation whose estimated outcome falls short of the
-goal, so such a goal is not counted as genuinely reached and does not
-become a candidate (only goals the recommendation actually delivers are
-considered). Among the reached goals whose recommended cost is at most
-\`budget\`, the one with the best estimated outcome is chosen (largest
-for \`"maximize"\`, smallest for \`"minimize"\`). Goals that tie on the
-estimated outcome return the same intervention, and the one furthest in
-the improving direction is taken. The grid is extended in the improving
-direction until goals stop being reached or affordable, up to 30 times
-with a warning if that is not enough, and a refinement sweep is then run
-near the affordability boundary to tighten the estimate.
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+run with the confidence set off. A goal beyond the reachable range does
+not error: the optimizer's shrinking method returns a recommendation
+whose estimated outcome falls short of the goal, so such a goal is not
+counted as genuinely reached and does not become a candidate (only goals
+the recommendation actually delivers are considered). Among the reached
+goals whose recommended cost is at most `budget`, the one with the best
+estimated outcome is chosen (largest for `"maximize"`, smallest for
+`"minimize"`). Goals that tie on the estimated outcome return the same
+intervention, and the one furthest in the improving direction is taken.
+The grid is extended in the improving direction until goals stop being
+reached or affordable, up to 30 times with a warning if that is not
+enough, and a refinement sweep is then run near the affordability
+boundary to tighten the estimate.
 
 If no reachable goal is affordable (the budget is below the cost of even
-the cheapest reachable intervention), the result has \`feasible =
-FALSE\` and \`NA\` recommendation fields. If every reachable goal is
-affordable, the budget does not bind (\`binding = FALSE\`) and the
-maximum reachable outcome is returned. If \[lago_optimization()\] fails
-for every goal of a sweep, for example because the outcome model cannot
-be fitted, the result has \`feasible = FALSE\`, the warning and the
-printed result give the error of the first failed run, and \`run_error\`
+the cheapest reachable intervention), the result has `feasible = FALSE`
+and `NA` recommendation fields. If every reachable goal is affordable,
+the budget does not bind (`binding = FALSE`) and the maximum reachable
+outcome is returned. If
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+fails for every goal of a sweep, for example because the outcome model
+cannot be fitted, the result has `feasible = FALSE`, the warning and the
+printed result give the error of the first failed run, and `run_error`
 holds it.
 
 ## See also
 
-\[lago_optimization()\], \[lago_sensitivity()\]
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+[`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
 
 Other LAGO functions:
 [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
@@ -182,8 +193,8 @@ b
 #> 
 #> Budget: 100 (maximize).
 #> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819384081165 (of 100).
-#> Estimated outcome: 35.1051278351624.
+#> Cost: 99.7819396146112 (of 100).
+#> Estimated outcome: 35.1051282051282.
 plot(b)
 
 
@@ -204,7 +215,7 @@ lago_budget(opt, budget = 100)
 #> 
 #> Budget: 100 (maximize).
 #> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819384081165 (of 100).
-#> Estimated outcome: 35.1051278351624.
+#> Cost: 99.7819396146112 (of 100).
+#> Estimated outcome: 35.1051282051282.
 # }
 ```

@@ -1,13 +1,13 @@
 # Plot a LAGO optimization result
 
-Visualizes the confidence set, 95% by default. For a two-component
-intervention it plots the grid points in the confidence set with the
-recommended intervention highlighted; for a single component it plots
-the confidence interval bounds against the dose. A non-empty confidence
-set is required. \`result\$cs\` can be NULL even with
-\`include_confidence_set = TRUE\` (its default), when no confidence set
-was found for the outcome goal or the shrinking method was used, and
-then plot() returns invisibly with a message rather than erroring.
+Visualizes the confidence set, 95\\ intervention it plots the grid
+points in the confidence set with the recommended intervention
+highlighted; for a single component it plots the confidence interval
+bounds against the dose. A non-empty confidence set is required.
+`result$cs` can be NULL even with `include_confidence_set = TRUE` (its
+default), when no confidence set was found for the outcome goal or the
+shrinking method was used, and then plot() returns invisibly with a
+message rather than erroring.
 
 ## Usage
 
@@ -20,7 +20,8 @@ plot(x, ...)
 
 - x:
 
-  A "lago" object returned by \[lago_optimization()\].
+  A "lago" object returned by
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
 
 - ...:
 
@@ -28,7 +29,7 @@ plot(x, ...)
 
 ## Value
 
-A ggplot object (invisibly) when a plot is produced, otherwise \`NULL\`
+A ggplot object (invisibly) when a plot is produced, otherwise `NULL`
 invisibly.
 
 ## Examples

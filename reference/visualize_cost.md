@@ -77,7 +77,7 @@ the button does not save the list.
 
 ## See also
 
-\[lago_optimization()\]
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 
 Other LAGO functions:
 [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md),
