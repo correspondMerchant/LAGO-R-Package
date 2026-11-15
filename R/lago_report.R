@@ -113,10 +113,7 @@ lago_report <- function(x,
     ))
   }
 
-  template <- system.file(
-    "rmarkdown", "lago_report.Rmd",
-    package = "LAGOtrials"
-  )
+  template <- .lago_report_template()
   if (!nzchar(template) || !file.exists(template)) {
     cli::cli_abort(
       "Could not find the bundled report template {.file lago_report.Rmd}."
@@ -128,10 +125,17 @@ lago_report <- function(x,
   }
   output_file <- normalizePath(output_file, mustWork = FALSE)
 
-  # render() renders in place next to the template unless we point it away, so
-  # split the requested path into directory + file for output_dir/output_file.
+  # render() writes its working files next to its input, so it renders a copy
+  # of the template in a folder of its own. The installed package folder may be
+  # read only, and two reports made at the same time must not share files.
+  work <- tempfile("lago_report_")
+  dir.create(work)
+  on.exit(unlink(work, recursive = TRUE), add = TRUE)
+  input <- file.path(work, basename(template))
+  file.copy(template, input)
+  # split the requested path into directory + file for output_dir/output_file
   rendered <- rmarkdown::render(
-    input = template,
+    input = input,
     output_file = basename(output_file),
     output_dir = dirname(output_file),
     params = list(x = x, title = title),
@@ -145,4 +149,10 @@ lago_report <- function(x,
   }
 
   invisible(rendered)
+}
+
+# The bundled report template, in a function of its own so a test can point it
+# at a copy.
+.lago_report_template <- function() {
+  system.file("rmarkdown", "lago_report.Rmd", package = "LAGOtrials")
 }
