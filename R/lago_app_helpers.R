@@ -405,9 +405,18 @@
   } else if (identical(spec$outcome_type, "binary") && !.app_is_binary(y)) {
     note("outcome", sprintf("The outcome '%s' is not 0/1, so it cannot be binary. Choose Continuous or another column.", spec$outcome))
   }
-  if (!is.null(y) && identical(spec$outcome_type, "continuous") && identical(spec$glm_family, "quasibinomial") &&
-    any(y < 0 | y > 1, na.rm = TRUE)) {
-    note("outcome", sprintf("The proportion model needs an outcome between 0 and 1, and '%s' goes outside it. Choose the normal model.", spec$outcome))
+  # the proportion model and the logit link both read the outcome as a share
+  proportion <- identical(spec$outcome_type, "continuous") && identical(spec$glm_family, "quasibinomial")
+  logit <- identical(spec$outcome_type, "continuous") && identical(spec$link, "logit")
+  if (!is.null(y) && (proportion || logit) && any(y < 0 | y > 1, na.rm = TRUE)) {
+    note("outcome", if (proportion) {
+      sprintf("The proportion model needs an outcome between 0 and 1, and '%s' goes outside it. Choose the normal model.", spec$outcome)
+    } else {
+      sprintf("The logit link needs an outcome between 0 and 1, and '%s' goes outside it. Choose the usual link or identity.", spec$outcome)
+    })
+  }
+  if ((proportion || logit) && !identical(spec$goal_mode, "power") && is.finite(spec$goal) && (spec$goal <= 0 || spec$goal >= 1)) {
+    note("outcome", "A goal for an outcome between 0 and 1 must be between 0 and 1, such as 0.6 for 60%.")
   }
   if (nzchar(spec$weights_col)) {
     w <- data[[spec$weights_col]]
@@ -415,8 +424,8 @@
       note("outcome", "The weights column must be numeric.")
     } else if (spec$weights_col %in% c(spec$outcome, spec$components)) {
       note("outcome", "The weights column cannot also be the outcome or a component.")
-    } else if (any(w < 0, na.rm = TRUE) || !any(w > 0, na.rm = TRUE)) {
-      note("outcome", sprintf("The weights in '%s' must be 0 or more, with at least one above 0.", spec$weights_col))
+    } else if (any(is.infinite(w)) || any(w < 0, na.rm = TRUE) || !any(w > 0, na.rm = TRUE)) {
+      note("outcome", sprintf("The weights in '%s' must be finite numbers of 0 or more, with at least one above 0.", spec$weights_col))
     }
   }
   power_on <- .app_power_on(spec)

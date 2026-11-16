@@ -265,8 +265,8 @@ lago_app <- function(data = NULL,
                 "input.outcome_type == 'continuous'",
                 shiny::selectInput("glm_family", .app_help("Model family", "Normal suits a measured outcome. Proportion suits an outcome between 0 and 1, such as the share of patients in a center who got a treatment, and fits the quasibinomial family."), c("Normal (gaussian)" = "default", "Proportion between 0 and 1 (quasibinomial)" = "quasibinomial"), selectize = FALSE)
               ),
-              shiny::selectInput("link", .app_help("Link", "Logit models the outcome on the log odds scale, the usual one for a binary outcome or a proportion. Identity models the outcome as it is, the usual one for a measured outcome. For a binary outcome, identity gives a linear probability model, which cannot always be fitted. Use logit if it fails."), c("The usual one for the model" = "default", "Logit" = "logit", "Identity" = "identity"), selectize = FALSE),
-              shiny::selectInput("weights_col", .app_help("Weights (optional)", "A numeric column that gives each row its weight in the model, such as the number of patients a row stands for. The weights must be 0 or more."), choices = c("No weights" = ""), selectize = FALSE)
+              shiny::selectInput("link", .app_help("Link", "Logit models the outcome on the log odds scale, the usual one for a binary outcome or a proportion. Identity models the outcome as it is, the usual one for a measured outcome. For a binary outcome, identity gives a linear probability model, which cannot always be fitted. Use logit if it fails. For a measured outcome, logit works only when the outcome is between 0 and 1."), c("The usual one for the model" = "default", "Logit" = "logit", "Identity" = "identity"), selectize = FALSE),
+              shiny::selectInput("weights_col", .app_help("Weights (optional)", "A numeric column that gives each row its weight in the model, such as the number of patients a row stands for. The weights must be finite numbers of 0 or more."), choices = c("No weights" = ""), selectize = FALSE)
             )
           )
         ),
@@ -321,7 +321,7 @@ lago_app <- function(data = NULL,
           ),
           bslib::accordion_panel(
             "Previous stage (optional)",
-            htmltools::p("When the goal cannot be reached within the bounds, the shrinking method moves from a starting intervention toward the bounds. It starts from the average intervention in the data, or from the recommendation of the previous stage when you give it."),
+            htmltools::p("When the goal cannot be reached within the bounds, the shrinking method shrinks the recommendation toward a starting intervention. The start is the average intervention in the data, kept within the bounds, or the recommendation of the previous stage when you give it."),
             shiny::checkboxInput("prev_on", "Give the recommendation of the previous stage", value = FALSE),
             shiny::conditionalPanel(
               "input.prev_on",
@@ -777,8 +777,9 @@ lago_app <- function(data = NULL,
     shiny::observeEvent(input$use_rec_as_prev, {
       r <- run_state()$run$value
       comps <- spec()$components
-      if (is.null(r) || length(r$rec_int) != length(comps)) {
-        shiny::showNotification("Press Find recommendation first, so there is a recommendation to use.", type = "warning")
+      used <- if (is.null(r)) NULL else if (!is.null(r$display_components)) r$display_components else r$intervention_components
+      if (is.null(r) || stale() || !identical(as.character(used), comps)) {
+        shiny::showNotification("Press Find recommendation first, so the recommendation is for the current settings and components.", type = "warning")
         return()
       }
       for (k in seq_along(comps)) shiny::updateNumericInput(session, col_id("prev", comps[k]), value = signif(as.numeric(r$rec_int[k]), 6))
