@@ -2,6 +2,18 @@
 
 ## LAGOtrials (development version)
 
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  has advanced settings, each in a section that stays closed until it is
+  needed. The outcome model can take a family for a continuous outcome,
+  a link, and weights from a column. The intervention step can set the
+  confidence level and the grid steps of the confidence set, switch the
+  optimizer to a grid search with its own steps, and give the
+  recommendation of the previous stage for the shrinking method, with a
+  button that fills in the current recommendation. Each setting is
+  checked before a run, and the R code includes it. The confidence
+  interval in the result now shows the level it was computed at, which
+  was always given as 95%.
+
 - [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
   now renders a copy of its template in a temporary folder. It used to
   write its working files next to the template in the installed package,

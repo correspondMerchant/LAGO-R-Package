@@ -64,7 +64,9 @@ The app has these steps.
   `power_goal`, `num_centers_in_next_stage`,
   `patients_per_center_in_next_stage`, `power_goal_approach`, `icc` and
   `power_goal_cluster_id`. The app builds the `group` column from the
-  treatment arm column you choose.
+  treatment arm column you choose. Under "Outcome model" are
+  `glm_family` for a continuous outcome, `link`, and `weights` from a
+  column you choose.
 
 - **Intervention and costs:** `intervention_components`, their bounds,
   and the costs as `unit_costs` with `default_cost_fxn_type` and
@@ -74,7 +76,11 @@ The app has these steps.
   in a dialog, which starts on the costs in use and puts the shaped
   costs in as cost coefficients. Interaction terms set
   `include_interaction_terms` and `main_components`, and the app builds
-  each product column.
+  each product column. Under "Confidence set" are
+  `include_confidence_set`, `confidence_set_alpha` as a confidence
+  level, and `confidence_set_grid_step_size`. Under "Optimizer" are
+  `optimization_method` and `optimization_grid_search_step_size`, and
+  under "Previous stage" is `prev_recommended_interventions`.
 
 - **Centers, time and covariates:** `center_characteristics` with their
   values, or fixed center effects with `include_center_effects` and

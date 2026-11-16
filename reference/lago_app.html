@@ -115,7 +115,8 @@ CSV file you upload. Each example opens on a setup that runs as is.</p></li>
 <code>power_goal</code>, <code>num_centers_in_next_stage</code>,
 <code>patients_per_center_in_next_stage</code>, <code>power_goal_approach</code>, <code>icc</code> and
 <code>power_goal_cluster_id</code>. The app builds the <code>group</code> column from the
-treatment arm column you choose.</p></li>
+treatment arm column you choose. Under "Outcome model" are <code>glm_family</code>
+for a continuous outcome, <code>link</code>, and <code>weights</code> from a column you choose.</p></li>
 <li><p><strong>Intervention and costs:</strong> <code>intervention_components</code>, their bounds, and
 the costs as <code>unit_costs</code> with <code>default_cost_fxn_type</code> and
 <code>unit_cost_doses</code>, or as <code>cost_list_of_vectors</code>. The "Shape the costs
@@ -123,7 +124,11 @@ visually" button opens the cost designer of <code><a href="visualize_cost.html">
 which starts on the costs in use and puts the shaped costs in as cost
 coefficients. Interaction terms set
 <code>include_interaction_terms</code> and <code>main_components</code>, and the app builds each
-product column.</p></li>
+product column. Under "Confidence set" are <code>include_confidence_set</code>,
+<code>confidence_set_alpha</code> as a confidence level, and
+<code>confidence_set_grid_step_size</code>. Under "Optimizer" are
+<code>optimization_method</code> and <code>optimization_grid_search_step_size</code>, and under
+"Previous stage" is <code>prev_recommended_interventions</code>.</p></li>
 <li><p><strong>Centers, time and covariates:</strong> <code>center_characteristics</code> with their
 values, or fixed center effects with <code>include_center_effects</code> and
 <code>center_effects_optimization_values</code>, fixed time effects with
