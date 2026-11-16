@@ -2,6 +2,12 @@
 
 ## LAGOtrials (development version)
 
+- [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now renders a copy of its template in a temporary folder. It used to
+  write its working files next to the template in the installed package,
+  so it failed with “Permission denied” when the R library could not be
+  written to, as with a library installed for all users.
+
 - The help pages now render their formatting. Markdown was never turned
   on for the package, so a link such as \[lago_optimization()\] and the
   code marks around an argument name were printed as typed. Links now
