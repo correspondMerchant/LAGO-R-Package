@@ -251,3 +251,19 @@ test_that("cost curves are labelled by the main components under interactions", 
 test_that("lago_report() rejects non-lago objects", {
   expect_error(lago_report(list(1, 2)), "lago")
 })
+
+test_that("lago_report() renders when the template folder cannot be written to", {
+  skip_report_deps()
+  skip_on_os("windows")
+  locked <- tempfile("locked_")
+  dir.create(locked)
+  file.copy(.lago_report_template(), locked)
+  Sys.chmod(locked, "0555")
+  on.exit(Sys.chmod(locked, "0755"), add = TRUE)
+  # root can write to any folder, so the lock means nothing there
+  skip_if(file.access(locked, 2) == 0, "the folder stays writable for this user")
+  local_mocked_bindings(.lago_report_template = function() file.path(locked, "lago_report.Rmd"))
+  f <- lago_report(fit_two_comp(), output_file = tempfile(fileext = ".html"))
+  expect_match(read_html(f), "Recommended")
+  expect_identical(list.files(locked), "lago_report.Rmd")
+})

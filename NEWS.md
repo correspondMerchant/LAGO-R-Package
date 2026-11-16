@@ -1,5 +1,7 @@
 # LAGOtrials (development version)
 
+* `lago_report()` now renders a copy of its template in a temporary folder. It used to write its working files next to the template in the installed package, so it failed with "Permission denied" when the R library could not be written to, as with a library installed for all users.
+
 * The help pages now render their formatting. Markdown was never turned on for the package, so a link such as [lago_optimization()] and the code marks around an argument name were printed as typed. Links now work, code is set in code font, and the lists of cost functions and of optimization methods are real lists. The text itself is unchanged, apart from three places where a sentence that followed a list ran into its last item.
 
 * `lago_app()` now opens the cost designer of `visualize_cost()` in a dialog, from the "Shape the costs visually" button in the intervention step. The designer starts on the costs in use, draws the total and marginal cost of each component, and lets you shape them with sliders or by dragging the curve. "Use these costs" puts them in as cost coefficients and keeps the bounds. Costs that do not fit the designer's linear or cubic form are named in the dialog, since applying replaces them.
