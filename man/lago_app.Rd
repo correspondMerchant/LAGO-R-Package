@@ -46,7 +46,8 @@ CSV file you upload. Each example opens on a setup that runs as is.
 \code{power_goal}, \code{num_centers_in_next_stage},
 \code{patients_per_center_in_next_stage}, \code{power_goal_approach}, \code{icc} and
 \code{power_goal_cluster_id}. The app builds the \code{group} column from the
-treatment arm column you choose.
+treatment arm column you choose. Under "Outcome model" are \code{glm_family}
+for a continuous outcome, \code{link}, and \code{weights} from a column you choose.
 \item \strong{Intervention and costs:} \code{intervention_components}, their bounds, and
 the costs as \code{unit_costs} with \code{default_cost_fxn_type} and
 \code{unit_cost_doses}, or as \code{cost_list_of_vectors}. The "Shape the costs
@@ -54,7 +55,11 @@ visually" button opens the cost designer of \code{\link[=visualize_cost]{visuali
 which starts on the costs in use and puts the shaped costs in as cost
 coefficients. Interaction terms set
 \code{include_interaction_terms} and \code{main_components}, and the app builds each
-product column.
+product column. Under "Confidence set" are \code{include_confidence_set},
+\code{confidence_set_alpha} as a confidence level, and
+\code{confidence_set_grid_step_size}. Under "Optimizer" are
+\code{optimization_method} and \code{optimization_grid_search_step_size}, and under
+"Previous stage" is \code{prev_recommended_interventions}.
 \item \strong{Centers, time and covariates:} \code{center_characteristics} with their
 values, or fixed center effects with \code{include_center_effects} and
 \code{center_effects_optimization_values}, fixed time effects with

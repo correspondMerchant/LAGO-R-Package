@@ -19,3 +19,4 @@
 ^tools$
 ^CRAN-SUBMISSION$
 ^tests/testthat/Rplots\.pdf$
+^tests/testthat/_problems$

@@ -21,7 +21,8 @@
 #'   `power_goal`, `num_centers_in_next_stage`,
 #'   `patients_per_center_in_next_stage`, `power_goal_approach`, `icc` and
 #'   `power_goal_cluster_id`. The app builds the `group` column from the
-#'   treatment arm column you choose.
+#'   treatment arm column you choose. Under "Outcome model" are `glm_family`
+#'   for a continuous outcome, `link`, and `weights` from a column you choose.
 #' * **Intervention and costs:** `intervention_components`, their bounds, and
 #'   the costs as `unit_costs` with `default_cost_fxn_type` and
 #'   `unit_cost_doses`, or as `cost_list_of_vectors`. The "Shape the costs
@@ -29,7 +30,11 @@
 #'   which starts on the costs in use and puts the shaped costs in as cost
 #'   coefficients. Interaction terms set
 #'   `include_interaction_terms` and `main_components`, and the app builds each
-#'   product column.
+#'   product column. Under "Confidence set" are `include_confidence_set`,
+#'   `confidence_set_alpha` as a confidence level, and
+#'   `confidence_set_grid_step_size`. Under "Optimizer" are
+#'   `optimization_method` and `optimization_grid_search_step_size`, and under
+#'   "Previous stage" is `prev_recommended_interventions`.
 #' * **Centers, time and covariates:** `center_characteristics` with their
 #'   values, or fixed center effects with `include_center_effects` and
 #'   `center_effects_optimization_values`, fixed time effects with
@@ -249,6 +254,22 @@ lago_app <- function(data = NULL,
             )
           )
         ),
+        bslib::accordion(
+          open = FALSE,
+          bslib::accordion_panel(
+            "Outcome model (optional)",
+            htmltools::p(class = "text-muted", "The usual model suits most trials. Change it only when you know the model you need."),
+            bslib::layout_columns(
+              fill = FALSE,
+              shiny::conditionalPanel(
+                "input.outcome_type == 'continuous'",
+                shiny::selectInput("glm_family", .app_help("Model family", "Normal suits a measured outcome. Proportion suits an outcome between 0 and 1, such as the share of patients in a center who got a treatment, and fits the quasibinomial family."), c("Normal (gaussian)" = "default", "Proportion between 0 and 1 (quasibinomial)" = "quasibinomial"), selectize = FALSE)
+              ),
+              shiny::selectInput("link", .app_help("Link", "Logit models the outcome on the log odds scale, the usual one for a binary outcome or a proportion. Identity models the outcome as it is, the usual one for a measured outcome. For a binary outcome, identity gives a linear probability model, which cannot always be fitted. Use logit if it fails. For a measured outcome, logit works only when the outcome is between 0 and 1."), c("The usual one for the model" = "default", "Logit" = "logit", "Identity" = "identity"), selectize = FALSE),
+              shiny::selectInput("weights_col", .app_help("Weights (optional)", "A numeric column that gives each row its weight in the model, such as the number of patients a row stands for. The weights must be finite numbers of 0 or more."), choices = c("No weights" = ""), selectize = FALSE)
+            )
+          )
+        ),
         shiny::uiOutput("notes_outcome"),
         .app_next("next_outcome", "Next: intervention and costs")
       ),
@@ -286,7 +307,27 @@ lago_app <- function(data = NULL,
           bslib::accordion_panel(
             "Confidence set",
             shiny::checkboxInput("include_cs", "Compute the confidence set (slower)", value = TRUE),
-            htmltools::p(class = "text-muted", "The confidence set holds the interventions whose outcome may reach the goal, given the uncertainty of the first stage. The grid has about 20 steps across each range.")
+            htmltools::p(class = "text-muted", "The confidence set holds the interventions whose outcome may reach the goal, given the uncertainty of the first stage. It is found on a grid, with 20 steps across each range unless you set the steps."),
+            shiny::conditionalPanel(
+              "input.include_cs",
+              shiny::selectInput("cs_level", .app_help("Confidence level", "How sure the set is to hold the interventions that reach the goal. 95% is the usual level. A higher level gives a larger set."), c("90%" = "0.9", "95%" = "0.95", "99%" = "0.99"), selected = "0.95", selectize = FALSE),
+              shiny::uiOutput("cs_steps_ui")
+            )
+          ),
+          bslib::accordion_panel(
+            "Optimizer",
+            shiny::radioButtons("method", .app_help("Method", "Numerical searches for the cheapest intervention that reaches the goal, and is fast. Grid search tries every intervention on a grid and keeps the cheapest one that reaches the goal, which is slower and finds the best point of the grid only."), c("Numerical" = "numerical", "Grid search" = "grid_search"), inline = TRUE),
+            shiny::conditionalPanel("input.method == 'grid_search'", shiny::uiOutput("grid_steps_ui"))
+          ),
+          bslib::accordion_panel(
+            "Previous stage (optional)",
+            htmltools::p("When the goal cannot be reached within the bounds, the shrinking method shrinks the recommendation toward a starting intervention. The start is the average intervention in the data, kept within the bounds, or the recommendation of the previous stage when you give it."),
+            shiny::checkboxInput("prev_on", "Give the recommendation of the previous stage", value = FALSE),
+            shiny::conditionalPanel(
+              "input.prev_on",
+              shiny::uiOutput("prev_ui"),
+              shiny::actionButton("use_rec_as_prev", "Use the current recommendation", class = "btn-outline-primary btn-sm")
+            )
           )
         ),
         .app_next("next_intervention", "Next: centers, time and covariates")
@@ -473,6 +514,12 @@ lago_app <- function(data = NULL,
       shiny::updateSelectInput(session, "period_col", choices = c("Choose a column" = "", ch$others), selected = ch$period_col)
       shiny::updateSelectInput(session, "period_value", choices = ch$periods, selected = ch$period)
       shiny::updateSelectizeInput(session, "covariates", choices = ch$covariates, selected = character(0))
+      shiny::updateSelectInput(session, "glm_family", selected = "default")
+      shiny::updateSelectInput(session, "link", selected = "default")
+      shiny::updateSelectInput(session, "weights_col", choices = c("No weights" = "", ch$weights), selected = "")
+      shiny::updateSelectInput(session, "cs_level", selected = "0.95")
+      shiny::updateRadioButtons(session, "method", selected = "numerical")
+      shiny::updateCheckboxInput(session, "prev_on", value = FALSE)
       designer_costs(list())
       run_state(NULL)
       sweep_state(NULL)
@@ -575,6 +622,9 @@ lago_app <- function(data = NULL,
       shiny::updateSelectizeInput(session, "center_chars", choices = chars, selected = intersect(shiny::isolate(input$center_chars), chars))
       covs <- setdiff(names(d), c(input$outcome, input$components))
       shiny::updateSelectizeInput(session, "covariates", choices = covs, selected = intersect(shiny::isolate(input$covariates), covs))
+      weights <- setdiff(numeric_cols, c(input$outcome, input$components))
+      kept_w <- intersect(shiny::isolate(input$weights_col), weights)
+      shiny::updateSelectInput(session, "weights_col", choices = c("No weights" = "", weights), selected = if (length(kept_w)) kept_w else "")
     }, ignoreNULL = FALSE)
 
     shiny::observeEvent(list(current_data(), input$center_col), {
@@ -692,9 +742,53 @@ lago_app <- function(data = NULL,
       }))
     })
 
+    # One small input per component, for a grid step or a previous level. They
+    # are drawn again only when the components change, so typing keeps focus.
+    per_component <- function(prefix, label) {
+      d <- current_data()
+      shiny::req(d)
+      comps <- intersect(input$components, names(d))
+      if (!length(comps)) {
+        return(htmltools::p(class = "text-muted", "Choose at least one component."))
+      }
+      inputs <- lapply(comps, function(cc) {
+        id <- col_id(prefix, cc)
+        v <- shiny::isolate(input[[id]])
+        shiny::numericInput(id, sprintf(label, cc), value = if (is.null(v)) NA else v, min = 0)
+      })
+      do.call(bslib::layout_columns, c(list(fill = FALSE), inputs))
+    }
+    # an empty step takes 1/20 of the range, which this note gives
+    step_note <- function() {
+      s <- spec()
+      ok <- length(s$components) && all(is.finite(s$lower) & is.finite(s$upper) & s$lower <= s$upper)
+      if (ok) {
+        htmltools::tags$small(class = "text-muted", sprintf(
+          "Leave a step empty for 1/20 of the range: %s.",
+          paste(sprintf("%s %s", s$components, vapply(signif(.app_cs_steps(s$lower, s$upper), 4), format, character(1))), collapse = ", ")
+        ))
+      }
+    }
+    output$cs_steps_ui <- shiny::renderUI(htmltools::tagList(per_component("csstep", "Confidence set step of %s"), shiny::uiOutput("cs_steps_note")))
+    output$grid_steps_ui <- shiny::renderUI(htmltools::tagList(per_component("gstep", "Grid search step of %s"), shiny::uiOutput("grid_steps_note")))
+    output$cs_steps_note <- shiny::renderUI(step_note())
+    output$grid_steps_note <- shiny::renderUI(step_note())
+    output$prev_ui <- shiny::renderUI(per_component("prev", "Previous stage level of %s"))
+    shiny::observeEvent(input$use_rec_as_prev, {
+      r <- run_state()$run$value
+      comps <- spec()$components
+      used <- if (is.null(r)) NULL else if (!is.null(r$display_components)) r$display_components else r$intervention_components
+      if (is.null(r) || stale() || !identical(as.character(used), comps)) {
+        shiny::showNotification("Press Find recommendation first, so the recommendation is for the current settings and components.", type = "warning")
+        return()
+      }
+      for (k in seq_along(comps)) shiny::updateNumericInput(session, col_id("prev", comps[k]), value = signif(as.numeric(r$rec_int[k]), 6))
+      shiny::showNotification("The previous stage now holds the current recommendation.", type = "message")
+    })
+
     # the inputs of a hidden step still have to exist, so the checks and the run
     # see them before the user opens that step
-    for (id in c("component_rows", "interaction_ui", "center_char_values")) {
+    for (id in c("component_rows", "interaction_ui", "center_char_values", "cs_steps_ui", "grid_steps_ui", "prev_ui")) {
       shiny::outputOptions(output, id, suspendWhenHidden = FALSE)
     }
 
@@ -749,6 +843,15 @@ lago_app <- function(data = NULL,
       s$approach <- pick(input$approach, s$approach)
       s$icc <- .app_parse_icc(input$icc)
       s$cluster_col <- chr(input$cluster_col)
+      s$glm_family <- pick(input$glm_family, s$glm_family)
+      s$link <- pick(input$link, s$link)
+      s$weights_col <- chr(input$weights_col)
+      s$method <- pick(input$method, s$method)
+      s$cs_level <- if (is.finite(num(input$cs_level))) num(input$cs_level) else s$cs_level
+      s$cs_steps <- vapply(comps, function(cc) num(input[[col_id("csstep", cc)]]), numeric(1), USE.NAMES = FALSE)
+      s$grid_steps <- vapply(comps, function(cc) num(input[[col_id("gstep", cc)]]), numeric(1), USE.NAMES = FALSE)
+      s$prev_on <- isTRUE(input$prev_on)
+      s$prev <- vapply(comps, function(cc) num(input[[col_id("prev", cc)]]), numeric(1), USE.NAMES = FALSE)
       s
     })
 
@@ -966,7 +1069,7 @@ lago_app <- function(data = NULL,
           bslib::value_box(
             "Estimated outcome",
             fmt(r$est_outcome_goal),
-            if (length(ci) == 2 && all(is.finite(ci))) htmltools::p(sprintf("95%% CI %s to %s", fmt(ci[1]), fmt(ci[2]))),
+            if (length(ci) == 2 && all(is.finite(ci))) htmltools::p(sprintf("%s CI %s to %s", .lago_confidence_label(r), fmt(ci[1]), fmt(ci[2]))),
             if (!is.null(goal_used)) htmltools::p(sprintf("Goal used: %s%s", fmt(goal_used), .app_goal_source(r)))
           )
         ),
