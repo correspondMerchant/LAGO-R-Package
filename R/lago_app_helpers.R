@@ -19,7 +19,12 @@
     covariates = character(0),
     arm_col = "", arm_value = "", power_goal = 0.8, n_centers = 10, n_patients = 30,
     approach = "unconditional", icc = numeric(0), cluster_col = "",
-    include_cs = TRUE
+    include_cs = TRUE,
+    # advanced settings: "default" and empty values leave the package default
+    glm_family = "default", link = "default", weights_col = "",
+    method = "numerical", grid_steps = numeric(0),
+    cs_level = 0.95, cs_steps = numeric(0),
+    prev_on = FALSE, prev = numeric(0)
   )
 }
 
@@ -165,7 +170,8 @@
     centers = if (nzchar(center_col)) sort(unique(as.character(stats::na.omit(data[[center_col]])))) else character(0),
     period_col = period_col,
     periods = periods, period = utils::tail(periods, 1),
-    covariates = setdiff(cols, c(spec$outcome, spec$components))
+    covariates = setdiff(cols, c(spec$outcome, spec$components)),
+    weights = setdiff(numeric_cols, c(spec$outcome, spec$components))
   )
 }
 
@@ -313,13 +319,34 @@
       if (any(spec$icc > 0)) args$power_goal_cluster_id <- spec$cluster_col
     }
   }
+  # the code reads the weights from the data, as the run does
+  exprs <- list()
+  if (identical(spec$outcome_type, "continuous") && !identical(spec$glm_family, "default")) args$glm_family <- spec$glm_family
+  if (!identical(spec$link, "default")) args$link <- spec$link
+  if (nzchar(spec$weights_col)) {
+    args$weights <- d[[spec$weights_col]]
+    exprs$weights <- sprintf("data[[%s]]", rstr(spec$weights_col))
+  }
+  if (identical(spec$method, "grid_search")) {
+    args$optimization_method <- "grid_search"
+    args$optimization_grid_search_step_size <- .app_steps(spec$grid_steps, spec$lower, spec$upper)
+  }
   if (isTRUE(spec$include_cs)) {
-    args$confidence_set_grid_step_size <- signif(.app_cs_steps(spec$lower, spec$upper), 4)
+    args$confidence_set_grid_step_size <- .app_steps(spec$cs_steps, spec$lower, spec$upper)
+    if (!isTRUE(all.equal(spec$cs_level, 0.95))) args$confidence_set_alpha <- signif(1 - spec$cs_level, 6)
   } else {
     args$include_confidence_set <- FALSE
   }
+  if (isTRUE(spec$prev_on)) args$prev_recommended_interventions <- spec$prev
 
-  list(data = d, args = args, prep = prep, code = .app_code(spec$data_name, prep, args))
+  list(data = d, args = args, prep = prep, code = .app_code(spec$data_name, prep, args, exprs = exprs))
+}
+
+# The grid step of each component: the one typed, or 1/20 of its range.
+.app_steps <- function(typed, lower, upper) {
+  steps <- signif(.app_cs_steps(lower, upper), 4)
+  if (length(typed) == length(steps)) steps[is.finite(typed)] <- typed[is.finite(typed)]
+  steps
 }
 
 .app_power_on <- function(spec) {
@@ -339,9 +366,12 @@
 
 # The R code that reproduces a run: load the data, prepare it, call
 # lago_optimization() with the same arguments.
-.app_code <- function(data_name, prep, args, call = "lago_optimization", result = "result") {
+.app_code <- function(data_name, prep, args, call = "lago_optimization", result = "result", exprs = list()) {
+  # `exprs` gives the code for an argument whose value comes from the data,
+  # such as data[["n"]] for the weights, instead of the values themselves
   arg_lines <- vapply(names(args), function(nm) {
-    sprintf("  %s = %s", nm, paste(deparse(args[[nm]], width.cutoff = 500L), collapse = " "))
+    value <- if (!is.null(exprs[[nm]])) exprs[[nm]] else paste(deparse(args[[nm]], width.cutoff = 500L), collapse = " ")
+    sprintf("  %s = %s", nm, value)
   }, character(1))
   c(
     "library(LAGOtrials)",
@@ -374,6 +404,20 @@
     note("outcome", "Choose the outcome column.")
   } else if (identical(spec$outcome_type, "binary") && !.app_is_binary(y)) {
     note("outcome", sprintf("The outcome '%s' is not 0/1, so it cannot be binary. Choose Continuous or another column.", spec$outcome))
+  }
+  if (!is.null(y) && identical(spec$outcome_type, "continuous") && identical(spec$glm_family, "quasibinomial") &&
+    any(y < 0 | y > 1, na.rm = TRUE)) {
+    note("outcome", sprintf("The proportion model needs an outcome between 0 and 1, and '%s' goes outside it. Choose the normal model.", spec$outcome))
+  }
+  if (nzchar(spec$weights_col)) {
+    w <- data[[spec$weights_col]]
+    if (is.null(w) || !is.numeric(w)) {
+      note("outcome", "The weights column must be numeric.")
+    } else if (spec$weights_col %in% c(spec$outcome, spec$components)) {
+      note("outcome", "The weights column cannot also be the outcome or a component.")
+    } else if (any(w < 0, na.rm = TRUE) || !any(w > 0, na.rm = TRUE)) {
+      note("outcome", sprintf("The weights in '%s' must be 0 or more, with at least one above 0.", spec$weights_col))
+    }
   }
   power_on <- .app_power_on(spec)
   if (!identical(spec$goal_mode, "power")) {
@@ -419,10 +463,34 @@
         }
       }
     }
-    if (isTRUE(spec$include_cs) && all(is.finite(spec$lower), is.finite(spec$upper))) {
-      size <- .app_cs_grid_size(spec$lower, spec$upper, .app_cs_steps(spec$lower, spec$upper))
+    bounds_ok <- all(is.finite(spec$lower), is.finite(spec$upper)) && all(spec$lower <= spec$upper)
+    check_steps <- function(typed, what) {
+      # an empty step is fine, as it takes 1/20 of the range
+      typed <- c(typed, rep(NA_real_, length(comps)))[seq_along(comps)]
+      bad <- comps[!is.na(typed) & !(is.finite(typed) & typed > 0)]
+      if (length(bad)) note("intervention", sprintf("The %s step of %s must be above 0. Leave it empty for 1/20 of the range.", what, paste(bad, collapse = ", ")))
+      !length(bad)
+    }
+    if (identical(spec$method, "grid_search") && check_steps(spec$grid_steps, "grid search") && bounds_ok) {
+      size <- .app_cs_grid_size(spec$lower, spec$upper, .app_steps(spec$grid_steps, spec$lower, spec$upper))
       if (size > 1e5) {
-        note("intervention", sprintf("The confidence set grid would have %s points. Use fewer components or turn off the confidence set.", format(size, big.mark = ",")))
+        note("intervention", sprintf("The grid search would try %s interventions. Use larger steps, fewer components, or the numerical optimizer.", format(size, big.mark = ",")))
+      }
+    }
+    if (isTRUE(spec$include_cs) && check_steps(spec$cs_steps, "confidence set") && bounds_ok) {
+      size <- .app_cs_grid_size(spec$lower, spec$upper, .app_steps(spec$cs_steps, spec$lower, spec$upper))
+      if (size > 1e5) {
+        note("intervention", sprintf("The confidence set grid would have %s points. Use larger steps, fewer components, or turn off the confidence set.", format(size, big.mark = ",")))
+      }
+    }
+    if (isTRUE(spec$prev_on)) {
+      for (k in seq_along(comps)) {
+        v <- if (k <= length(spec$prev)) spec$prev[k] else NA_real_
+        if (!is.finite(v)) {
+          note("intervention", sprintf("Enter the previous stage's level of %s, or turn off the previous stage.", comps[k]))
+        } else if (is.finite(spec$lower[k]) && is.finite(spec$upper[k]) && (v < spec$lower[k] || v > spec$upper[k])) {
+          note("intervention", sprintf("The previous stage's level of %s (%s) must be within its bounds.", comps[k], fmt(v)))
+        }
       }
     }
   }
