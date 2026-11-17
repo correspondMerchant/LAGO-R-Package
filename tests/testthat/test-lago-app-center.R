@@ -218,3 +218,20 @@ test_that("the starting center weights follow the structure of the data", {
     expect_false(identical(cw_id(spec(), 1), id_rows))
   })
 })
+
+test_that("a column named center is the center column when no preset names one", {
+  d <- data.frame(center = c("a", "b"), y = c(0, 1), x = c(1, 2))
+  expect_identical(.app_choices(d, .app_defaults(d, "d"))$center_col, "center")
+})
+
+test_that("center weights a user typed come back when the same centers are shown again", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "main_pulesa_data", sep = ",", dec = ".")
+    session$setInputs(center_mode = "effects", center_col = "Clinic", center_for = "", cw_on = TRUE, structure = "center", cl_total = "Total_visit")
+    id <- cw_id(spec(), 1)
+    do.call(session$setInputs, stats::setNames(list(0.3), id))
+    session$setInputs(structure = "individual")
+    session$setInputs(structure = "center")
+    expect_match(as.character(output$cw_ui$html), "value=\"0.3\"")
+  })
+})
