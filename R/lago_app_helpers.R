@@ -24,7 +24,11 @@
     glm_family = "default", link = "default", weights_col = "",
     method = "numerical", grid_steps = numeric(0),
     cs_level = 0.95, cs_steps = numeric(0),
-    prev_on = FALSE, prev = numeric(0)
+    prev_on = FALSE, prev = numeric(0),
+    # center level data: one row per center and period, with the successes or
+    # the proportion of a row and its total
+    structure = "individual", cl_kind = "successes", cl_value = "", cl_total = "",
+    cw_on = FALSE, cw = numeric(0)
   )
 }
 
@@ -34,6 +38,22 @@
     BB_data = list(
       outcome = "pp3_oxytocin_mother", outcome_type = "binary",
       components = c("coaching_updt", "launch_duration"), goal = 0.85
+    ),
+    main_pulesa_data = list(
+      outcome = "Success", outcome_type = "binary",
+      components = c(
+        "AccessMedicines", "AccessBPMachines", "HypertensionTraining", "DeliveryA",
+        "DeliveryB", "RemoteMonitoring", "PerformanceImprovement"
+      ),
+      goal = 0.8,
+      # the model of the package's PULESA example, without its confidence set,
+      # whose grid would be far too large for seven components
+      settings = list(
+        structure = "center", cl_kind = "successes", cl_value = "Success", cl_total = "Total_visit",
+        covariates = c("MI_DeliveryB", "MI_RemoteMonitoring", "MI_PerformanceImprovement"),
+        center_mode = "effects", center_col = "Clinic",
+        time_on = TRUE, period_col = "Period", period_value = "13", include_cs = FALSE
+      )
     ),
     mtcars = list(
       outcome = "mpg", outcome_type = "continuous",
@@ -68,6 +88,9 @@
     spec$outcome <- if (length(binary)) binary[1] else numeric_cols[1]
     spec$outcome_type <- if (.app_is_binary(data[[spec$outcome]])) "binary" else "continuous"
     spec$components <- utils::head(setdiff(numeric_cols, spec$outcome), 2)
+  }
+  if (!is.null(preset) && identical(spec$outcome, preset$outcome)) {
+    for (nm in names(preset$settings)) spec[[nm]] <- preset$settings[[nm]]
   }
   spec <- .app_set_component_defaults(spec, data)
   spec$goal <- if (!is.null(preset$goal) && identical(spec$outcome, preset$outcome)) {
@@ -156,8 +179,9 @@
   arm <- if ("group" %in% arms) "group" else if (length(arms)) arms[1] else character(0)
   arm_values <- if (length(arm)) sort(unique(as.character(stats::na.omit(data[[arm]])))) else character(0)
   arm_value <- if ("treatment" %in% arm_values) "treatment" else if ("1" %in% arm_values) "1" else utils::tail(arm_values, 1)
-  center_col <- if ("center" %in% others) "center" else ""
-  period_col <- if ("period" %in% others) "period" else ""
+  # a preset names its center and period columns, else the usual names are used
+  center_col <- if (spec$center_col %in% others) spec$center_col else if ("center" %in% others) "center" else ""
+  period_col <- if (spec$period_col %in% others) spec$period_col else if ("period" %in% others) "period" else ""
   periods <- if (nzchar(period_col)) .app_periods(data[[period_col]])$labels else character(0)
   list(
     outcomes = numeric_cols,
@@ -169,9 +193,10 @@
     center_col = center_col,
     centers = if (nzchar(center_col)) sort(unique(as.character(stats::na.omit(data[[center_col]])))) else character(0),
     period_col = period_col,
-    periods = periods, period = utils::tail(periods, 1),
+    periods = periods, period = if (spec$period_value %in% periods) spec$period_value else utils::tail(periods, 1),
     covariates = setdiff(cols, c(spec$outcome, spec$components)),
-    weights = setdiff(numeric_cols, c(spec$outcome, spec$components))
+    weights = setdiff(numeric_cols, c(spec$outcome, spec$components)),
+    counts = numeric_cols
   )
 }
 
@@ -209,11 +234,80 @@
   )
 }
 
+.app_center_level <- function(spec) identical(spec$structure, "center")
+
+# Center level data has a binary outcome, read from the proportion column the
+# app builds.
+.app_resolve <- function(spec) {
+  if (.app_center_level(spec)) {
+    spec$outcome <- "proportion"
+    spec$outcome_type <- "binary"
+  }
+  spec
+}
+
+# The outcome of center level data as the package reads it: a column named
+# proportion, and the total of each row in a column named center_sample_size.
+# Returns the code lines and the data with both columns, when the columns are
+# chosen and numeric.
+.app_center_columns <- function(spec, data) {
+  if (!.app_center_level(spec) || !nzchar(spec$cl_value) || !nzchar(spec$cl_total) ||
+    !all(c(spec$cl_value, spec$cl_total) %in% names(data)) ||
+    !is.numeric(data[[spec$cl_value]]) || !is.numeric(data[[spec$cl_total]])) {
+    return(list(data = data, code = character(0)))
+  }
+  rstr <- function(x) deparse1(x)
+  code <- character(0)
+  if (identical(spec$cl_kind, "successes")) {
+    data$proportion <- data[[spec$cl_value]] / data[[spec$cl_total]]
+    code <- c(code, sprintf("data$proportion <- data[[%s]] / data[[%s]]", rstr(spec$cl_value), rstr(spec$cl_total)))
+  } else if (spec$cl_value != "proportion") {
+    data$proportion <- data[[spec$cl_value]]
+    code <- c(code, sprintf("data$proportion <- data[[%s]]", rstr(spec$cl_value)))
+  }
+  if (spec$cl_total != "center_sample_size") {
+    data$center_sample_size <- data[[spec$cl_total]]
+    code <- c(code, sprintf("data$center_sample_size <- data[[%s]]", rstr(spec$cl_total)))
+  }
+  list(data = data, code = code)
+}
+
+# The centers in the order the package gives their weights: the levels of the
+# center factor once unused levels are dropped.
+.app_center_levels <- function(data, center_col) {
+  if (!isTRUE(center_col %in% names(data))) {
+    return(character(0))
+  }
+  x <- data[[center_col]]
+  levels(droplevels(if (is.factor(x)) x else factor(x)))
+}
+
+# The weight of each center as the package sets it by default: its share of
+# the patients, which for center level data is the sum of its totals.
+.app_center_weights_default <- function(spec, data) {
+  centers <- .app_center_levels(data, spec$center_col)
+  if (!length(centers)) {
+    return(numeric(0))
+  }
+  f <- factor(as.character(data[[spec$center_col]]), levels = centers)
+  size <- if (.app_center_level(spec) && isTRUE(spec$cl_total %in% names(data))) {
+    tapply(data[[spec$cl_total]], f, sum, na.rm = TRUE)
+  } else {
+    as.numeric(table(f))
+  }
+  size[!is.finite(size)] <- 0
+  if (sum(size) <= 0) {
+    return(rep(1 / length(centers), length(centers)))
+  }
+  stats::setNames(as.numeric(size) / sum(size), centers)
+}
+
 # The prepared data, the lago_optimization() arguments and the R code for a
 # spec. `data` is the dataset as loaded. Columns the package reads by a fixed
 # name (group, center and period) and the interaction columns are built on a
 # copy, and the same lines are added to the code.
 .app_build <- function(spec, data) {
+  spec <- .app_resolve(spec)
   d <- data
   prep <- character(0)
   add <- function(line, value_fun) {
@@ -221,6 +315,10 @@
     value_fun()
   }
   rstr <- function(x) deparse1(x)
+
+  cl <- .app_center_columns(spec, data)
+  for (line in cl$code) add(line, function() NULL)
+  d <- cl$data
 
   for (term in spec$interactions) {
     ab <- strsplit(term, ":", fixed = TRUE)[[1]]
@@ -300,9 +398,18 @@
     args$center_characteristics <- spec$center_chars
     args$center_characteristics_optimization_values <- spec$center_char_values
   }
+  if (.app_center_level(spec)) {
+    args <- c(list(input_data_structure = "center_level"), args)
+    # the package fits center effects to center level data unless told not to
+    if (!identical(spec$center_mode, "effects")) args$include_center_effects <- FALSE
+  }
   if (identical(spec$center_mode, "effects")) {
     args$include_center_effects <- TRUE
-    if (nzchar(spec$center_for)) args$center_effects_optimization_values <- spec$center_for
+    if (nzchar(spec$center_for)) {
+      args$center_effects_optimization_values <- spec$center_for
+    } else if (isTRUE(spec$cw_on)) {
+      args$center_weights_for_outcome_goal <- spec$cw
+    }
   }
   if (length(spec$covariates)) args$additional_covariates <- spec$covariates
   if (isTRUE(spec$time_on)) {
@@ -398,11 +505,44 @@
   if (length(numeric_cols) < 2) {
     note("data", "The data needs at least two numeric columns: one outcome and one intervention component.")
   }
+  if (.app_center_level(spec)) {
+    value_name <- if (identical(spec$cl_kind, "successes")) "successes" else "proportion"
+    v <- if (nzchar(spec$cl_value)) data[[spec$cl_value]]
+    n <- if (nzchar(spec$cl_total)) data[[spec$cl_total]]
+    if (is.null(v)) {
+      note("outcome", sprintf("Choose the column with the %s of each row.", value_name))
+    } else if (!is.numeric(v)) {
+      note("outcome", sprintf("The %s column '%s' must be numeric.", value_name, spec$cl_value))
+    }
+    if (is.null(n)) {
+      note("outcome", "Choose the column with the total, the number of patients each row stands for.")
+    } else if (!is.numeric(n)) {
+      note("outcome", sprintf("The total column '%s' must be numeric.", spec$cl_total))
+    } else if (any(is.infinite(n)) || any(n <= 0, na.rm = TRUE)) {
+      note("outcome", sprintf("Every total in '%s' must be a number above 0.", spec$cl_total))
+    }
+    if (is.numeric(v) && is.numeric(n)) {
+      if (identical(spec$cl_kind, "successes") && (any(v < 0, na.rm = TRUE) || any(v > n, na.rm = TRUE))) {
+        note("outcome", sprintf("The successes in '%s' must be 0 or more and at most the total of their row.", spec$cl_value))
+      } else if (identical(spec$cl_kind, "proportion") && any(v < 0 | v > 1, na.rm = TRUE)) {
+        note("outcome", sprintf("The proportions in '%s' must be between 0 and 1.", spec$cl_value))
+      }
+    }
+    if (any(c(spec$cl_value, spec$cl_total) %in% spec$components)) {
+      note("intervention", "The successes, proportion or total column cannot also be an intervention component.")
+    }
+    if (nzchar(spec$weights_col)) {
+      note("outcome", "Center level data does not take weights, as each row is weighted by its total. Choose No weights.")
+    }
+  }
+  spec <- .app_resolve(spec)
+  data <- .app_center_columns(spec, data)$data
 
   y <- if (nzchar(spec$outcome) && spec$outcome %in% names(data)) data[[spec$outcome]]
   if (is.null(y)) {
-    note("outcome", "Choose the outcome column.")
-  } else if (identical(spec$outcome_type, "binary") && !.app_is_binary(y)) {
+    # for center level data the columns above say what to choose
+    if (!.app_center_level(spec)) note("outcome", "Choose the outcome column.")
+  } else if (identical(spec$outcome_type, "binary") && !.app_center_level(spec) && !.app_is_binary(y)) {
     note("outcome", sprintf("The outcome '%s' is not 0/1, so it cannot be binary. Choose Continuous or another column.", spec$outcome))
   }
   # the proportion model and the logit link both read the outcome as a share
@@ -523,7 +663,10 @@
     } else {
       # glm() leaves out a row with a missing value in a model column, so a
       # center counts only when one of its rows is complete
-      used <- intersect(c(spec$outcome, comps, spec$covariates, if (isTRUE(spec$time_on)) spec$period_col), names(data))
+      used <- intersect(c(
+        spec$outcome, comps, spec$covariates, if (isTRUE(spec$time_on)) spec$period_col,
+        if (.app_center_level(spec)) "center_sample_size"
+      ), names(data))
       complete <- stats::complete.cases(data[used])
       centers <- as.character(data[[spec$center_col]])
       fitted <- unique(centers[complete & !is.na(centers)])
@@ -531,6 +674,19 @@
         note("centers", "Fixed center effects need at least two centers with a row where every model column is observed.")
       } else if (nzchar(spec$center_for) && !spec$center_for %in% fitted) {
         note("centers", sprintf("The center %s has no row where every model column is observed, so it cannot be optimized for. Choose another center.", spec$center_for))
+      } else if (!nzchar(spec$center_for) && isTRUE(spec$cw_on)) {
+        centers_all <- .app_center_levels(data, spec$center_col)
+        w <- spec$cw
+        if (length(w) != length(centers_all) || any(!is.finite(w)) || any(w < 0)) {
+          note("centers", "Enter a weight of 0 or more for every center.")
+        } else if (abs(sum(w) - 1) >= 0.001) {
+          note("centers", sprintf("The center weights add up to %s. They must add up to 1.", format(signif(sum(w), 4))))
+        } else if (any(w > 0 & !centers_all %in% fitted)) {
+          note("centers", sprintf(
+            "The center %s has no row where every model column is observed, so its weight must be 0.",
+            paste(centers_all[w > 0 & !centers_all %in% fitted], collapse = ", ")
+          ))
+        }
       }
     }
   }
@@ -648,6 +804,7 @@
 # Notes that do not stop a run but that the user should know about, such as a
 # column the app replaces.
 .app_notes <- function(spec, data) {
+  spec <- .app_resolve(spec)
   notes <- character(0)
   replaced <- function(name, from) {
     if (name %in% names(data) && !identical(from, name)) {
@@ -656,6 +813,14 @@
         name, from
       )
     }
+  }
+  if (.app_center_level(spec)) {
+    if (identical(spec$cl_kind, "successes") && nzchar(spec$cl_value) && nzchar(spec$cl_total)) {
+      replaced("proportion", paste(spec$cl_value, "and", spec$cl_total))
+    } else if (nzchar(spec$cl_value)) {
+      replaced("proportion", spec$cl_value)
+    }
+    if (nzchar(spec$cl_total)) replaced("center_sample_size", spec$cl_total)
   }
   if (.app_power_on(spec) && nzchar(spec$arm_col) && .app_needs_group(spec, data)) replaced("group", spec$arm_col)
   if (identical(spec$center_mode, "effects") && nzchar(spec$center_col)) replaced("center", spec$center_col)

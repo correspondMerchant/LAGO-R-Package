@@ -39,14 +39,19 @@ The app runs on your own computer and is reachable only from it, at
 
 The app has these steps.
 \itemize{
-\item \strong{Data:} the \code{data} you pass, the bundled \code{BB_data}, R's \code{mtcars}, or a
-CSV file you upload. Each example opens on a setup that runs as is.
+\item \strong{Data:} the \code{data} you pass, the bundled \code{BB_data} or
+\code{main_pulesa_data}, R's \code{mtcars}, or a CSV file you upload. Each example
+opens on a setup that runs as is. Each row is one patient, or one center
+in one period with a total, which sets \code{input_data_structure}.
 \item \strong{Outcome and goal:} \code{outcome_name}, \code{outcome_type}, \code{outcome_goal},
 \code{outcome_goal_intention}, and for a binary outcome the power goal:
 \code{power_goal}, \code{num_centers_in_next_stage},
 \code{patients_per_center_in_next_stage}, \code{power_goal_approach}, \code{icc} and
 \code{power_goal_cluster_id}. The app builds the \code{group} column from the
-treatment arm column you choose. Under "Outcome model" are \code{glm_family}
+treatment arm column you choose. For center level data the outcome comes
+from a successes or proportion column and a total column, from which the
+app builds the \code{proportion} and \code{center_sample_size} columns. Under
+"Outcome model" are \code{glm_family}
 for a continuous outcome, \code{link}, and \code{weights} from a column you choose.
 \item \strong{Intervention and costs:} \code{intervention_components}, their bounds, and
 the costs as \code{unit_costs} with \code{default_cost_fxn_type} and
@@ -62,7 +67,8 @@ product column. Under "Confidence set" are \code{include_confidence_set},
 "Previous stage" is \code{prev_recommended_interventions}.
 \item \strong{Centers, time and covariates:} \code{center_characteristics} with their
 values, or fixed center effects with \code{include_center_effects} and
-\code{center_effects_optimization_values}, fixed time effects with
+\code{center_effects_optimization_values} or your own
+\code{center_weights_for_outcome_goal}, fixed time effects with
 \code{include_time_effects} and \code{time_effect_optimization_value}, and
 \code{additional_covariates}. The app builds the \code{center} and \code{period} columns
 from the columns you choose.

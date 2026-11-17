@@ -1,5 +1,7 @@
 # LAGOtrials (development version)
 
+* `lago_app()` takes center level data, with one row per center and period. The outcome comes from a column of successes or of proportions and a column of totals, and the app builds the `proportion` and `center_sample_size` columns the package reads. The PULESA example `main_pulesa_data` is a new example dataset, set up as in the package's PULESA model with clinic and period effects. For the weighted average center, each center's weight can now be set, starting at its share of the patients, with a check that the weights add up to 1.
+
 * `lago_app()` has advanced settings, each in a section that stays closed until it is needed. The outcome model can take a family for a continuous outcome, a link, and weights from a column. The intervention step can set the confidence level and the grid steps of the confidence set, switch the optimizer to a grid search with its own steps, and give the recommendation of the previous stage for the shrinking method, with a button that fills in the current recommendation. Each setting is checked before a run, and the R code includes it. The confidence interval in the result now shows the level it was computed at, which was always given as 95%.
 
 * `lago_report()` now renders a copy of its template in a temporary folder. It used to write its working files next to the template in the installed package, so it failed with "Permission denied" when the R library could not be written to, as with a library installed for all users.

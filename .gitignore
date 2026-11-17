@@ -10,3 +10,4 @@ src/*.dll
 tests/testthat/Rplots.pdf
 # testthat writes the code of a failed test here
 tests/testthat/_problems/
+tests/testthat/testthat-problems.rds
