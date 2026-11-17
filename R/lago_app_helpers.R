@@ -194,7 +194,7 @@
     centers = if (nzchar(center_col)) sort(unique(as.character(stats::na.omit(data[[center_col]])))) else character(0),
     period_col = period_col,
     periods = periods, period = if (spec$period_value %in% periods) spec$period_value else utils::tail(periods, 1),
-    covariates = setdiff(cols, c(spec$outcome, spec$components)),
+    covariates = setdiff(cols, c(spec$outcome, spec$components, if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total))),
     weights = setdiff(numeric_cols, c(spec$outcome, spec$components)),
     counts = numeric_cols
   )
@@ -530,6 +530,21 @@
     }
     if (any(c(spec$cl_value, spec$cl_total) %in% spec$components)) {
       note("intervention", "The successes, proportion or total column cannot also be an intervention component.")
+    }
+    if (any(c(spec$cl_value, spec$cl_total) %in% c(spec$covariates, spec$center_chars))) {
+      note("centers", "The successes, proportion or total column cannot also be a covariate or a center characteristic.")
+    }
+    # the package weighs the average center by its totals, so each center needs one
+    if (is.numeric(n) && identical(spec$center_mode, "effects") && !nzchar(spec$center_for) && !isTRUE(spec$cw_on) &&
+      isTRUE(spec$center_col %in% names(data))) {
+      centers <- as.character(data[[spec$center_col]])
+      no_total <- sort(unique(centers[!is.na(centers)][tapply(is.na(n), centers, all)[centers[!is.na(centers)]]]))
+      if (length(no_total)) {
+        note("outcome", sprintf(
+          "The center %s has no total on any row, so it has no size to weigh it by. Fill in its totals, or set the weight of each center in step 4.",
+          paste(no_total, collapse = ", ")
+        ))
+      }
     }
     if (nzchar(spec$weights_col)) {
       note("outcome", "Center level data does not take weights, as each row is weighted by its total. Choose No weights.")

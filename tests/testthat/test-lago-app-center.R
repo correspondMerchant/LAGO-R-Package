@@ -161,8 +161,60 @@ test_that("the server reads center level data and the center weights", {
     expect_match(html, "Butabika NRH")
     expect_match(html, "Each center starts at its share of the patients")
     w <- unname(.app_center_weights_default(s, d))
-    do.call(session$setInputs, stats::setNames(as.list(signif(w, 4)), vapply(seq_along(w), function(k) cw_id("Clinic", k), character(1))))
+    do.call(session$setInputs, stats::setNames(as.list(signif(w, 4)), vapply(seq_along(w), function(k) cw_id(spec(), k), character(1))))
     expect_match(as.character(output$cw_sum$html), "The weights add up to 1.")
     expect_equal(spec()$cw, signif(w, 4))
+  })
+})
+
+test_that("center level checks catch a covariate or a center without totals", {
+  d <- center_pulesa()
+  base <- .app_defaults(d, "main_pulesa_data")
+  msgs <- function(data = d, ...) paste(.app_problems(utils::modifyList(base, list(...)), data)$message, collapse = "\n")
+  expect_match(msgs(covariates = c("Total_visit", "MI_DeliveryB")), "cannot also be a covariate or a center characteristic")
+  expect_false("Total_visit" %in% .app_choices(d, base)$covariates)
+  d$Total_visit[d$Clinic == "Butabika NRH"] <- NA
+  expect_match(msgs(d), "The center Butabika NRH has no total on any row")
+  # with weights set or one center to plan for, the package needs no totals for it
+  expect_false(grepl("no total on any row", msgs(d, center_for = "Mengo Hospital")))
+  expect_false(grepl("no total on any row", msgs(d, cw_on = TRUE)))
+})
+
+test_that("for center level data the hidden outcome column hides no other column", {
+  sent <- list()
+  record <- function(kind) function(session, inputId, label = NULL, choices = NULL, selected = NULL, value = NULL, ...) {
+    sent[[length(sent) + 1]] <<- list(kind = kind, id = inputId, choices = choices, value = value)
+  }
+  local_mocked_bindings(
+    updateSelectizeInput = record("selectize"), updateSelectInput = record("select"),
+    updateNumericInput = record("numeric"), .package = "shiny"
+  )
+  # the PULESA data with no preset, as an upload of it would be
+  shiny::testServer(.build_lago_app(data = center_pulesa(), data_name = "p"), {
+    session$setInputs(source = "passed", sep = ",", dec = ".")
+    session$setInputs(outcome = "MI_DeliveryB", components = c("DeliveryA", "DeliveryB"), goal = 5)
+    sent <<- list()
+    session$setInputs(structure = "center", cl_kind = "successes", cl_value = "Success", cl_total = "Total_visit")
+  })
+  last <- function(id) Filter(function(m) identical(m$id, id), sent)
+  covs <- unname(unlist(utils::tail(last("covariates"), 1)[[1]]$choices))
+  expect_true("MI_DeliveryB" %in% covs)
+  expect_false(any(c("Success", "Total_visit") %in% covs))
+  expect_false(any(c("Success", "Total_visit") %in% unname(unlist(utils::tail(last("components"), 1)[[1]]$choices))))
+  # a goal that is not a probability starts again at 0.85
+  expect_equal(utils::tail(last("goal"), 1)[[1]]$value, 0.85)
+})
+
+test_that("the starting center weights follow the structure of the data", {
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "main_pulesa_data", sep = ",", dec = ".")
+    session$setInputs(center_mode = "effects", center_col = "Clinic", center_for = "", cw_on = TRUE, structure = "individual", cl_total = "Total_visit")
+    # one row for each clinic and period: every clinic has the same share of the rows
+    expect_match(as.character(output$cw_ui$html), "value=\"0.0625\"")
+    id_rows <- cw_id(spec(), 1)
+    session$setInputs(structure = "center")
+    # by patients the first clinic has 2.45%
+    expect_match(as.character(output$cw_ui$html), "value=\"0.0245\"")
+    expect_false(identical(cw_id(spec(), 1), id_rows))
   })
 })
