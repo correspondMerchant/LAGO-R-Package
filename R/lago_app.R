@@ -499,6 +499,7 @@ lago_app <- function(data = NULL,
     # the spec the inputs start from, and the value it gives one input: field
     # of the spec at the place of key in its keys, or the fallback
     start_spec <- shiny::reactiveVal(NULL)
+    interactions_started <- NULL
     start_value <- function(field, key, fallback, keys = "components") {
       s <- shiny::isolate(start_spec())
       k <- if (is.null(s)) NA else match(key, s[[keys]])
@@ -626,9 +627,14 @@ lago_app <- function(data = NULL,
     output$save_settings <- shiny::downloadHandler(
       filename = function() "lago_app_settings.rds",
       content = function(file) {
-        # the data is named as the Data step lists it, for a message on loading
-        label <- names(sources)[match(input$source, sources)]
-        saveRDS(list(lago_app_settings = 1L, data_name = loaded()$name, data_label = label, spec = spec()), file)
+        got <- loaded()
+        # how to get this data back, for a message on loading
+        label <- switch(input$source,
+          upload = sprintf("the file %s", input$file$name),
+          passed = if (is.null(got$start)) sprintf("your data %s", got$name) else "the data of the result the app was started from, with lago_app() on that result",
+          sprintf("the %s example", got$name)
+        )
+        saveRDS(list(lago_app_settings = 1L, data_name = got$name, data_label = label, spec = spec()), file)
       }
     )
     shiny::observeEvent(input$load_settings, {
@@ -636,7 +642,16 @@ lago_app <- function(data = NULL,
       f <- input$load_settings
       shiny::req(f)
       x <- tryCatch(readRDS(f$datapath), error = function(e) NULL)
-      if (!is.list(x) || !identical(x$lago_app_settings, 1L) || !is.list(x$spec)) {
+      if (inherits(x, "lago")) {
+        shiny::showNotification("This file holds a result of lago_optimization(), not settings. To start from it, read it in R with readRDS() and pass it to lago_app().", type = "error", duration = NULL)
+        return()
+      }
+      version <- if (is.list(x) && is.numeric(x$lago_app_settings) && length(x$lago_app_settings) == 1) x$lago_app_settings else NA
+      if (isTRUE(version > 1)) {
+        shiny::showNotification("These settings were saved by a newer version of LAGOtrials. Update the package to load them.", type = "error", duration = NULL)
+        return()
+      }
+      if (!identical(version, 1L) || !is.list(x$spec)) {
         shiny::showNotification("This file is not a settings file of this app.", type = "error", duration = NULL)
         return()
       }
@@ -647,16 +662,26 @@ lago_app <- function(data = NULL,
       spec <- utils::modifyList(.app_empty_spec(), x$spec)
       missing <- setdiff(.app_spec_columns(spec), names(got$data))
       if (length(missing)) {
-        saved_for <- if (is.character(x$data_label) && length(x$data_label) == 1 && !is.na(x$data_label)) sprintf(", %s,", x$data_label) else ""
+        saved_for <- if (is.character(x$data_label) && length(x$data_label) == 1 && !is.na(x$data_label)) x$data_label else "the data they were saved with"
         shiny::showNotification(sprintf(
-          "These settings name columns that this data does not have: %s. Load the data they were saved with%s first.",
+          "These settings name columns that this data does not have: %s. Load %s first, then load the settings again.",
           paste(missing, collapse = ", "), saved_for
         ), type = "error", duration = NULL)
         return()
       }
+      misfits <- .app_spec_misfits(spec, got$data)
+      if (any(grepl("^the center .* to optimize for", misfits))) spec$center_for <- ""
       spec$data_name <- got$name
       apply_defaults(got$data, got$name, spec)
-      shiny::showNotification("The settings are loaded. Check each step, then press Find recommendation.", type = "message")
+      if (length(misfits)) {
+        shiny::showNotification(htmltools::tagList(
+          "The settings are loaded, but these do not fit this data and were changed:",
+          htmltools::tags$ul(lapply(misfits, htmltools::tags$li)),
+          "Check each step, then press Find recommendation."
+        ), type = "warning", duration = NULL)
+      } else {
+        shiny::showNotification("The settings are loaded. Check each step, then press Find recommendation.", type = "message")
+      }
     })
 
     current_data <- shiny::reactive(loaded()$data)
@@ -883,7 +908,17 @@ lago_app <- function(data = NULL,
       pairs <- utils::combn(comps, 2, simplify = FALSE)
       terms <- vapply(pairs, paste, character(1), collapse = ":")
       labels <- vapply(pairs, paste, character(1), collapse = " \u00d7 ")
-      shiny::checkboxGroupInput("interactions", NULL, choices = stats::setNames(terms, labels), selected = intersect(shiny::isolate(input$interactions), terms))
+      # the first time the components of loaded settings are all shown, their
+      # interactions are checked, as an update before the boxes exist is lost
+      s0 <- shiny::isolate(start_spec())
+      key <- shiny::isolate(generation())
+      selected <- if (!identical(interactions_started, key) && !is.null(s0) && all(s0$components %in% comps)) {
+        interactions_started <<- key
+        intersect(s0$interactions, terms)
+      } else {
+        intersect(shiny::isolate(input$interactions), terms)
+      }
+      shiny::checkboxGroupInput("interactions", NULL, choices = stats::setNames(terms, labels), selected = selected)
     })
 
     output$center_char_values <- shiny::renderUI({
@@ -919,14 +954,15 @@ lago_app <- function(data = NULL,
       start <- .app_center_weights_default(utils::modifyList(shiny::isolate(spec()), key), d)
       # loaded settings bring their own weights, for the same centers
       s0 <- shiny::isolate(start_spec())
-      if (!is.null(s0) && isTRUE(s0$cw_on) && identical(s0$center_col, key$center_col) && length(s0$cw) == length(centers)) start <- s0$cw
+      from_settings <- !is.null(s0) && isTRUE(s0$cw_on) && identical(s0$center_col, key$center_col) && length(s0$cw) == length(centers)
+      if (from_settings) start <- s0$cw
       inputs <- lapply(seq_along(centers), function(k) {
         id <- cw_id(key, k)
         v <- shiny::isolate(input[[id]])
         shiny::numericInput(id, centers[k], value = if (is.null(v)) signif(start[k], 4) else v, min = 0, max = 1, step = 0.01)
       })
       htmltools::tagList(
-        htmltools::p(class = "text-muted", "Each center starts at its share of the patients."),
+        htmltools::p(class = "text-muted", if (from_settings) "Each center starts at its weight in the settings it was opened with." else "Each center starts at its share of the patients."),
         do.call(bslib::layout_column_wrap, c(list(width = "12rem", fill = FALSE), inputs))
       )
     })
@@ -1174,6 +1210,8 @@ lago_app <- function(data = NULL,
     shiny::observe({
       set_enabled("run", !nrow(problems()))
       shinyjs::toggleState("next_centers", condition = !nrow(problems()))
+      # settings are saved for a loaded dataset
+      shinyjs::toggleState("save_settings", condition = !is.null(loaded()))
     })
     output$run_hint <- shiny::renderUI({
       p <- problems()

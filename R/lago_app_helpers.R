@@ -1338,3 +1338,33 @@
   )
   unique(cols[nzchar(cols)])
 }
+
+# Values of loaded settings that this data does not have, and what the app
+# uses instead, in plain words. The columns are checked before this.
+.app_spec_misfits <- function(spec, data) {
+  out <- character(0)
+  if (identical(spec$center_mode, "effects") && isTRUE(spec$center_col %in% names(data))) {
+    centers <- .app_center_levels(data, spec$center_col)
+    if (nzchar(spec$center_for) && !spec$center_for %in% centers) {
+      out <- c(out, sprintf("the center %s to optimize for, which this data does not have, so the weighted average center is used", spec$center_for))
+    } else if (!nzchar(spec$center_for) && isTRUE(spec$cw_on) && length(spec$cw) != length(centers)) {
+      out <- c(out, sprintf(
+        "the center weights, which are for %d centers while this data has %d, so each center starts at its share of the patients",
+        length(spec$cw), length(centers)
+      ))
+    }
+  }
+  if (isTRUE(spec$time_on) && isTRUE(spec$period_col %in% names(data))) {
+    periods <- .app_periods(data[[spec$period_col]])$labels
+    if (!spec$period_value %in% periods) {
+      out <- c(out, sprintf("the period %s, which this data does not have, so the last period is used", spec$period_value))
+    }
+  }
+  if (.app_power_on(spec) && isTRUE(spec$arm_col %in% names(data))) {
+    values <- unique(as.character(stats::na.omit(data[[spec$arm_col]])))
+    if (!as.character(spec$arm_value) %in% values) {
+      out <- c(out, sprintf("the treatment value %s, which the column %s does not have", spec$arm_value, spec$arm_col))
+    }
+  }
+  out
+}

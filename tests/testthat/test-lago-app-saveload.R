@@ -154,7 +154,7 @@ test_that("settings are saved and loaded back, and refused when they do not fit"
     do.call(session$setInputs, stats::setNames(list(3, 5, 4, 14, 20, 1), c(col_id("lb", "gear"), col_id("ub", "gear"), col_id("cost", "gear"), col_id("lb", "qsec"), col_id("ub", "qsec"), col_id("cost", "qsec"))))
     saved <- readRDS(output$save_settings)
     expect_identical(saved$lago_app_settings, 1L)
-    expect_identical(saved$data_label, "mtcars, an R example with a continuous outcome")
+    expect_identical(saved$data_label, "the mtcars example")
     expect_equal(saved$spec$goal, 27)
     f <- tempfile(fileext = ".rds")
     saveRDS(saved, f)
@@ -174,7 +174,7 @@ test_that("settings are saved and loaded back, and refused when they do not fit"
     saved$spec$components <- c("gear", "coaching_updt")
     saveRDS(saved, f)
     session$setInputs(load_settings = list(datapath = f, name = "s2.rds"))
-    expect_match(said[length(said)], "does not have: coaching_updt. Load the data they were saved with, mtcars, an R example with a continuous outcome, first.", fixed = TRUE)
+    expect_match(said[length(said)], "does not have: coaching_updt. Load the mtcars example first, then load the settings again.", fixed = TRUE)
     # no data yet
     session$setInputs(source = "upload")
     session$setInputs(load_settings = list(datapath = f, name = "s3.rds"))
@@ -250,5 +250,87 @@ test_that("a settings file without a data label names no data in its message", {
     saveRDS(list(lago_app_settings = 1L, spec = utils::modifyList(.app_empty_spec(), list(outcome = "mpg", components = "missing_column"))), f)
     session$setInputs(load_settings = list(datapath = f, name = "s.rds"))
   })
-  expect_match(said[length(said)], "Load the data they were saved with first.", fixed = TRUE)
+  expect_match(said[length(said)], "Load the data they were saved with first, then load the settings again.", fixed = TRUE)
+})
+
+test_that("the interactions of a result or of loaded settings are checked once their components show", {
+  d <- transform(datasets::mtcars, `gear:qsec` = gear * qsec, check.names = FALSE)
+  start <- .app_spec_from_args(saveload_args(d,
+    outcome_name = "mpg", outcome_type = "continuous", intervention_components = c("gear", "qsec", "gear:qsec"),
+    main_components = c("gear", "qsec"), include_interaction_terms = TRUE, intervention_lower_bounds = c(3, 14),
+    intervention_upper_bounds = c(5, 20), unit_costs = c(2, 1), outcome_goal = 25
+  ))
+  shiny::testServer(.build_lago_app(data = d, data_name = "d", start = start), {
+    session$setInputs(source = "passed", sep = ",", dec = ".")
+    # before the components arrive, there is nothing to check
+    expect_match(as.character(output$interaction_ui$html), "Choose at least two components")
+    session$setInputs(components = c("gear", "qsec"))
+    expect_match(as.character(output$interaction_ui$html), "value=\"gear:qsec\" checked")
+    # later the user's own choice holds
+    session$setInputs(interactions = character(0), components = c("qsec", "gear"))
+    expect_false(grepl("checked", as.character(output$interaction_ui$html)))
+  })
+})
+
+test_that("loading names the values that do not fit the data, and the kind of a wrong file", {
+  said <- character(0)
+  local_mocked_bindings(showNotification = function(ui, ...) said <<- c(said, paste(as.character(ui), collapse = " ")), .package = "shiny")
+  d <- as.data.frame(main_pulesa_data)
+  s <- utils::modifyList(.app_defaults(d, "main_pulesa_data"), list(center_for = "Nowhere", period_value = "99"))
+  expect_match(.app_spec_misfits(s, d)[1], "the center Nowhere to optimize for, which this data does not have")
+  expect_match(.app_spec_misfits(s, d)[2], "the period 99, which this data does not have, so the last period is used")
+  s2 <- utils::modifyList(.app_defaults(d, "main_pulesa_data"), list(cw_on = TRUE, cw = c(0.5, 0.5)))
+  expect_match(.app_spec_misfits(s2, d), "for 2 centers while this data has 16")
+  bb <- as.data.frame(BB_data)
+  s3 <- utils::modifyList(.app_defaults(bb, "BB_data"), list(goal_mode = "power", arm_col = "pre_post", arm_value = "7"))
+  expect_match(.app_spec_misfits(s3, bb), "the treatment value 7, which the column pre_post does not have")
+  expect_length(.app_spec_misfits(.app_defaults(d, "main_pulesa_data"), d), 0)
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "main_pulesa_data", sep = ",", dec = ".")
+    f <- tempfile(fileext = ".rds")
+    saveRDS(list(lago_app_settings = 1L, spec = s), f)
+    session$setInputs(load_settings = list(datapath = f, name = "a.rds"))
+    expect_match(said[length(said)], "do not fit this data and were changed")
+    expect_identical(start_spec()$center_for, "")
+    saveRDS(list(lago_app_settings = 2L, spec = s), f)
+    session$setInputs(load_settings = list(datapath = f, name = "b.rds"))
+    expect_match(said[length(said)], "saved by a newer version of LAGOtrials")
+    saveRDS(structure(list(rec_int = 1), class = "lago"), f)
+    session$setInputs(load_settings = list(datapath = f, name = "c.rds"))
+    expect_match(said[length(said)], "holds a result of lago_optimization\\(\\), not settings")
+    # saved from an upload, the message names the file
+    saved <- readRDS(output$save_settings)
+    expect_identical(saved$data_label, "the main_pulesa_data example")
+  })
+})
+
+test_that("weights from loaded settings say where they start", {
+  d <- as.data.frame(main_pulesa_data)
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "main_pulesa_data", sep = ",", dec = ".")
+    s <- utils::modifyList(.app_defaults(d, "main_pulesa_data"), list(cw_on = TRUE, cw = rep(1 / 16, 16)))
+    f <- tempfile(fileext = ".rds")
+    saveRDS(list(lago_app_settings = 1L, spec = s), f)
+    session$setInputs(load_settings = list(datapath = f, name = "a.rds"))
+    session$setInputs(center_mode = "effects", center_col = "Clinic", center_for = "", cw_on = TRUE, structure = "center", cl_total = "Total_visit")
+    expect_match(as.character(output$cw_ui$html), "Each center starts at its weight in the settings it was opened with")
+  })
+})
+
+test_that("saving names an upload or a result by how to get the data back", {
+  f <- tempfile(fileext = ".csv")
+  utils::write.csv(datasets::mtcars, f, row.names = FALSE)
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "upload", sep = ",", dec = ".", file = data.frame(name = "trial.csv", size = 1, type = "text/csv", datapath = f))
+    expect_identical(readRDS(output$save_settings)$data_label, "the file trial.csv")
+  })
+  start <- .app_spec_from_args(saveload_args(datasets::mtcars, outcome_name = "mpg", outcome_type = "continuous", intervention_components = "gear", intervention_lower_bounds = 3, intervention_upper_bounds = 5, unit_costs = 1, outcome_goal = 25))
+  shiny::testServer(.build_lago_app(data = datasets::mtcars, data_name = "r", start = start), {
+    session$setInputs(source = "passed", sep = ",", dec = ".")
+    expect_match(readRDS(output$save_settings)$data_label, "the data of the result the app was started from")
+  })
+  shiny::testServer(.build_lago_app(data = datasets::mtcars, data_name = "cars"), {
+    session$setInputs(source = "passed", sep = ",", dec = ".")
+    expect_identical(readRDS(output$save_settings)$data_label, "your data cars")
+  })
 })
