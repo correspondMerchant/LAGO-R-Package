@@ -56,17 +56,22 @@ The app runs on your own computer and is reachable only from it, at
 
 The app has these steps.
 
-- **Data:** the `data` you pass, the bundled `BB_data`, R's `mtcars`, or
-  a CSV file you upload. Each example opens on a setup that runs as is.
+- **Data:** the `data` you pass, the bundled `BB_data` or
+  `main_pulesa_data`, R's `mtcars`, or a CSV file you upload. Each
+  example opens on a setup that runs as is. Each row is one patient, or
+  one center in one period with a total, which sets
+  `input_data_structure`.
 
 - **Outcome and goal:** `outcome_name`, `outcome_type`, `outcome_goal`,
   `outcome_goal_intention`, and for a binary outcome the power goal:
   `power_goal`, `num_centers_in_next_stage`,
   `patients_per_center_in_next_stage`, `power_goal_approach`, `icc` and
   `power_goal_cluster_id`. The app builds the `group` column from the
-  treatment arm column you choose. Under "Outcome model" are
-  `glm_family` for a continuous outcome, `link`, and `weights` from a
-  column you choose.
+  treatment arm column you choose. For center level data the outcome
+  comes from a successes or proportion column and a total column, from
+  which the app builds the `proportion` and `center_sample_size`
+  columns. Under "Outcome model" are `glm_family` for a continuous
+  outcome, `link`, and `weights` from a column you choose.
 
 - **Intervention and costs:** `intervention_components`, their bounds,
   and the costs as `unit_costs` with `default_cost_fxn_type` and
@@ -84,7 +89,8 @@ The app has these steps.
 
 - **Centers, time and covariates:** `center_characteristics` with their
   values, or fixed center effects with `include_center_effects` and
-  `center_effects_optimization_values`, fixed time effects with
+  `center_effects_optimization_values` or your own
+  `center_weights_for_outcome_goal`, fixed time effects with
   `include_time_effects` and `time_effect_optimization_value`, and
   `additional_covariates`. The app builds the `center` and `period`
   columns from the columns you choose.
