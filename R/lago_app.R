@@ -14,14 +14,19 @@
 #'
 #' @details The app has these steps.
 #'
-#' * **Data:** the `data` you pass, the bundled `BB_data`, R's `mtcars`, or a
-#'   CSV file you upload. Each example opens on a setup that runs as is.
+#' * **Data:** the `data` you pass, the bundled `BB_data` or
+#'   `main_pulesa_data`, R's `mtcars`, or a CSV file you upload. Each example
+#'   opens on a setup that runs as is. Each row is one patient, or one center
+#'   in one period with a total, which sets `input_data_structure`.
 #' * **Outcome and goal:** `outcome_name`, `outcome_type`, `outcome_goal`,
 #'   `outcome_goal_intention`, and for a binary outcome the power goal:
 #'   `power_goal`, `num_centers_in_next_stage`,
 #'   `patients_per_center_in_next_stage`, `power_goal_approach`, `icc` and
 #'   `power_goal_cluster_id`. The app builds the `group` column from the
-#'   treatment arm column you choose. Under "Outcome model" are `glm_family`
+#'   treatment arm column you choose. For center level data the outcome comes
+#'   from a successes or proportion column and a total column, from which the
+#'   app builds the `proportion` and `center_sample_size` columns. Under
+#'   "Outcome model" are `glm_family`
 #'   for a continuous outcome, `link`, and `weights` from a column you choose.
 #' * **Intervention and costs:** `intervention_components`, their bounds, and
 #'   the costs as `unit_costs` with `default_cost_fxn_type` and
@@ -37,7 +42,8 @@
 #'   "Previous stage" is `prev_recommended_interventions`.
 #' * **Centers, time and covariates:** `center_characteristics` with their
 #'   values, or fixed center effects with `include_center_effects` and
-#'   `center_effects_optimization_values`, fixed time effects with
+#'   `center_effects_optimization_values` or your own
+#'   `center_weights_for_outcome_goal`, fixed time effects with
 #'   `include_time_effects` and `time_effect_optimization_value`, and
 #'   `additional_covariates`. The app builds the `center` and `period` columns
 #'   from the columns you choose.
@@ -152,6 +158,7 @@ lago_app <- function(data = NULL,
   shiny::addResourcePath("lago_cost_assets", system.file("js", package = "LAGOtrials"))
   sources <- c(
     "BetterBirth example (BB_data)" = "BB_data",
+    "PULESA example, with one row per clinic and period (main_pulesa_data)" = "main_pulesa_data",
     "mtcars, an R example with a continuous outcome" = "mtcars",
     "Upload a CSV file" = "upload"
   )
@@ -185,10 +192,14 @@ lago_app <- function(data = NULL,
         "1. Data",
         value = "data",
         htmltools::p(class = "lago-intro", "Choose the data from the first stage of the trial. Each example opens on a setup that runs as it is, so you can press Find recommendation right away."),
-        shiny::radioButtons("source", .app_help("Data", "The first stage data, with one row per patient. The outcome and the components must be numeric columns."), choices = sources, selected = if (is.null(data)) "BB_data" else "passed"),
+        shiny::radioButtons("source", .app_help("Data", "The first stage data. The outcome and the components must be numeric columns."), choices = sources, selected = if (is.null(data)) "BB_data" else "passed"),
+        shiny::radioButtons(
+          "structure", .app_help("Each row is", "Each row is one patient, with that patient's outcome. Or each row is one center in one period, with the number of its patients who had the outcome and the number of its patients. The outcome of center level data is binary."),
+          c("One patient" = "individual", "One center and period, with a total" = "center"), inline = TRUE
+        ),
         shiny::conditionalPanel(
           "input.source == 'upload'",
-          shiny::fileInput("file", .app_help("CSV file", "A text file with a header row and one row per patient. It stays on your computer."), accept = c(".csv", "text/csv")),
+          shiny::fileInput("file", .app_help("CSV file", "A text file with a header row, and one row per patient or one row per center and period. It stays on your computer."), accept = c(".csv", "text/csv")),
           bslib::layout_columns(
             shiny::selectInput("sep", .app_help("Separator", "The character between the values of a row. Many European files use a semicolon."), c("Comma" = ",", "Semicolon" = ";", "Tab" = "\t")),
             shiny::selectInput("dec", .app_help("Decimal mark", "The character before the decimals, such as the point in 2.5 or the comma in 2,5."), c("Point" = ".", "Comma" = ","))
@@ -206,11 +217,24 @@ lago_app <- function(data = NULL,
         "2. Outcome and goal",
         value = "outcome",
         htmltools::p(class = "lago-intro", "Say what the trial measures and what it should reach."),
-        bslib::layout_columns(
-          shiny::selectInput("outcome", .app_help("Outcome column", "The column that holds the outcome of each patient, or of each row."), choices = NULL),
-          htmltools::div(
-            shiny::radioButtons("outcome_type", .app_help("Outcome type", "Binary for an outcome that is 0 or 1 for each patient, such as whether a practice was followed. Continuous for a measured value."), c("Binary (0/1)" = "binary", "Continuous" = "continuous"), inline = TRUE),
-            shiny::uiOutput("outcome_type_note")
+        shiny::conditionalPanel(
+          "input.structure != 'center'",
+          bslib::layout_columns(
+            shiny::selectInput("outcome", .app_help("Outcome column", "The column that holds the outcome of each patient, or of each row."), choices = NULL),
+            htmltools::div(
+              shiny::radioButtons("outcome_type", .app_help("Outcome type", "Binary for an outcome that is 0 or 1 for each patient, such as whether a practice was followed. Continuous for a measured value."), c("Binary (0/1)" = "binary", "Continuous" = "continuous"), inline = TRUE),
+              shiny::uiOutput("outcome_type_note")
+            )
+          )
+        ),
+        shiny::conditionalPanel(
+          "input.structure == 'center'",
+          htmltools::p(class = "text-muted", "Each row is a center in one period. The outcome is the share of its patients who had it, and each row counts as many patients as its total."),
+          bslib::layout_columns(
+            fill = FALSE,
+            shiny::radioButtons("cl_kind", .app_help("The data gives", "The number of patients who had the outcome, or the share of patients who had it, as a number between 0 and 1."), c("Successes and a total" = "successes", "A proportion and a total" = "proportion")),
+            shiny::selectInput("cl_value", .app_help("Successes or proportion column", "The column with the number of patients of the row who had the outcome, or with their share."), choices = NULL, selectize = FALSE),
+            shiny::selectInput("cl_total", .app_help("Total column", "The column with the number of patients the row stands for."), choices = NULL, selectize = FALSE)
           )
         ),
         shiny::radioButtons(
@@ -349,8 +373,13 @@ lago_app <- function(data = NULL,
         shiny::conditionalPanel(
           "input.center_mode == 'effects'",
           bslib::layout_columns(
-            shiny::selectInput("center_col", .app_help("Column that identifies the centers", "The column that says which center each patient was in."), choices = NULL, selectize = FALSE),
-            shiny::selectInput("center_for", .app_help("Optimize for", "The weighted average center weighs each center by its number of patients. Or choose one center to plan for."), choices = NULL, selectize = FALSE)
+            shiny::selectInput("center_col", .app_help("Column that identifies the centers", "The column that says which center each row belongs to."), choices = NULL, selectize = FALSE),
+            shiny::selectInput("center_for", .app_help("Optimize for", "The weighted average center weighs each center by its share of the patients, or by the weights you set below. Or choose one center to plan for."), choices = NULL, selectize = FALSE)
+          ),
+          shiny::conditionalPanel(
+            "input.center_for == ''",
+            shiny::checkboxInput("cw_on", .app_help("Set the weight of each center", "By default each center counts by its share of the patients. Set your own weights to plan for another mix of centers. They must add up to 1, and a center may get 0."), value = FALSE),
+            shiny::conditionalPanel("input.cw_on", shiny::uiOutput("cw_ui"), shiny::uiOutput("cw_sum"))
           )
         ),
         shiny::checkboxInput("time_on", .app_help("Fixed time effects", "Fit each time period its own level, and recommend for the period you choose."), value = FALSE),
@@ -458,6 +487,7 @@ lago_app <- function(data = NULL,
       switch(source,
         passed = list(data = data, name = data_name),
         BB_data = list(data = as.data.frame(LAGOtrials::BB_data), name = "BB_data"),
+        main_pulesa_data = list(data = as.data.frame(LAGOtrials::main_pulesa_data), name = "main_pulesa_data"),
         mtcars = list(data = datasets::mtcars, name = "mtcars"),
         upload = {
           f <- input$file
@@ -496,7 +526,12 @@ lago_app <- function(data = NULL,
       shiny::updateSelectizeInput(session, "components", choices = ch$components, selected = spec$components)
       shiny::updateRadioButtons(session, "cost_mode", selected = "unit")
       shiny::updateRadioButtons(session, "cost_type", selected = "linear")
-      shiny::updateCheckboxInput(session, "include_cs", value = TRUE)
+      shiny::updateCheckboxInput(session, "include_cs", value = spec$include_cs)
+      shiny::updateRadioButtons(session, "structure", selected = spec$structure)
+      shiny::updateRadioButtons(session, "cl_kind", selected = spec$cl_kind)
+      shiny::updateSelectInput(session, "cl_value", choices = c("Choose a column" = "", ch$counts), selected = spec$cl_value)
+      shiny::updateSelectInput(session, "cl_total", choices = c("Choose a column" = "", ch$counts), selected = spec$cl_total)
+      shiny::updateCheckboxInput(session, "cw_on", value = FALSE)
       shiny::updateCheckboxGroupInput(session, "interactions", selected = character(0))
       shiny::updateSelectInput(session, "arm_col", choices = ch$arms, selected = ch$arm)
       shiny::updateSelectInput(session, "arm_value", choices = ch$arm_values, selected = ch$arm_value)
@@ -506,14 +541,14 @@ lago_app <- function(data = NULL,
       shiny::updateRadioButtons(session, "approach", selected = "unconditional")
       shiny::updateTextInput(session, "icc", value = "")
       shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", ch$clusters), selected = "")
-      shiny::updateRadioButtons(session, "center_mode", selected = "none")
+      shiny::updateRadioButtons(session, "center_mode", selected = spec$center_mode)
       shiny::updateSelectizeInput(session, "center_chars", choices = ch$center_chars, selected = character(0))
       shiny::updateSelectInput(session, "center_col", choices = c("Choose a column" = "", ch$others), selected = ch$center_col)
       shiny::updateSelectInput(session, "center_for", choices = c("The weighted average center" = "", ch$centers), selected = "")
-      shiny::updateCheckboxInput(session, "time_on", value = FALSE)
+      shiny::updateCheckboxInput(session, "time_on", value = spec$time_on)
       shiny::updateSelectInput(session, "period_col", choices = c("Choose a column" = "", ch$others), selected = ch$period_col)
       shiny::updateSelectInput(session, "period_value", choices = ch$periods, selected = ch$period)
-      shiny::updateSelectizeInput(session, "covariates", choices = ch$covariates, selected = character(0))
+      shiny::updateSelectizeInput(session, "covariates", choices = ch$covariates, selected = intersect(spec$covariates, ch$covariates))
       shiny::updateSelectInput(session, "glm_family", selected = "default")
       shiny::updateSelectInput(session, "link", selected = "default")
       shiny::updateSelectInput(session, "weights_col", choices = c("No weights" = "", ch$weights), selected = "")
@@ -552,28 +587,38 @@ lago_app <- function(data = NULL,
       if (is.null(v)) NULL else paste(format_coef_code(v), collapse = ", ")
     }
 
+    # The columns that hold the outcome: the outcome column, or for center level
+    # data the successes or proportion column and the total column. No other
+    # role offers them.
+    outcome_roles <- shiny::reactive({
+      if (identical(input$structure, "center")) setdiff(c(input$cl_value, input$cl_total), "") else input$outcome
+    })
+
     # Choices that depend on the outcome and the components.
-    shiny::observeEvent(list(current_data(), input$outcome), {
+    shiny::observeEvent(list(current_data(), input$outcome, input$structure, input$cl_value, input$cl_total), {
       d <- current_data()
       shiny::req(d, input$outcome %in% names(d))
       if (shiny::isolate(applying_defaults())) {
         return()
       }
       numeric_cols <- .app_numeric_cols(d)
-      auto <- if (.app_is_binary(d[[input$outcome]])) "binary" else "continuous"
-      shiny::updateRadioButtons(session, "outcome_type", selected = auto)
-      # a new outcome gets a goal on its own scale
-      if (!identical(shiny::isolate(last_outcome()), input$outcome)) {
-        last_outcome(input$outcome)
-        shiny::updateNumericInput(session, "goal", value = .app_default_goal(d, input$outcome, auto))
+      roles <- outcome_roles()
+      if (!identical(input$structure, "center")) {
+        auto <- if (.app_is_binary(d[[input$outcome]])) "binary" else "continuous"
+        shiny::updateRadioButtons(session, "outcome_type", selected = auto)
+        # a new outcome gets a goal on its own scale
+        if (!identical(shiny::isolate(last_outcome()), input$outcome)) {
+          last_outcome(input$outcome)
+          shiny::updateNumericInput(session, "goal", value = .app_default_goal(d, input$outcome, auto))
+        }
       }
-      kept <- intersect(shiny::isolate(input$components), setdiff(numeric_cols, input$outcome))
-      shiny::updateSelectizeInput(session, "components", choices = setdiff(numeric_cols, input$outcome), selected = kept)
+      kept <- intersect(shiny::isolate(input$components), setdiff(numeric_cols, roles))
+      shiny::updateSelectizeInput(session, "components", choices = setdiff(numeric_cols, roles), selected = kept)
       two_level <- names(d)[vapply(d, function(v) length(unique(stats::na.omit(v))) == 2, logical(1))]
-      arm_choices <- setdiff(two_level, input$outcome)
+      arm_choices <- setdiff(two_level, roles)
       arm_kept <- intersect(shiny::isolate(input$arm_col), arm_choices)
       shiny::updateSelectInput(session, "arm_col", choices = arm_choices, selected = if (length(arm_kept)) arm_kept else if ("group" %in% arm_choices) "group" else arm_choices[1])
-      others <- setdiff(names(d), input$outcome)
+      others <- setdiff(names(d), roles)
       keep_col <- function(id, name) {
         kept <- intersect(shiny::isolate(input[[id]]), others)
         if (length(kept)) kept else if (name %in% others) name else ""
@@ -581,6 +626,15 @@ lago_app <- function(data = NULL,
       shiny::updateSelectInput(session, "center_col", choices = c("Choose a column" = "", others), selected = keep_col("center_col", "center"))
       shiny::updateSelectInput(session, "period_col", choices = c("Choose a column" = "", others), selected = keep_col("period_col", "period"))
     }, ignoreNULL = FALSE)
+
+    # center level data has a binary outcome, so its goal is a probability
+    shiny::observeEvent(input$structure, {
+      if (shiny::isolate(applying_defaults()) || !identical(input$structure, "center")) {
+        return()
+      }
+      g <- num(shiny::isolate(input$goal))
+      if (!is.finite(g) || g <= 0 || g >= 1) shiny::updateNumericInput(session, "goal", value = 0.85)
+    }, ignoreInit = TRUE)
 
     output$outcome_type_note <- shiny::renderUI({
       d <- current_data()
@@ -611,18 +665,19 @@ lago_app <- function(data = NULL,
       shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", choices), selected = if (length(kept)) kept else "")
     }, ignoreNULL = FALSE)
 
-    shiny::observeEvent(list(current_data(), input$components, input$outcome), {
+    shiny::observeEvent(list(current_data(), input$components, outcome_roles()), {
       d <- current_data()
       if (shiny::isolate(applying_defaults())) {
         return()
       }
       shiny::req(d)
       numeric_cols <- .app_numeric_cols(d)
-      chars <- setdiff(numeric_cols, c(input$outcome, input$components))
+      roles <- outcome_roles()
+      chars <- setdiff(numeric_cols, c(roles, input$components))
       shiny::updateSelectizeInput(session, "center_chars", choices = chars, selected = intersect(shiny::isolate(input$center_chars), chars))
-      covs <- setdiff(names(d), c(input$outcome, input$components))
+      covs <- setdiff(names(d), c(roles, input$components))
       shiny::updateSelectizeInput(session, "covariates", choices = covs, selected = intersect(shiny::isolate(input$covariates), covs))
-      weights <- setdiff(numeric_cols, c(input$outcome, input$components))
+      weights <- setdiff(numeric_cols, c(roles, input$components))
       kept_w <- intersect(shiny::isolate(input$weights_col), weights)
       shiny::updateSelectInput(session, "weights_col", choices = c("No weights" = "", weights), selected = if (length(kept_w)) kept_w else "")
     }, ignoreNULL = FALSE)
@@ -742,6 +797,44 @@ lago_app <- function(data = NULL,
       }))
     })
 
+    # One weight per center, in the order the package reads them. The ids carry
+    # the center column, so the weights of one column never fill another.
+    # They also carry the structure and the total column, as those set where
+    # the weights start, so a change draws them again from the new start.
+    cw_id <- function(s, k) {
+      nm <- names(current_data())
+      paste0("cw_", generation(), "_", match(s$center_col, nm), "_", s$structure, "_", match(s$cl_total, nm, nomatch = 0L), "_", k)
+    }
+    output$cw_ui <- shiny::renderUI({
+      d <- current_data()
+      shiny::req(d)
+      key <- list(center_col = input$center_col, structure = input$structure %||% "individual", cl_total = input$cl_total %||% "")
+      centers <- .app_center_levels(d, key$center_col)
+      if (!length(centers)) {
+        return(htmltools::p(class = "text-muted", "Choose the column that identifies the centers."))
+      }
+      start <- .app_center_weights_default(utils::modifyList(shiny::isolate(spec()), key), d)
+      inputs <- lapply(seq_along(centers), function(k) {
+        id <- cw_id(key, k)
+        v <- shiny::isolate(input[[id]])
+        shiny::numericInput(id, centers[k], value = if (is.null(v)) signif(start[k], 4) else v, min = 0, max = 1, step = 0.01)
+      })
+      htmltools::tagList(
+        htmltools::p(class = "text-muted", "Each center starts at its share of the patients."),
+        do.call(bslib::layout_column_wrap, c(list(width = "12rem", fill = FALSE), inputs))
+      )
+    })
+    output$cw_sum <- shiny::renderUI({
+      w <- spec()$cw
+      shiny::req(length(w))
+      total <- sum(w)
+      htmltools::p(
+        class = if (is.finite(total) && abs(total - 1) < 0.001) "text-muted" else "text-danger",
+        role = "status",
+        sprintf("The weights add up to %s.", if (is.finite(total)) format(signif(total, 4)) else "an unknown total, as one is empty")
+      )
+    })
+
     # One small input per component, for a grid step or a previous level. They
     # are drawn again only when the components change, so typing keeps focus.
     per_component <- function(prefix, label) {
@@ -788,7 +881,7 @@ lago_app <- function(data = NULL,
 
     # the inputs of a hidden step still have to exist, so the checks and the run
     # see them before the user opens that step
-    for (id in c("component_rows", "interaction_ui", "center_char_values", "cs_steps_ui", "grid_steps_ui", "prev_ui")) {
+    for (id in c("component_rows", "interaction_ui", "center_char_values", "cs_steps_ui", "grid_steps_ui", "prev_ui", "cw_ui")) {
       shiny::outputOptions(output, id, suspendWhenHidden = FALSE)
     }
 
@@ -852,7 +945,13 @@ lago_app <- function(data = NULL,
       s$grid_steps <- vapply(comps, function(cc) num(input[[col_id("gstep", cc)]]), numeric(1), USE.NAMES = FALSE)
       s$prev_on <- isTRUE(input$prev_on)
       s$prev <- vapply(comps, function(cc) num(input[[col_id("prev", cc)]]), numeric(1), USE.NAMES = FALSE)
-      s
+      s$structure <- pick(input$structure, s$structure)
+      s$cl_kind <- pick(input$cl_kind, s$cl_kind)
+      s$cl_value <- chr(input$cl_value)
+      s$cl_total <- chr(input$cl_total)
+      s$cw_on <- isTRUE(input$cw_on)
+      s$cw <- vapply(seq_along(.app_center_levels(d, s$center_col)), function(k) num(input[[cw_id(s, k)]]), numeric(1))
+      .app_resolve(s)
     })
 
     note_box <- function(msgs) {
