@@ -193,3 +193,62 @@ test_that("the columns that settings need are listed", {
   s <- utils::modifyList(.app_empty_spec(), list(outcome = "y", outcome_type = "binary", goal_mode = "power", arm_col = "g", cluster_col = "c"))
   expect_identical(.app_spec_columns(s), c("y", "g", "c"))
 })
+
+test_that("the treatment arm comes from the settings, else from the usual names", {
+  d <- data.frame(y = c(0, 1, 0, 1), x = 1:4, arm = c("a", "b", "a", "b"), g = c(0, 1, 0, 1), k = c("p", "q", "p", "q"))
+  spec <- function(...) utils::modifyList(.app_defaults(d, "d"), list(...))
+  ch <- .app_choices(d, spec(arm_col = "arm", arm_value = "a"))
+  expect_identical(c(ch$arm, ch$arm_value), c("arm", "a"))
+  # a value the column does not have falls back to 1, then to the last value
+  expect_identical(.app_choices(d, spec(arm_col = "g", arm_value = "z"))$arm_value, "1")
+  expect_identical(.app_choices(d, spec(arm_col = "k", arm_value = "z"))$arm_value, "q")
+  d$group <- c("control", "treatment", "control", "treatment")
+  expect_identical(.app_choices(d, spec(arm_col = "none"))$arm, "group")
+})
+
+test_that("a power goal with an outcome goal comes back as both goals", {
+  a <- saveload_args(as.data.frame(BB_data),
+    outcome_name = "pp3_oxytocin_mother", outcome_type = "binary", intervention_components = "coaching_updt",
+    intervention_lower_bounds = 0, intervention_upper_bounds = 40, unit_costs = 1, outcome_goal = 0.85,
+    power_goal = 0.8, num_centers_in_next_stage = 10, patients_per_center_in_next_stage = 30
+  )
+  expect_identical(.app_spec_from_args(a)$spec$goal_mode, "both")
+})
+
+test_that("loaded settings start every input they hold, and typed values are kept when inputs are drawn again", {
+  d <- as.data.frame(main_pulesa_data)
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "main_pulesa_data", sep = ",", dec = ".")
+    s <- utils::modifyList(.app_defaults(d, "main_pulesa_data"), list(
+      cost_type = "cubic", doses = c(1, rep(NA, 6)), cw_on = TRUE, cw = rep(1 / 16, 16),
+      center_mode = "chars", center_chars = "MI_DeliveryB", center_char_values = 1
+    ))
+    f <- tempfile(fileext = ".rds")
+    # a file saved before the data label was kept
+    saveRDS(list(lago_app_settings = 1L, data_name = "main_pulesa_data", spec = s), f)
+    session$setInputs(load_settings = list(datapath = f, name = "s.rds"))
+    session$setInputs(components = s$components, cost_mode = "unit", cost_type = "cubic", center_mode = "chars", center_chars = "MI_DeliveryB")
+    expect_match(as.character(output$component_rows$html), "Dose where the unit cost was measured")
+    expect_match(as.character(output$center_char_values$html), "value=\"1\"")
+    # center weights from the file, for the same centers
+    session$setInputs(center_mode = "effects", center_col = "Clinic", center_for = "", cw_on = TRUE, structure = "center", cl_total = "Total_visit")
+    expect_match(as.character(output$cw_ui$html), "value=\"0.0625\"")
+    # a value typed in is kept when the inputs are drawn again
+    do.call(session$setInputs, stats::setNames(list(2, 3), c(col_id("cc", "MI_DeliveryB"), col_id("gstep", s$components[1]))))
+    session$setInputs(center_chars = c("MI_DeliveryB", "MI_RemoteMonitoring"), components = s$components[1:2])
+    expect_match(as.character(output$center_char_values$html), "value=\"2\"")
+    expect_match(as.character(output$grid_steps_ui$html), "value=\"3\"")
+  })
+})
+
+test_that("a settings file without a data label names no data in its message", {
+  said <- character(0)
+  local_mocked_bindings(showNotification = function(ui, ...) said <<- c(said, as.character(ui)), .package = "shiny")
+  shiny::testServer(.build_lago_app(), {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    f <- tempfile(fileext = ".rds")
+    saveRDS(list(lago_app_settings = 1L, spec = utils::modifyList(.app_empty_spec(), list(outcome = "mpg", components = "missing_column"))), f)
+    session$setInputs(load_settings = list(datapath = f, name = "s.rds"))
+  })
+  expect_match(said[length(said)], "Load the data they were saved with first.", fixed = TRUE)
+})
