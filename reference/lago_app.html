@@ -82,8 +82,9 @@ one input with <code><a href="lago_sensitivity.html">lago_sensitivity()</a></cod
 
 
 <dl><dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>A data.frame to start with, or <code>NULL</code> to start with the
-bundled <code>BB_data</code> example.</p></dd>
+<dd><p>A data.frame to start with, a <code>lago</code> result of
+<code><a href="lago_optimization.html">lago_optimization()</a></code> to start from its data and settings, or <code>NULL</code> to
+start with the bundled <code>BB_data</code> example.</p></dd>
 
 
 <dt id="arg-launch-browser">launch.browser<a class="anchor" aria-label="anchor" href="#arg-launch-browser"></a></dt>
@@ -159,7 +160,11 @@ at the cost of the recommendation. The best outcome it buys can be put in
 as the outcome goal.</p></li>
 <li><p><strong>R code:</strong> the code of the run, followed by the code of the last sweep
 and budget search of that result.</p></li>
-</ul></div>
+</ul><p><strong>Save settings</strong> downloads every setting as an <code>.rds</code> file, without the
+data, and <strong>Load settings</strong> puts them back on the same data. Started from a
+<code>lago</code> result, the app opens on the settings of its call and lists any it
+cannot show.</p>
+    </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="lago_optimization.html">lago_optimization()</a></code> for the function the app runs,
@@ -173,6 +178,8 @@ that start from its result, and <code><a href="visualize_cost.html">visualize_co
 <span class="r-in"><span>  <span class="va">out</span> <span class="op">&lt;-</span> <span class="fu">lago_app</span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">out</span><span class="op">$</span><span class="va">result</span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">out</span><span class="op">$</span><span class="va">code</span>, sep <span class="op">=</span> <span class="st">"\n"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="co"># change a setting of that result and run it again</span></span></span>
+<span class="r-in"><span>  <span class="fu">lago_app</span><span class="op">(</span><span class="va">out</span><span class="op">$</span><span class="va">result</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

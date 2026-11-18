@@ -24,8 +24,10 @@ lago_app(data = NULL, launch.browser = interactive(), port = NULL)
 
 - data:
 
-  A data.frame to start with, or `NULL` to start with the bundled
-  `BB_data` example.
+  A data.frame to start with, a `lago` result of
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  to start from its data and settings, or `NULL` to start with the
+  bundled `BB_data` example.
 
 - launch.browser:
 
@@ -125,6 +127,11 @@ After a run, these tabs start from its result.
 - **R code:** the code of the run, followed by the code of the last
   sweep and budget search of that result.
 
+**Save settings** downloads every setting as an `.rds` file, without the
+data, and **Load settings** puts them back on the same data. Started
+from a `lago` result, the app opens on the settings of its call and
+lists any it cannot show.
+
 ## See also
 
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
@@ -144,5 +151,7 @@ if (interactive()) {
   out <- lago_app()
   out$result
   cat(out$code, sep = "\n")
+  # change a setting of that result and run it again
+  lago_app(out$result)
 }
 ```

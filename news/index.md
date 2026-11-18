@@ -3,6 +3,15 @@
 ## LAGOtrials (development version)
 
 - [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  can save every setting to a file with Save settings, and put them back
+  on the same data with Load settings. Loading on data that lacks a
+  column the settings name says which columns are missing.
+  `lago_app(result)` with a `lago` result opens on the data and the
+  settings of its call, so one setting can be changed and the run
+  repeated without typing the setup again. Settings the app cannot show,
+  such as an interaction of three components, are listed when it opens.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
   takes center level data, with one row per center and period. The
   outcome comes from a column of successes or of proportions and a
   column of totals, and the app builds the `proportion` and
