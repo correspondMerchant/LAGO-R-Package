@@ -236,7 +236,13 @@ def test_sensitivity_bad_parameter_returns_error(mtcars_records):
 def test_tools_registered_with_expected_schemas():
     tools = asyncio.run(S.mcp.list_tools())
     by_name = {t.name: t for t in tools}
-    assert set(by_name) == {"optimize", "sensitivity", "budget"}
+    assert set(by_name) == {"describe_data", "optimize", "sensitivity", "budget"}
+    # each model tool explains the shared model arguments, and the server
+    # tells the agent how to use the tools
+    for name in ("optimize", "sensitivity", "budget"):
+        assert "Costs: EXACTLY ONE of" in by_name[name].description
+        assert "{model}" not in by_name[name].description
+    assert "Report every entry of `warnings`" in S.mcp.instructions
 
     core = {
         "outcome_name",
@@ -388,3 +394,143 @@ def test_budget_tool(mtcars_records):
     json.dumps(tiny, allow_nan=False)
     bad = S.budget(data_records=mtcars_records, budget=-1.0, **_common_args())
     assert "error" in bad and "budget" in bad["error"]
+
+
+# --------------------------------------------------------------------------
+# 9. describe_data, and the model arguments of every lago_optimization() kind
+# --------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def bb_csv(ro, tmp_path_factory):
+    path = tmp_path_factory.mktemp("bb") / "bb.csv"
+    ro.r(f'write.csv(LAGOtrials::BB_data, "{path}", row.names = FALSE)')
+    return str(path)
+
+
+@pytest.fixture(scope="module")
+def pulesa_csv(ro, tmp_path_factory):
+    path = tmp_path_factory.mktemp("pulesa") / "pulesa.csv"
+    ro.r(f'write.csv(LAGOtrials::main_pulesa_data, "{path}", row.names = FALSE)')
+    return str(path)
+
+
+def _r_rec(ro, call):
+    """rec_int of a lago_optimization() call written in R, for comparison."""
+    return list(ro.r(f"suppressWarnings(suppressMessages({call}))$rec_int"))
+
+
+BB_ARGS = dict(
+    outcome_name="pp3_oxytocin_mother", outcome_type="binary",
+    intervention_components=["coaching_updt", "launch_duration"],
+    intervention_lower_bounds=[1.0, 1.0], intervention_upper_bounds=[40.0, 5.0],
+)
+
+
+def test_describe_data(bb_csv):
+    res = S.describe_data(data_csv=bb_csv)
+    assert res["n_rows"] == 6124
+    by = {c["name"]: c for c in res["columns"]}
+    assert by["pp3_oxytocin_mother"]["binary"] is True
+    assert by["birth_volume_100"]["min"] == pytest.approx(0.6025)
+    assert by["birth_volume_100"]["max"] == pytest.approx(7.5)
+    assert by["site_name"]["type"] == "text"
+    json.dumps(res, allow_nan=False)
+    assert "error" in S.describe_data()
+
+
+def test_unit_costs_and_the_cost_choice(ro, bb_csv):
+    res = S.optimize(
+        data_csv=bb_csv, unit_costs=[1700.0, 8000.0], default_cost_fxn_type="linear",
+        outcome_goal=0.85, include_confidence_set=False, **BB_ARGS
+    )
+    assert "error" not in res, res
+    want = _r_rec(ro, 'LAGOtrials::lago_optimization(data = as.data.frame(LAGOtrials::BB_data), outcome_name = "pp3_oxytocin_mother", outcome_type = "binary", intervention_components = c("coaching_updt", "launch_duration"), intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5), unit_costs = c(1700, 8000), default_cost_fxn_type = "linear", outcome_goal = 0.85, include_confidence_set = FALSE, quiet = TRUE)')
+    assert np.allclose(res["rec_int"], want, atol=1e-5)
+    both = S.optimize(data_csv=bb_csv, unit_costs=[1.0, 1.0], cost_list_of_vectors=[[0, 1], [0, 1]], outcome_goal=0.85, **BB_ARGS)
+    assert "exactly one of `cost_list_of_vectors` or `unit_costs`" in both["error"]
+    neither = S.optimize(data_csv=bb_csv, outcome_goal=0.85, **BB_ARGS)
+    assert "exactly one of" in neither["error"]
+
+
+def test_named_columns_build_what_the_package_reads(ro, bb_csv):
+    # center effects for one center, from a column the caller names
+    res = S.optimize(
+        data_csv=bb_csv, cost_list_of_vectors=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+        center_column="site_name", include_center_effects=True, center_effects_optimization_values="Auras",
+        include_confidence_set=False, **BB_ARGS
+    )
+    assert "error" not in res, res
+    want = _r_rec(ro, 'local({ d <- as.data.frame(LAGOtrials::BB_data); d$center <- factor(d$site_name); LAGOtrials::lago_optimization(data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary", intervention_components = c("coaching_updt", "launch_duration"), intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5), cost_list_of_vectors = list(c(0, 1700), c(0, 8000)), outcome_goal = 0.85, include_center_effects = TRUE, center_effects_optimization_values = "Auras", include_confidence_set = FALSE, quiet = TRUE) })')
+    assert np.allclose(res["rec_int"], want, atol=1e-5)
+    bad = S.optimize(data_csv=bb_csv, cost_list_of_vectors=[[0, 1], [0, 1]], outcome_goal=0.85, center_column="nope", **BB_ARGS)
+    assert "the center column 'nope' is not a column of the data" in bad["error"]
+
+
+def test_a_power_goal_from_a_named_arm_column(ro, bb_csv):
+    res = S.optimize(
+        data_csv=bb_csv, cost_list_of_vectors=[[0, 1700], [0, 8000]], power_goal=0.8,
+        group_column="pre_post", treatment_value=1, num_centers_in_next_stage=10,
+        patients_per_center_in_next_stage=30, include_confidence_set=False, **BB_ARGS
+    )
+    assert "error" not in res, res
+    want = _r_rec(ro, 'local({ d <- as.data.frame(LAGOtrials::BB_data); d$group <- ifelse(as.character(d$pre_post) == "1", "treatment", "control"); LAGOtrials::lago_optimization(data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary", intervention_components = c("coaching_updt", "launch_duration"), intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5), cost_list_of_vectors = list(c(0, 1700), c(0, 8000)), power_goal = 0.8, num_centers_in_next_stage = 10, patients_per_center_in_next_stage = 30, include_confidence_set = FALSE, quiet = TRUE) })')
+    assert np.allclose(res["rec_int"], want, atol=1e-5)
+    assert "effective_outcome_goal" in res
+    missing = S.optimize(data_csv=bb_csv, cost_list_of_vectors=[[0, 1], [0, 1]], power_goal=0.8, group_column="pre_post", **BB_ARGS)
+    assert "`group_column` needs `treatment_value`" in missing["error"]
+
+
+def test_center_level_data_from_successes_and_totals(ro, pulesa_csv):
+    common = dict(
+        data_csv=pulesa_csv, outcome_name="Success", outcome_type="binary",
+        intervention_components=["AccessMedicines", "DeliveryA"], intervention_lower_bounds=[0.0, 0.0],
+        intervention_upper_bounds=[4.0, 1.0], unit_costs=[1.0, 1.0], outcome_goal=0.6,
+        input_data_structure="center_level", center_column="Clinic", total_column="Total_visit",
+        period_column="Period", include_time_effects=True, time_effect_optimization_value=13,
+    )
+    res = S.optimize(successes_column="Success", include_confidence_set=False, **common)
+    assert "error" not in res, res
+    want = _r_rec(ro, 'local({ d <- as.data.frame(LAGOtrials::main_pulesa_data); d$proportion <- d$Success / d$Total_visit; d$center_sample_size <- d$Total_visit; d$center <- factor(d$Clinic); d$period <- factor(d$Period); LAGOtrials::lago_optimization(data = d, input_data_structure = "center_level", outcome_name = "proportion", outcome_type = "binary", intervention_components = c("AccessMedicines", "DeliveryA"), intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(4, 1), unit_costs = c(1, 1), outcome_goal = 0.6, include_time_effects = TRUE, time_effect_optimization_value = 13, include_confidence_set = FALSE, quiet = TRUE) })')
+    assert np.allclose(res["rec_int"], want, atol=1e-5)
+    # the proportion column gives the same model
+    prop = S.optimize(proportion_column="Proportions", include_confidence_set=False, **common)
+    assert np.allclose(prop["rec_int"], want, atol=1e-4)
+    bad = S.optimize(successes_column="Success", **{**common, "total_column": None})
+    assert "`successes_column` needs `total_column`" in bad["error"]
+
+
+def test_interactions_grid_search_level_and_weights(ro, mtcars_wt_records):
+    records = [dict(r, **{"gear:qsec": r["gear"] * r["qsec"]}) for r in mtcars_wt_records]
+    res = S.optimize(
+        data_records=records, outcome_name="mpg", outcome_type="continuous",
+        intervention_components=["gear", "qsec", "gear:qsec"], main_components=["gear", "qsec"],
+        include_interaction_terms=True, intervention_lower_bounds=[3.0, 14.0], intervention_upper_bounds=[5.0, 20.0],
+        unit_costs=[2.0, 1.0], default_cost_fxn_type="linear", outcome_goal=25.0,
+        optimization_method="grid_search", optimization_grid_search_step_size=[0.5, 1.0],
+        weights_column="wt", confidence_set_alpha=0.1, confidence_set_grid_step_size=[0.5, 1.0],
+    )
+    assert "error" not in res, res
+    assert res["confidence_level"] == pytest.approx(0.9)
+    want = _r_rec(ro, 'local({ d <- mtcars; d[["gear:qsec"]] <- d$gear * d$qsec; LAGOtrials::lago_optimization(data = d, outcome_name = "mpg", outcome_type = "continuous", intervention_components = c("gear", "qsec", "gear:qsec"), main_components = c("gear", "qsec"), include_interaction_terms = TRUE, intervention_lower_bounds = c(3, 14), intervention_upper_bounds = c(5, 20), unit_costs = c(2, 1), default_cost_fxn_type = "linear", outcome_goal = 25, optimization_method = "grid_search", optimization_grid_search_step_size = c(0.5, 1), weights = d$wt, confidence_set_alpha = 0.1, confidence_set_grid_step_size = c(0.5, 1), quiet = TRUE) })')
+    assert np.allclose(res["rec_int"], want, atol=1e-5)
+
+
+def test_budget_and_sensitivity_take_the_model_arguments(bb_csv):
+    common = dict(data_csv=bb_csv, unit_costs=[1700.0, 8000.0], default_cost_fxn_type="linear",
+                  center_column="site_name", include_center_effects=True, **BB_ARGS)
+    b = S.budget(budget=30000.0, n_grid=4, **common)
+    assert "error" not in b, b
+    assert b["feasible"] is True
+    sw = S.sensitivity(parameter="outcome_goal", values=[0.8, 0.85], **common)
+    assert "error" not in sw, sw
+    assert [r["status"] for r in sw["runs"]] == ["ok", "ok"]
+
+
+def test_an_r_error_gives_its_message_not_the_call(bb_csv):
+    res = S.optimize(
+        data_csv=bb_csv, cost_list_of_vectors=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+        center_column="site_name", include_center_effects=True, center_effects_optimization_values="Nowhere",
+        include_confidence_set=False, **BB_ARGS
+    )
+    assert "Nowhere" in res["error"]
+    assert "must be one of the centers" in res["error"]
+    assert "Error in (function" not in res["error"]

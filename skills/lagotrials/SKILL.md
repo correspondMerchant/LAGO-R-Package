@@ -1,7 +1,7 @@
 ---
 name: lagotrials
-description: Runs Learn-As-you-GO (LAGO) adaptive-trial optimization with the LAGOtrials R package. Fits the outcome model, computes the cost-optimal recommended intervention for the next stage to reach an outcome and/or power goal, and builds confidence sets. Use when the task mentions LAGO, LAGOtrials, lago_optimization(), adaptive/multi-stage trial optimization, recommending an intervention package to hit a target outcome or power, designing cost functions with visualize_cost(), or building a confidence set for an optimal intervention.
-version: 1
+description: Runs Learn-As-you-GO (LAGO) adaptive-trial optimization with the LAGOtrials R package. Fits the outcome model, computes the cost-optimal recommended intervention for the next stage to reach an outcome and/or power goal, builds confidence sets, sweeps an input, and finds the best outcome for a budget. Use when the task mentions LAGO, LAGOtrials, lago_optimization(), lago_sensitivity(), lago_budget(), lago_app(), adaptive/multi-stage trial optimization, recommending an intervention package to hit a target outcome or power, designing cost functions with visualize_cost(), or building a confidence set for an optimal intervention.
+version: 2
 ---
 
 # LAGOtrials
@@ -29,12 +29,20 @@ The development version, with fixes not yet on CRAN:
 devtools::install_github("correspondMerchant/LAGO-R-Package")
 ```
 
-Four exported functions:
-- `lago_optimization()` — the main entry point; does everything below in one call.
-- `get_confidence_set()` — lower-level confidence-set builder (usually reached
-  through `lago_optimization(include_confidence_set = TRUE)`, not called directly).
-- `visualize_cost()` — an interactive Shiny app to design cost functions.
-- `lago_report()` — renders a shareable HTML report from a result.
+Seven exported functions:
+- `lago_optimization()` is the main entry point. It does everything below in one call.
+- `lago_sensitivity()` sweeps one input and reports how the recommendation moves.
+- `lago_budget()` finds the best outcome a budget can buy.
+- `lago_app()` runs the whole analysis in a point and click Shiny app.
+- `get_confidence_set()` is the lower level confidence set builder. It is
+  usually reached through `lago_optimization(include_confidence_set = TRUE)`.
+- `visualize_cost()` is an interactive Shiny app to design cost functions.
+- `lago_report()` renders a shareable HTML report from a result.
+
+`lago_app()`, `visualize_cost()` and `lago_report()` open a browser or write a
+file, so do not call them from an unattended script. For a user who does not
+write R, suggest `lago_app()`, or `lago_app(result)` to open a result's
+settings in the app.
 
 Before writing a call, read the help: `?lago_optimization`. It has many
 arguments; the ones below are the essential ones.
@@ -106,11 +114,18 @@ with sliders and live curves. On close it returns the coefficient list (also in
 
 ## Outcome model options
 
-- `glm_family`: `"default"` (gaussian for continuous, binomial for binary),
-  `"gaussian"`, `"binomial"`, `"quasibinomial"`, etc.
+- `glm_family`: `"default"` (gaussian for continuous, binomial for binary). A
+  binary outcome takes only `"binomial"`. A continuous outcome takes
+  `"gaussian"`, or `"quasibinomial"` for a proportion between 0 and 1.
 - `link`: only `"logit"` and `"identity"` are supported (the confidence-set and
   minimize machinery only implement those). `"default"` picks identity for
-  gaussian, logit for binomial.
+  gaussian, and logit for binomial and quasibinomial.
+- `weights`: a numeric vector of glm() weights, one per row.
+- Center level data: `input_data_structure = "center_level"` takes one row per
+  center and period, with the outcome as a share in a column named
+  `proportion` and each row's patients in `center_sample_size`. The outcome
+  must be binary, `outcome_name` must be `"proportion"`, and center effects are
+  on unless `include_center_effects = FALSE`. `weights` is ignored.
 - Fixed effects: `include_center_effects = TRUE` (+ `center_effects_optimization_values`)
   and `include_time_effects = TRUE` (+ `time_effect_optimization_value`).
 - `center_characteristics` (+ `center_characteristics_optimization_values`) and
@@ -153,7 +168,17 @@ distinguish from the goal," not "interventions that meet it."
   optimizer reads, e.g. aliased fixed effects) is refused up front, naming the
   aliased terms. Switching to `grid_search` does not help — the fit is the
   problem; drop or combine the collinear predictors.
-- `center_weights_for_outcome_goal` must be numeric, finite and non-negative.
+- `center_weights_for_outcome_goal` must be numeric, finite and non-negative,
+  sum to 1, and follow the order of the centers: the levels of the `center`
+  factor, or its sorted values. A center with no complete row must get 0.
+- A `center_characteristics_optimization_values` value outside the range of
+  that characteristic in the data gives a warning: the recommendation is then
+  an extrapolation, and its interval can be very wide. Pass the warning on to
+  the user, and suggest a value within the data.
+- The interval of a binary outcome is the delta method interval, clamped to
+  `[0, 1]`. A bound at exactly 0 or 1 means the interval went past it. An
+  interval from 0 to 1 means the data cannot pin the outcome down there,
+  which usually comes from an extrapolation or very few centers.
 
 ## Troubleshooting
 
@@ -169,6 +194,39 @@ distinguish from the goal," not "interventions that meet it."
   extrapolation (see Critical warnings); narrow the bounds or use logit.
 - Confidence set is slow: increase `confidence_set_grid_step_size`, or set
   `include_confidence_set = FALSE` while iterating.
+- A warning that the recommendation is for a center outside the centers in the
+  data: the center characteristic value is outside the data. Use a value
+  within it, or say the result is an extrapolation.
+- An interval from 0 to 1 for a binary outcome: the model is very uncertain at
+  the recommendation. Check for an extrapolation, too few centers, or a goal
+  near the edge of what the data supports.
+
+## Sensitivity and budget
+
+Both take a fitted result and rerun its call, so the arguments need not be
+typed again:
+```r
+sens <- lago_sensitivity(res, parameter = "outcome_goal", values = c(0.8, 0.85, 0.9))
+plot(sens)                      # cost of the recommendation per value
+lago_sensitivity(res, parameter = "cost_multiplier", values = c(0.8, 1, 1.2))
+b <- lago_budget(res, budget = 30000)   # n_grid = 25 outcome goals by default
+b$feasible; b$binding; b$rec_int; b$est_outcome
+plot(b)                         # the cost and outcome of the goals searched
+```
+`parameter` is a scalar numeric argument of `lago_optimization()`, such as
+`"outcome_goal"`, `"power_goal"`, `"icc"` or `"time_effect_optimization_value"`,
+or `"cost_multiplier"`, which needs `cost_list_of_vectors` (a result keeps
+it, so pass `cost_list_of_vectors = res$cost_list_of_vectors` for a result
+fitted with unit costs). Neither computes the confidence set. A failed run is
+a row with status `"error"`, not a stopped sweep.
+
+## From an agent: the MCP server
+
+`python/lago/mcp_server.py` in the repository serves the package over the
+Model Context Protocol, with the tools `describe_data`, `optimize`,
+`sensitivity` and `budget`. It needs R, LAGOtrials and Python with rpy2; see
+`python/README.md`. Each result has a `warnings` list with the warnings of the
+package. Report them with the numbers.
 
 ## The result object
 
@@ -181,7 +239,8 @@ set; `lago_report(res)` writes the full result to a shareable HTML file.
 ## Additional resources
 
 - Vignette: "Optimizing an intervention with LAGO" (`browseVignettes("LAGOtrials")`).
-- Help: `?lago_optimization`, `?get_confidence_set`, `?visualize_cost`, `?lago_report`.
+- Help: `?lago_optimization`, `?lago_sensitivity`, `?lago_budget`, `?lago_app`,
+  `?get_confidence_set`, `?visualize_cost`, `?lago_report`.
 - Methods paper: Bing, Spiegelman, Nevo, Lok (2025), Biometrics,
   <doi:10.1093/biomtc/ujaf061>; foundational: Nevo, Lok, Spiegelman (2021),
   Annals of Statistics, <doi:10.1214/20-aos1978>.
