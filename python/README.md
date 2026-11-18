@@ -102,6 +102,40 @@ path = lago.lago_report(result, output_file="report.html", title="My report")
 underlying R object stored under `_r_object`), so the optimization is not
 re-run.
 
+### Budget
+
+```python
+best = lago.budget(
+    data=df,
+    outcome_name="pp3_oxytocin_mother",
+    outcome_type="binary",
+    intervention_components=["coaching_updt", "launch_duration"],
+    intervention_lower_bounds=[1, 1],
+    intervention_upper_bounds=[40, 5],
+    cost_list=[[0, 1700], [0, 8000]],
+    budget=30000,
+)
+best["feasible"], best["rec_int"], best["est_outcome"]
+best["frontier"]   # pandas.DataFrame of the outcome goals searched
+```
+
+### Warnings of the R package
+
+Each function issues the warnings of the R package as a `lago.LagoRWarning`, so
+they can be read like any Python warning:
+
+```python
+import warnings
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    result = lago.optimize(data=df, ...)
+messages = [str(w.message) for w in caught if issubclass(w.category, lago.LagoRWarning)]
+```
+
+Every function works from any thread or asyncio task. rpy2 keeps its conversion
+rules per context, so each function sets them for its own call.
+
 ### Cost-function visualizer (interactive, blocking)
 
 ```python
@@ -140,11 +174,20 @@ runtime, exactly as for the wrapper. It is **not** an R-free install.
   `power_goal`, ...). Returns `rec_int`, `rec_int_cost`, `est_outcome_goal`, and,
   when a confidence set is computed, `est_outcome_ci`,
   `confidence_set_size_percentage`, and `confidence_set`.
-- **`sensitivity`** — sweeps one input (`parameter` + `values`) and returns one
-  record per swept value (`value`, the recommended value per component,
-  `rec_int_cost`, `est_outcome_goal`, `status`). `parameter` is a scalar numeric
-  optimization argument (e.g. `"outcome_goal"`) or the special
-  `"cost_multiplier"`.
+- **`sensitivity`** — sweeps one input (`parameter` + `values`) and returns
+  `{"runs": [...], "warnings": [...]}`, with one record in `runs` per swept value
+  (`value`, the recommended value per component, `rec_int_cost`,
+  `est_outcome_goal`, `status`). `parameter` is a scalar numeric optimization
+  argument (e.g. `"outcome_goal"`) or the special `"cost_multiplier"`.
+- **`budget`** — finds the best outcome a `budget` can buy, with `n_grid` outcome
+  goals to try (default 25). Returns `feasible`, `binding` (whether a better
+  outcome would cost more), `rec_int`, `rec_int_cost`, `est_outcome`,
+  `outcome_goal`, `frontier` (the goals searched) and `run_error`.
+
+Every tool result has a `warnings` list with the warnings of the R package, each
+once, such as a recommendation for a center outside the centers in the data. An
+agent should pass them on with the numbers. A tool that fails returns
+`{"error": "..."}`, with `warnings` when there were any.
 
 `visualize_cost` (opens a blocking browser app) and `lago_report` (writes an HTML
 file) are intentionally **not** exposed: neither maps cleanly onto a

@@ -11,9 +11,82 @@ able to reach R (``R_HOME`` set to the R installation). See the package README.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import functools
+import warnings
+
 # Lazy, memoized rpy2 / R initialization so that ``import lago`` does not touch
 # R until a wrapper function is actually called.
 _state: dict = {}
+
+
+class LagoRWarning(UserWarning):
+    """A warning that the LAGOtrials R package gave, passed on to Python."""
+
+
+# The list that collects the R warnings of the current context, when a caller
+# such as the MCP server asks for them. A context variable keeps calls in
+# different threads or tasks apart, which warnings.catch_warnings() does not.
+_collected: contextvars.ContextVar = contextvars.ContextVar("lago_r_warnings", default=None)
+
+
+@contextlib.contextmanager
+def collect_warnings():
+    """Collect the R warnings of the calls inside, instead of issuing them.
+
+    Yields a list that holds each distinct warning message, in order.
+    """
+    found: list = []
+    token = _collected.set(found)
+    try:
+        yield found
+    finally:
+        _collected.reset(token)
+
+
+@contextlib.contextmanager
+def r_context():
+    """Run the code inside with rpy2's default conversion rules set.
+
+    rpy2 keeps its conversion rules in a ``contextvars.ContextVar``. A thread,
+    or an asyncio task that was not created from the context that first loaded
+    rpy2, starts without them, and every conversion then fails with "Conversion
+    rules for `rpy2.robjects` appear to be missing". The MCP server runs each
+    tool call in a context of its own, so without this only its first call
+    worked. Setting the rules here makes every public function work in any
+    thread or task.
+    """
+    import rpy2.robjects as ro
+    from rpy2.robjects.conversion import localconverter
+
+    with localconverter(ro.default_converter):
+        _ensure()
+        yield
+
+
+def in_r_context(fn):
+    """Decorate a public function so its whole body runs in :func:`r_context`."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with r_context():
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
+# Calls an R function with a list of arguments, and returns its value with the
+# warnings it gave, so they can be passed on to Python instead of only being
+# printed to the R console.
+_CALL_WITH_WARNINGS = """function(f, args) {
+  warned <- character(0)
+  value <- withCallingHandlers(do.call(f, args), warning = function(w) {
+    warned <<- c(warned, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  })
+  list(value = value, warnings = unique(warned))
+}"""
 
 
 # Result fields that are GENUINELY single-valued and should be presented to the
@@ -25,6 +98,13 @@ _state: dict = {}
 # (est_outcome_ci, rec_int_ci) stays a dict. This is the allowlist half of the
 # "vectors stay lists, only real scalars collapse" design.
 SCALAR_RESULT_FIELDS = frozenset({
+    # lago_budget() scalars
+    "budget",
+    "feasible",
+    "binding",
+    "est_outcome",
+    "intention",
+    "run_error",
     # lago_optimization() / get_confidence_set() numeric scalars
     "rec_int_cost",
     "est_outcome_goal",
@@ -262,10 +342,25 @@ def build_r_kwargs(kwargs: dict) -> dict:
 
 
 def call_lago(name: str, kwargs: dict):
-    """Convert kwargs, call the exported LAGOtrials R function, return the R result."""
+    """Convert kwargs, call the exported LAGOtrials R function, return the R result.
+
+    Each warning the R function gives is issued again as a Python
+    :class:`LagoRWarning`, so a caller can read it with
+    :func:`warnings.catch_warnings`.
+    """
+    s = _ensure()
     rfunc = _get_rfunc(name)
     r_kwargs = build_r_kwargs(kwargs)
-    return rfunc(**r_kwargs)
+    if "call_with_warnings" not in s:
+        s["call_with_warnings"] = s["ro"].r(_CALL_WITH_WARNINGS)
+    out = s["call_with_warnings"](rfunc, s["ro"].r["list"](**r_kwargs))
+    found = _collected.get()
+    for message in (str(m) for m in out.rx2("warnings")):
+        if found is None:
+            warnings.warn(message, LagoRWarning, stacklevel=3)
+        elif message not in found:
+            found.append(message)
+    return out.rx2("value")
 
 
 def r_sensitivity_to_df(result):

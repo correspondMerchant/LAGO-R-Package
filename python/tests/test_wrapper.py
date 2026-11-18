@@ -440,3 +440,55 @@ def test_none_maps_to_r_null(ro):
     r_null = _bridge.py_to_r(None)
     assert list(ro.r["is.null"](r_null))[0] is True
     assert _bridge.r_to_py(ro.NULL) is None
+
+
+def test_r_warnings_become_python_warnings(bb_data):
+    import warnings
+
+    import lago
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        lago.optimize(
+            data=bb_data,
+            outcome_name="pp3_oxytocin_mother",
+            outcome_type="binary",
+            intervention_components=["coaching_updt", "launch_duration"],
+            intervention_lower_bounds=[1, 1],
+            intervention_upper_bounds=[40, 5],
+            cost_list=[[0, 1700], [0, 8000]],
+            center_characteristics=["birth_volume_100"],
+            center_characteristics_optimization_values=[20],
+            outcome_goal=0.85,
+            include_confidence_set=False,
+            quiet=True,
+        )
+    messages = [str(w.message) for w in caught if issubclass(w.category, lago.LagoRWarning)]
+    assert any("outside the centers in the data" in m for m in messages)
+
+
+def test_budget_wrapper(bb_data):
+    import pandas as pd
+
+    import lago
+
+    common = dict(
+        data=bb_data,
+        outcome_name="pp3_oxytocin_mother",
+        outcome_type="binary",
+        intervention_components=["coaching_updt", "launch_duration"],
+        intervention_lower_bounds=[1, 1],
+        intervention_upper_bounds=[40, 5],
+        cost_list=[[0, 1700], [0, 8000]],
+        center_characteristics=["birth_volume_100"],
+        center_characteristics_optimization_values=[1.75],
+    )
+    res = lago.budget(budget=30000, n_grid=6, **common)
+    assert res["feasible"] is True
+    assert isinstance(res["binding"], bool)
+    assert isinstance(res["rec_int"], list) and len(res["rec_int"]) == 2
+    assert res["rec_int_cost"] <= 30000
+    assert isinstance(res["frontier"], pd.DataFrame)
+    assert {"outcome_goal", "rec_int_cost", "est_outcome", "affordable"} <= set(res["frontier"].columns)
+    assert res["component_names"] == ["coaching_updt", "launch_duration"]
+    assert res["run_error"] is None

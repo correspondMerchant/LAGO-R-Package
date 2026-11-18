@@ -14,6 +14,11 @@ Tools exposed
 -------------
 ``optimize``      -> :func:`lago.optimize`   (a single LAGO optimization)
 ``sensitivity``   -> :func:`lago.sensitivity` (sweep one input, report the move)
+``budget``        -> :func:`lago.budget`      (the best outcome a budget buys)
+
+Every result has a ``warnings`` list with the warnings of the R package, such as
+a recommendation for a center outside the centers in the data, so an agent can
+pass them on instead of reporting a number without its caveats.
 
 Deliberately NOT exposed
 ------------------------
@@ -34,6 +39,8 @@ from __future__ import annotations
 import json
 import math
 from typing import Any
+
+from lago._bridge import collect_warnings
 
 from mcp.server.fastmcp import FastMCP
 
@@ -113,13 +120,16 @@ def _baseline_kwargs(
     return extra
 
 
-def _error(exc: Exception) -> dict:
+def _error(exc: Exception, warned=None) -> dict:
     """A clean one-line error payload (never a raw rpy2 traceback dump)."""
     msg = str(exc).strip()
     # Collapse to the first meaningful line so an rpy2/R error message does not
     # dump a multi-line traceback into the tool result.
     first_line = next((ln for ln in msg.splitlines() if ln.strip()), msg)
-    return {"error": "{}: {}".format(type(exc).__name__, first_line)}
+    out = {"error": "{}: {}".format(type(exc).__name__, first_line)}
+    if warned:
+        out["warnings"] = list(warned)
+    return out
 
 
 def _finite(x):
@@ -205,18 +215,19 @@ def optimize(
         if confidence_set_grid_step_size is not None:
             extra["confidence_set_grid_step_size"] = confidence_set_grid_step_size
 
-        res = lago.optimize(
-            data=data,
-            outcome_name=outcome_name,
-            outcome_type=outcome_type,
-            intervention_components=intervention_components,
-            intervention_lower_bounds=intervention_lower_bounds,
-            intervention_upper_bounds=intervention_upper_bounds,
-            outcome_goal=outcome_goal,
-            cost_list=cost_list_of_vectors,
-            quiet=True,
-            **extra,
-        )
+        with collect_warnings() as warned:
+            res = lago.optimize(
+                data=data,
+                outcome_name=outcome_name,
+                outcome_type=outcome_type,
+                intervention_components=intervention_components,
+                intervention_lower_bounds=intervention_lower_bounds,
+                intervention_upper_bounds=intervention_upper_bounds,
+                outcome_goal=outcome_goal,
+                cost_list=cost_list_of_vectors,
+                quiet=True,
+                **extra,
+            )
 
         out: dict[str, Any] = {
             "rec_int": [_finite(v) for v in res["rec_int"]],
@@ -236,9 +247,10 @@ def optimize(
             # to_json -> json.loads yields native Python/JSON types (no numpy
             # scalars that the MCP serializer would choke on).
             out["confidence_set"] = json.loads(cs.to_json(orient="records"))
+        out["warnings"] = warned
         return out
     except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
-        return _error(exc)
+        return _error(exc, locals().get("warned"))
 
 
 # --------------------------------------------------------------------------
@@ -280,11 +292,12 @@ def sensitivity(
     of `values`; all values must be positive). `values` is a non-empty list of
     finite numbers, one run per element.
 
-    Returns a list of record dicts, one per swept value, each with `value`
-    (the swept value), one entry per intervention component (its recommended
-    value that run), `rec_int_cost`, `est_outcome_goal`, and `status` (`"ok"`
-    or `"error"`). On a bad input or setup error it returns `{"error": "..."}`
-    with a short message instead of raising.
+    Returns `{"runs": [...], "warnings": [...]}`. `runs` has one record per
+    swept value, each with `value` (the swept value), one entry per
+    intervention component (its recommended value that run), `rec_int_cost`,
+    `est_outcome_goal`, and `status` (`"ok"` or `"error"`). `warnings` lists
+    the warnings of the R package, each once. On a bad input or setup error it
+    returns `{"error": "..."}` with a short message instead of raising.
     """
     try:
         data = _resolve_data(data_csv, data_records)
@@ -304,25 +317,106 @@ def sensitivity(
                 "power_goal_cluster_id": power_goal_cluster_id,
             },
         )
-        df = lago.sensitivity(
-            data=data,
-            outcome_name=outcome_name,
-            outcome_type=outcome_type,
-            intervention_components=intervention_components,
-            intervention_lower_bounds=intervention_lower_bounds,
-            intervention_upper_bounds=intervention_upper_bounds,
-            parameter=parameter,
-            values=values,
-            outcome_goal=outcome_goal,
-            cost_list=cost_list_of_vectors,
-            quiet=True,
-            **extra,
-        )
+        with collect_warnings() as warned:
+            df = lago.sensitivity(
+                data=data,
+                outcome_name=outcome_name,
+                outcome_type=outcome_type,
+                intervention_components=intervention_components,
+                intervention_lower_bounds=intervention_lower_bounds,
+                intervention_upper_bounds=intervention_upper_bounds,
+                parameter=parameter,
+                values=values,
+                outcome_goal=outcome_goal,
+                cost_list=cost_list_of_vectors,
+                quiet=True,
+                **extra,
+            )
         # to_json -> json.loads yields native Python/JSON types (records with
         # no numpy scalars).
-        return json.loads(df.to_json(orient="records"))
+        return {"runs": json.loads(df.to_json(orient="records")), "warnings": warned}
     except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
-        return _error(exc)
+        return _error(exc, locals().get("warned"))
+
+
+# --------------------------------------------------------------------------
+# Tool 3: budget
+# --------------------------------------------------------------------------
+@mcp.tool()
+def budget(
+    outcome_name: str,
+    outcome_type: str,
+    intervention_components: list[str],
+    intervention_lower_bounds: list[float],
+    intervention_upper_bounds: list[float],
+    cost_list_of_vectors: list[list[float]],
+    budget: float,
+    n_grid: int = 25,
+    data_csv: str | None = None,
+    data_records: list[dict] | None = None,
+    outcome_goal_intention: str = "maximize",
+    glm_family: str = "default",
+    link: str = "default",
+    center_characteristics: list[str] | None = None,
+    center_characteristics_optimization_values: list[float] | None = None,
+) -> Any:
+    """Find the best outcome a budget can buy, and the intervention that buys it.
+
+    Takes the same data and model arguments as `optimize` (provide data as
+    EXACTLY ONE of `data_csv` or `data_records`), without an outcome goal,
+    which the search sweeps. `budget` is the most the intervention may cost,
+    in the units of `cost_list_of_vectors`. `n_grid` is how many outcome goals
+    the first pass tries (a second pass tries as many again near the budget).
+    Fewer goals are faster, and more give an answer closer to the best.
+
+    Returns `feasible` (whether any reachable intervention fits the budget),
+    `binding` (whether a better outcome would cost more than the budget),
+    `rec_int` (one level per component), `rec_int_cost`, `est_outcome`,
+    `outcome_goal`, `frontier` (the goals searched, with their cost and
+    outcome), `run_error` (set when every run failed) and `warnings` (the
+    warnings of the R package). On a bad input or setup error it returns
+    `{"error": "..."}` with a short message instead of raising.
+    """
+    try:
+        data = _resolve_data(data_csv, data_records)
+        extra = _baseline_kwargs(
+            None,
+            None,
+            outcome_goal_intention,
+            glm_family,
+            link,
+            center_characteristics,
+            center_characteristics_optimization_values,
+        )
+        with collect_warnings() as warned:
+            res = lago.budget(
+                data=data,
+                outcome_name=outcome_name,
+                outcome_type=outcome_type,
+                intervention_components=intervention_components,
+                intervention_lower_bounds=intervention_lower_bounds,
+                intervention_upper_bounds=intervention_upper_bounds,
+                budget=budget,
+                n_grid=n_grid,
+                cost_list=cost_list_of_vectors,
+                quiet=True,
+                **extra,
+            )
+        frontier = res.get("frontier")
+        return {
+            "budget": _finite(res["budget"]),
+            "feasible": bool(res["feasible"]),
+            "binding": bool(res["binding"]),
+            "rec_int": [_finite(v) for v in res["rec_int"]],
+            "rec_int_cost": _finite(res["rec_int_cost"]),
+            "est_outcome": _finite(res["est_outcome"]),
+            "outcome_goal": _finite(res["outcome_goal"]),
+            "frontier": json.loads(frontier.to_json(orient="records")) if hasattr(frontier, "to_json") else [],
+            "run_error": res.get("run_error"),
+            "warnings": warned,
+        }
+    except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
+        return _error(exc, locals().get("warned"))
 
 
 def main():

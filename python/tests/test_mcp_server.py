@@ -12,15 +12,19 @@ they skip cleanly when R / rpy2 / LAGOtrials cannot be reached. The whole module
 skips if the ``mcp`` SDK is not installed.
 """
 import asyncio
+import json
+import os
 
 import numpy as np
 import pytest
 
-# Skip the entire module if the optional mcp SDK is not installed.
-pytest.importorskip(
-    "mcp.server.fastmcp",
-    reason="mcp SDK not installed; install with `pip install -e python[mcp]`",
-)
+# Skip the entire module if the optional mcp SDK is not installed, except in
+# CI (LAGO_REQUIRE_R=1), where it must be there.
+if os.environ.get("LAGO_REQUIRE_R") != "1":
+    pytest.importorskip(
+        "mcp.server.fastmcp",
+        reason="mcp SDK not installed; install with `pip install -e python[mcp]`",
+    )
 
 from lago import mcp_server as S  # noqa: E402
 
@@ -38,6 +42,18 @@ def mtcars_records(ro):
     with localconverter(ro.default_converter + pandas2ri.converter):
         mt = ro.conversion.get_conversion().rpy2py(mt_r)
     return mt[["mpg", "gear", "qsec"]].to_dict(orient="records")
+
+
+@pytest.fixture(scope="module")
+def mtcars_wt_records(ro):
+    """mtcars with wt too, to use as a center characteristic."""
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.conversion import localconverter
+
+    mt_r = ro.r("mtcars")
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        mt = ro.conversion.get_conversion().rpy2py(mt_r)
+    return mt[["mpg", "gear", "qsec", "wt"]].to_dict(orient="records")
 
 
 def _common_args():
@@ -166,7 +182,7 @@ def test_sensitivity_tool_outcome_goal(mtcars_records):
         parameter="outcome_goal",
         values=[30.0, 35.0, 40.0],
         **_common_args(),
-    )
+    )["runs"]
     assert isinstance(rows, list) and len(rows) == 3
     for r in rows:
         assert set(("value", "rec_int_cost", "est_outcome_goal", "status")) <= set(r)
@@ -187,7 +203,7 @@ def test_sensitivity_cost_multiplier_argmin_invariant(mtcars_records):
         values=mult,
         outcome_goal=30.0,
         **_common_args(),
-    )
+    )["runs"]
     assert isinstance(rows, list) and len(rows) == 3
     assert all(r["status"] == "ok" for r in rows)
     # a uniform cost rescaling never changes which intervention is cheapest:
@@ -220,7 +236,7 @@ def test_sensitivity_bad_parameter_returns_error(mtcars_records):
 def test_tools_registered_with_expected_schemas():
     tools = asyncio.run(S.mcp.list_tools())
     by_name = {t.name: t for t in tools}
-    assert set(by_name) == {"optimize", "sensitivity"}
+    assert set(by_name) == {"optimize", "sensitivity", "budget"}
 
     core = {
         "outcome_name",
@@ -287,3 +303,88 @@ def test_call_tool_optimize_round_trips_json(mtcars_records):
     assert isinstance(payload["rec_int"], list) and len(payload["rec_int"]) == 2
     assert isinstance(payload["rec_int_cost"], float)
     assert "confidence_set" in payload
+
+
+# --------------------------------------------------------------------------
+# 6. every call works in any thread or task, not only the first one
+# --------------------------------------------------------------------------
+def _in_new_thread(fn):
+    """Run fn in a fresh thread, which starts with an empty context."""
+    import threading
+
+    out = {}
+
+    def target():
+        try:
+            out["value"] = fn()
+        except Exception as exc:  # pragma: no cover - reported by the assert
+            out["value"] = {"error": repr(exc)}
+
+    t = threading.Thread(target=target)
+    t.start()
+    t.join()
+    return out["value"]
+
+
+def test_tools_work_in_fresh_threads_and_tasks(mtcars_records):
+    # rpy2 keeps its conversion rules in a context variable, so a thread or a
+    # task that did not load rpy2 has none. The MCP server runs each call in a
+    # context of its own, and used to answer only its first call.
+    for _ in range(2):
+        res = _in_new_thread(lambda: S.optimize(data_records=mtcars_records, outcome_goal=30.0, **_common_args()))
+        assert "error" not in res, res
+        assert len(res["rec_int"]) == 2
+    res = _in_new_thread(lambda: asyncio.run(S.mcp.call_tool("sensitivity", dict(
+        data_records=mtcars_records, parameter="outcome_goal", values=[30.0, 35.0], **_common_args()
+    ))))
+    content = res[0] if isinstance(res, tuple) else res
+    payload = json.loads(next(getattr(c, "text") for c in content if getattr(c, "text", None)))
+    assert "error" not in payload, payload
+    assert len(payload["runs"]) == 2
+
+
+# --------------------------------------------------------------------------
+# 7. the warnings of the R package reach the tool result
+# --------------------------------------------------------------------------
+def test_tool_results_carry_the_r_warnings(mtcars_wt_records):
+    mtcars_records = mtcars_wt_records
+    args = _common_args()
+    res = S.optimize(
+        data_records=mtcars_records, outcome_goal=30.0,
+        center_characteristics=["wt"], center_characteristics_optimization_values=[20.0], **args
+    )
+    assert "error" not in res, res
+    assert any("outside the centers in the data" in w for w in res["warnings"])
+    # each warning once, and none when there is nothing to warn about
+    assert len(res["warnings"]) == len(set(res["warnings"]))
+    quiet = S.optimize(data_records=mtcars_records, outcome_goal=30.0, **args)
+    assert not any("outside the centers" in w for w in quiet["warnings"])
+    sens = S.sensitivity(
+        data_records=mtcars_records, parameter="outcome_goal", values=[30.0, 35.0],
+        center_characteristics=["wt"], center_characteristics_optimization_values=[20.0], **args
+    )
+    assert sum("outside the centers" in w for w in sens["warnings"]) == 1
+
+
+# --------------------------------------------------------------------------
+# 8. budget tool
+# --------------------------------------------------------------------------
+def test_budget_tool(mtcars_records):
+    opt = S.optimize(data_records=mtcars_records, outcome_goal=30.0, **_common_args())
+    res = S.budget(data_records=mtcars_records, budget=opt["rec_int_cost"], n_grid=6, **_common_args())
+    assert "error" not in res, res
+    assert res["feasible"] is True
+    assert isinstance(res["binding"], bool)
+    assert len(res["rec_int"]) == 2
+    assert res["rec_int_cost"] <= opt["rec_int_cost"] + 1e-6
+    assert res["frontier"] and {"outcome_goal", "rec_int_cost", "est_outcome", "affordable"} <= set(res["frontier"][0])
+    assert isinstance(res["warnings"], list)
+    json.dumps(res)  # strict JSON
+    # a budget below every reachable cost is not feasible, and says so in JSON
+    tiny = S.budget(data_records=mtcars_records, budget=1e-6, n_grid=4, **_common_args())
+    assert "error" not in tiny, tiny
+    assert tiny["feasible"] is False
+    assert tiny["rec_int_cost"] is None
+    json.dumps(tiny, allow_nan=False)
+    bad = S.budget(data_records=mtcars_records, budget=-1.0, **_common_args())
+    assert "error" in bad and "budget" in bad["error"]

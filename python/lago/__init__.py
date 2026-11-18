@@ -12,6 +12,7 @@ install; it gives Python users LAGOtrials's API in Python syntax.
 Exposed functions (mirroring the exported R functions):
     optimize()           -> lago_optimization()
     sensitivity()        -> lago_sensitivity()
+    budget()             -> lago_budget()
     get_confidence_set() -> get_confidence_set()
     visualize_cost()     -> visualize_cost()   (opens a browser, BLOCKS)
     lago_report()        -> lago_report()
@@ -20,11 +21,17 @@ Exposed functions (mirroring the exported R functions):
 from __future__ import annotations
 
 from . import _bridge
+from ._bridge import LagoRWarning
+
+# Each function issues the warnings of the R package as a LagoRWarning, so they
+# can be read with warnings.catch_warnings(record=True).
 
 __all__ = [
     "optimize",
     "sensitivity",
+    "budget",
     "get_confidence_set",
+    "LagoRWarning",
     "visualize_cost",
     "lago_report",
 ]
@@ -32,6 +39,7 @@ __all__ = [
 __version__ = "0.1.0"
 
 
+@_bridge.in_r_context
 def optimize(
     data,
     outcome_name,
@@ -107,6 +115,7 @@ def optimize(
     return _bridge.lago_result_to_dict(result)
 
 
+@_bridge.in_r_context
 def sensitivity(
     data,
     outcome_name,
@@ -205,6 +214,76 @@ def sensitivity(
     return _bridge.r_sensitivity_to_df(result)
 
 
+@_bridge.in_r_context
+def budget(
+    data,
+    outcome_name,
+    outcome_type,
+    intervention_components,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
+    budget,
+    n_grid=25,
+    cost_list=None,
+    quiet=True,
+    **kwargs,
+):
+    """Find the best outcome a budget can buy, by calling R's ``lago_budget()``.
+
+    It takes the same baseline optimization arguments as :func:`optimize`,
+    without ``outcome_goal``, which the search sweeps, and adds ``budget`` and
+    ``n_grid``.
+
+    Parameters
+    ----------
+    budget : float
+        The most the intervention may cost, in the units of the costs.
+    n_grid : int, default 25
+        How many outcome goals the first pass tries. A second pass tries as
+        many again near the budget.
+    cost_list : list[list[float]], optional
+        The cost-function coefficients per component. Maps to R's
+        ``cost_list_of_vectors``.
+    **kwargs
+        Any other argument of ``lago_optimization()``, passed through as a
+        baseline argument.
+
+    Returns
+    -------
+    dict
+        ``budget``, ``feasible`` (whether a reachable intervention fits the
+        budget), ``binding`` (whether a better outcome would cost more),
+        ``rec_int`` (the intervention, a list), ``rec_int_cost``,
+        ``est_outcome``, ``outcome_goal``, ``frontier`` (a
+        ``pandas.DataFrame`` of the goals searched), ``component_names``,
+        ``intention`` and ``run_error`` (the error of the runs when every run
+        failed, else ``None``).
+    """
+    call_kwargs = dict(
+        data=data,
+        outcome_name=outcome_name,
+        outcome_type=outcome_type,
+        intervention_components=intervention_components,
+        intervention_lower_bounds=intervention_lower_bounds,
+        intervention_upper_bounds=intervention_upper_bounds,
+        quiet=quiet,
+    )
+    if cost_list is not None:
+        call_kwargs["cost_list_of_vectors"] = cost_list
+    call_kwargs.update(kwargs)
+    call_kwargs["budget"] = budget
+    call_kwargs["n_grid"] = int(n_grid)
+    result = _bridge.call_lago("lago_budget", call_kwargs)
+    out = _bridge.scalarize_dict(_bridge.r_to_py(result))
+    if isinstance(out.get("rec_int"), dict):
+        out["rec_int"] = list(out["rec_int"].values())
+    # R drops a list element set to NULL, so a search with no failed runs has
+    # no run_error at all
+    out.setdefault("run_error", None)
+    return out
+
+
+@_bridge.in_r_context
 def get_confidence_set(
     predictors_data,
     intervention_components,
@@ -284,6 +363,7 @@ def get_confidence_set(
     return out
 
 
+@_bridge.in_r_context
 def visualize_cost(
     component_names,
     unit_costs,
@@ -329,6 +409,7 @@ def visualize_cost(
     return _bridge.r_to_py(result)
 
 
+@_bridge.in_r_context
 def lago_report(result, output_file=None, title=None, open=False, **kwargs):
     """Render an HTML report by calling R's ``lago_report()``.
 
