@@ -120,3 +120,28 @@ test_that("a value within floating point of an end does not warn, and the warnin
     "Fixed center effects and center characteristics cannot be both included"
   )
 })
+
+test_that("center level data is checked on its fitted rows, and a characteristic with no values is skipped", {
+  p <- as.data.frame(main_pulesa_data)
+  p$proportion <- p$Success / p$Total_visit
+  p$center_sample_size <- p$Total_visit
+  run <- function(data, v) extrapolation_warnings(lago_optimization(
+    data = data, input_data_structure = "center_level", outcome_name = "proportion", outcome_type = "binary",
+    intervention_components = "DeliveryA", intervention_lower_bounds = 0, intervention_upper_bounds = 1,
+    unit_costs = 1, center_characteristics = "AccessBPMachines", center_characteristics_optimization_values = v,
+    include_center_effects = FALSE, outcome_goal = 0.6, include_confidence_set = FALSE, quiet = TRUE
+  ))
+  expect_length(run(p, 50), 1)
+  expect_length(run(p, 0.6), 0)
+  # a characteristic with no observed value has no range to check against, and
+  # the model fit then says what is wrong
+  p$AccessBPMachines <- NA_real_
+  expect_error(run(p, 50))
+  w <- tryCatch(run(p, 50), error = function(e) list())
+  expect_length(w, 0)
+})
+
+test_that("the check skips a characteristic with no observed value on the fitted rows", {
+  d <- data.frame(y = c(0, 1, 0, 1), x = 1:4, k = NA_real_)
+  expect_silent(warn_center_extrapolation(d, "y", "x", "k", 9, NULL, FALSE, FALSE, "individual_level", NULL))
+})

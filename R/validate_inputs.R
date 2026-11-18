@@ -1586,7 +1586,6 @@ warn_center_extrapolation <- function(data, outcome_name, intervention_component
   model_cols <- intersect(c(
     outcome_name, intervention_components, center_characteristics,
     additional_covariates,
-    if (isTRUE(include_center_effects)) "center",
     if (isTRUE(include_time_effects)) "period",
     if (identical(input_data_structure, "center_level")) "center_sample_size"
   ), names(data))
