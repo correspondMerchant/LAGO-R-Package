@@ -250,11 +250,11 @@ get_confidence_set <- function(
   # once and not twice.
   if (!is.null(center_characteristics) && inherits(fitted_model, "glm")) {
     frame <- stats::model.frame(fitted_model)
-    w <- stats::weights(fitted_model)
-    fitted <- if (is.null(w)) rep(TRUE, nrow(frame)) else !is.na(w) & w > 0
-    columns <- lapply(center_characteristics, function(cc) {
-      if (cc %in% names(frame)) frame[[cc]][fitted] else predictors_data[[cc]]
-    })
+    # the prior weights, as glm() keeps them, and a row it fits has one above 0
+    w <- stats::weights(fitted_model) %||% rep(1, nrow(frame))
+    fitted <- !is.na(w) & w > 0
+    # a characteristic the model does not have gives NULL, and is skipped
+    columns <- lapply(center_characteristics, function(cc) frame[[cc]][fitted])
     warn_outside_centers(center_characteristics, center_characteristics_optimization_values, columns)
   }
   args <- as.list(environment())

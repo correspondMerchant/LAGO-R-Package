@@ -171,3 +171,9 @@ test_that("get_confidence_set() called directly warns once, from the rows its mo
   ))
   expect_length(w, 1)
 })
+
+test_that("the shared check skips a value or a column it cannot read", {
+  expect_silent(warn_outside_centers("k", Inf, list(1:3)))
+  expect_silent(warn_outside_centers("k", 9, list(NULL)))
+  expect_warning(warn_outside_centers(c("a", "k"), c(9, 9), list(1:3, NULL)), "a = 9, while")
+})
