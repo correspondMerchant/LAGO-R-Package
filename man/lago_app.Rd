@@ -7,8 +7,9 @@
 lago_app(data = NULL, launch.browser = interactive(), port = NULL)
 }
 \arguments{
-\item{data}{A data.frame to start with, or \code{NULL} to start with the
-bundled \code{BB_data} example.}
+\item{data}{A data.frame to start with, a \code{lago} result of
+\code{\link[=lago_optimization]{lago_optimization()}} to start from its data and settings, or \code{NULL} to
+start with the bundled \code{BB_data} example.}
 
 \item{launch.browser}{Whether to open the app in your web browser. By default
 it opens in an interactive session.}
@@ -96,12 +97,19 @@ as the outcome goal.
 \item \strong{R code:} the code of the run, followed by the code of the last sweep
 and budget search of that result.
 }
+
+\strong{Save settings} downloads every setting as an \code{.rds} file, without the
+data, and \strong{Load settings} puts them back on the same data. Started from a
+\code{lago} result, the app opens on the settings of its call and lists any it
+cannot show.
 }
 \examples{
 if (interactive()) {
   out <- lago_app()
   out$result
   cat(out$code, sep = "\n")
+  # change a setting of that result and run it again
+  lago_app(out$result)
 }
 
 }

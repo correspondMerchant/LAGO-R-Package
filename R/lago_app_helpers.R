@@ -176,9 +176,9 @@
   others <- setdiff(cols, spec$outcome)
   two_level <- cols[vapply(data, function(v) length(unique(stats::na.omit(v))) == 2, logical(1))]
   arms <- setdiff(two_level, spec$outcome)
-  arm <- if ("group" %in% arms) "group" else if (length(arms)) arms[1] else character(0)
+  arm <- if (spec$arm_col %in% arms) spec$arm_col else if ("group" %in% arms) "group" else if (length(arms)) arms[1] else character(0)
   arm_values <- if (length(arm)) sort(unique(as.character(stats::na.omit(data[[arm]])))) else character(0)
-  arm_value <- if ("treatment" %in% arm_values) "treatment" else if ("1" %in% arm_values) "1" else utils::tail(arm_values, 1)
+  arm_value <- if (as.character(spec$arm_value) %in% arm_values) as.character(spec$arm_value) else if ("treatment" %in% arm_values) "treatment" else if ("1" %in% arm_values) "1" else utils::tail(arm_values, 1)
   # a preset names its center and period columns, else the usual names are used
   center_col <- if (spec$center_col %in% others) spec$center_col else if ("center" %in% others) "center" else ""
   period_col <- if (spec$period_col %in% others) spec$period_col else if ("period" %in% others) "period" else ""
@@ -1212,5 +1212,159 @@
     fmt(cost[1]), vals[1], fmt(cost[length(cost)]), vals[length(vals)]
   )
   if (any(!ok)) out <- paste(out, sprintf("%d of %d runs failed, as the table shows.", sum(!ok), nrow(s)))
+  out
+}
+
+# The spec of a lago_optimization() call, from the arguments a result stores,
+# and the settings the app cannot show, in plain words. The data is the one
+# the call used, which already has the center, period and group columns the
+# package reads by name.
+.app_spec_from_args <- function(a) {
+  s <- .app_empty_spec()
+  left <- character(0)
+  d <- a$data
+  s$outcome <- a$outcome_name
+  s$outcome_type <- a$outcome_type
+  if (identical(a$input_data_structure, "center_level")) {
+    s$structure <- "center"
+    s$cl_kind <- "proportion"
+    s$cl_value <- "proportion"
+    s$cl_total <- "center_sample_size"
+  }
+  if (!is.null(a$power_goal)) {
+    s$goal_mode <- if (is.null(a$outcome_goal)) "power" else "both"
+    s$power_goal <- a$power_goal
+    s$n_centers <- a$num_centers_in_next_stage
+    s$n_patients <- a$patients_per_center_in_next_stage
+    s$approach <- a$power_goal_approach
+    if (!is.null(a$icc)) s$icc <- a$icc
+    if (!is.null(a$power_goal_cluster_id)) s$cluster_col <- a$power_goal_cluster_id
+    s$arm_col <- "group"
+    s$arm_value <- "treatment"
+  }
+  if (!is.null(a$outcome_goal)) s$goal <- a$outcome_goal
+  s$intention <- a$outcome_goal_intention
+
+  inter <- isTRUE(a$include_interaction_terms) && !is.null(a$main_components)
+  comps <- if (inter) a$main_components else a$intervention_components
+  s$components <- comps
+  pairs <- if (length(comps) >= 2) vapply(utils::combn(comps, 2, simplify = FALSE), paste, character(1), collapse = ":") else character(0)
+  for (term in setdiff(a$intervention_components, comps)) {
+    ab <- strsplit(gsub("`", "", term), ":", fixed = TRUE)[[1]]
+    pair <- if (length(ab) == 2) intersect(c(paste(ab, collapse = ":"), paste(rev(ab), collapse = ":")), pairs) else character(0)
+    if (length(pair)) {
+      s$interactions <- c(s$interactions, pair[1])
+    } else {
+      left <- c(left, sprintf("the interaction term %s, which is not the product of two components", term))
+    }
+  }
+  s$lower <- as.numeric(a$intervention_lower_bounds)
+  s$upper <- as.numeric(a$intervention_upper_bounds)
+  if (!is.null(a$cost_list_of_vectors)) {
+    s$cost_mode <- "coef"
+    s$coefs <- lapply(a$cost_list_of_vectors, as.numeric)
+    s$unit_costs <- rep(1, length(comps))
+  } else {
+    s$unit_costs <- as.numeric(a$unit_costs)
+    s$cost_type <- a$default_cost_fxn_type
+    s$doses <- if (is.null(a$unit_cost_doses)) rep(NA_real_, length(comps)) else as.numeric(a$unit_cost_doses)
+    s$coefs <- rep(list(c(0, 1)), length(comps))
+  }
+
+  if (!is.null(a$center_characteristics)) {
+    s$center_mode <- "chars"
+    s$center_chars <- a$center_characteristics
+    s$center_char_values <- as.numeric(a$center_characteristics_optimization_values)
+  }
+  effects <- if (is.null(a$include_center_effects)) identical(s$structure, "center") else isTRUE(a$include_center_effects)
+  if (effects) {
+    s$center_mode <- "effects"
+    s$center_col <- "center"
+    if (!is.null(a$center_weights_for_outcome_goal)) {
+      s$cw_on <- TRUE
+      s$cw <- as.numeric(a$center_weights_for_outcome_goal)
+    } else if (!is.null(a$center_effects_optimization_values)) {
+      s$center_for <- as.character(a$center_effects_optimization_values)
+    }
+  }
+  if (isTRUE(a$include_time_effects)) {
+    s$time_on <- TRUE
+    s$period_col <- "period"
+    s$period_value <- as.character(a$time_effect_optimization_value)
+  }
+  if (!is.null(a$additional_covariates)) s$covariates <- a$additional_covariates
+
+  if (identical(a$glm_family, "quasibinomial")) s$glm_family <- "quasibinomial"
+  if (a$link %in% c("logit", "identity")) s$link <- a$link
+  if (!is.null(a$weights)) {
+    same <- names(d)[vapply(d, function(v) is.numeric(v) && length(v) == length(a$weights) && isTRUE(all.equal(as.numeric(v), as.numeric(a$weights))), logical(1))]
+    if (length(same)) {
+      s$weights_col <- same[1]
+    } else {
+      left <- c(left, "the weights, which are not a column of the data")
+    }
+  }
+  if (identical(a$optimization_method, "grid_search") || !is.null(a$optimization_grid_search_step_size)) {
+    s$method <- "grid_search"
+    if (!is.null(a$optimization_grid_search_step_size)) s$grid_steps <- as.numeric(a$optimization_grid_search_step_size)
+  }
+  s$include_cs <- !isFALSE(a$include_confidence_set)
+  level <- 1 - a$confidence_set_alpha
+  known <- c(0.9, 0.95, 0.99)
+  if (any(abs(level - known) < 1e-9)) {
+    s$cs_level <- known[abs(level - known) < 1e-9]
+  } else {
+    left <- c(left, sprintf("the confidence level of %s%%, as the app offers 90%%, 95%% and 99%%", format(100 * level)))
+  }
+  if (!is.null(a$confidence_set_grid_step_size)) s$cs_steps <- as.numeric(a$confidence_set_grid_step_size)
+  if (!is.null(a$prev_recommended_interventions)) {
+    s$prev_on <- TRUE
+    s$prev <- as.numeric(a$prev_recommended_interventions)
+  }
+  list(spec = s, left = left)
+}
+
+# The columns of the data that a spec names, which a dataset must have before
+# saved settings can be put into the app.
+.app_spec_columns <- function(spec) {
+  cols <- c(
+    if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total) else spec$outcome,
+    spec$components, spec$covariates,
+    if (identical(spec$center_mode, "chars")) spec$center_chars,
+    if (identical(spec$center_mode, "effects")) spec$center_col,
+    if (isTRUE(spec$time_on)) spec$period_col,
+    if (.app_power_on(spec)) c(spec$arm_col, spec$cluster_col),
+    spec$weights_col
+  )
+  unique(cols[nzchar(cols)])
+}
+
+# Values of loaded settings that this data does not have, and what the app
+# uses instead, in plain words. The columns are checked before this.
+.app_spec_misfits <- function(spec, data) {
+  out <- character(0)
+  if (identical(spec$center_mode, "effects") && isTRUE(spec$center_col %in% names(data))) {
+    centers <- .app_center_levels(data, spec$center_col)
+    if (nzchar(spec$center_for) && !spec$center_for %in% centers) {
+      out <- c(out, sprintf("the center %s to optimize for, which this data does not have, so the weighted average center is used", spec$center_for))
+    } else if (!nzchar(spec$center_for) && isTRUE(spec$cw_on) && length(spec$cw) != length(centers)) {
+      out <- c(out, sprintf(
+        "the center weights, which are for %d centers while this data has %d, so each center starts at its share of the patients",
+        length(spec$cw), length(centers)
+      ))
+    }
+  }
+  if (isTRUE(spec$time_on) && isTRUE(spec$period_col %in% names(data))) {
+    periods <- .app_periods(data[[spec$period_col]])$labels
+    if (!spec$period_value %in% periods) {
+      out <- c(out, sprintf("the period %s, which this data does not have, so the last period is used", spec$period_value))
+    }
+  }
+  if (.app_power_on(spec) && isTRUE(spec$arm_col %in% names(data))) {
+    values <- unique(as.character(stats::na.omit(data[[spec$arm_col]])))
+    if (!as.character(spec$arm_value) %in% values) {
+      out <- c(out, sprintf("the treatment value %s, which the column %s does not have", spec$arm_value, spec$arm_col))
+    }
+  }
   out
 }

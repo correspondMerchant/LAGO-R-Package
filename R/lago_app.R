@@ -70,8 +70,14 @@
 #' * **R code:** the code of the run, followed by the code of the last sweep
 #'   and budget search of that result.
 #'
-#' @param data A data.frame to start with, or `NULL` to start with the
-#'   bundled `BB_data` example.
+#' **Save settings** downloads every setting as an `.rds` file, without the
+#' data, and **Load settings** puts them back on the same data. Started from a
+#' `lago` result, the app opens on the settings of its call and lists any it
+#' cannot show.
+#'
+#' @param data A data.frame to start with, a `lago` result of
+#'   [lago_optimization()] to start from its data and settings, or `NULL` to
+#'   start with the bundled `BB_data` example.
 #' @param launch.browser Whether to open the app in your web browser. By default
 #'   it opens in an interactive session.
 #' @param port The port to listen on, or `NULL` for a free one.
@@ -92,6 +98,8 @@
 #'   out <- lago_app()
 #'   out$result
 #'   cat(out$code, sep = "\n")
+#'   # change a setting of that result and run it again
+#'   lago_app(out$result)
 #' }
 #'
 #' @export
@@ -99,10 +107,21 @@ lago_app <- function(data = NULL,
                      launch.browser = interactive(),
                      port = NULL) {
   data_name <- if (is.null(data)) NULL else deparse1(substitute(data))
-  if (!is.null(data) && !is.data.frame(data)) {
-    stop("`data` must be a data.frame, or NULL to start with the BB_data example.", call. = FALSE)
+  start <- NULL
+  if (inherits(data, "lago")) {
+    args <- attr(data, "lago_call_args")
+    if (is.null(args) || !is.data.frame(args$data)) {
+      stop("This `lago` result does not carry the data of its call. Refit it with the current version of the package.", call. = FALSE)
+    }
+    start <- .app_spec_from_args(args)
+    # the code reads the data back from the result, as the call used it
+    data_name <- sprintf("attr(%s, \"lago_call_args\")$data", data_name)
+    data <- args$data
   }
-  app <- .build_lago_app(data = data, data_name = data_name)
+  if (!is.null(data) && !is.data.frame(data)) {
+    stop("`data` must be a data.frame or a `lago` result, or NULL to start with the BB_data example.", call. = FALSE)
+  }
+  app <- .build_lago_app(data = data, data_name = data_name, start = start)
   on.exit(try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE), add = TRUE)
   old <- options(shiny.maxRequestSize = 100 * 1024^2)
   on.exit(options(old), add = TRUE)
@@ -141,6 +160,8 @@ lago_app <- function(data = NULL,
   font-size:.8em; font-weight:600; cursor:pointer; }
 .lago-help:focus { outline:2px solid #1f4e79; }
 .lago-next { margin-top:1rem; text-align:right; }
+.lago-settings { margin-top:.75rem; }
+.lago-settings .form-group { margin-top:.5rem; margin-bottom:0; }
 .lago-step { display:flex; gap:.5rem; align-items:flex-start; margin-bottom:.5rem; }
 .lago-step .lago-mark { width:1.4em; flex:none; text-align:center; font-weight:700; }
 .lago-step.ok .lago-mark { color:#1a7f37; }
@@ -153,7 +174,7 @@ lago_app <- function(data = NULL,
 .lago-notes li { white-space:pre-line; margin-bottom:.4rem; }
 "
 
-.build_lago_app <- function(data = NULL, data_name = NULL) {
+.build_lago_app <- function(data = NULL, data_name = NULL, start = NULL) {
   # the cost designer's D3 curves, served from the package, with no CDN
   shiny::addResourcePath("lago_cost_assets", system.file("js", package = "LAGOtrials"))
   sources <- c(
@@ -163,7 +184,8 @@ lago_app <- function(data = NULL,
     "Upload a CSV file" = "upload"
   )
   if (!is.null(data)) {
-    sources <- c(stats::setNames("passed", sprintf("Your data (%s)", data_name)), sources)
+    label <- if (is.null(start)) sprintf("Your data (%s)", data_name) else "The data and settings of your result"
+    sources <- c(stats::setNames("passed", label), sources)
   }
 
   ui <- bslib::page_sidebar(
@@ -183,6 +205,11 @@ lago_app <- function(data = NULL,
       shiny::uiOutput("run_hint"),
       htmltools::hr(),
       shiny::actionButton("reset", "Reset this dataset's settings", class = "btn-outline-secondary btn-sm"),
+      htmltools::div(
+        class = "lago-settings",
+        shiny::downloadButton("save_settings", "Save settings", class = "btn-outline-secondary btn-sm"),
+        shiny::fileInput("load_settings", .app_help("Load settings", "A settings file saved by this app. Load the data it was saved with first, as the file holds the settings and not the data."), accept = ".rds", buttonLabel = "Choose", placeholder = "No file")
+      ),
       shiny::actionButton("done", "Done: return to R", class = "btn-success"),
       htmltools::tags$small(class = "text-muted", "Done closes the app and returns the last result to R.")
     ),
@@ -469,6 +496,17 @@ lago_app <- function(data = NULL,
     shared$sessions <- shared$sessions + 1L
     loaded <- shiny::reactiveVal(NULL)
     upload_error <- shiny::reactiveVal(NULL)
+    # the spec the inputs start from, and the value it gives one input: field
+    # of the spec at the place of key in its keys, or the fallback
+    start_spec <- shiny::reactiveVal(NULL)
+    interactions_started <- NULL
+    start_value <- function(field, key, fallback, keys = "components") {
+      s <- shiny::isolate(start_spec())
+      k <- if (is.null(s)) NA else match(key, s[[keys]])
+      v <- if (is.na(k)) NULL else s[[field]]
+      x <- if (length(v) < k || is.na(k)) NULL else if (is.list(v)) v[[k]] else v[k]
+      if (is.null(x) || (length(x) == 1 && is.na(x))) fallback else x
+    }
     run_state <- shiny::reactiveVal(NULL)
     # counts the runs, so a sweep or budget search knows which result it used
     run_id <- shiny::reactiveVal(0L)
@@ -485,7 +523,7 @@ lago_app <- function(data = NULL,
 
     load_data <- function(source) {
       switch(source,
-        passed = list(data = data, name = data_name),
+        passed = list(data = data, name = data_name, start = start),
         BB_data = list(data = as.data.frame(LAGOtrials::BB_data), name = "BB_data"),
         main_pulesa_data = list(data = as.data.frame(LAGOtrials::main_pulesa_data), name = "main_pulesa_data"),
         mtcars = list(data = datasets::mtcars, name = "mtcars"),
@@ -511,8 +549,11 @@ lago_app <- function(data = NULL,
       )
     }
 
-    apply_defaults <- function(d, name) {
-      spec <- .app_defaults(d, name)
+    # Put a whole spec into the app: the dataset's defaults on a load or reset,
+    # or loaded settings. Inputs drawn later, such as the bounds of each
+    # component, take their first value from start_spec().
+    apply_defaults <- function(d, name, spec = .app_defaults(d, name)) {
+      start_spec(spec)
       generation(generation() + 1L)
       last_outcome(spec$outcome)
       applying_defaults(TRUE)
@@ -521,40 +562,40 @@ lago_app <- function(data = NULL,
       shiny::updateSelectInput(session, "outcome", choices = ch$outcomes, selected = spec$outcome)
       shiny::updateRadioButtons(session, "outcome_type", selected = spec$outcome_type)
       shiny::updateNumericInput(session, "goal", value = spec$goal)
-      shiny::updateRadioButtons(session, "goal_mode", selected = "outcome")
-      shiny::updateRadioButtons(session, "intention", selected = "maximize")
+      shiny::updateRadioButtons(session, "goal_mode", selected = spec$goal_mode)
+      shiny::updateRadioButtons(session, "intention", selected = spec$intention)
       shiny::updateSelectizeInput(session, "components", choices = ch$components, selected = spec$components)
-      shiny::updateRadioButtons(session, "cost_mode", selected = "unit")
-      shiny::updateRadioButtons(session, "cost_type", selected = "linear")
+      shiny::updateRadioButtons(session, "cost_mode", selected = spec$cost_mode)
+      shiny::updateRadioButtons(session, "cost_type", selected = spec$cost_type)
       shiny::updateCheckboxInput(session, "include_cs", value = spec$include_cs)
       shiny::updateRadioButtons(session, "structure", selected = spec$structure)
       shiny::updateRadioButtons(session, "cl_kind", selected = spec$cl_kind)
       shiny::updateSelectInput(session, "cl_value", choices = c("Choose a column" = "", ch$counts), selected = spec$cl_value)
       shiny::updateSelectInput(session, "cl_total", choices = c("Choose a column" = "", ch$counts), selected = spec$cl_total)
-      shiny::updateCheckboxInput(session, "cw_on", value = FALSE)
-      shiny::updateCheckboxGroupInput(session, "interactions", selected = character(0))
+      shiny::updateCheckboxInput(session, "cw_on", value = spec$cw_on)
+      shiny::updateCheckboxGroupInput(session, "interactions", selected = spec$interactions)
       shiny::updateSelectInput(session, "arm_col", choices = ch$arms, selected = ch$arm)
       shiny::updateSelectInput(session, "arm_value", choices = ch$arm_values, selected = ch$arm_value)
-      shiny::updateNumericInput(session, "power_goal", value = 0.8)
-      shiny::updateNumericInput(session, "n_centers", value = 10)
-      shiny::updateNumericInput(session, "n_patients", value = 30)
-      shiny::updateRadioButtons(session, "approach", selected = "unconditional")
-      shiny::updateTextInput(session, "icc", value = "")
-      shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", ch$clusters), selected = "")
+      shiny::updateNumericInput(session, "power_goal", value = spec$power_goal)
+      shiny::updateNumericInput(session, "n_centers", value = spec$n_centers)
+      shiny::updateNumericInput(session, "n_patients", value = spec$n_patients)
+      shiny::updateRadioButtons(session, "approach", selected = spec$approach)
+      shiny::updateTextInput(session, "icc", value = paste(format(spec$icc, trim = TRUE), collapse = ", "))
+      shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", ch$clusters), selected = intersect(spec$cluster_col, ch$clusters))
       shiny::updateRadioButtons(session, "center_mode", selected = spec$center_mode)
-      shiny::updateSelectizeInput(session, "center_chars", choices = ch$center_chars, selected = character(0))
+      shiny::updateSelectizeInput(session, "center_chars", choices = ch$center_chars, selected = intersect(spec$center_chars, ch$center_chars))
       shiny::updateSelectInput(session, "center_col", choices = c("Choose a column" = "", ch$others), selected = ch$center_col)
-      shiny::updateSelectInput(session, "center_for", choices = c("The weighted average center" = "", ch$centers), selected = "")
+      shiny::updateSelectInput(session, "center_for", choices = c("The weighted average center" = "", ch$centers), selected = intersect(spec$center_for, ch$centers))
       shiny::updateCheckboxInput(session, "time_on", value = spec$time_on)
       shiny::updateSelectInput(session, "period_col", choices = c("Choose a column" = "", ch$others), selected = ch$period_col)
       shiny::updateSelectInput(session, "period_value", choices = ch$periods, selected = ch$period)
       shiny::updateSelectizeInput(session, "covariates", choices = ch$covariates, selected = intersect(spec$covariates, ch$covariates))
-      shiny::updateSelectInput(session, "glm_family", selected = "default")
-      shiny::updateSelectInput(session, "link", selected = "default")
-      shiny::updateSelectInput(session, "weights_col", choices = c("No weights" = "", ch$weights), selected = "")
-      shiny::updateSelectInput(session, "cs_level", selected = "0.95")
-      shiny::updateRadioButtons(session, "method", selected = "numerical")
-      shiny::updateCheckboxInput(session, "prev_on", value = FALSE)
+      shiny::updateSelectInput(session, "glm_family", selected = spec$glm_family)
+      shiny::updateSelectInput(session, "link", selected = spec$link)
+      shiny::updateSelectInput(session, "weights_col", choices = c("No weights" = "", ch$weights), selected = intersect(spec$weights_col, ch$weights))
+      shiny::updateSelectInput(session, "cs_level", selected = as.character(spec$cs_level))
+      shiny::updateRadioButtons(session, "method", selected = spec$method)
+      shiny::updateCheckboxInput(session, "prev_on", value = spec$prev_on)
       designer_costs(list())
       run_state(NULL)
       sweep_state(NULL)
@@ -566,11 +607,81 @@ lago_app <- function(data = NULL,
       upload_error(got$error)
       if (!is.null(got$error)) got <- NULL
       loaded(got)
-      if (!is.null(got)) apply_defaults(got$data, got$name)
+      if (!is.null(got)) start_from(got)
     })
     shiny::observeEvent(input$reset, {
       got <- loaded()
-      if (!is.null(got)) apply_defaults(got$data, got$name)
+      if (!is.null(got)) start_from(got)
+    })
+    # a result passed to lago_app() starts, and resets, on its own settings
+    start_from <- function(got) {
+      if (is.null(got$start)) {
+        apply_defaults(got$data, got$name)
+      } else {
+        spec <- got$start$spec
+        spec$data_name <- got$name
+        apply_defaults(got$data, got$name, spec)
+      }
+    }
+
+    output$save_settings <- shiny::downloadHandler(
+      filename = function() "lago_app_settings.rds",
+      content = function(file) {
+        got <- loaded()
+        # how to get this data back, for a message on loading
+        label <- switch(input$source,
+          upload = sprintf("the file %s", input$file$name),
+          passed = if (is.null(got$start)) sprintf("your data %s", got$name) else "the data of the result the app was started from, with lago_app() on that result",
+          sprintf("the %s example", got$name)
+        )
+        saveRDS(list(lago_app_settings = 1L, data_name = got$name, data_label = label, spec = spec()), file)
+      }
+    )
+    shiny::observeEvent(input$load_settings, {
+      got <- loaded()
+      f <- input$load_settings
+      shiny::req(f)
+      x <- tryCatch(readRDS(f$datapath), error = function(e) NULL)
+      if (inherits(x, "lago")) {
+        shiny::showNotification("This file holds a result of lago_optimization(), not settings. To start from it, read it in R with readRDS() and pass it to lago_app().", type = "error", duration = NULL)
+        return()
+      }
+      version <- if (is.list(x) && is.numeric(x$lago_app_settings) && length(x$lago_app_settings) == 1) x$lago_app_settings else NA
+      if (isTRUE(version > 1)) {
+        shiny::showNotification("These settings were saved by a newer version of LAGOtrials. Update the package to load them.", type = "error", duration = NULL)
+        return()
+      }
+      if (!identical(version, 1L) || !is.list(x$spec)) {
+        shiny::showNotification("This file is not a settings file of this app.", type = "error", duration = NULL)
+        return()
+      }
+      if (is.null(got)) {
+        shiny::showNotification("Load the data first, then the settings.", type = "error", duration = NULL)
+        return()
+      }
+      spec <- utils::modifyList(.app_empty_spec(), x$spec)
+      missing <- setdiff(.app_spec_columns(spec), names(got$data))
+      if (length(missing)) {
+        saved_for <- if (is.character(x$data_label) && length(x$data_label) == 1 && !is.na(x$data_label)) x$data_label else "the data they were saved with"
+        shiny::showNotification(sprintf(
+          "These settings name columns that this data does not have: %s. Load %s first, then load the settings again.",
+          paste(missing, collapse = ", "), saved_for
+        ), type = "error", duration = NULL)
+        return()
+      }
+      misfits <- .app_spec_misfits(spec, got$data)
+      if (any(grepl("^the center .* to optimize for", misfits))) spec$center_for <- ""
+      spec$data_name <- got$name
+      apply_defaults(got$data, got$name, spec)
+      if (length(misfits)) {
+        shiny::showNotification(htmltools::tagList(
+          "The settings are loaded, but these do not fit this data and were changed:",
+          htmltools::tags$ul(lapply(misfits, htmltools::tags$li)),
+          "Check each step, then press Find recommendation."
+        ), type = "warning", duration = NULL)
+      } else {
+        shiny::showNotification("The settings are loaded. Check each step, then press Find recommendation.", type = "message")
+      }
     })
 
     current_data <- shiny::reactive(loaded()$data)
@@ -711,8 +822,23 @@ lago_app <- function(data = NULL,
         return(htmltools::p(class = "text-muted", "Choose a CSV file. It needs a header row, and numeric columns for the outcome and the components."))
       }
       d <- got$data
+      left <- got$start$left
       htmltools::tagList(
         htmltools::p(sprintf("%d rows and %d columns, %d of them numeric.", nrow(d), ncol(d), length(.app_numeric_cols(d)))),
+        if (!is.null(got$start)) {
+          htmltools::div(
+            class = if (length(left)) "alert alert-warning" else "alert alert-info", role = "status",
+            "The steps are set from the call of your result. ",
+            if (length(left)) {
+              htmltools::tagList(
+                "The app cannot show these settings of it, so they are left out:",
+                htmltools::tags$ul(class = "mb-0", lapply(left, htmltools::tags$li))
+              )
+            } else {
+              "Every setting of it is shown."
+            }
+          )
+        },
         if (!is.null(got$hint)) htmltools::div(class = "alert alert-warning", role = "status", got$hint),
         if (length(got$renamed)) {
           htmltools::div(
@@ -754,18 +880,19 @@ lago_app <- function(data = NULL,
         rng <- range(d[[cc]], na.rm = TRUE)
         cost_ui <- if (coef_mode) {
           from_designer <- designer_text(cc)
-          shiny::textInput(coef_id(cc), width = "100%", label = .app_help("Cost coefficients c0, c1, ...", "The total cost at level x is c0 + c1 x + c2 x^2 and so on. Enter the numbers separated by commas, such as 0, 2."), value = keep(coef_id(cc), if (is.null(from_designer)) "0, 1" else from_designer))
+          start_coefs <- start_value("coefs", cc, c(0, 1))
+          shiny::textInput(coef_id(cc), width = "100%", label = .app_help("Cost coefficients c0, c1, ...", "The total cost at level x is c0 + c1 x + c2 x^2 and so on. Enter the numbers separated by commas, such as 0, 2."), value = keep(coef_id(cc), if (is.null(from_designer)) paste(format_coef_code(start_coefs), collapse = ", ") else from_designer))
         } else {
-          shiny::numericInput(col_id("cost", cc), .app_help("Unit cost", "The cost of one unit of this component, such as the cost of one coaching visit. The defaults of 1 are placeholders: enter your own costs."), value = keep(col_id("cost", cc), 1), min = 0)
+          shiny::numericInput(col_id("cost", cc), .app_help("Unit cost", "The cost of one unit of this component, such as the cost of one coaching visit. The defaults of 1 are placeholders: enter your own costs."), value = keep(col_id("cost", cc), start_value("unit_costs", cc, 1)), min = 0)
         }
         htmltools::div(
           class = "lago-comp",
           htmltools::h6(cc),
           bslib::layout_columns(
-            shiny::numericInput(col_id("lb", cc), .app_help("Lower bound", "The lowest level the next stage may use. It must be 0 or more."), value = keep(col_id("lb", cc), max(0, rng[1])), min = 0),
-            shiny::numericInput(col_id("ub", cc), .app_help("Upper bound", "The highest level the next stage may use."), value = keep(col_id("ub", cc), rng[2])),
+            shiny::numericInput(col_id("lb", cc), .app_help("Lower bound", "The lowest level the next stage may use. It must be 0 or more."), value = keep(col_id("lb", cc), start_value("lower", cc, max(0, rng[1]))), min = 0),
+            shiny::numericInput(col_id("ub", cc), .app_help("Upper bound", "The highest level the next stage may use."), value = keep(col_id("ub", cc), start_value("upper", cc, rng[2]))),
             cost_ui,
-            if (cubic) shiny::numericInput(col_id("dose", cc), .app_help("Dose where the unit cost was measured (optional)", "With this dose the cubic cost equals the unit cost there. Without it, the unit cost is the average over the range."), value = keep(col_id("dose", cc), NA))
+            if (cubic) shiny::numericInput(col_id("dose", cc), .app_help("Dose where the unit cost was measured (optional)", "With this dose the cubic cost equals the unit cost there. Without it, the unit cost is the average over the range."), value = keep(col_id("dose", cc), start_value("doses", cc, NA)))
           ),
           htmltools::tags$small(class = "text-muted", sprintf("Observed in the data: %s to %s.", format(rng[1], digits = 4), format(rng[2], digits = 4)))
         )
@@ -781,7 +908,17 @@ lago_app <- function(data = NULL,
       pairs <- utils::combn(comps, 2, simplify = FALSE)
       terms <- vapply(pairs, paste, character(1), collapse = ":")
       labels <- vapply(pairs, paste, character(1), collapse = " \u00d7 ")
-      shiny::checkboxGroupInput("interactions", NULL, choices = stats::setNames(terms, labels), selected = intersect(shiny::isolate(input$interactions), terms))
+      # the first time the components of loaded settings are all shown, their
+      # interactions are checked, as an update before the boxes exist is lost
+      s0 <- shiny::isolate(start_spec())
+      key <- shiny::isolate(generation())
+      selected <- if (!identical(interactions_started, key) && !is.null(s0) && all(s0$components %in% comps)) {
+        interactions_started <<- key
+        intersect(s0$interactions, terms)
+      } else {
+        intersect(shiny::isolate(input$interactions), terms)
+      }
+      shiny::checkboxGroupInput("interactions", NULL, choices = stats::setNames(terms, labels), selected = selected)
     })
 
     output$center_char_values <- shiny::renderUI({
@@ -793,7 +930,8 @@ lago_app <- function(data = NULL,
       }
       do.call(bslib::layout_columns, lapply(chars, function(cc) {
         v <- shiny::isolate(input[[col_id("cc", cc)]])
-        shiny::numericInput(col_id("cc", cc), sprintf("Optimize at %s =", cc), value = if (is.null(v)) signif(stats::median(d[[cc]], na.rm = TRUE), 4) else v)
+        start <- start_value("center_char_values", cc, signif(stats::median(d[[cc]], na.rm = TRUE), 4), keys = "center_chars")
+        shiny::numericInput(col_id("cc", cc), sprintf("Optimize at %s =", cc), value = if (is.null(v)) start else v)
       }))
     })
 
@@ -814,13 +952,17 @@ lago_app <- function(data = NULL,
         return(htmltools::p(class = "text-muted", "Choose the column that identifies the centers."))
       }
       start <- .app_center_weights_default(utils::modifyList(shiny::isolate(spec()), key), d)
+      # loaded settings bring their own weights, for the same centers
+      s0 <- shiny::isolate(start_spec())
+      from_settings <- !is.null(s0) && isTRUE(s0$cw_on) && identical(s0$center_col, key$center_col) && length(s0$cw) == length(centers)
+      if (from_settings) start <- s0$cw
       inputs <- lapply(seq_along(centers), function(k) {
         id <- cw_id(key, k)
         v <- shiny::isolate(input[[id]])
         shiny::numericInput(id, centers[k], value = if (is.null(v)) signif(start[k], 4) else v, min = 0, max = 1, step = 0.01)
       })
       htmltools::tagList(
-        htmltools::p(class = "text-muted", "Each center starts at its share of the patients."),
+        htmltools::p(class = "text-muted", if (from_settings) "Each center starts at its weight in the settings it was opened with." else "Each center starts at its share of the patients."),
         do.call(bslib::layout_column_wrap, c(list(width = "12rem", fill = FALSE), inputs))
       )
     })
@@ -837,7 +979,7 @@ lago_app <- function(data = NULL,
 
     # One small input per component, for a grid step or a previous level. They
     # are drawn again only when the components change, so typing keeps focus.
-    per_component <- function(prefix, label) {
+    per_component <- function(prefix, label, field) {
       d <- current_data()
       shiny::req(d)
       comps <- intersect(input$components, names(d))
@@ -847,7 +989,7 @@ lago_app <- function(data = NULL,
       inputs <- lapply(comps, function(cc) {
         id <- col_id(prefix, cc)
         v <- shiny::isolate(input[[id]])
-        shiny::numericInput(id, sprintf(label, cc), value = if (is.null(v)) NA else v, min = 0)
+        shiny::numericInput(id, sprintf(label, cc), value = if (is.null(v)) start_value(field, cc, NA) else v, min = 0)
       })
       do.call(bslib::layout_columns, c(list(fill = FALSE), inputs))
     }
@@ -862,11 +1004,11 @@ lago_app <- function(data = NULL,
         ))
       }
     }
-    output$cs_steps_ui <- shiny::renderUI(htmltools::tagList(per_component("csstep", "Confidence set step of %s"), shiny::uiOutput("cs_steps_note")))
-    output$grid_steps_ui <- shiny::renderUI(htmltools::tagList(per_component("gstep", "Grid search step of %s"), shiny::uiOutput("grid_steps_note")))
+    output$cs_steps_ui <- shiny::renderUI(htmltools::tagList(per_component("csstep", "Confidence set step of %s", "cs_steps"), shiny::uiOutput("cs_steps_note")))
+    output$grid_steps_ui <- shiny::renderUI(htmltools::tagList(per_component("gstep", "Grid search step of %s", "grid_steps"), shiny::uiOutput("grid_steps_note")))
     output$cs_steps_note <- shiny::renderUI(step_note())
     output$grid_steps_note <- shiny::renderUI(step_note())
-    output$prev_ui <- shiny::renderUI(per_component("prev", "Previous stage level of %s"))
+    output$prev_ui <- shiny::renderUI(per_component("prev", "Previous stage level of %s", "prev"))
     shiny::observeEvent(input$use_rec_as_prev, {
       r <- run_state()$run$value
       comps <- spec()$components
@@ -1068,6 +1210,8 @@ lago_app <- function(data = NULL,
     shiny::observe({
       set_enabled("run", !nrow(problems()))
       shinyjs::toggleState("next_centers", condition = !nrow(problems()))
+      # settings are saved for a loaded dataset
+      shinyjs::toggleState("save_settings", condition = !is.null(loaded()))
     })
     output$run_hint <- shiny::renderUI({
       p <- problems()
