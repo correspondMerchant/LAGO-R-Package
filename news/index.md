@@ -2,6 +2,15 @@
 
 ## LAGOtrials (development version)
 
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  warns when a value in `center_characteristics_optimization_values` is
+  outside the range of that characteristic in the data. The
+  recommendation is then for a center the model has not seen, so the
+  estimated outcome and its confidence interval are an extrapolation.
+  With few centers the interval can be so wide that it covers every
+  probability from 0 to 1. The warning names each such characteristic,
+  the value and the range in the data.
+
 - [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
   can save every setting to a file with Save settings, and put them back
   on the same data with Load settings. Loading on data that lacks a
