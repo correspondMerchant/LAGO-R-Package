@@ -534,3 +534,97 @@ def test_an_r_error_gives_its_message_not_the_call(bb_csv):
     assert "Nowhere" in res["error"]
     assert "must be one of the centers" in res["error"]
     assert "Error in (function" not in res["error"]
+
+
+# --------------------------------------------------------------------------
+# 10. review fixes: the arm column, sweeps that miss their goal, threads,
+#     true/false columns and center level columns
+# --------------------------------------------------------------------------
+def test_a_treatment_value_matches_however_it_is_given(bb_csv):
+    common = dict(data_csv=bb_csv, cost_list_of_vectors=[[0, 1700], [0, 8000]], power_goal=0.8,
+                  group_column="pre_post", num_centers_in_next_stage=10, patients_per_center_in_next_stage=30,
+                  include_confidence_set=False, **BB_ARGS)
+    costs = []
+    for value in (1, 1.0, "1"):
+        res = S.optimize(treatment_value=value, **common)
+        assert "error" not in res, (value, res)
+        costs.append(res["rec_int_cost"])
+    assert costs[0] == costs[1] == costs[2]
+    wrong = S.optimize(treatment_value=7, **common)
+    assert "`treatment_value` 7 is not a value of the group column 'pre_post', whose values are 0, 1" in wrong["error"]
+    text = S.optimize(treatment_value="yes", **common)
+    assert "is not a number, while the group column 'pre_post' holds numbers" in text["error"]
+
+
+def test_a_group_column_with_missing_values_is_refused(ro, tmp_path):
+    path = tmp_path / "bb_na.csv"
+    ro.r(f'local({{ d <- LAGOtrials::BB_data; d$pre_post[1:500] <- NA; write.csv(d, "{path}", row.names = FALSE) }})')
+    res = S.optimize(
+        data_csv=str(path), cost_list_of_vectors=[[0, 1700], [0, 8000]], power_goal=0.8, group_column="pre_post",
+        treatment_value=1, num_centers_in_next_stage=10, patients_per_center_in_next_stage=30, **BB_ARGS
+    )
+    assert "the group column 'pre_post' has 500 rows with no value" in res["error"]
+
+
+def test_each_sweep_run_says_whether_it_missed_its_goal_or_failed(bb_csv):
+    common = dict(data_csv=bb_csv, cost_list_of_vectors=[[0, 1700], [0, 8000]], **BB_ARGS)
+    res = S.sensitivity(parameter="outcome_goal", values=[0.8, 0.999], **common)
+    assert "error" not in res, res
+    runs = res["runs"]
+    assert [r["shrinking_method_used"] for r in runs] == [False, True]
+    # with no power goal there is no other goal to record
+    assert runs[0]["effective_outcome_goal"] is None
+    assert all(r["error_message"] is None for r in runs)
+    failed = S.sensitivity(parameter="power_goal", values=[0.8, 1.5], group_column="pre_post", treatment_value=1,
+                           num_centers_in_next_stage=10, patients_per_center_in_next_stage=30, **common)
+    assert "error" not in failed, failed
+    bad = [r for r in failed["runs"] if r["status"] == "error"]
+    assert len(bad) == 1 and bad[0]["value"] == 1.5 and bad[0]["error_message"]
+    good = [r for r in failed["runs"] if r["status"] == "ok"]
+    assert isinstance(good[0]["effective_outcome_goal"], float)
+    json.dumps(failed, allow_nan=False)
+
+
+def test_calls_from_many_threads_at_once_are_safe(mtcars_records):
+    import sys
+    import threading
+
+    broken = []
+    old_hook = sys.unraisablehook
+    sys.unraisablehook = lambda info: broken.append(repr(info.exc_value))
+    try:
+        results = [None] * 6
+
+        def call(i):
+            results[i] = S.optimize(data_records=mtcars_records, outcome_goal=30.0, **_common_args())
+
+        threads = [threading.Thread(target=call, args=(i,)) for i in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        import gc
+
+        gc.collect()
+    finally:
+        sys.unraisablehook = old_hook
+    assert all("error" not in r for r in results), results
+    assert len({round(r["rec_int_cost"], 8) for r in results}) == 1
+    # rpy2's table of the R objects it keeps alive stayed whole
+    assert broken == []
+
+
+def test_describe_data_sees_a_true_false_column(mtcars_records):
+    records = [dict(r, good=r["mpg"] > 20) for r in mtcars_records]
+    cols = {c["name"]: c for c in S.describe_data(data_records=records)["columns"]}
+    assert cols["good"]["type"] == "logical"
+    assert cols["good"]["binary"] is True
+
+
+def test_center_level_columns_need_the_structure(pulesa_csv):
+    res = S.optimize(
+        data_csv=pulesa_csv, outcome_name="Success", outcome_type="binary", intervention_components=["DeliveryA"],
+        intervention_lower_bounds=[0.0], intervention_upper_bounds=[1.0], unit_costs=[1.0], outcome_goal=0.6,
+        successes_column="Success", total_column="Total_visit",
+    )
+    assert '`successes_column`, `total_column` describe center level data. Also give `input_data_structure="center_level"`' in res["error"]

@@ -17,8 +17,10 @@ Tools exposed
 ``sensitivity``   -> :func:`lago.sensitivity` (sweep one input, report the move)
 ``budget``        -> :func:`lago.budget`      (the best outcome a budget buys)
 
-The three model tools take the same model arguments, which cover every
-argument of ``lago_optimization()`` that a request can carry. The columns the
+The model tools take the model arguments of ``lago_optimization()``:
+``optimize`` takes all of them, ``sensitivity`` all but the confidence set ones,
+which it does not compute, and ``budget`` all but the goals, which it sweeps,
+the confidence set and the previous stage. The columns the
 package reads by a fixed name (``group``, ``center``, ``period``, and for
 center level data ``proportion`` and ``center_sample_size``) can be built from
 columns the caller names, as ``lago_app()`` does.
@@ -67,8 +69,10 @@ How to use them well:
 3. Report every entry of `warnings` together with the numbers. They are the
    package's own caveats, such as a model component with no clear effect or a
    recommendation outside the data. Do not report a number without them.
-4. A binary outcome's estimated outcome and interval are probabilities. An
-   interval from 0 to 1 means the data cannot pin the outcome down there.
+4. On the logit link, a binary outcome's estimated outcome and interval are
+   probabilities, and the interval is cut off at 0 and 1. An interval from 0
+   to 1 means the data cannot pin the outcome down there. On the identity
+   link the estimate can leave 0 to 1, and the warnings say so.
 5. `shrinking_method_used: true` means the goal cannot be reached within the
    bounds, and the recommendation falls short of it. Say so.
 """
@@ -116,6 +120,39 @@ def _column(df, name, role):
     return df[name]
 
 
+def _arm(arm, name, treatment_value):
+    """The group column the package reads: "treatment" or "control" per row.
+
+    A number and a text value are compared as the column holds them, so a
+    treatment value of 1 matches a column of 1s whether it arrives as 1, 1.0 or
+    "1". A row with no arm is refused, as R refuses it.
+    """
+    import numpy as np
+    import pandas as pd
+
+    if treatment_value is None:
+        raise ValueError("`group_column` needs `treatment_value`, the value that marks treated rows.")
+    missing = int(arm.isna().sum())
+    if missing:
+        raise ValueError(f"the group column {name!r} has {missing} rows with no value. Give every row an arm, or leave those rows out.")
+    if pd.api.types.is_numeric_dtype(arm) and not pd.api.types.is_bool_dtype(arm):
+        try:
+            treated = arm.astype(float) == float(treatment_value)
+        except (TypeError, ValueError):
+            raise ValueError(f"`treatment_value` {treatment_value!r} is not a number, while the group column {name!r} holds numbers.") from None
+    else:
+        wanted = {str(treatment_value)}
+        if isinstance(treatment_value, float) and treatment_value.is_integer():
+            wanted.add(str(int(treatment_value)))
+        treated = arm.astype(str).isin(wanted)
+    values = sorted({str(v) for v in arm.unique()})
+    if not treated.any():
+        raise ValueError(f"`treatment_value` {treatment_value!r} is not a value of the group column {name!r}, whose values are {', '.join(values[:10])}.")
+    if treated.all():
+        raise ValueError(f"every row of the group column {name!r} has the treatment value, so there is no control arm.")
+    return pd.Series(np.where(treated, "treatment", "control"), index=arm.index)
+
+
 def _prepare_data(df, p):
     """Build the columns the package reads by a fixed name, from named columns.
 
@@ -127,14 +164,17 @@ def _prepare_data(df, p):
     df = df.copy()
     outcome_name = p["outcome_name"]
     if p.get("group_column"):
-        arm = _column(df, p["group_column"], "group").astype(str)
-        if p.get("treatment_value") is None:
-            raise ValueError("`group_column` needs `treatment_value`, the value that marks treated rows.")
-        df["group"] = (arm == str(p["treatment_value"])).map({True: "treatment", False: "control"})
+        df["group"] = _arm(_column(df, p["group_column"], "group"), p["group_column"], p.get("treatment_value"))
     if p.get("center_column") and p["center_column"] != "center":
         df["center"] = pd.Categorical(_column(df, p["center_column"], "center"))
     if p.get("period_column") and p["period_column"] != "period":
         df["period"] = pd.Categorical(_column(df, p["period_column"], "period"))
+    center_level_columns = [n for n in ("successes_column", "proportion_column", "total_column") if p.get(n)]
+    if center_level_columns and p.get("input_data_structure") != "center_level":
+        raise ValueError(
+            f"{', '.join('`' + n + '`' for n in center_level_columns)} describe center level data. "
+            'Also give `input_data_structure="center_level"`.'
+        )
     if p.get("input_data_structure") == "center_level":
         total = p.get("total_column")
         if p.get("successes_column"):
@@ -255,8 +295,9 @@ def describe_data(data_csv: str | None = None, data_records: list[dict] | None =
 
     Provide EXACTLY ONE of `data_csv` (a path to a CSV file) or `data_records`
     (a list of row dicts). Returns `n_rows` and one entry per column with its
-    `type`, `n_missing`, `n_distinct`, whether it is `binary` (only 0 and 1),
-    and for a numeric column its `min` and `max`. Use the ranges for the bounds
+    `type` ("numeric", "logical" for true and false, or "text"), `n_missing`,
+    `n_distinct`, whether it is `binary` (only 0 and 1, or true and false), and
+    for a numeric column its `min` and `max`. Use the ranges for the bounds
     of the components and for any center characteristic value.
     """
     try:
@@ -266,14 +307,18 @@ def describe_data(data_csv: str | None = None, data_records: list[dict] | None =
         cols = []
         for name in df.columns:
             col = df[name]
-            numeric = pd.api.types.is_numeric_dtype(col) and not pd.api.types.is_bool_dtype(col)
+            logical = pd.api.types.is_bool_dtype(col) or (
+                col.dtype == object and len(col.dropna()) > 0 and all(isinstance(v, bool) for v in col.dropna())
+            )
+            numeric = pd.api.types.is_numeric_dtype(col) and not logical
             values = col.dropna()
             entry = {
                 "name": str(name),
-                "type": "numeric" if numeric else "text",
+                "type": "logical" if logical else "numeric" if numeric else "text",
                 "n_missing": int(col.isna().sum()),
                 "n_distinct": int(values.nunique()),
-                "binary": bool(numeric and len(values) > 0 and set(values.unique()) <= {0, 1}),
+                # a true/false column works as a binary outcome too
+                "binary": bool(logical or (numeric and len(values) > 0 and set(values.unique()) <= {0, 1})),
             }
             if numeric and len(values):
                 entry["min"] = _finite(values.min())
@@ -467,8 +512,8 @@ def sensitivity(
     `"power_goal"`, `"icc"`, `"num_centers_in_next_stage"` or
     `"time_effect_optimization_value"`) or the special string
     `"cost_multiplier"` (each run scales every cost coefficient by one element
-    of `values`; all values must be positive, and it needs
-    `cost_list_of_vectors`). `values` is a non-empty list of finite numbers,
+    of `values`. All values must be positive, and it needs
+    `cost_list_of_vectors`.) `values` is a non-empty list of finite numbers,
     one run per element. The confidence set is not computed.
     {model}
     Returns `{{"runs": [...], "warnings": [...]}}`. `runs` has one record per

@@ -175,10 +175,12 @@ distinguish from the goal," not "interventions that meet it."
   that characteristic in the data gives a warning: the recommendation is then
   an extrapolation, and its interval can be very wide. Pass the warning on to
   the user, and suggest a value within the data.
-- The interval of a binary outcome is the delta method interval, clamped to
-  `[0, 1]`. A bound at exactly 0 or 1 means the interval went past it. An
-  interval from 0 to 1 means the data cannot pin the outcome down there,
-  which usually comes from an extrapolation or very few centers.
+- On the logit link, the interval of a binary outcome is the delta method
+  interval, clamped to `[0, 1]`. A bound at exactly 0 or 1 means the interval
+  went past it. An interval from 0 to 1 means the data cannot pin the outcome
+  down there, which usually comes from an extrapolation or very few centers.
+  On the identity link nothing is clamped (see the linear probability model
+  above).
 
 ## Troubleshooting
 
@@ -224,8 +226,8 @@ a row with status `"error"`, not a stopped sweep.
 
 `python/lago/mcp_server.py` in the repository serves the package over the
 Model Context Protocol, with the tools `describe_data`, `optimize`,
-`sensitivity` and `budget`. It needs R, LAGOtrials and Python with rpy2; see
-`python/README.md`. Each result has a `warnings` list with the warnings of the
+`sensitivity` and `budget`. It needs R, LAGOtrials and Python with rpy2, as
+`python/README.md` explains. Each result has a `warnings` list with the warnings of the
 package. Report them with the numbers.
 
 ## The result object

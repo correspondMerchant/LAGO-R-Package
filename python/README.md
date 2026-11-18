@@ -134,7 +134,8 @@ messages = [str(w.message) for w in caught if issubclass(w.category, lago.LagoRW
 ```
 
 Every function works from any thread or asyncio task. rpy2 keeps its conversion
-rules per context, so each function sets them for its own call.
+rules per context, so each function sets them for its own call, and a lock lets
+one call into R at a time.
 
 ### Cost-function visualizer (interactive, blocking)
 
@@ -166,35 +167,39 @@ runtime, exactly as for the wrapper. It is **not** an R-free install.
 
 ### Tools exposed
 
-- **`describe_data`** — lists the columns of a dataset with their type, missing
+- **`describe_data`** lists the columns of a dataset with their type, missing
   values, number of distinct values, whether they are 0/1, and the range of
   each numeric column. An agent should call it first, to choose the components,
   their bounds, and any center characteristic value from the data.
-- **`optimize`** — runs one LAGO optimization. Returns `rec_int`, `rec_int_cost`,
+- **`optimize`** runs one LAGO optimization. It returns `rec_int`, `rec_int_cost`,
   `est_outcome_goal`, `effective_outcome_goal`, `shrinking_method_used`, and,
   when a confidence set is computed, `est_outcome_ci`, `confidence_level`,
   `confidence_set_size_percentage` and `confidence_set`.
-- **`sensitivity`** — sweeps one input (`parameter` + `values`) and returns
+- **`sensitivity`** sweeps one input (`parameter` and `values`) and returns
   `{"runs": [...], "warnings": [...]}`, with one record in `runs` per swept value
   (`value`, the recommended value per component, `rec_int_cost`,
-  `est_outcome_goal`, `status`). `parameter` is a scalar numeric optimization
-  argument (e.g. `"outcome_goal"`) or the special `"cost_multiplier"`.
-- **`budget`** — finds the best outcome a `budget` can buy, with `n_grid` outcome
-  goals to try (default 25). Returns `feasible`, `binding` (whether a better
+  `est_outcome_goal`, `status`, `shrinking_method_used`, `effective_outcome_goal`
+  and `error_message`). `parameter` is a scalar numeric optimization argument,
+  such as `"outcome_goal"`, or the special `"cost_multiplier"`.
+- **`budget`** finds the best outcome a `budget` can buy, with `n_grid` outcome
+  goals to try (default 25). It returns `feasible`, `binding` (whether a better
   outcome would cost more), `rec_int`, `rec_int_cost`, `est_outcome`,
   `outcome_goal`, `frontier` (the goals searched) and `run_error`.
 
-The three model tools take the same arguments, which cover every argument of
-`lago_optimization()` a request can carry:
+The model tools take the arguments of `lago_optimization()`:
 
 - the data, as EXACTLY ONE of `data_csv` (a path to a CSV file) or
-  `data_records` (a list of row dicts);
+  `data_records` (a list of row dicts).
 - the costs, as EXACTLY ONE of `cost_list_of_vectors` or `unit_costs` (with
-  `default_cost_fxn_type` and `unit_cost_doses`);
+  `default_cost_fxn_type` and `unit_cost_doses`).
 - the goals, the power goal settings, the model (`glm_family`, `link`,
   `center_characteristics`, `additional_covariates`, center and time effects,
   center weights, interactions, `input_data_structure`), the optimizer, the
   confidence level and set, and the previous stage.
+
+`optimize` takes all of them. `sensitivity` takes all but the confidence set
+arguments, as it does not compute one. `budget` takes all but the goals, which
+it sweeps, the power goal, the confidence set and the previous stage.
 
 The package reads some columns by a fixed name. The tools build them from
 columns the caller names, as `lago_app()` does, so an agent does not have to
@@ -214,9 +219,10 @@ agent should pass them on with the numbers. A tool that fails returns
 `{"error": "..."}` with the package's own message, and `warnings` when there
 were any.
 
-The server also sends the agent short instructions on how to use the tools:
-describe the data first, report every warning, and read an interval from 0 to
-1 or `shrinking_method_used: true` as the data not supporting the goal.
+The server also sends the agent short instructions on how to use the tools.
+They say to describe the data first, to report every warning, and to read an
+interval from 0 to 1, or `shrinking_method_used: true`, as the data not
+supporting the goal.
 
 `visualize_cost` and `lago_app` (each opens a blocking browser app) and
 `lago_report` (writes an HTML file) are intentionally **not** exposed: none of them
