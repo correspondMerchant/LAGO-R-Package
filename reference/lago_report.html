@@ -105,7 +105,9 @@ existing field on <code>x</code> and formatted exactly as the console output for
 
 <dt id="arg-output-file">output_file<a class="anchor" aria-label="anchor" href="#arg-output-file"></a></dt>
 <dd><p>A character string. The path to write the HTML report to.
-If <code>NULL</code> (the default), a temporary file with a <code>.html</code> extension is used.</p></dd>
+If <code>NULL</code> (the default), a temporary file with a <code>.html</code> extension is used.
+If it is an existing folder, the report is written in it as
+<code>lago_report.html</code>.</p></dd>
 
 
 <dt id="arg-title">title<a class="anchor" aria-label="anchor" href="#arg-title"></a></dt>
@@ -119,7 +121,11 @@ Default value without user specification: "LAGO optimization report".</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Additional arguments passed to <code><a href="https://pkgs.rstudio.com/rmarkdown/reference/render.html" class="external-link">rmarkdown::render()</a></code>.</p></dd>
+<dd><p>Additional arguments passed to <code><a href="https://pkgs.rstudio.com/rmarkdown/reference/render.html" class="external-link">rmarkdown::render()</a></code>, such as
+<code>quiet = FALSE</code> to see the rendering, or <code>envir</code>. The input, the output
+folder and the parameters are set by <code>lago_report()</code>, so <code>input</code>,
+<code>output_dir</code> and <code>params</code> are refused. Use <code>output_file</code> and <code>title</code>
+instead.</p></dd>
 
 </dl></div>
     <div class="section level2">

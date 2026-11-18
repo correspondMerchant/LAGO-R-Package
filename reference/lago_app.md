@@ -43,7 +43,8 @@ lago_app(data = NULL, launch.browser = interactive(), port = NULL)
 Invisibly, when you click **Done** or close the browser tab, a list with
 the last `result` of
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
-(or `NULL` if nothing was run), the last `sensitivity` of
+for the settings in the app (or `NULL` if nothing was run since a reset,
+a new dataset or loaded settings), the last `sensitivity` of
 [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
 and `budget` of
 [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)

@@ -42,7 +42,9 @@ lago_report(
 - output_file:
 
   A character string. The path to write the HTML report to. If `NULL`
-  (the default), a temporary file with a `.html` extension is used.
+  (the default), a temporary file with a `.html` extension is used. If
+  it is an existing folder, the report is written in it as
+  `lago_report.html`.
 
 - title:
 
@@ -58,7 +60,11 @@ lago_report(
 - ...:
 
   Additional arguments passed to
-  [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html).
+  [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html),
+  such as `quiet = FALSE` to see the rendering, or `envir`. The input,
+  the output folder and the parameters are set by `lago_report()`, so
+  `input`, `output_dir` and `params` are refused. Use `output_file` and
+  `title` instead.
 
 ## Value
 

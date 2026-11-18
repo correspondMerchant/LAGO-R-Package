@@ -4,12 +4,27 @@
 
 - [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
   warns when a value in `center_characteristics_optimization_values` is
-  outside the range of that characteristic in the data. The
-  recommendation is then for a center the model has not seen, so the
-  estimated outcome and its confidence interval are an extrapolation.
-  With few centers the interval can be so wide that it covers every
-  probability from 0 to 1. The warning names each such characteristic,
-  the value and the range in the data.
+  outside the range of that characteristic in the rows the model is
+  fitted on. The recommendation is then for a center the model has not
+  seen, so the estimated outcome and its confidence interval are an
+  extrapolation. With few centers the interval can be so wide that it
+  covers every probability from 0 to 1. The warning names each such
+  characteristic, the value and the range. A true or false
+  characteristic is read as 0 and 1, and a text or factor one as its 0
+  or 1 dummy. The check comes after every input error, so with
+  `options(warn = 2)` it never hides one.
+
+- [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  called directly gives the same warning, checked against the rows its
+  `fitted_model` was fitted on. Through
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  the warning still comes once.
+
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  refuses a value of `center_characteristics_optimization_values` that
+  is `NA`, `NaN`, `Inf` or `-Inf`. Such a value names no center, and it
+  used to give a confident estimate or a misleading error about the
+  optimizer.
 
 - [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
   can save every setting to a file with Save settings, and put them back
@@ -24,8 +39,8 @@
   takes center level data, with one row per center and period. The
   outcome comes from a column of successes or of proportions and a
   column of totals, and the app builds the `proportion` and
-  `center_sample_size` columns the package reads. The PULESA example
-  `main_pulesa_data` is a new example dataset, set up as in the
+  `center_sample_size` columns the package reads. The app now offers the
+  bundled PULESA data `main_pulesa_data` as an example, set up as in the
   package’s PULESA model with clinic and period effects. For the
   weighted average center, each center’s weight can now be set, starting
   at its share of the patients, with a check that the weights add up to
@@ -42,6 +57,14 @@
   checked before a run, and the R code includes it. The confidence
   interval in the result now shows the level it was computed at, which
   was always given as 95%.
+
+- [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now passes `quiet` and `envir` on to
+  [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html),
+  where they used to fail with “formal argument matched by multiple
+  actual arguments”, and says so when given `input`, `output_dir` or
+  `params`, which it sets itself. An existing folder as `output_file`
+  gets the report inside it, as `lago_report.html`.
 
 - [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
   now renders a copy of its template in a temporary folder. It used to
