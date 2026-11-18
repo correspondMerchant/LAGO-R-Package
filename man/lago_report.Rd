@@ -16,7 +16,9 @@ lago_report(
 \item{x}{A "lago" object returned by \code{\link[=lago_optimization]{lago_optimization()}}.}
 
 \item{output_file}{A character string. The path to write the HTML report to.
-If \code{NULL} (the default), a temporary file with a \code{.html} extension is used.}
+If \code{NULL} (the default), a temporary file with a \code{.html} extension is used.
+If it is an existing folder, the report is written in it as
+\code{lago_report.html}.}
 
 \item{title}{A character string. The report title.
 Default value without user specification: "LAGO optimization report".}
@@ -24,7 +26,11 @@ Default value without user specification: "LAGO optimization report".}
 \item{open}{A boolean. If \code{TRUE}, opens the rendered report in a browser via
 \code{\link[utils:browseURL]{utils::browseURL()}}. Default value without user specification: \code{FALSE}.}
 
-\item{...}{Additional arguments passed to \code{\link[rmarkdown:render]{rmarkdown::render()}}.}
+\item{...}{Additional arguments passed to \code{\link[rmarkdown:render]{rmarkdown::render()}}, such as
+\code{quiet = FALSE} to see the rendering, or \code{envir}. The input, the output
+folder and the parameters are set by \code{lago_report()}, so \code{input},
+\code{output_dir} and \code{params} are refused. Use \code{output_file} and \code{title}
+instead.}
 }
 \value{
 The path to the rendered HTML file, invisibly.

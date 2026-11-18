@@ -45,9 +45,12 @@ a subprocess and speaks JSON-RPC over stdin/stdout.
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 from typing import Any
+
+import anyio
 
 from mcp.server.fastmcp import FastMCP
 
@@ -135,7 +138,13 @@ def _arm(arm, name, treatment_value):
     missing = int(arm.isna().sum())
     if missing:
         raise ValueError(f"the group column {name!r} has {missing} rows with no value. Give every row an arm, or leave those rows out.")
-    if pd.api.types.is_numeric_dtype(arm) and not pd.api.types.is_bool_dtype(arm):
+    if pd.api.types.is_bool_dtype(arm):
+        # JSON true arrives as 1.0 through the schema, and a CSV gives TRUE
+        text = str(treatment_value).strip().lower()
+        if text not in ("true", "false", "1", "0", "1.0", "0.0"):
+            raise ValueError(f"`treatment_value` {treatment_value!r} is not true or false, while the group column {name!r} holds true and false.")
+        treated = arm == (text in ("true", "1", "1.0"))
+    elif pd.api.types.is_numeric_dtype(arm):
         try:
             treated = arm.astype(float) == float(treatment_value)
         except (TypeError, ValueError):
@@ -165,10 +174,21 @@ def _prepare_data(df, p):
     outcome_name = p["outcome_name"]
     if p.get("group_column"):
         df["group"] = _arm(_column(df, p["group_column"], "group"), p["group_column"], p.get("treatment_value"))
+    # copied as they are, so R orders numbered centers and periods as numbers,
+    # as it does for a column already named center or period. A pandas
+    # Categorical would reach R as text, ordering 10 before 2.
     if p.get("center_column") and p["center_column"] != "center":
-        df["center"] = pd.Categorical(_column(df, p["center_column"], "center"))
+        df["center"] = _column(df, p["center_column"], "center").to_numpy()
     if p.get("period_column") and p["period_column"] != "period":
-        df["period"] = pd.Categorical(_column(df, p["period_column"], "period"))
+        df["period"] = _column(df, p["period_column"], "period").to_numpy()
+    # an interaction term "a:b" is the product of its two components
+    for term in p.get("intervention_components") or []:
+        parts = term.split(":")
+        if len(parts) > 1 and term not in df.columns and all(c in df.columns for c in parts):
+            product = df[parts[0]].astype(float)
+            for c in parts[1:]:
+                product = product * df[c].astype(float)
+            df[term] = product
     center_level_columns = [n for n in ("successes_column", "proportion_column", "total_column") if p.get(n)]
     if center_level_columns and p.get("input_data_structure") != "center_level":
         raise ValueError(
@@ -181,8 +201,11 @@ def _prepare_data(df, p):
             if not total:
                 raise ValueError("`successes_column` needs `total_column`, the number of patients of each row.")
             df["proportion"] = _column(df, p["successes_column"], "successes") / _column(df, total, "total")
-        elif p.get("proportion_column") and p["proportion_column"] != "proportion":
-            df["proportion"] = _column(df, p["proportion_column"], "proportion")
+        else:
+            # without either column, the outcome named is the proportion
+            share = p.get("proportion_column") or outcome_name
+            if share != "proportion":
+                df["proportion"] = _column(df, share, "proportion")
         if total and total != "center_sample_size":
             df["center_sample_size"] = _column(df, total, "total")
         outcome_name = "proportion"
@@ -197,6 +220,13 @@ def _model_kwargs(p, df):
     """
     if (p.get("cost_list_of_vectors") is None) == (p.get("unit_costs") is None):
         raise ValueError("give exactly one of `cost_list_of_vectors` or `unit_costs`.")
+    # a JSON NaN or Infinity would otherwise reach R as an unclear error
+    for name in ("intervention_lower_bounds", "intervention_upper_bounds", "unit_costs", "cost_list_of_vectors",
+                 "outcome_goal", "power_goal", "budget"):
+        value = p.get(name)
+        flat = [x for v in value for x in (v if isinstance(v, (list, tuple)) else [v])] if isinstance(value, (list, tuple)) else [value]
+        if any(isinstance(x, float) and not math.isfinite(x) for x in flat if x is not None):
+            raise ValueError(f"`{name}` must hold finite numbers, with no NaN or Infinity.")
     names = [
         "outcome_goal_intention", "input_data_structure", "power_goal", "num_centers_in_next_stage",
         "patients_per_center_in_next_stage", "power_goal_approach", "icc", "power_goal_cluster_id",
@@ -260,7 +290,7 @@ MODEL_ARGS_DOC = """
     (for center effects), `period_column` (for time effects), and for center
     level data (`input_data_structure="center_level"`, one row per center and
     period, binary outcome) `successes_column` or `proportion_column` with
-    `total_column`. `weights_column` names a column of glm() weights.
+    `total_column`. Without either, `outcome_name` is the proportion column. `weights_column` names a column of glm() weights.
 
     Model: `glm_family` and `link` ("logit" or "identity"),
     `center_characteristics` with `center_characteristics_optimization_values`,
@@ -270,7 +300,8 @@ MODEL_ARGS_DOC = """
     summing to 1), `include_time_effects` with
     `time_effect_optimization_value`, and `include_interaction_terms` with the
     products listed in `intervention_components` as "a:b" and the mains in
-    `main_components`. Optimizer: `optimization_method` ("numerical" or
+    `main_components`. The server builds the column of a product "a:b" from
+    the columns a and b when the data has none. Optimizer: `optimization_method` ("numerical" or
     "grid_search") with `optimization_grid_search_step_size`. Shrinking
     method: `prev_recommended_interventions`.
 """
@@ -289,7 +320,6 @@ def _with_model_doc(fn):
 # --------------------------------------------------------------------------
 # Tool 0: describe_data
 # --------------------------------------------------------------------------
-@mcp.tool()
 def describe_data(data_csv: str | None = None, data_records: list[dict] | None = None) -> Any:
     """Describe the columns of a dataset, to choose the arguments of the other tools.
 
@@ -332,7 +362,6 @@ def describe_data(data_csv: str | None = None, data_records: list[dict] | None =
 # --------------------------------------------------------------------------
 # Tool 1: optimize
 # --------------------------------------------------------------------------
-@mcp.tool()
 @_with_model_doc
 def optimize(
     outcome_name: str,
@@ -455,7 +484,6 @@ def optimize(
 # --------------------------------------------------------------------------
 # Tool 2: sensitivity
 # --------------------------------------------------------------------------
-@mcp.tool()
 @_with_model_doc
 def sensitivity(
     outcome_name: str,
@@ -552,7 +580,6 @@ def sensitivity(
 # --------------------------------------------------------------------------
 # Tool 3: budget
 # --------------------------------------------------------------------------
-@mcp.tool()
 @_with_model_doc
 def budget(
     outcome_name: str,
@@ -640,6 +667,25 @@ def budget(
         }
     except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
         return _error(exc, locals().get("warned"))
+
+
+def _in_thread(fn):
+    """The tool as FastMCP runs it: the same function, in a worker thread.
+
+    FastMCP runs a plain function on its event loop, so a long R call would
+    keep the server from answering pings until it ends. In a worker thread the
+    server stays responsive. The bridge lets one call into R at a time.
+    """
+
+    @functools.wraps(fn)
+    async def tool(*args, **kwargs):
+        return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+
+    return tool
+
+
+for _fn in (describe_data, optimize, sensitivity, budget):
+    mcp.tool(name=_fn.__name__)(_in_thread(_fn))
 
 
 def main():

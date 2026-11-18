@@ -628,3 +628,124 @@ def test_center_level_columns_need_the_structure(pulesa_csv):
         successes_column="Success", total_column="Total_visit",
     )
     assert '`successes_column`, `total_column` describe center level data. Also give `input_data_structure="center_level"`' in res["error"]
+
+
+
+# --------------------------------------------------------------------------
+# 11. bug bash: centers and periods by number, true/false arms, center level
+#     outcomes, built products, non-finite inputs, and a responsive server
+# --------------------------------------------------------------------------
+def _numbered_centers(bb_csv, tmp_path, as_float=False):
+    import pandas as pd
+
+    d = pd.read_csv(bb_csv)
+    ids = {name: i + 1 for i, name in enumerate(sorted(d["site_name"].unique()))}
+    d["site_id"] = d["site_name"].map(ids).astype(float if as_float else int)
+    d["center"] = d["site_id"]
+    path = tmp_path / "numbered.csv"
+    d.to_csv(path, index=False)
+    return str(path), len(ids)
+
+
+def test_center_weights_reach_the_same_centers_whatever_the_column_is_named(bb_csv, tmp_path):
+    path, n = _numbered_centers(bb_csv, tmp_path)
+    weights = [0.0] * n
+    weights[1] = 1.0  # all weight on the second center, center 2
+    common = dict(data_csv=path, cost_list_of_vectors=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+                  include_center_effects=True, center_weights_for_outcome_goal=weights,
+                  include_confidence_set=False, **BB_ARGS)
+    named_center = S.optimize(center_column="center", **common)
+    named_other = S.optimize(center_column="site_id", **common)
+    only_two = S.optimize(data_csv=path, cost_list_of_vectors=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+                          center_column="site_id", include_center_effects=True, center_effects_optimization_values="2",
+                          include_confidence_set=False, **BB_ARGS)
+    for res in (named_center, named_other, only_two):
+        assert "error" not in res, res
+    assert named_center["rec_int_cost"] == pytest.approx(named_other["rec_int_cost"])
+    assert named_other["rec_int_cost"] == pytest.approx(only_two["rec_int_cost"])
+
+
+def test_float_centers_and_periods_match_their_numbers(bb_csv, tmp_path):
+    path, _ = _numbered_centers(bb_csv, tmp_path, as_float=True)
+    res = S.optimize(data_csv=path, cost_list_of_vectors=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+                     center_column="site_id", include_center_effects=True, center_effects_optimization_values="2",
+                     include_confidence_set=False, **BB_ARGS)
+    assert "error" not in res, res
+    import pandas as pd
+
+    p = pd.read_csv(path)
+    p["phase"] = p["pilot_phase"].astype(float)
+    p.to_csv(path, index=False)
+    res = S.optimize(data_csv=path, cost_list_of_vectors=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+                     period_column="phase", include_time_effects=True, time_effect_optimization_value=2,
+                     include_confidence_set=False, **BB_ARGS)
+    assert "error" not in res, res
+
+
+def test_a_true_false_arm_column_takes_true_however_it_arrives(bb_csv, tmp_path):
+    import pandas as pd
+
+    d = pd.read_csv(bb_csv)
+    d["treated"] = d["pre_post"] == 1
+    path = tmp_path / "bool_arm.csv"
+    d.to_csv(path, index=False)
+    common = dict(data_csv=str(path), cost_list_of_vectors=[[0, 1700], [0, 8000]], power_goal=0.8,
+                  group_column="treated", num_centers_in_next_stage=10, patients_per_center_in_next_stage=30,
+                  include_confidence_set=False, **BB_ARGS)
+    costs = {str(v): S.optimize(treatment_value=v, **common).get("rec_int_cost") for v in (1.0, "true", "TRUE", "True")}
+    assert None not in costs.values(), costs
+    assert len(set(costs.values())) == 1
+    assert "is not true or false" in S.optimize(treatment_value="maybe", **common)["error"]
+
+
+def test_center_level_data_uses_the_outcome_it_is_given(ro, tmp_path):
+    path = tmp_path / "cl.csv"
+    ro.r(f'local({{ d <- LAGOtrials::main_pulesa_data; d$proportion <- 0.5; d$share <- d$Success / d$Total_visit; write.csv(d, "{path}", row.names = FALSE) }})')
+    common = dict(data_csv=str(path), outcome_type="binary", intervention_components=["DeliveryA"],
+                  intervention_lower_bounds=[0.0], intervention_upper_bounds=[1.0], unit_costs=[1.0], outcome_goal=0.6,
+                  input_data_structure="center_level", total_column="Total_visit", center_column="Clinic",
+                  include_confidence_set=False)
+    by_name = S.optimize(outcome_name="share", **common)
+    by_column = S.optimize(outcome_name="anything", proportion_column="share", **common)
+    assert "error" not in by_name, by_name
+    # the existing proportion column of 0.5 is not what was fitted
+    assert by_name["rec_int_cost"] == pytest.approx(by_column["rec_int_cost"])
+
+
+def test_an_interaction_product_is_built_when_the_data_has_none(ro, mtcars_records):
+    res = S.optimize(
+        data_records=mtcars_records, outcome_name="mpg", outcome_type="continuous",
+        intervention_components=["gear", "qsec", "gear:qsec"], main_components=["gear", "qsec"],
+        include_interaction_terms=True, intervention_lower_bounds=[3.0, 14.0], intervention_upper_bounds=[5.0, 20.0],
+        unit_costs=[2.0, 1.0], default_cost_fxn_type="linear", outcome_goal=25.0, include_confidence_set=False,
+    )
+    assert "error" not in res, res
+    want = _r_rec(ro, 'local({ d <- mtcars; d[["gear:qsec"]] <- d$gear * d$qsec; LAGOtrials::lago_optimization(data = d, outcome_name = "mpg", outcome_type = "continuous", intervention_components = c("gear", "qsec", "gear:qsec"), main_components = c("gear", "qsec"), include_interaction_terms = TRUE, intervention_lower_bounds = c(3, 14), intervention_upper_bounds = c(5, 20), unit_costs = c(2, 1), default_cost_fxn_type = "linear", outcome_goal = 25, include_confidence_set = FALSE, quiet = TRUE) })')
+    assert np.allclose(res["rec_int"], want, atol=1e-5)
+
+
+def test_non_finite_inputs_get_a_clear_message(mtcars_records):
+    args = _common_args()
+    args["intervention_upper_bounds"] = [10.0, float("nan")]
+    assert "`intervention_upper_bounds` must hold finite numbers" in S.optimize(data_records=mtcars_records, outcome_goal=30.0, **args)["error"]
+    args = _common_args()
+    args["cost_list_of_vectors"] = [[0.0, float("inf")], [4.0, 6.0]]
+    assert "`cost_list_of_vectors` must hold finite numbers" in S.optimize(data_records=mtcars_records, outcome_goal=30.0, **args)["error"]
+
+
+def test_the_server_answers_while_a_tool_runs(mtcars_records):
+    import time
+
+    async def scenario():
+        started = time.monotonic()
+        call = asyncio.create_task(S.mcp.call_tool("budget", dict(data_records=mtcars_records, budget=200.0, n_grid=8, **{k: v for k, v in _common_args().items()})))
+        await asyncio.sleep(0.05)
+        listed = await S.mcp.list_tools()
+        answered_after = time.monotonic() - started
+        await call
+        return answered_after, time.monotonic() - started, len(listed)
+
+    answered, finished, n_tools = asyncio.run(scenario())
+    assert n_tools == 4
+    # the list came back while the budget search was still running
+    assert answered < finished

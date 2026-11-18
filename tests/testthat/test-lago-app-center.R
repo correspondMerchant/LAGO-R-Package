@@ -137,7 +137,7 @@ test_that("center weights reach the arguments and are checked", {
   d$DeliveryA[d$Clinic == "Mengo Hospital"] <- NA
   expect_match(
     paste(.app_problems(utils::modifyList(base, list(cw_on = TRUE, cw = w)), d)$message, collapse = "\n"),
-    "The center Mengo Hospital has no row where every model column is observed, so its weight must be 0"
+    "The center Mengo Hospital has no row the model can use, where every model column is observed and any weight is above 0, so its weight must be 0"
   )
 })
 
@@ -234,4 +234,28 @@ test_that("center weights a user typed come back when the same centers are shown
     session$setInputs(structure = "center")
     expect_match(as.character(output$cw_ui$html), "value=\"0.3\"")
   })
+})
+
+test_that("a center that the weights leave out starts at a weight of 0 and cannot be planned for", {
+  d <- as.data.frame(BB_data)
+  d$w1 <- ifelse(d$site_name == "Auras", 0, 1)
+  s <- utils::modifyList(.app_defaults(d, "d"), list(center_mode = "effects", center_col = "site_name", weights_col = "w1"))
+  w <- .app_center_weights_default(s, d)
+  expect_identical(w[["Auras"]], 0)
+  expect_equal(sum(w), 1)
+  expect_equal(nrow(.app_problems(utils::modifyList(s, list(cw_on = TRUE, cw = unname(w))), d)), 0)
+  expect_match(
+    paste(.app_problems(utils::modifyList(s, list(center_for = "Auras")), d)$message, collapse = "\n"),
+    "The center Auras has no row the model can use, where every model column is observed and any weight is above 0"
+  )
+})
+
+test_that("saved center level settings keep the center column of the ICC", {
+  p <- as.data.frame(main_pulesa_data)
+  p$arm <- ifelse(as.integer(p$Clinic) %% 2 == 0, "treatment", "control")
+  saved <- .app_resolve(utils::modifyList(.app_defaults(p, "main_pulesa_data"), list(
+    goal_mode = "both", arm_col = "arm", arm_value = "treatment", icc = 0.05, cluster_col = "Clinic"
+  )))
+  expect_identical(saved$outcome, "proportion")
+  expect_true("Clinic" %in% .app_choices(p, saved)$clusters)
 })

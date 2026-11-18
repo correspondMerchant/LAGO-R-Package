@@ -45,7 +45,7 @@ write R, suggest `lago_app()`, or `lago_app(result)` to open a result's
 settings in the app.
 
 Before writing a call, read the help: `?lago_optimization`. It has many
-arguments; the ones below are the essential ones.
+arguments, and the ones below are the essential ones.
 
 ## Core workflow
 
@@ -91,7 +91,7 @@ Provide `outcome_goal`, `power_goal`, or both (at least one is required):
 cannot be combined with `"minimize"`.
 
 For clustering, pass `icc` (a single value or `c(control, treatment)`) and
-`power_goal_cluster_id`; the power calculation then inflates the variance by the
+`power_goal_cluster_id`. The power calculation then inflates the variance by the
 design effect.
 
 ## Cost functions
@@ -108,9 +108,10 @@ also give `unit_cost_doses`, the dose each unit cost was measured at, so the
 cost per unit at that dose is the unit cost. Without it a warning says the
 cubic cost only matches each unit cost on average over the bounds.
 
-To design cost functions interactively, run `visualize_cost()` — a Shiny app
-with sliders and live curves. On close it returns the coefficient list (also in
-`getOption("lago_cost_list")`), ready to pass as `cost_list_of_vectors`.
+To design cost functions interactively, run `visualize_cost()`, a Shiny app
+with sliders and live curves. Its return button closes it and returns the
+coefficient list (also in `getOption("lago_cost_list")`), ready to pass as
+`cost_list_of_vectors`. Closing the browser tab instead returns nothing.
 
 ## Outcome model options
 
@@ -130,10 +131,12 @@ with sliders and live curves. On close it returns the coefficient list (also in
   and `include_time_effects = TRUE` (+ `time_effect_optimization_value`).
 - `center_characteristics` (+ `center_characteristics_optimization_values`) and
   `additional_covariates` add model terms held at optimization/reference values.
-- Interaction terms: set `include_interaction_terms = TRUE`, put the interaction
-  in `intervention_components` as `"a:b"`, and list the mains in
-  `main_components`, e.g. `intervention_components = c("a","b","a:b")`,
-  `main_components = c("a","b")`.
+- Interaction terms: the data needs a column named `"a:b"` that holds the
+  product, built first with `d[["a:b"]] <- d$a * d$b`. Then set
+  `include_interaction_terms = TRUE`, put the interaction in
+  `intervention_components`, and list the mains in `main_components`, e.g.
+  `intervention_components = c("a","b","a:b")`, `main_components = c("a","b")`.
+  The bounds and costs are one per main component.
 - Optimizer: `optimization_method = "numerical"` (default) or `"grid_search"`.
   Supplying `optimization_grid_search_step_size` switches to grid search
   automatically.
@@ -141,10 +144,13 @@ with sliders and live curves. On close it returns the coefficient list (also in
 ## Confidence set
 
 By default `include_confidence_set = TRUE`. The confidence set (`res$cs`) is the
-set of grid interventions whose confidence interval covers the outcome goal.
+set of grid interventions whose confidence interval covers the outcome goal, or
+with a power goal the goal used, `res$effective_outcome_goal`. When the goal
+cannot be reached within the bounds, `res$shrinking_method_used` is `TRUE` and
+no confidence set is computed, so `res$cs` and `res$est_outcome_ci` are `NULL`.
 `confidence_set_grid_step_size` controls grid resolution per component (coarser =
-faster). A fine grid over 3+ components can be slow; increase the step size if it
-drags. The interval at the recommendation itself is `res$est_outcome_ci` (a
+faster). A fine grid over 3+ components can be slow, so increase the step size
+if it drags. The interval at the recommendation itself is `res$est_outcome_ci` (a
 field named `rec_int_ci` exists only on the object returned by
 `get_confidence_set()` called directly).
 
@@ -166,8 +172,8 @@ distinguish from the goal," not "interventions that meet it."
   `NA` is refused up front with a clear error.
 - A rank-deficient outcome model (glm returns `NA` for a coefficient the
   optimizer reads, e.g. aliased fixed effects) is refused up front, naming the
-  aliased terms. Switching to `grid_search` does not help — the fit is the
-  problem; drop or combine the collinear predictors.
+  aliased terms. Switching to `grid_search` does not help, as the fit is the
+  problem. Drop or combine the collinear predictors.
 - `center_weights_for_outcome_goal` must be numeric, finite and non-negative,
   sum to 1, and follow the order of the centers: the levels of the `center`
   factor, or its sorted values. A center with no complete row must get 0.
@@ -185,15 +191,16 @@ distinguish from the goal," not "interventions that meet it."
 ## Troubleshooting
 
 - "The intervention component(s) ... are entirely NA" / "additional covariate(s)
-  ... are entirely NA": that column has no observed values; remove it or supply
+  ... are entirely NA": that column has no observed values. Remove it or supply
   data.
-- Error naming aliased terms / "rank-deficient": collinear predictors; drop or
-  combine them. Do not switch optimizer.
+- Error naming aliased terms / "rank-deficient": the predictors are collinear.
+  Drop or combine them. Do not switch optimizer.
 - "Numerical optimization failed to find a solution": try
   `optimization_method = "grid_search"` with
-  `optimization_grid_search_step_size`; common with more than three components.
+  `optimization_grid_search_step_size`. It is common with more than three
+  components.
 - A warning that the estimated outcome is outside `[0, 1]`: binary identity-link
-  extrapolation (see Critical warnings); narrow the bounds or use logit.
+  extrapolation (see Critical warnings). Narrow the bounds or use logit.
 - Confidence set is slow: increase `confidence_set_grid_step_size`, or set
   `include_confidence_set = FALSE` while iterating.
 - A warning that the recommendation is for a center outside the centers in the
@@ -208,7 +215,7 @@ distinguish from the goal," not "interventions that meet it."
 Both take a fitted result and rerun its call, so the arguments need not be
 typed again:
 ```r
-sens <- lago_sensitivity(res, parameter = "outcome_goal", values = c(0.8, 0.85, 0.9))
+sens <- lago_sensitivity(res, parameter = "outcome_goal", values = c(35, 40, 45))
 plot(sens)                      # cost of the recommendation per value
 lago_sensitivity(res, parameter = "cost_multiplier", values = c(0.8, 1, 1.2))
 b <- lago_budget(res, budget = 30000)   # n_grid = 25 outcome goals by default
@@ -235,8 +242,9 @@ package. Report them with the numbers.
 `lago_optimization()` returns a `"lago"` object (a list, so `$` access works)
 with `print()`, `summary()`, and `plot()` methods. Key fields: `rec_int`,
 `rec_int_cost`, `est_outcome_goal`, `est_outcome_ci` (the CI at the
-recommendation, 95% by default), `cs` (confidence set), and `model` (the fitted glm). `plot()` visualizes the confidence
-set; `lago_report(res)` writes the full result to a shareable HTML file.
+recommendation, 95% by default), `cs` (confidence set), and `model` (the fitted
+glm). `plot()` visualizes the confidence set, and `lago_report(res)` writes the
+full result to a shareable HTML file.
 
 ## Additional resources
 
@@ -244,5 +252,5 @@ set; `lago_report(res)` writes the full result to a shareable HTML file.
 - Help: `?lago_optimization`, `?lago_sensitivity`, `?lago_budget`, `?lago_app`,
   `?get_confidence_set`, `?visualize_cost`, `?lago_report`.
 - Methods paper: Bing, Spiegelman, Nevo, Lok (2025), Biometrics,
-  <doi:10.1093/biomtc/ujaf061>; foundational: Nevo, Lok, Spiegelman (2021),
+  <doi:10.1093/biomtc/ujaf061>. Foundational: Nevo, Lok, Spiegelman (2021),
   Annals of Statistics, <doi:10.1214/20-aos1978>.

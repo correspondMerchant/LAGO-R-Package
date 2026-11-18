@@ -30,7 +30,7 @@ mkdir -p .claude/skills && cp -r skills/lagotrials .claude/skills/
 mkdir -p ~/.claude/skills && cp -r skills/lagotrials ~/.claude/skills/
 ```
 
-Other agents (Codex, Cursor, Kiro, ...) support skill directories too; place the
+Other agents (Codex, Cursor, Kiro, ...) support skill directories too. Place the
 `lagotrials` directory in the location that agent reads skills from.
 
 Once installed, the agent picks up the skill automatically when a task matches

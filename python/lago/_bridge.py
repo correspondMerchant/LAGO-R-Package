@@ -372,7 +372,8 @@ def call_lago(name: str, kwargs: dict):
     found = _collected.get()
     for message in (str(m) for m in out.rx2("warnings")):
         if found is None:
-            warnings.warn(message, LagoRWarning, stacklevel=3)
+            # 4 points at the line that called the public function
+            warnings.warn(message, LagoRWarning, stacklevel=4)
         elif message not in found:
             found.append(message)
     return out.rx2("value")

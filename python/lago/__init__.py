@@ -112,7 +112,13 @@ def optimize(
     call_kwargs.update(kwargs)
 
     result = _bridge.call_lago("lago_optimization", call_kwargs)
-    return _bridge.lago_result_to_dict(result)
+    out = _bridge.lago_result_to_dict(result)
+    # R leaves these out when no confidence set is computed, which also
+    # happens when the shrinking method is used. They are None then, so
+    # result["cs"] never raises a KeyError.
+    for name in ("cs", "est_outcome_ci", "confidence_set_size_percentage"):
+        out.setdefault(name, None)
+    return out
 
 
 @_bridge.in_r_context

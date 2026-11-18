@@ -60,8 +60,10 @@ result = lago.optimize(
 result["rec_int"]           # list[float], the recommended intervention
 result["est_outcome_goal"]  # float
 result["rec_int_cost"]      # float
-result["cs"]                # pandas.DataFrame (the confidence set) or None
-result["est_outcome_ci"]    # {"lower": .., "upper": ..} or None
+result["cs"]                # pandas.DataFrame (the confidence set), or None
+result["est_outcome_ci"]    # {"lower": .., "upper": ..}, or None
+# Both are None when no confidence set is computed, which also happens when the
+# goal cannot be reached and result["shrinking_method_used"] is True.
 result["model"]             # raw rpy2 glm object (does NOT convert cleanly)
 ```
 
@@ -71,12 +73,31 @@ argument (e.g. `center_characteristics`, `power_goal`, `link`, `unit_costs`,
 
 ### Confidence set
 
+`optimize()` already returns the confidence set. To build one on its own, give
+`get_confidence_set()` the model of a fit on the same data, here `bb` with the
+BetterBirth example, and every model predictor in `predictors_data`:
+
 ```python
-cs = lago.get_confidence_set(
-    predictors_data=df[["coaching_updt", "launch_duration", "birth_volume_100"]],
+fit = lago.optimize(
+    data=bb,
+    outcome_name="pp3_oxytocin_mother",
+    outcome_type="binary",
     intervention_components=["coaching_updt", "launch_duration"],
-    outcome_data=list(df["pp3_oxytocin_mother"]),
-    fitted_model=result["model"],      # the raw rpy2 glm object from optimize()
+    intervention_lower_bounds=[1, 1],
+    intervention_upper_bounds=[40, 5],
+    center_characteristics=["birth_volume_100"],
+    center_characteristics_optimization_values=[3],
+    cost_list=[[0, 1.7], [0, 8]],
+    outcome_goal=0.85,
+    include_confidence_set=False,
+)
+cs = lago.get_confidence_set(
+    predictors_data=bb[["coaching_updt", "launch_duration", "birth_volume_100"]],
+    intervention_components=["coaching_updt", "launch_duration"],
+    center_characteristics=["birth_volume_100"],
+    center_characteristics_optimization_values=[3],
+    outcome_data=list(bb["pp3_oxytocin_mother"]),
+    fitted_model=fit["model"],         # the raw rpy2 glm object from optimize()
     link="logit",
     outcome_goal=0.85,
     outcome_type="binary",
@@ -84,7 +105,7 @@ cs = lago.get_confidence_set(
     intervention_upper_bounds=[40, 5],
     confidence_set_grid_step_size=[1, 1],
     cost_list=[[0, 1.7], [0, 8]],
-    rec_int=result["rec_int"],
+    rec_int=fit["rec_int"],
 )
 cs["confidence_set_size_percentage"]  # float
 cs["rec_int_ci"]                      # {"lower": .., "upper": ..} or None
@@ -101,6 +122,25 @@ path = lago.lago_report(result, output_file="report.html", title="My report")
 `lago_report()` accepts the dict returned by `optimize()` (it reuses the
 underlying R object stored under `_r_object`), so the optimization is not
 re-run.
+
+### Sensitivity
+
+```python
+sweep = lago.sensitivity(
+    data=df,
+    outcome_name="pp3_oxytocin_mother",
+    outcome_type="binary",
+    intervention_components=["coaching_updt", "launch_duration"],
+    intervention_lower_bounds=[1, 1],
+    intervention_upper_bounds=[40, 5],
+    cost_list=[[0, 1700], [0, 8000]],
+    parameter="outcome_goal",
+    values=[0.8, 0.85, 0.9],
+)
+sweep  # pandas.DataFrame: value, one column per component, rec_int_cost,
+       # est_outcome_goal, status, shrinking_method_used, effective_outcome_goal,
+       # error_message
+```
 
 ### Budget
 
@@ -172,7 +212,8 @@ runtime, exactly as for the wrapper. It is **not** an R-free install.
   each numeric column. An agent should call it first, to choose the components,
   their bounds, and any center characteristic value from the data.
 - **`optimize`** runs one LAGO optimization. It returns `rec_int`, `rec_int_cost`,
-  `est_outcome_goal`, `effective_outcome_goal`, `shrinking_method_used`, and,
+  `est_outcome_goal`, `shrinking_method_used`, `effective_outcome_goal` with a
+  power goal, and,
   when a confidence set is computed, `est_outcome_ci`, `confidence_level`,
   `confidence_set_size_percentage` and `confidence_set`.
 - **`sensitivity`** sweeps one input (`parameter` and `values`) and returns
@@ -237,7 +278,7 @@ pip install -e "python[mcp]"
 ```
 
 R and the `LAGOtrials` R package must be installed (rpy2 embeds R). Point rpy2 at
-your R as in the environment note above (`R_HOME`, `R_LIBS`, `LD_LIBRARY_PATH`).
+your R as in the environment note below (`R_HOME`, `R_LIBS`, `LD_LIBRARY_PATH`).
 
 ### Run
 
@@ -308,4 +349,3 @@ export LD_LIBRARY_PATH="$(dirname "$R_HOME")/lib:$LD_LIBRARY_PATH"
 Under `pytest` this `LD_LIBRARY_PATH` ordering matters: pytest's plugins load
 C extensions before rpy2, which can otherwise pin an older system `libstdc++`
 and fail with `GLIBCXX_... not found` when R's library is dlopen'd.
-```

@@ -559,7 +559,8 @@ lago_app <- function(data = NULL,
       applying_defaults(TRUE)
       session$onFlushed(function() applying_defaults(FALSE), once = TRUE)
       ch <- .app_choices(d, spec)
-      shiny::updateSelectInput(session, "outcome", choices = ch$outcomes, selected = spec$outcome)
+      # center level settings name the built proportion, which is no column of the data
+      shiny::updateSelectInput(session, "outcome", choices = ch$outcomes, selected = if (.app_center_level(spec)) spec$cl_value else spec$outcome)
       shiny::updateRadioButtons(session, "outcome_type", selected = spec$outcome_type)
       shiny::updateNumericInput(session, "goal", value = spec$goal)
       shiny::updateRadioButtons(session, "goal_mode", selected = spec$goal_mode)
@@ -765,13 +766,15 @@ lago_app <- function(data = NULL,
       shiny::updateSelectInput(session, "arm_value", choices = values, selected = pick)
     })
 
-    shiny::observeEvent(list(current_data(), input$outcome, input$arm_col, input$arm_value, input$components), {
+    shiny::observeEvent(list(current_data(), input$outcome, input$arm_col, input$arm_value, input$components, input$structure, input$cl_value, input$cl_total), {
       d <- current_data()
       if (shiny::isolate(applying_defaults())) {
         return()
       }
       shiny::req(d)
-      choices <- .app_cluster_choices(d, input$outcome, input$arm_col, input$arm_value, exclude = input$components)
+      # center level data has its outcome in the proportion column the app builds
+      s <- spec()
+      choices <- .app_cluster_choices(.app_center_columns(s, d)$data, s$outcome, input$arm_col, input$arm_value, exclude = input$components)
       kept <- intersect(shiny::isolate(input$cluster_col), choices)
       shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", choices), selected = if (length(kept)) kept else "")
     }, ignoreNULL = FALSE)

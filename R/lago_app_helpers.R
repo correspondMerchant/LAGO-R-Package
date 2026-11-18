@@ -187,7 +187,7 @@
     outcomes = numeric_cols,
     components = setdiff(numeric_cols, spec$outcome),
     arms = arms, arm = arm, arm_values = arm_values, arm_value = arm_value,
-    clusters = if (length(arm)) .app_cluster_choices(data, spec$outcome, arm, arm_value, exclude = spec$components) else character(0),
+    clusters = if (length(arm)) .app_cluster_choices(.app_center_columns(spec, data)$data, .app_resolve(spec)$outcome, arm, arm_value, exclude = spec$components) else character(0),
     others = others,
     center_chars = setdiff(numeric_cols, c(spec$outcome, spec$components)),
     center_col = center_col,
@@ -272,6 +272,16 @@
   list(data = data, code = code)
 }
 
+# The rows glm() fits: every model column observed, and for weights or center
+# level totals a weight above 0, as a row with a weight of 0 or none is left out.
+.app_fitted_rows <- function(spec, data, model_cols) {
+  rows <- stats::complete.cases(data[intersect(model_cols, names(data))])
+  w <- if (nzchar(spec$weights_col) && spec$weights_col %in% names(data)) data[[spec$weights_col]]
+  if (is.numeric(w)) rows <- rows & !is.na(w) & w > 0
+  if (.app_center_level(spec) && is.numeric(data$center_sample_size)) rows <- rows & data$center_sample_size > 0
+  rows
+}
+
 # The centers in the order the package gives their weights: the levels of the
 # center factor once unused levels are dropped.
 .app_center_levels <- function(data, center_col) {
@@ -296,6 +306,12 @@
     as.numeric(table(f))
   }
   size[!is.finite(size)] <- 0
+  # a center whose rows glm() cannot fit gets 0, as the package requires
+  resolved <- .app_resolve(spec)
+  built <- .app_center_columns(spec, data)$data
+  model <- c(resolved$outcome, spec$components, spec$covariates, if (isTRUE(spec$time_on)) spec$period_col)
+  fits <- .app_fitted_rows(resolved, built, model)
+  size[!centers %in% unique(as.character(data[[spec$center_col]])[fits])] <- 0
   if (sum(size) <= 0) {
     return(rep(1 / length(centers), length(centers)))
   }
@@ -682,13 +698,13 @@
         spec$outcome, comps, spec$covariates, if (isTRUE(spec$time_on)) spec$period_col,
         if (.app_center_level(spec)) "center_sample_size"
       ), names(data))
-      complete <- stats::complete.cases(data[used])
+      complete <- .app_fitted_rows(spec, data, used)
       centers <- as.character(data[[spec$center_col]])
       fitted <- unique(centers[complete & !is.na(centers)])
       if (length(fitted) < 2) {
-        note("centers", "Fixed center effects need at least two centers with a row where every model column is observed.")
+        note("centers", "Fixed center effects need at least two centers with a row the model can use, where every model column is observed and any weight is above 0.")
       } else if (nzchar(spec$center_for) && !spec$center_for %in% fitted) {
-        note("centers", sprintf("The center %s has no row where every model column is observed, so it cannot be optimized for. Choose another center.", spec$center_for))
+        note("centers", sprintf("The center %s has no row the model can use, where every model column is observed and any weight is above 0, so it cannot be optimized for. Choose another center.", spec$center_for))
       } else if (!nzchar(spec$center_for) && isTRUE(spec$cw_on)) {
         centers_all <- .app_center_levels(data, spec$center_col)
         w <- spec$cw
@@ -698,7 +714,7 @@
           note("centers", sprintf("The center weights add up to %s. They must add up to 1.", format(signif(sum(w), 4))))
         } else if (any(w > 0 & !centers_all %in% fitted)) {
           note("centers", sprintf(
-            "The center %s has no row where every model column is observed, so its weight must be 0.",
+            "The center %s has no row the model can use, where every model column is observed and any weight is above 0, so its weight must be 0.",
             paste(centers_all[w > 0 & !centers_all %in% fitted], collapse = ", ")
           ))
         }

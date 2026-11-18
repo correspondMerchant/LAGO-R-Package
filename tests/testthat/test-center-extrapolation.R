@@ -24,7 +24,7 @@ test_that("a center characteristic outside the data gives one input warning that
   w <- extrapolation_warnings(extrapolation_call(2.86))
   expect_length(w, 1)
   expect_s3_class(w[[1]], "lago_input_warning")
-  expect_match(conditionMessage(w[[1]]), "birth_volume_100 = 2.86, while the data has 0.95 to 1.3")
+  expect_match(conditionMessage(w[[1]]), "birth_volume_100 = 2.86, while the data the model is fitted on has 0.95 to 1.3")
   expect_match(conditionMessage(w[[1]]), "an extrapolation of the model")
   # below the data too, and nothing within it or at its edge
   expect_length(extrapolation_warnings(extrapolation_call(0.5)), 1)
@@ -42,7 +42,7 @@ test_that("each characteristic outside the data is named", {
     unit_costs = 1, outcome_goal = 0.85, outcome_goal_intention = "maximize", include_confidence_set = FALSE, quiet = TRUE
   ))
   expect_length(w, 1)
-  expect_match(conditionMessage(w[[1]]), "birth_volume_100 = 2, while the data has 0.95 to 1.3, and staff = 100, while the data has 0.1 to 7.3")
+  expect_match(conditionMessage(w[[1]]), "birth_volume_100 = 2, while the data the model is fitted on has 0.95 to 1.3, and staff = 100, while the data the model is fitted on has 0.1 to 7.3")
 })
 
 test_that("a sweep gives the warning once, not once per run", {
@@ -50,4 +50,73 @@ test_that("a sweep gives the warning once, not once per run", {
   r <- suppressWarnings(extrapolation_call(2.86))
   w <- extrapolation_warnings(lago_sensitivity(r, parameter = "outcome_goal", values = c(0.8, 0.85, 0.9)))
   expect_length(w, 1)
+})
+
+test_that("the range is over the rows the model is fitted on", {
+  d <- as.data.frame(BB_data)
+  # the largest centers have no outcome, so the model never sees them
+  d$pp3_oxytocin_mother[d$birth_volume_100 == 7.5] <- NA
+  w <- extrapolation_warnings(lago_optimization(
+    data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"), intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5), center_characteristics = "birth_volume_100",
+    center_characteristics_optimization_values = 7.5, cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
+    outcome_goal = 0.85, include_confidence_set = FALSE, quiet = TRUE
+  ))
+  expect_length(w, 1)
+  expect_match(conditionMessage(w[[1]]), "birth_volume_100 = 7.5, while the data the model is fitted on has 0.6025 to 3.980833333")
+  # a row with a weight of 0 is not fitted either
+  d <- as.data.frame(BB_data)
+  w <- extrapolation_warnings(lago_optimization(
+    data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"), intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5), center_characteristics = "birth_volume_100",
+    center_characteristics_optimization_values = 7.5, cost_list_of_vectors = list(c(0, 1700), c(0, 8000)),
+    outcome_goal = 0.85, include_confidence_set = FALSE, quiet = TRUE, weights = ifelse(d$birth_volume_100 == 7.5, 0, 1)
+  ))
+  expect_length(w, 1)
+})
+
+test_that("a value that names no center is refused", {
+  for (v in list(Inf, -Inf, NA_real_, NaN)) {
+    expect_error(extrapolation_call(v), "must be finite numbers, one per center characteristic")
+  }
+})
+
+test_that("true or false and text characteristics are read as their 0 or 1 dummy", {
+  d <- BB_data[BB_data$pilot_phase == 1, ]
+  d$big <- d$birth_volume_100 > 1.2
+  d$size <- ifelse(d$big, "large", "small")
+  for (col in c("big", "size")) {
+    run <- function(v) extrapolation_warnings(lago_optimization(
+      data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
+      intervention_components = "coaching_updt", intervention_lower_bounds = 1, intervention_upper_bounds = 40,
+      center_characteristics = col, center_characteristics_optimization_values = v, unit_costs = 1,
+      outcome_goal = 0.85, include_confidence_set = FALSE, quiet = TRUE
+    ))
+    w <- run(5)
+    expect_length(w, 1)
+    expect_match(conditionMessage(w[[1]]), sprintf("%s = 5, while the data the model is fitted on has 0 to 1", col))
+    expect_length(run(1), 0)
+  }
+})
+
+test_that("a value within floating point of an end does not warn, and the warning never hides an input error", {
+  expect_length(extrapolation_warnings(extrapolation_call(1.3 + 1e-12)), 0)
+  expect_length(extrapolation_warnings(extrapolation_call(0.95 - 1e-12)), 0)
+  p <- as.data.frame(main_pulesa_data)
+  p$proportion <- p$Success / p$Total_visit
+  p$center_sample_size <- p$Total_visit
+  p$center <- p$Clinic
+  withr_warn <- options(warn = 2)
+  on.exit(options(withr_warn), add = TRUE)
+  expect_error(
+    lago_optimization(
+      data = p, input_data_structure = "center_level", outcome_name = "proportion", outcome_type = "binary",
+      intervention_components = "DeliveryA", intervention_lower_bounds = 0, intervention_upper_bounds = 1,
+      unit_costs = 1, center_characteristics = "MI_DeliveryB", center_characteristics_optimization_values = 100,
+      include_center_effects = TRUE, outcome_goal = 0.6, quiet = TRUE
+    ),
+    "Fixed center effects and center characteristics cannot be both included"
+  )
 })

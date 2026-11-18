@@ -492,3 +492,15 @@ def test_budget_wrapper(bb_data):
     assert {"outcome_goal", "rec_int_cost", "est_outcome", "affordable"} <= set(res["frontier"].columns)
     assert res["component_names"] == ["coaching_updt", "launch_duration"]
     assert res["run_error"] is None
+
+
+
+def test_optimize_always_has_the_confidence_set_keys(bb_data):
+    import lago
+
+    res = lago.optimize(data=bb_data, outcome_name="pp3_oxytocin_mother", outcome_type="binary",
+                        intervention_components=["coaching_updt", "launch_duration"], intervention_lower_bounds=[1, 1],
+                        intervention_upper_bounds=[40, 5], cost_list=[[0, 1700], [0, 8000]], outcome_goal=0.85,
+                        include_confidence_set=False, quiet=True)
+    for name in ("cs", "est_outcome_ci", "confidence_set_size_percentage"):
+        assert name in res and res[name] is None
