@@ -334,3 +334,42 @@ test_that("saving names an upload or a result by how to get the data back", {
     expect_identical(readRDS(output$save_settings)$data_label, "your data cars")
   })
 })
+
+test_that("Done returns no result from before a reset or a new dataset, but a new page keeps it", {
+  skip_on_cran()
+  returned <- list()
+  local_mocked_bindings(stopApp = function(returnValue = invisible()) returned[[length(returned) + 1]] <<- returnValue, .package = "shiny")
+  app <- .build_lago_app()
+  setup <- function(session, col_id) {
+    session$setInputs(
+      outcome = "mpg", outcome_type = "continuous", goal_mode = "outcome", goal = 25, intention = "maximize",
+      components = c("gear", "qsec"), cost_mode = "unit", cost_type = "linear", center_mode = "none",
+      include_cs = FALSE, approach = "unconditional"
+    )
+    do.call(session$setInputs, stats::setNames(list(3, 5, 2, 14, 20, 1), c(col_id("lb", "gear"), col_id("ub", "gear"), col_id("cost", "gear"), col_id("lb", "qsec"), col_id("ub", "qsec"), col_id("cost", "qsec"))))
+  }
+  shiny::testServer(app, {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    setup(session, col_id)
+    session$setInputs(run = 1)
+    session$setInputs(done = 1)
+    session$setInputs(reset = 1)
+    session$setInputs(done = 2)
+    setup(session, col_id)
+    session$setInputs(run = 2)
+    session$setInputs(source = "BB_data")
+    session$setInputs(done = 3)
+    session$setInputs(source = "mtcars")
+    setup(session, col_id)
+    session$setInputs(run = 3)
+  })
+  expect_s3_class(returned[[1]]$result, "lago")
+  expect_null(returned[[2]]$result)
+  expect_null(returned[[3]]$result)
+  # a new browser session, as after a page refresh, still returns the last run
+  shiny::testServer(app, {
+    session$setInputs(source = "mtcars", sep = ",", dec = ".")
+    session$setInputs(done = 1)
+  })
+  expect_s3_class(returned[[4]]$result, "lago")
+})

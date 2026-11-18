@@ -83,8 +83,9 @@
 #' @param port The port to listen on, or `NULL` for a free one.
 #'
 #' @return Invisibly, when you click **Done** or close the browser tab, a list
-#'   with the last `result` of [lago_optimization()] (or `NULL` if nothing was
-#'   run), the last `sensitivity` of [lago_sensitivity()] and `budget` of
+#'   with the last `result` of [lago_optimization()] for the settings in the
+#'   app (or `NULL` if nothing was run since a reset, a new dataset or loaded
+#'   settings), the last `sensitivity` of [lago_sensitivity()] and `budget` of
 #'   [lago_budget()] run from it (or `NULL`), the R `code` of all of them as a
 #'   character vector, and the `arguments` of the optimization. The same list
 #'   is stored in the `lago_app_result` option.
@@ -496,6 +497,8 @@ lago_app <- function(data = NULL,
     shared$sessions <- shared$sessions + 1L
     loaded <- shiny::reactiveVal(NULL)
     upload_error <- shiny::reactiveVal(NULL)
+    # TRUE until the first data of this browser session is loaded
+    first_load <- shiny::reactiveVal(TRUE)
     # the spec the inputs start from, and the value it gives one input: field
     # of the spec at the place of key in its keys, or the fallback
     start_spec <- shiny::reactiveVal(NULL)
@@ -552,8 +555,12 @@ lago_app <- function(data = NULL,
     # Put a whole spec into the app: the dataset's defaults on a load or reset,
     # or loaded settings. Inputs drawn later, such as the bounds of each
     # component, take their first value from start_spec().
-    apply_defaults <- function(d, name, spec = .app_defaults(d, name)) {
+    apply_defaults <- function(d, name, spec = .app_defaults(d, name), clear_result = TRUE) {
       start_spec(spec)
+      # Done returns the result of the settings in the app, so new settings or
+      # data drop the last one. The first load of a page keeps it, so a refresh
+      # still returns the result run before it.
+      if (clear_result) shared$result <- list(result = NULL, sensitivity = NULL, budget = NULL, code = NULL, arguments = NULL)
       generation(generation() + 1L)
       last_outcome(spec$outcome)
       applying_defaults(TRUE)
@@ -608,20 +615,21 @@ lago_app <- function(data = NULL,
       upload_error(got$error)
       if (!is.null(got$error)) got <- NULL
       loaded(got)
-      if (!is.null(got)) start_from(got)
+      if (!is.null(got)) start_from(got, clear_result = !first_load())
+      first_load(FALSE)
     })
     shiny::observeEvent(input$reset, {
       got <- loaded()
       if (!is.null(got)) start_from(got)
     })
     # a result passed to lago_app() starts, and resets, on its own settings
-    start_from <- function(got) {
+    start_from <- function(got, clear_result = TRUE) {
       if (is.null(got$start)) {
-        apply_defaults(got$data, got$name)
+        apply_defaults(got$data, got$name, clear_result = clear_result)
       } else {
         spec <- got$start$spec
         spec$data_name <- got$name
-        apply_defaults(got$data, got$name, spec)
+        apply_defaults(got$data, got$name, spec, clear_result = clear_result)
       }
     }
 

@@ -145,3 +145,29 @@ test_that("the check skips a characteristic with no observed value on the fitted
   d <- data.frame(y = c(0, 1, 0, 1), x = 1:4, k = NA_real_)
   expect_silent(warn_center_extrapolation(d, "y", "x", "k", 9, NULL, FALSE, FALSE, "individual_level", NULL))
 })
+
+test_that("get_confidence_set() called directly warns once, from the rows its model was fitted on", {
+  d <- BB_data[BB_data$pilot_phase == 1, ]
+  r <- suppressWarnings(extrapolation_call(1.1))
+  call_cs <- function(v) extrapolation_warnings(get_confidence_set(
+    predictors_data = d[, c("coaching_updt", "launch_duration", "birth_volume_100")],
+    intervention_components = c("coaching_updt", "launch_duration"), outcome_data = d$pp3_oxytocin_mother,
+    fitted_model = r$model, link = "logit", outcome_goal = 0.85, outcome_type = "binary",
+    intervention_lower_bounds = c(1, 1), intervention_upper_bounds = c(40, 5), confidence_set_grid_step_size = c(2, 1),
+    center_characteristics = "birth_volume_100", center_characteristics_optimization_values = v,
+    cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)), rec_int = r$rec_int
+  ))
+  w <- call_cs(100)
+  expect_length(w, 1)
+  expect_match(conditionMessage(w[[1]]), "birth_volume_100 = 100, while the data the model is fitted on has 0.95 to 1.3")
+  expect_length(call_cs(1.1), 0)
+  # with the confidence set on, lago_optimization() still warns only once
+  w <- extrapolation_warnings(lago_optimization(
+    data = d, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
+    intervention_components = c("coaching_updt", "launch_duration"), intervention_lower_bounds = c(1, 1),
+    intervention_upper_bounds = c(40, 5), center_characteristics = "birth_volume_100",
+    center_characteristics_optimization_values = 2.86, cost_list_of_vectors = list(c(0, 380, -24, 0.6), c(0, 1700, -950, 220)),
+    outcome_goal = 0.85, confidence_set_grid_step_size = c(2, 1), quiet = TRUE
+  ))
+  expect_length(w, 1)
+})

@@ -749,3 +749,34 @@ def test_the_server_answers_while_a_tool_runs(mtcars_records):
     assert n_tools == 4
     # the list came back while the budget search was still running
     assert answered < finished
+
+
+# --------------------------------------------------------------------------
+# 12. a cancelled call stops its R work, and the server carries on
+# --------------------------------------------------------------------------
+def test_a_cancelled_call_stops_and_the_next_call_works(mtcars_records):
+    import time
+
+    args = dict(data_records=mtcars_records, budget=200.0, n_grid=25, **_common_args())
+
+    async def scenario():
+        call = asyncio.create_task(S.mcp.call_tool("budget", args))
+        await asyncio.sleep(1.0)
+        proc = S._WORKER._proc
+        started = time.monotonic()
+        call.cancel()
+        try:
+            await call
+        except asyncio.CancelledError:
+            pass
+        cancelled_in = time.monotonic() - started
+        after = await S.mcp.call_tool("optimize", dict(data_records=mtcars_records, outcome_goal=30.0, **_common_args()))
+        return proc, cancelled_in, after
+
+    proc, cancelled_in, after = asyncio.run(scenario())
+    assert proc is not None and not proc.is_alive()
+    assert cancelled_in < 5
+    content = after[0] if isinstance(after, tuple) else after
+    payload = json.loads(next(getattr(c, "text") for c in content if getattr(c, "text", None)))
+    assert "error" not in payload, payload
+    S._WORKER.stop()

@@ -2,6 +2,8 @@
 
 * `lago_optimization()` warns when a value in `center_characteristics_optimization_values` is outside the range of that characteristic in the rows the model is fitted on. The recommendation is then for a center the model has not seen, so the estimated outcome and its confidence interval are an extrapolation. With few centers the interval can be so wide that it covers every probability from 0 to 1. The warning names each such characteristic, the value and the range. A true or false characteristic is read as 0 and 1, and a text or factor one as its 0 or 1 dummy. The check comes after every input error, so with `options(warn = 2)` it never hides one.
 
+* `get_confidence_set()` called directly gives the same warning, checked against the rows its `fitted_model` was fitted on. Through `lago_optimization()` the warning still comes once.
+
 * `lago_optimization()` refuses a value of `center_characteristics_optimization_values` that is `NA`, `NaN`, `Inf` or `-Inf`. Such a value names no center, and it used to give a confident estimate or a misleading error about the optimizer.
 
 * `lago_app()` can save every setting to a file with Save settings, and put them back on the same data with Load settings. Loading on data that lacks a column the settings name says which columns are missing. `lago_app(result)` with a `lago` result opens on the data and the settings of its call, so one setting can be changed and the run repeated without typing the setup again. Settings the app cannot show, such as an interaction of three components, are listed when it opens.

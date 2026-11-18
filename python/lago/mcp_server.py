@@ -669,28 +669,104 @@ def budget(
         return _error(exc, locals().get("warned"))
 
 
-def _in_thread(fn):
-    """The tool as FastMCP runs it: the same function, in a worker thread.
+# --------------------------------------------------------------------------
+# The R worker: the process that runs the tools for the server
+# --------------------------------------------------------------------------
+def _worker_main(conn):
+    """Run tool calls sent over ``conn`` until the pipe closes."""
+    tools = {fn.__name__: fn for fn in (describe_data, optimize, sensitivity, budget)}
+    while True:
+        try:
+            name, kwargs = conn.recv()
+        except (EOFError, OSError):
+            return
+        try:
+            result = tools[name](**kwargs)
+        except Exception as exc:  # noqa: BLE001 - the tools return errors, but never crash the worker
+            result = _error(exc)
+        conn.send(result)
 
-    FastMCP runs a plain function on its event loop, so a long R call would
-    keep the server from answering pings until it ends. In a worker thread the
-    server stays responsive. The bridge lets one call into R at a time.
+
+class _RWorker:
+    """One worker process that runs the R work of the tools, one call at a time.
+
+    A running R call cannot be interrupted from another thread, so the server
+    runs the tools in a process of its own. When a client cancels a call, the
+    process is stopped at once, and the next call starts a new one. The server
+    stays free to answer pings and cancellations while a call runs.
     """
 
+    def __init__(self):
+        import threading
+
+        self._proc = None
+        self._conn = None
+        # one call at a time. stop() does not take it, so a cancel never waits
+        # for the call it cancels: stopping the process ends that call.
+        self._calls = threading.Lock()
+
+    def start(self):
+        if self._proc is not None and self._proc.is_alive():
+            return
+        import multiprocessing
+
+        ctx = multiprocessing.get_context("spawn")
+        parent, child = ctx.Pipe()
+        self._proc = ctx.Process(target=_worker_main, args=(child,), daemon=True)
+        self._proc.start()
+        child.close()
+        self._conn = parent
+
+    def stop(self):
+        if self._proc is not None:
+            self._proc.kill()
+            self._proc.join(5)
+            self._conn.close()
+        self._proc = None
+        self._conn = None
+
+    def call(self, name, kwargs):
+        """Run one tool in the worker and wait for its result (blocking)."""
+        with self._calls:
+            self.start()
+            conn = self._conn
+            conn.send((name, kwargs))
+            return conn.recv()
+
+
+_WORKER = _RWorker()
+
+
+def _run_in_worker(fn):
+    """The tool as FastMCP runs it: the same function, in the R worker."""
+
     @functools.wraps(fn)
-    async def tool(*args, **kwargs):
-        return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+    async def tool(**kwargs):
+        try:
+            return await anyio.to_thread.run_sync(_WORKER.call, fn.__name__, kwargs, abandon_on_cancel=True)
+        except anyio.get_cancelled_exc_class():
+            # the client cancelled: stop the R work now, not when it ends
+            _WORKER.stop()
+            raise
+        except (EOFError, OSError) as exc:
+            _WORKER.stop()
+            return _error(RuntimeError(f"the R worker stopped during the call ({exc!r}). Try the call again."))
 
     return tool
 
 
 for _fn in (describe_data, optimize, sensitivity, budget):
-    mcp.tool(name=_fn.__name__)(_in_thread(_fn))
+    mcp.tool(name=_fn.__name__)(_run_in_worker(_fn))
 
 
 def main():
     """Console entry point: run the stdio MCP server."""
-    mcp.run()
+    # start the R worker now, so the first call does not wait for R to load
+    _WORKER.start()
+    try:
+        mcp.run()
+    finally:
+        _WORKER.stop()
 
 
 if __name__ == "__main__":

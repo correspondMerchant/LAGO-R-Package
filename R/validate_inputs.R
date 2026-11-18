@@ -1592,10 +1592,23 @@ warn_center_extrapolation <- function(data, outcome_name, intervention_component
   used <- stats::complete.cases(data[model_cols])
   # glm() fits no row with a missing or zero weight
   if (is.numeric(weights) && length(weights) == nrow(data)) used <- used & !is.na(weights) & weights > 0
+  warn_outside_centers(
+    center_characteristics, values,
+    lapply(center_characteristics, function(cc) data[[cc]][used])
+  )
+  invisible(NULL)
+}
+
+# Warns when a center characteristic value is outside its fitted values. A
+# logical characteristic is read as 0 and 1, and a factor or text one as its 0
+# or 1 dummy, as the model fits them. Values within floating point of an end
+# are not outside it.
+warn_outside_centers <- function(center_characteristics, values, columns) {
   outside <- character(0)
   for (i in seq_along(center_characteristics)) {
-    x <- data[[center_characteristics[i]]][used]
+    x <- columns[[i]]
     v <- values[i]
+    if (is.null(x) || !is.finite(v)) next
     if (is.logical(x)) x <- as.numeric(x)
     rng <- if (is.numeric(x)) {
       if (!any(is.finite(x))) next
