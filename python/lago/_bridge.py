@@ -11,9 +11,89 @@ able to reach R (``R_HOME`` set to the R installation). See the package README.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import functools
+import threading
+import warnings
+
 # Lazy, memoized rpy2 / R initialization so that ``import lago`` does not touch
 # R until a wrapper function is actually called.
 _state: dict = {}
+
+# One R call at a time, re-entrant as one public function may call another.
+_r_lock = threading.RLock()
+
+
+class LagoRWarning(UserWarning):
+    """A warning that the LAGOtrials R package gave, passed on to Python."""
+
+
+# The list that collects the R warnings of the current context, when a caller
+# such as the MCP server asks for them. A context variable keeps calls in
+# different threads or tasks apart, which warnings.catch_warnings() does not.
+_collected: contextvars.ContextVar = contextvars.ContextVar("lago_r_warnings", default=None)
+
+
+@contextlib.contextmanager
+def collect_warnings():
+    """Collect the R warnings of the calls inside, instead of issuing them.
+
+    Yields a list that holds each distinct warning message, in order.
+    """
+    found: list = []
+    token = _collected.set(found)
+    try:
+        yield found
+    finally:
+        _collected.reset(token)
+
+
+@contextlib.contextmanager
+def r_context():
+    """Run the code inside with rpy2's default conversion rules set.
+
+    rpy2 keeps its conversion rules in a ``contextvars.ContextVar``. A thread,
+    or an asyncio task that was not created from the context that first loaded
+    rpy2, starts without them, and every conversion then fails with "Conversion
+    rules for `rpy2.robjects` appear to be missing". The MCP server runs each
+    tool call in a context of its own, so without this only its first call
+    worked.
+
+    R runs one call at a time, and rpy2's table of the R objects it keeps alive
+    is not safe when two threads change it at once. A lock lets one thread in
+    at a time, so every public function can be called from any thread or task.
+    """
+    import rpy2.robjects as ro
+    from rpy2.robjects.conversion import localconverter
+
+    with _r_lock, localconverter(ro.default_converter):
+        _ensure()
+        yield
+
+
+def in_r_context(fn):
+    """Decorate a public function so its whole body runs in :func:`r_context`."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with r_context():
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
+# Calls an R function with a list of arguments, and returns its value with the
+# warnings it gave, so they can be passed on to Python instead of only being
+# printed to the R console.
+_CALL_WITH_WARNINGS = """function(f, args) {
+  warned <- character(0)
+  value <- withCallingHandlers(do.call(f, args), warning = function(w) {
+    warned <<- c(warned, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  })
+  list(value = value, warnings = unique(warned))
+}"""
 
 
 # Result fields that are GENUINELY single-valued and should be presented to the
@@ -25,6 +105,13 @@ _state: dict = {}
 # (est_outcome_ci, rec_int_ci) stays a dict. This is the allowlist half of the
 # "vectors stay lists, only real scalars collapse" design.
 SCALAR_RESULT_FIELDS = frozenset({
+    # lago_budget() scalars
+    "budget",
+    "feasible",
+    "binding",
+    "est_outcome",
+    "intention",
+    "run_error",
     # lago_optimization() / get_confidence_set() numeric scalars
     "rec_int_cost",
     "est_outcome_goal",
@@ -93,6 +180,14 @@ def _pandas_converter():
     """Combined default + pandas<->R converter."""
     s = _ensure()
     return s["ro"].default_converter + s["pandas2ri"].converter
+
+
+def _is_na(value) -> bool:
+    """True for an R NA of any type, as rpy2 gives it, or a float NaN."""
+    ri = _ensure()["ri"]
+    if any(value is na for na in (ri.NA_Logical, ri.NA_Integer, ri.NA_Character)):
+        return True
+    return isinstance(value, float) and value != value
 
 
 def _is_null(obj) -> bool:
@@ -262,10 +357,26 @@ def build_r_kwargs(kwargs: dict) -> dict:
 
 
 def call_lago(name: str, kwargs: dict):
-    """Convert kwargs, call the exported LAGOtrials R function, return the R result."""
+    """Convert kwargs, call the exported LAGOtrials R function, return the R result.
+
+    Each warning the R function gives is issued again as a Python
+    :class:`LagoRWarning`, so a caller can read it with
+    :func:`warnings.catch_warnings`.
+    """
+    s = _ensure()
     rfunc = _get_rfunc(name)
     r_kwargs = build_r_kwargs(kwargs)
-    return rfunc(**r_kwargs)
+    if "call_with_warnings" not in s:
+        s["call_with_warnings"] = s["ro"].r(_CALL_WITH_WARNINGS)
+    out = s["call_with_warnings"](rfunc, s["ro"].r["list"](**r_kwargs))
+    found = _collected.get()
+    for message in (str(m) for m in out.rx2("warnings")):
+        if found is None:
+            # 4 points at the line that called the public function
+            warnings.warn(message, LagoRWarning, stacklevel=4)
+        elif message not in found:
+            found.append(message)
+    return out.rx2("value")
 
 
 def r_sensitivity_to_df(result):
@@ -282,17 +393,40 @@ def r_sensitivity_to_df(result):
     import pandas as pd
 
     out = r_to_py(result)
-    if isinstance(out, pd.DataFrame):
-        return out
     if isinstance(out, dict):
         # A named R list converts to {column_name: list}; the dict preserves
         # the R column order, so the DataFrame keeps value / <components> /
         # rec_int_cost / est_outcome_goal / status in order.
-        return pd.DataFrame({k: v for k, v in out.items()})
-    raise TypeError(
-        "lago_sensitivity() result did not convert to a data.frame; got "
-        "{}".format(type(out).__name__)
-    )
+        out = pd.DataFrame({k: v for k, v in out.items()})
+    if not isinstance(out, pd.DataFrame):
+        raise TypeError(
+            "lago_sensitivity() result did not convert to a data.frame; got "
+            "{}".format(type(out).__name__)
+        )
+    # R keeps what each run did beyond its numbers as attributes: whether the
+    # goal was out of reach so the shrinking method was used, the goal used,
+    # and the error of a failed run. They become columns, so a run that missed
+    # its goal or failed does not read as a normal result.
+    attr = _ensure()["ro"].r["attr"]
+    n = len(out)
+    for name in ("shrinking_method_used", "effective_outcome_goal"):
+        values = r_to_py(attr(result, name))
+        if isinstance(values, list) and len(values) == n:
+            # a failed run has NA, which rpy2 gives as its own NA object
+            out[name] = [None if _is_na(v) else v for v in values]
+    messages = [None] * n
+    errors = r_to_py(attr(result, "error_messages"))
+    if isinstance(errors, dict):
+        # R names each error by its swept value, as as.character() writes it
+        for value, message in errors.items():
+            for i, v in enumerate(out["value"]):
+                try:
+                    if abs(float(value) - float(v)) <= 1e-9 * max(1.0, abs(float(v))):
+                        messages[i] = message
+                except (TypeError, ValueError):
+                    continue
+    out["error_message"] = messages
+    return out
 
 
 def lago_result_to_dict(result) -> dict:

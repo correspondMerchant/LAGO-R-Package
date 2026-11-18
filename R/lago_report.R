@@ -39,11 +39,17 @@
 #' @param x A "lago" object returned by [lago_optimization()].
 #' @param output_file A character string. The path to write the HTML report to.
 #' If `NULL` (the default), a temporary file with a `.html` extension is used.
+#' If it is an existing folder, the report is written in it as
+#' `lago_report.html`.
 #' @param title A character string. The report title.
 #' Default value without user specification: "LAGO optimization report".
 #' @param open A boolean. If `TRUE`, opens the rendered report in a browser via
 #' [utils::browseURL()]. Default value without user specification: `FALSE`.
-#' @param ... Additional arguments passed to [rmarkdown::render()].
+#' @param ... Additional arguments passed to [rmarkdown::render()], such as
+#' `quiet = FALSE` to see the rendering, or `envir`. The input, the output
+#' folder and the parameters are set by `lago_report()`, so `input`,
+#' `output_dir` and `params` are refused. Use `output_file` and `title`
+#' instead.
 #'
 #' @return The path to the rendered HTML file, invisibly.
 #'
@@ -123,7 +129,27 @@ lago_report <- function(x,
   if (is.null(output_file)) {
     output_file <- tempfile(fileext = ".html")
   }
+  if (!is.character(output_file) || length(output_file) != 1 || is.na(output_file) || !nzchar(output_file)) {
+    cli::cli_abort("{.arg output_file} must be one path, or {.code NULL} for a temporary file.")
+  }
+  # a folder gets the report inside it, not a file named after it next to it
+  if (dir.exists(output_file)) output_file <- file.path(output_file, "lago_report.html")
   output_file <- normalizePath(output_file, mustWork = FALSE)
+
+  # quiet and envir have defaults the caller may change. The rest is how the
+  # report is built, so passing it would clash with the call below.
+  dots <- list(...)
+  fixed <- intersect(names(dots), c("input", "output_dir", "params"))
+  if (length(fixed) > 0) {
+    cli::cli_abort(c(
+      "{.fn lago_report} sets {.arg {fixed}} itself.",
+      "i" = "Choose where the report goes with {.arg output_file}, and its title with {.arg title}."
+    ))
+  }
+  render_args <- utils::modifyList(
+    list(quiet = TRUE, envir = new.env(parent = globalenv())),
+    dots
+  )
 
   # render() writes its working files next to its input, so it renders a copy
   # of the template in a folder of its own. The installed package folder may be
@@ -134,15 +160,12 @@ lago_report <- function(x,
   input <- file.path(work, basename(template))
   file.copy(template, input)
   # split the requested path into directory + file for output_dir/output_file
-  rendered <- rmarkdown::render(
+  rendered <- do.call(rmarkdown::render, c(list(
     input = input,
     output_file = basename(output_file),
     output_dir = dirname(output_file),
-    params = list(x = x, title = title),
-    quiet = TRUE,
-    envir = new.env(parent = globalenv()),
-    ...
-  )
+    params = list(x = x, title = title)
+  ), render_args))
 
   if (isTRUE(open)) {
     utils::browseURL(rendered)

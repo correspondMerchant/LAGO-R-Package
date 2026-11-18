@@ -18,8 +18,9 @@ it opens in an interactive session.}
 }
 \value{
 Invisibly, when you click \strong{Done} or close the browser tab, a list
-with the last \code{result} of \code{\link[=lago_optimization]{lago_optimization()}} (or \code{NULL} if nothing was
-run), the last \code{sensitivity} of \code{\link[=lago_sensitivity]{lago_sensitivity()}} and \code{budget} of
+with the last \code{result} of \code{\link[=lago_optimization]{lago_optimization()}} for the settings in the
+app (or \code{NULL} if nothing was run since a reset, a new dataset or loaded
+settings), the last \code{sensitivity} of \code{\link[=lago_sensitivity]{lago_sensitivity()}} and \code{budget} of
 \code{\link[=lago_budget]{lago_budget()}} run from it (or \code{NULL}), the R \code{code} of all of them as a
 character vector, and the \code{arguments} of the optimization. The same list
 is stored in the \code{lago_app_result} option.

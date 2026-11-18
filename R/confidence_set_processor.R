@@ -70,7 +70,7 @@ confidence_set_processor <- function(
   if (include_center_effects) data$center <- factor(data$center)
   if (include_time_effects) data$period <- factor(data$period)
 
-  cs <- get_confidence_set(
+  cs <- .get_confidence_set_impl(
     # drop = FALSE keeps a single predictor as a data.frame; get_confidence_set
     # indexes predictors_data by column (names(), data[[col]]), which fails if a
     # one-column selection collapses to a vector.

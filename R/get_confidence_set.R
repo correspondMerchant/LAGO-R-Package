@@ -244,6 +244,50 @@ get_confidence_set <- function(
     cluster_id = NULL,
     cost_list_of_vectors,
     rec_int) {
+  # Called directly, it checks the center characteristic values against the
+  # rows the given model was fitted on, as lago_optimization() does for its
+  # own fit. lago_optimization() calls the implementation below, so it warns
+  # once and not twice.
+  if (!is.null(center_characteristics) && inherits(fitted_model, "glm")) {
+    frame <- stats::model.frame(fitted_model)
+    # the prior weights, as glm() keeps them, and a row it fits has one above 0
+    w <- stats::weights(fitted_model) %||% rep(1, nrow(frame))
+    fitted <- !is.na(w) & w > 0
+    # a characteristic the model does not have gives NULL, and is skipped
+    columns <- lapply(center_characteristics, function(cc) frame[[cc]][fitted])
+    warn_outside_centers(center_characteristics, center_characteristics_optimization_values, columns)
+  }
+  args <- as.list(environment())
+  args[c("frame", "w", "fitted", "columns")] <- NULL
+  do.call(.get_confidence_set_impl, args)
+}
+
+# The confidence set itself, without the check above. lago_optimization()
+# calls this, as validate_inputs() already checked its values.
+.get_confidence_set_impl <- function(
+    predictors_data,
+    include_center_effects = FALSE,
+    center_weights_for_outcome_goal = 1,
+    include_time_effects = FALSE,
+    time_effect_optimization_value = NULL,
+    additional_covariates = NULL,
+    intervention_components,
+    include_interaction_terms = FALSE,
+    main_components = NULL,
+    outcome_data,
+    fitted_model,
+    link,
+    outcome_goal,
+    outcome_type,
+    intervention_lower_bounds,
+    intervention_upper_bounds,
+    confidence_set_grid_step_size,
+    center_characteristics = NULL,
+    center_characteristics_optimization_values = 0,
+    confidence_set_alpha = 0.05,
+    cluster_id = NULL,
+    cost_list_of_vectors,
+    rec_int) {
   # the interval is built on the outcome scale of ONE of the links the package
   # implements, and both branches below assume it is one of those two: the
   # continuous branch applies expit() to anything that is not "identity", and

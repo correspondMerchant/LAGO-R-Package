@@ -306,29 +306,11 @@ validate_inputs <- function(
         "center_characteristics_optimization_values."
       ))
     }
-    # A value outside the centers in the data asks the model about a center it
-    # has not seen. The estimate and its interval are then an extrapolation,
-    # and with few centers the interval can cover every probability.
-    outside <- character(0)
-    for (i in seq_along(center_characteristics)) {
-      x <- data[[center_characteristics[i]]]
-      v <- center_characteristics_optimization_values[i]
-      if (!is.numeric(x) || !any(is.finite(x)) || !is.finite(v)) next
-      rng <- range(x[is.finite(x)])
-      if (v < rng[1] || v > rng[2]) {
-        outside <- c(outside, sprintf(
-          "%s = %s, while the data has %s to %s",
-          center_characteristics[i], format(v), format(rng[1]), format(rng[2])
-        ))
-      }
-    }
-    if (length(outside) > 0) {
-      input_warning(paste0(
-        "The recommendation is for a center outside the centers in the data: ",
-        paste(outside, collapse = ", and "), ". The estimated outcome and its ",
-        "confidence interval are then an extrapolation of the model, so the ",
-        "interval can be very wide. Choose a value within the data, or make ",
-        "sure the model holds for such a center."
+    # a missing or infinite value names no center, and glm() cannot use it
+    if (any(!is.finite(center_characteristics_optimization_values))) {
+      stop(paste(
+        "center_characteristics_optimization_values must be finite numbers,",
+        "one per center characteristic. NA, NaN, Inf and -Inf name no center."
       ))
     }
   }
@@ -1342,6 +1324,17 @@ validate_inputs <- function(
   }
 
 
+  # A value outside the centers the model is fitted on asks it about a center
+  # it has not seen. The estimate and its interval are then an extrapolation,
+  # and with few centers the interval can cover every probability. It is
+  # checked last, so that a warning never hides an input error, also when
+  # warnings are errors.
+  warn_center_extrapolation(
+    data, outcome_name, intervention_components, center_characteristics,
+    center_characteristics_optimization_values, additional_covariates,
+    include_center_effects, include_time_effects, input_data_structure, weights
+  )
+
   list(
     data = data,
     input_data_structure = input_data_structure,
@@ -1574,4 +1567,72 @@ input_warning <- function(text) {
     class = c("lago_input_warning", "warning", "condition"),
     list(message = text, call = NULL)
   ))
+}
+
+# Warns when a center characteristic is optimized at a value outside the range
+# the model is fitted on. That range is over the rows glm() keeps, which are
+# the rows where every model column is observed, so a center whose rows all
+# lack the outcome does not count. A logical characteristic is read as 0 and 1,
+# and a factor or text one as its 0 or 1 dummy, as the model fits them. Values
+# within floating point of an end are not outside it.
+warn_center_extrapolation <- function(data, outcome_name, intervention_components,
+                                      center_characteristics, values,
+                                      additional_covariates, include_center_effects,
+                                      include_time_effects, input_data_structure,
+                                      weights) {
+  if (is.null(center_characteristics) || is.null(values)) {
+    return(invisible(NULL))
+  }
+  model_cols <- intersect(c(
+    outcome_name, intervention_components, center_characteristics,
+    additional_covariates,
+    if (isTRUE(include_time_effects)) "period",
+    if (identical(input_data_structure, "center_level")) "center_sample_size"
+  ), names(data))
+  used <- stats::complete.cases(data[model_cols])
+  # glm() fits no row with a missing or zero weight
+  if (is.numeric(weights) && length(weights) == nrow(data)) used <- used & !is.na(weights) & weights > 0
+  warn_outside_centers(
+    center_characteristics, values,
+    lapply(center_characteristics, function(cc) data[[cc]][used])
+  )
+  invisible(NULL)
+}
+
+# Warns when a center characteristic value is outside its fitted values. A
+# logical characteristic is read as 0 and 1, and a factor or text one as its 0
+# or 1 dummy, as the model fits them. Values within floating point of an end
+# are not outside it.
+warn_outside_centers <- function(center_characteristics, values, columns) {
+  outside <- character(0)
+  for (i in seq_along(center_characteristics)) {
+    x <- columns[[i]]
+    v <- values[i]
+    if (is.null(x) || !is.finite(v)) next
+    if (is.logical(x)) x <- as.numeric(x)
+    rng <- if (is.numeric(x)) {
+      if (!any(is.finite(x))) next
+      range(x[is.finite(x)])
+    } else {
+      c(0, 1)
+    }
+    tol <- sqrt(.Machine$double.eps) * max(1, abs(rng))
+    if (v < rng[1] - tol || v > rng[2] + tol) {
+      outside <- c(outside, sprintf(
+        "%s = %s, while the data the model is fitted on has %s to %s",
+        center_characteristics[i], format(v, digits = 10),
+        format(rng[1], digits = 10), format(rng[2], digits = 10)
+      ))
+    }
+  }
+  if (length(outside) > 0) {
+    input_warning(paste0(
+      "The recommendation is for a center outside the centers in the data: ",
+      paste(outside, collapse = ", and "), ". The estimated outcome and its ",
+      "confidence interval are then an extrapolation of the model, so the ",
+      "interval can be very wide. Choose a value within the data, or make ",
+      "sure the model holds for such a center."
+    ))
+  }
+  invisible(NULL)
 }
