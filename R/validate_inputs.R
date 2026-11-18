@@ -306,6 +306,31 @@ validate_inputs <- function(
         "center_characteristics_optimization_values."
       ))
     }
+    # A value outside the centers in the data asks the model about a center it
+    # has not seen. The estimate and its interval are then an extrapolation,
+    # and with few centers the interval can cover every probability.
+    outside <- character(0)
+    for (i in seq_along(center_characteristics)) {
+      x <- data[[center_characteristics[i]]]
+      v <- center_characteristics_optimization_values[i]
+      if (!is.numeric(x) || !any(is.finite(x)) || !is.finite(v)) next
+      rng <- range(x[is.finite(x)])
+      if (v < rng[1] || v > rng[2]) {
+        outside <- c(outside, sprintf(
+          "%s = %s, while the data has %s to %s",
+          center_characteristics[i], format(v), format(rng[1]), format(rng[2])
+        ))
+      }
+    }
+    if (length(outside) > 0) {
+      input_warning(paste0(
+        "The recommendation is for a center outside the centers in the data: ",
+        paste(outside, collapse = ", and "), ". The estimated outcome and its ",
+        "confidence interval are then an extrapolation of the model, so the ",
+        "interval can be very wide. Choose a value within the data, or make ",
+        "sure the model holds for such a center."
+      ))
+    }
   }
 
   # if include_center_effects is not specified, set the default value: TRUE

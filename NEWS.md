@@ -1,5 +1,7 @@
 # LAGOtrials (development version)
 
+* `lago_optimization()` warns when a value in `center_characteristics_optimization_values` is outside the range of that characteristic in the data. The recommendation is then for a center the model has not seen, so the estimated outcome and its confidence interval are an extrapolation. With few centers the interval can be so wide that it covers every probability from 0 to 1. The warning names each such characteristic, the value and the range in the data.
+
 * `lago_app()` can save every setting to a file with Save settings, and put them back on the same data with Load settings. Loading on data that lacks a column the settings name says which columns are missing. `lago_app(result)` with a `lago` result opens on the data and the settings of its call, so one setting can be changed and the run repeated without typing the setup again. Settings the app cannot show, such as an interaction of three components, are listed when it opens.
 
 * `lago_app()` takes center level data, with one row per center and period. The outcome comes from a column of successes or of proportions and a column of totals, and the app builds the `proportion` and `center_sample_size` columns the package reads. The PULESA example `main_pulesa_data` is a new example dataset, set up as in the package's PULESA model with clinic and period effects. For the weighted average center, each center's weight can now be set, starting at its share of the patients, with a check that the weights add up to 1.
