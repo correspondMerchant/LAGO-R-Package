@@ -102,6 +102,7 @@
 #' prior weights as relative observation weights, with zero weights excluded
 #' from covariance contributions and the identity residual degrees of freedom.
 #' See get_confidence_set() for the covariance formulas and family limits.
+#' A row with an NA weight is left out of the fit, as glm() leaves it out.
 #' A data column named weights does not replace this argument. For center
 #' level data it is ignored with a warning, since each row is weighted by its
 #' center_sample_size.
@@ -269,8 +270,9 @@
 #' design effect for the power calculation. Required when icc is non-zero. The
 #' stage-1 cluster size is the variance-appropriate (size-biased) mean
 #' sum(m_i^2) / sum(m_i) over that arm's centers, where m_i counts the center's
-#' rows with an observed outcome, and each arm must have at least two centers
-#' with an observed outcome.
+#' rows with an observed outcome (its patients, the sum of center_sample_size,
+#' for center level data), and each arm must have at least two centers with an
+#' observed outcome.
 #' Default value without user specification: NULL.
 #'
 #' @return List(

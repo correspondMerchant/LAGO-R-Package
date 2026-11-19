@@ -1203,14 +1203,20 @@ validate_inputs <- function(
       ))
     }
 
-    # pre_recommended_interventions must be within the bounds
+    if (!all(is.finite(prev_recommended_interventions))) {
+      stop(paste(
+        "prev_recommended_interventions must be finite numbers, one per",
+        "intervention component, with no NA."
+      ))
+    }
+    # prev_recommended_interventions must be within the bounds
     for (i in 1:length(all_components)) {
       if (prev_recommended_interventions[i] <
         intervention_lower_bounds[i] ||
         prev_recommended_interventions[i] >
           intervention_upper_bounds[i]) {
         stop(paste(
-          "The pre_recommended_interventions[", i, "]",
+          "The prev_recommended_interventions[", i, "]",
           "is outside the bounds of the intervention component",
           all_components[i], "."
         ))
@@ -1352,7 +1358,8 @@ validate_inputs <- function(
         # outcome) and ignoring a missing center id, as its table() does
         for (grp in c("control", "treatment")) {
           ids <- data[
-            data$group == grp & !is.na(data[[outcome_name]]),
+            data$group == grp & !is.na(data[[outcome_name]]) &
+              (input_data_structure != "center_level" | !is.na(data$center_sample_size)),
             power_goal_cluster_id,
             drop = TRUE
           ]
@@ -1360,7 +1367,9 @@ validate_inputs <- function(
           if (n_centers < 2) {
             stop(paste0(
               "The '", grp, "' arm has fewer than two distinct ",
-              "power_goal_cluster_id centers with an observed outcome, so ",
+              "power_goal_cluster_id centers with an observed outcome",
+              if (input_data_structure == "center_level") " and a center_sample_size",
+              ", so ",
               "the stage-1 design effect is not identifiable. Provide data ",
               "with at least two such centers per arm, or set icc = NULL."
             ))

@@ -17,6 +17,10 @@ get_power_desired_outcome <- function(
   if (is.null(control_rate)) {
     control_rate <- rje::expit(intervention_components_coeff[1])
   }
+  # On the identity link the fitted rate can fall outside 0 to 1, where
+  # p(1 - p) is negative and the variances below are not defined. A rate is a
+  # probability, so it is held within 0 to 1.
+  control_rate <- min(max(control_rate, 0), 1)
   # patients per row: 1 for individual level data, center_sample_size for
   # center level data, whose outcome is a proportion
   if (is.null(row_sizes)) row_sizes <- rep(1, nrow(data))
@@ -227,6 +231,13 @@ get_power_desired_outcome <- function(
                                            n_points = 1000,
                                            beta0) {
       grid_for_expit_part <- seq(lower, upper, length.out = n_points)
+      # get_ncp_diff() needs only each arm's totals, so they are summed once
+      # here rather than at every grid point
+      arm_totals <- function(arm) {
+        list(.lago_row_size = sum(arm$.lago_row_size), .lago_events = sum(arm$.lago_events))
+      }
+      ctl_data_stage1 <- arm_totals(ctl_data_stage1)
+      int_data_stage1 <- arm_totals(int_data_stage1)
 
       ncp_diffs <- sapply(grid_for_expit_part, function(expit_part) {
         get_ncp_diff(

@@ -943,6 +943,14 @@ get_recommended_interventions <- function(
         # If the goal is achievable, get the recommended intervention that
         # minimizes the total cost function
 
+        # The constraint is handed to solnl() on the scale of the outcome, as
+        # the objective is on the scale of the cost: solnl()'s tolerances are
+        # absolute, so an outcome in very large or very small units would
+        # otherwise stop it at a costlier point.
+        outcome_scale <- max(abs(new_outcome_goal), abs(max_achievable_outcome))
+        if (!is.finite(outcome_scale) || outcome_scale <= 0) {
+          outcome_scale <- 1
+        }
         # a vector of constraint equations
         # (see helper doc of NlcOptim package for details)
         constraint_fun <- function(x) {
@@ -969,13 +977,13 @@ get_recommended_interventions <- function(
               )
           )
 
-          return(list(ceq = NULL, c = f))
+          return(list(ceq = NULL, c = f / outcome_scale))
         }
 
         cost_results <- numeric(length(quantile_points))
         # solnl() can return a point short of the goal without an error. The
-        # tolerance is the one lago_budget() counts a goal as reached within.
-        goal_tol <- 1e-6 * max(1, abs(new_outcome_goal))
+        # tolerance is relative to the outcome, as the constraint is.
+        goal_tol <- 1e-6
         reaches_goal <- function(x, tol = goal_tol) constraint_fun(x)$c <= tol
         solve_cost <- function(start_points, ...) {
           tryCatch(
@@ -1019,7 +1027,7 @@ get_recommended_interventions <- function(
         # no diagonal restart reached the goal.
         best_cost <- suppressWarnings(min(cost_results, na.rm = TRUE))
         extra_starts <- c(off_diagonal_starts(lo, up), list(max_point))
-        strict_tol <- 1e-8 * max(1, abs(new_outcome_goal))
+        strict_tol <- 1e-8
         for (start in extra_starts) {
           result <- solve_cost(start, maxIter = 100)
           if (is.null(result) || any(!is.finite(result$par))) next
