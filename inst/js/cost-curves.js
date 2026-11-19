@@ -11,8 +11,8 @@
 // sliders on release.
 //
 // The file is split into two parts:
-//   1. Pure math (costAt / marginalAt / sampleCurve / validate / dragScale /
-//      anchorXs / solveVandermonde). These have no
+//   1. Pure math (costAt / marginalAt / sampleCurve / shiftCoefs / validate /
+//      dragScale / anchorXs / solveVandermonde / formatSig). These have no
 //      dependency on the DOM, d3, or Shiny and are exported for node so the
 //      curve math can be unit-tested independently (tests/js/test-cost-math.js).
 //   2. Browser rendering + Shiny wiring, only run when d3 and Shiny exist.
@@ -60,33 +60,92 @@
     return pts;
   }
 
-  // Validity check, mirroring the server-side conditions in visualize_cost.R:
-  //   - total cost must be non-decreasing (diff >= -1e-10),
-  //   - marginal cost must be non-negative (>= -1e-10),
-  //   - total cost must be non-negative (>= -1e-10), matching the server's
-  //     is_positive_valid / negative_cost_warning condition.
+  // Re-expand sum_k coef[k] x^k in t = (x - lb) / (ub - lb), which runs from 0
+  // to 1 over the bounds, mirroring .shift_coefs() in visualize_cost.R. Far
+  // from 0 the terms coef[k] x^k are large and nearly cancel, so evaluating in
+  // x loses most of the digits, while in t the terms are about as large as the
+  // cost. err[j] bounds the round-off in d[j]: a few units of the machine
+  // epsilon times the sum of the sizes of the terms that make up d[j].
+  var ROUNDOFF = 8 * 2.220446049250313e-16;
+  function choose(k, j) {
+    var r = 1;
+    for (var i = 1; i <= j; i++) {
+      r = r * (k - j + i) / i;
+    }
+    return r;
+  }
+  function shiftCoefs(coefs, lb, ub) {
+    var n = coefs.length;
+    var span = ub - lb;
+    var lbPow = [1];
+    var spanPow = [1];
+    for (var p = 1; p < n; p++) {
+      lbPow.push(lbPow[p - 1] * lb);
+      spanPow.push(spanPow[p - 1] * span);
+    }
+    var d = [];
+    var err = [];
+    for (var j = 0; j < n; j++) {
+      var sum = 0;
+      var abs = 0;
+      for (var k = j; k < n; k++) {
+        var term = choose(k, j) * coefs[k] * lbPow[k - j];
+        sum += term;
+        abs += Math.abs(term);
+      }
+      d.push(sum * spanPow[j]);
+      err.push(ROUNDOFF * abs * spanPow[j]);
+    }
+    return { d: d, err: err };
+  }
+
+  // Validity check, mirroring the server-side .cost_validity() in
+  // visualize_cost.R:
+  //   - total cost must never fall below its highest value so far,
+  //   - marginal cost must be non-negative,
+  //   - total cost must be non-negative.
+  // The curve is evaluated in the form of shiftCoefs(), and each check allows
+  // only the round-off of that evaluation, so a fall that adds up over many
+  // small steps, or a fall of a small cost, is still caught.
   // Returns {nonDecreasing, positiveMarginal, nonNegativeTotal}. The server
   // keeps using a 2000-point check for its authoritative text warnings; this
   // cheaper check drives the SVG colour cue only.
   function validate(coefs, lb, ub, n) {
     n = n || 500;
-    var tol = -1e-10;
+    var sh = shiftCoefs(coefs, lb, ub);
+    var d = sh.d;
+    var m = d.length;
+    var coefErr = 0;
+    var evalErr = 0;
+    var margErr = 0;
+    for (var j = 1; j < m; j++) {
+      coefErr += sh.err[j];
+      evalErr += ROUNDOFF * Math.abs(d[j]);
+      margErr += j * sh.err[j] + ROUNDOFF * j * Math.abs(d[j]);
+    }
+    var totalErr = sh.err[0] + ROUNDOFF * Math.abs(d[0]) + coefErr + evalErr;
     var nonDecreasing = true;
     var positiveMarginal = true;
     var nonNegativeTotal = true;
-    var prev = costAt(coefs, lb);
-    var step = (ub - lb) / (n - 1);
+    var highest = -Infinity;
     for (var i = 0; i < n; i++) {
-      var x = i === n - 1 ? ub : lb + i * step;
-      var c = costAt(coefs, x);
-      if (c - prev < tol) {
+      var t = i === n - 1 ? 1 : i / (n - 1);
+      // the rise above the value at lb (Horner in t without d[0]), and the
+      // derivative in t, which is the marginal cost times (ub - lb)
+      var rise = 0;
+      var marg = 0;
+      for (var k = m - 1; k >= 1; k--) {
+        rise = (rise + d[k]) * t;
+        marg = marg * t + k * d[k];
+      }
+      highest = Math.max(highest, rise);
+      if (rise < highest - (coefErr + 2 * evalErr)) {
         nonDecreasing = false;
       }
-      prev = c;
-      if (marginalAt(coefs, x) < tol) {
+      if (marg < -margErr) {
         positiveMarginal = false;
       }
-      if (c < tol) {
+      if (d[0] + rise < -totalErr) {
         nonNegativeTotal = false;
       }
     }
@@ -139,22 +198,33 @@
   }
 
   // Solve for the polynomial coefficients c[0..n-1] (in the same ascending-power
-  // order as costAt) whose curve passes through the points (xs[i], ys[i]). This
-  // is the Vandermonde system V c = y with V[i][k] = xs[i]^k, solved by Gaussian
-  // elimination with partial pivoting. It is the inverse of costAt: dragging an
-  // anchor to a new y and re-solving reshapes the curve to pass through the new
-  // point while holding the other anchors fixed. Returns null if the system is
+  // order as costAt) whose curve passes through the points (xs[i], ys[i]). It is
+  // the inverse of costAt: dragging an anchor to a new y and re-solving reshapes
+  // the curve to pass through the new point while holding the other anchors
+  // fixed. The x values are first mapped to t = (x - mid) / half in [-1, 1], so
+  // the system is well scaled for any bounds (very narrow bounds near 0 made the
+  // raw powers of x tiny, and every solve failed). The system V d = y with
+  // V[i][k] = t[i]^k is solved by Gaussian elimination with partial pivoting,
+  // and d is then expanded back into powers of x. Returns null if the system is
   // singular (e.g. duplicated x) or the result is non-finite.
   function solveVandermonde(xs, ys) {
     var n = xs.length;
+    var lo = Math.min.apply(null, xs);
+    var hi = Math.max.apply(null, xs);
+    var mid = (lo + hi) / 2;
+    var half = (hi - lo) / 2;
+    if (!(half > 0)) {
+      half = 1;
+    }
     // augmented matrix [V | y]
     var m = [];
     for (var i = 0; i < n; i++) {
       var row = [];
-      var xp = 1;
+      var tp = 1;
+      var t = (xs[i] - mid) / half;
       for (var k = 0; k < n; k++) {
-        row.push(xp);
-        xp *= xs[i];
+        row.push(tp);
+        tp *= t;
       }
       row.push(ys[i]);
       m.push(row);
@@ -167,6 +237,7 @@
           piv = r;
         }
       }
+      // the entries are at most 1 in size, so this threshold is relative
       if (Math.abs(m[piv][col]) < 1e-12) {
         return null;
       }
@@ -184,15 +255,40 @@
         }
       }
     }
-    var coefs = [];
+    var d = [];
     for (var i2 = 0; i2 < n; i2++) {
-      var v = m[i2][n] / m[i2][i2];
-      if (!isFinite(v)) {
+      d.push(m[i2][n] / m[i2][i2]);
+    }
+    // expand sum_k d[k] ((x - mid) / half)^k into powers of x, using
+    // ((x - mid) / half)^k = sum_j choose(k, j) x^j (-mid)^(k - j) / half^k
+    var coefs = [];
+    for (var j = 0; j < n; j++) {
+      coefs.push(0);
+    }
+    for (var k2 = 0; k2 < n; k2++) {
+      var scale = d[k2] / Math.pow(half, k2);
+      var binom = 1;
+      for (var j2 = 0; j2 <= k2; j2++) {
+        // binom is choose(k2, j2)
+        coefs[j2] += scale * binom * Math.pow(-mid, k2 - j2);
+        binom = binom * (k2 - j2) / (j2 + 1);
+      }
+    }
+    for (var i3 = 0; i3 < n; i3++) {
+      if (!isFinite(coefs[i3])) {
         return null;
       }
-      coefs.push(v);
     }
     return coefs;
+  }
+
+  // A number for a chart label, to 4 significant digits, so a small unit cost
+  // such as 0.001 does not read as 0.00.
+  function formatSig(v) {
+    if (!isFinite(v)) {
+      return String(v);
+    }
+    return String(+v.toPrecision(4));
   }
 
   // A slider reports its value rounded to its step. The exact value the server
@@ -219,10 +315,12 @@
     costAt: costAt,
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
+    shiftCoefs: shiftCoefs,
     validate: validate,
     dragScale: dragScale,
     anchorXs: anchorXs,
     solveVandermonde: solveVandermonde,
+    formatSig: formatSig,
     preferExact: preferExact,
     readThroughExact: readThroughExact
   };
@@ -557,7 +655,7 @@
       .attr("y", uy - 4)
       .attr("text-anchor", "end")
       .style("font-size", "11px")
-      .text("Unit Cost: " + cfg.unitCost.toFixed(2));
+      .text("Unit Cost: " + formatSig(cfg.unitCost));
   }
 
   // Attach draggable handles to the total-cost curve so the user can RESHAPE it,

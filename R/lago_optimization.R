@@ -102,6 +102,8 @@
 #' prior weights as relative observation weights, with zero weights excluded
 #' from covariance contributions and the identity residual degrees of freedom.
 #' See get_confidence_set() for the covariance formulas and family limits.
+#' Weights must not be negative or infinite. A row with a weight of 0 or NA
+#' is left out of the fit.
 #' A data column named weights does not replace this argument. For center
 #' level data it is ignored with a warning, since each row is weighted by its
 #' center_sample_size.
@@ -162,8 +164,9 @@
 #' @param main_components A character vector. Specifies the main intervention
 #' components in the presence of interaction terms.
 #' For example: c("component1", "component2").
-#' @param time_effect_optimization_value A numeric value. The value of the time
-#' effect that will be used for LAGO optimization.
+#' @param time_effect_optimization_value The period used for LAGO
+#' optimization, as a number or as the label of a period in the 'period'
+#' column (for example "2024-Q1", or a Date for a Date column).
 #' @param  center_weights_for_outcome_goal A numeric vector. Specifies the
 #' weights that will be used for calculating recommended interventions that
 #' satisfy the outcome goal for an (weighted) average center.
@@ -171,7 +174,9 @@
 #' A weight of 0 is allowed and excludes that center from the average. A center
 #' with no row where every model variable and the row's glm weight
 #' (center_sample_size for center level data) are observed is left out of the
-#' fit, so its weight must be 0. The weights follow the order of the centers:
+#' fit, so its weight must be 0. Named weights are matched to the centers by
+#' name (an explicit NA level is named "NA"), and names that are not the
+#' centers are refused. Unnamed weights follow the order of the centers:
 #' the levels of a factor column once unused levels are dropped (an explicit NA
 #' level included), and the sorted values otherwise.
 #' Default value without user specification:
@@ -268,8 +273,9 @@
 #' design effect for the power calculation. Required when icc is non-zero. The
 #' stage-1 cluster size is the variance-appropriate (size-biased) mean
 #' sum(m_i^2) / sum(m_i) over that arm's centers, where m_i counts the center's
-#' rows with an observed outcome, and each arm must have at least two centers
-#' with an observed outcome.
+#' rows with an observed outcome (its patients, the sum of center_sample_size,
+#' for center level data), and each arm must have at least two centers with an
+#' observed outcome.
 #' Default value without user specification: NULL.
 #'
 #' @return List(
@@ -289,21 +295,24 @@
 #' to [lago_sensitivity()] to sweep one input without retyping the call.
 #'
 #' @examples
-#' # Basic case showing how to carry out the optimization with
-#' # a built-in data set. The confidence set is skipped here to keep this
-#' # example fast; the \donttest examples below show a full run with one.
+#' # Basic case with the built-in mtcars data. Treat the number of gears and
+#' # the quarter mile time as two intervention components, and find the least
+#' # costly values within the observed ranges that raise the expected miles per
+#' # gallon to 25. The confidence set uses a coarse grid of whole numbers, so
+#' # this example stays fast.
 #' lago_optimization(
-#'   data = infert,
-#'   outcome_name = "case",
-#'   outcome_type = "binary",
-#'   glm_family = "binomial",
-#'   intervention_components = c("age", "parity"),
-#'   intervention_lower_bounds = c(0, 0),
-#'   intervention_upper_bounds = c(50, 10),
-#'   cost_list_of_vectors = list(c(0, 4), c(0, 1)),
-#'   outcome_goal = 0.5,
+#'   data = mtcars,
+#'   outcome_name = "mpg",
+#'   outcome_type = "continuous",
+#'   glm_family = "gaussian",
+#'   link = "identity",
+#'   intervention_components = c("gear", "qsec"),
+#'   intervention_lower_bounds = c(3, 14),
+#'   intervention_upper_bounds = c(5, 23),
+#'   cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+#'   outcome_goal = 25,
 #'   outcome_goal_intention = "maximize",
-#'   include_confidence_set = FALSE
+#'   confidence_set_grid_step_size = c(1, 1)
 #' )
 #'
 #' # Fuller examples, including the confidence-set grid search, which is
@@ -326,6 +335,9 @@
 #'   confidence_set_grid_step_size = c(1, 1)
 #' )
 #'
+#' # This goal of 0.85 is above what the data reach at the bounds, so it warns
+#' # that the goal is not achievable and uses the shrinking method, with no
+#' # confidence set.
 #' lago_optimization(
 #'   data = BB_proportions,
 #'   outcome_name = "EBP_proportions",
@@ -399,6 +411,11 @@ lago_optimization <- function(
   # it does not disturb the printed output, the documented $-accessible fields,
   # or the list's named-element set, and lets lago_sensitivity() reuse the call.
   captured_args <- mget(names(formals()))
+  # a cost type the caller did not set is not stored, so a rerun from the
+  # result does not show the note that a cost list overrides it
+  if (missing(default_cost_fxn_type) && !is.null(cost_list_of_vectors)) {
+    captured_args$default_cost_fxn_type <- NULL
+  }
 
   if (!quiet) cli::cli_alert_info("Starting LAGO Optimization")
 
@@ -408,9 +425,15 @@ lago_optimization <- function(
   # environment snapshot; otherwise it is passed as an unused argument and errors.
   validation_args <- as.list(environment())
   validation_args$captured_args <- NULL
+  # the note that a cost list overrides default_cost_fxn_type is only for a
+  # caller who set it
+  cost_type_given <- !missing(default_cost_fxn_type)
+  validation_args$cost_type_given <- cost_type_given
+  # called with the argument names, so an error names them rather than carry
+  # their values, which include the whole data set
   inputs <- do.call(
     validate_inputs,
-    validation_args
+    sapply(names(validation_args), as.name, simplify = FALSE)
   )
   if (!quiet) Sys.sleep(0.25)
   if (!quiet) cli::cli_alert_success("Done")
@@ -618,6 +641,7 @@ lago_optimization <- function(
     display_components = display_components,
     outcome_type = outcome_type,
     outcome_goal = outcome_goal,
+    outcome_goal_intention = outcome_goal_intention,
     power_goal = power_goal,
     model = model,
     # inputs recap

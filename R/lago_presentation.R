@@ -14,7 +14,8 @@
 #   - recommendation values, estimated outcome: .lago_fmt_value()
 #   - recommended cost: signif(., 5)
 #   - confidence-set cost IQR: round(., 2)
-#   - p-values: signif(., 4)
+#   - p-values: signif(., 4), or "< 2.2e-16" when the p-value is below the
+#     machine precision (it then underflows to 0, which is not a true p-value)
 
 # 4 decimals, or 4 significant digits for values closer to 0 than 0.1, as the
 # interval bounds are stored, so a rare outcome keeps its digits. Values closer
@@ -36,16 +37,44 @@
 
 .lago_fmt_cost_range <- function(v) ifelse(abs(v) >= 1 | v == 0, round(v, 2), signif(v, 3))
 
-.lago_fmt_pval <- function(p, digits = 4) signif(p, digits)
+# A number as text, written in full (no e notation) the way the JS
+# fmtValue() and fmtCost() of the report write it: e notation is used only for
+# values from 1e21 up or closer to 0 than 1e-6. paste() would write round
+# numbers such as 1e+05 and small ones such as 1e-05 in e notation. Pass the
+# value rounded first, as the 15 digits here only drop floating point noise.
+.lago_num_text <- function(v) {
+  v <- as.numeric(v)
+  a <- abs(v)
+  plain <- is.finite(v) & a < 1e21 & a >= 1e-6
+  # e notation as JS writes it, such as 1e-7 and 1e+21 (R writes 1e-07)
+  out <- sub("e([+-])0+([0-9])", "e\\1\\2", as.character(v))
+  out[plain] <- vapply(v[plain], format, character(1), digits = 15, scientific = FALSE, trim = TRUE)
+  out[!is.na(v) & v == 0] <- "0"
+  out
+}
+
+.lago_fmt_pval <- function(p, digits = 4) {
+  eps <- .Machine$double.eps
+  ifelse(!is.na(p) & p < eps, paste0("< ", format(eps, digits = 2)), signif(p, digits))
+}
+
+# The coefficients of one cost polynomial, rounded to 5 significant figures and
+# written out in full (no scientific notation), such as "0, 2269.9, 14.239".
+.lago_fmt_cost_coefs <- function(v) {
+  paste(trimws(formatC(signif(as.numeric(v), 5), digits = 5, format = "fg")), collapse = ", ")
+}
 
 # --- the shared formatter -----------------------------------------------------
 
 # The confidence level of a result, such as "95%", from the confidence_set_alpha
 # it was computed with. 95% for an object that did not record its arguments.
+# alpha is rounded to 4 significant digits first, so an alpha such as 1/3 gives
+# a short label ("66.67%") while a small alpha such as 1e-5 keeps its digits.
 .lago_confidence_label <- function(x) {
   alpha <- attr(x, "lago_call_args")$confidence_set_alpha
   if (!is.numeric(alpha) || length(alpha) != 1 || is.na(alpha)) alpha <- 0.05
-  paste0(format(round(100 * (1 - alpha), 10), digits = 15, scientific = FALSE), "%")
+  level <- round(100 * (1 - signif(alpha, 4)), 10)
+  paste0(format(level, digits = 15, scientific = FALSE), "%")
 }
 
 #' Build presentation blocks for a LAGO result
@@ -54,8 +83,9 @@
 #' pre-formatted blocks shared by the console methods and the report generator.
 #' Each block is `list(title = <string>, rows = <data.frame or character
 #' vector>)`. Blocks that do not apply to the object are `NULL`
-#' (`power` when there is no power goal, `confidence_set` when there is no
-#' confidence set, `test` when there are no test results).
+#' (`power` when there is no power goal, `test` when there are no test
+#' results). The `confidence_set` block is always present. When there is no
+#' set, its rows say why.
 #'
 #' No new statistics are computed here; every value is taken verbatim from an
 #' existing field and formatted with the same wording and rounding used by
@@ -127,17 +157,28 @@ lago_blocks <- function(x) {
         paste0("Fixed time effects: ", isTRUE(x$include_time_effects))
       )
     }
+    # The direction of the goal. An object made before the direction was
+    # stored falls back on the arguments it recorded, and shows no direction
+    # when it has neither.
+    intention <- x$outcome_goal_intention %||% attr(x, "lago_call_args")$outcome_goal_intention
+    goal_direction <- ""
+    if (!is.null(x$outcome_goal) && identical(intention, "maximize")) {
+      goal_direction <- " (maximize: at least this value)"
+    } else if (!is.null(x$outcome_goal) && identical(intention, "minimize")) {
+      goal_direction <- " (minimize: at most this value)"
+    }
     # Both goal lines are always shown (with "not specified" when NULL), as the
     # old output did, so the recap is unambiguous about which goal was set.
     input_rows <- c(
       input_rows,
       paste0(
         "Outcome goal: ",
-        if (is.null(x$outcome_goal)) "not specified" else x$outcome_goal
+        if (is.null(x$outcome_goal)) "not specified" else .lago_num_text(.lago_fmt_value(x$outcome_goal)),
+        goal_direction
       ),
       paste0(
         "Power goal: ",
-        if (is.null(x$power_goal)) "not specified" else x$power_goal
+        if (is.null(x$power_goal)) "not specified" else .lago_num_text(x$power_goal)
       )
     )
     if (!is.null(x$power_goal) && !is.null(x$effective_outcome_goal)) {
@@ -146,16 +187,27 @@ lago_blocks <- function(x) {
         paste0(
           "Effective outcome goal (max of outcome goal and ",
           "power-implied outcome): ",
-          .lago_fmt_value(x$effective_outcome_goal)
+          .lago_num_text(.lago_fmt_value(x$effective_outcome_goal))
         )
       )
     }
     if (!is.null(x$cost_list_of_vectors)) {
+      # one "component: coefficients" entry per cost polynomial, named by the
+      # components the cost vectors line up with (the main components with
+      # interaction terms), and rounded so the line stays readable.
+      cost_vecs <- x$cost_list_of_vectors
+      cost_labels <- x$display_components %||% x$intervention_components
+      cost_text <- vapply(cost_vecs, .lago_fmt_cost_coefs, character(1))
+      if (length(cost_labels) == length(cost_vecs)) {
+        cost_text <- paste0(cost_labels, " (", cost_text, ")")
+      } else {
+        cost_text <- paste0("(", cost_text, ")")
+      }
       input_rows <- c(
         input_rows,
         paste0(
           "Intervention component costs: ",
-          toString(x$cost_list_of_vectors)
+          paste(cost_text, collapse = ", ")
         )
       )
     }
@@ -164,11 +216,11 @@ lago_blocks <- function(x) {
         input_rows,
         paste0(
           "Intervention lower bounds: ",
-          paste(x$intervention_lower_bounds, collapse = ", ")
+          paste(.lago_num_text(x$intervention_lower_bounds), collapse = ", ")
         ),
         paste0(
           "Intervention upper bounds: ",
-          paste(x$intervention_upper_bounds, collapse = ", ")
+          paste(.lago_num_text(x$intervention_upper_bounds), collapse = ", ")
         )
       )
     }
@@ -185,11 +237,11 @@ lago_blocks <- function(x) {
   if (!is.null(comps) && length(comps) == length(vals)) {
     rec_rows <- data.frame(
       component = comps,
-      value = .lago_fmt_value(vals),
+      value = .lago_num_text(.lago_fmt_value(vals)),
       stringsAsFactors = FALSE
     )
   } else {
-    rec_rows <- data.frame(value = .lago_fmt_value(vals))
+    rec_rows <- data.frame(value = .lago_num_text(.lago_fmt_value(vals)), stringsAsFactors = FALSE)
   }
   recommendation <- list(
     title = "Recommended intervention",
@@ -199,7 +251,7 @@ lago_blocks <- function(x) {
   # --- cost
   cost <- list(
     title = "Cost",
-    rows = paste0("Cost: ", .lago_fmt_cost(x$rec_int_cost))
+    rows = paste0("Cost: ", .lago_num_text(.lago_fmt_cost(x$rec_int_cost)))
   )
 
   # --- outcome (estimated outcome, its CI when available, and the outcome
@@ -207,7 +259,7 @@ lago_blocks <- function(x) {
   # recommended intervention, which get_confidence_set() reports in its own
   # rec_int_ci field, carried on the object as est_outcome_ci.
   outcome_rows <- paste0(
-    "Estimated outcome: ", .lago_fmt_value(x$est_outcome_goal)
+    "Estimated outcome: ", .lago_num_text(.lago_fmt_value(x$est_outcome_goal))
   )
   # Always show a CI line, with the old fallback wording when the interval is
   # not available. The interval no longer depends on the confidence set being
@@ -217,9 +269,9 @@ lago_blocks <- function(x) {
   ci_line <- if (!is.null(x$est_outcome_ci)) {
     paste0(
       level, " CI for the estimated outcome: ",
-      .lago_fmt_value(x$est_outcome_ci[["lower"]]),
+      .lago_num_text(.lago_fmt_value(x$est_outcome_ci[["lower"]])),
       " - ",
-      .lago_fmt_value(x$est_outcome_ci[["upper"]])
+      .lago_num_text(.lago_fmt_value(x$est_outcome_ci[["upper"]]))
     )
   } else if (!is.null(x$confidence_set_size_percentage)) {
     paste0(
@@ -235,7 +287,7 @@ lago_blocks <- function(x) {
   if (!is.null(x$outcome_goal)) {
     outcome_rows <- c(
       outcome_rows,
-      paste0("Outcome goal: ", x$outcome_goal)
+      paste0("Outcome goal: ", .lago_num_text(.lago_fmt_value(x$outcome_goal)))
     )
   }
   outcome <- list(
@@ -248,25 +300,27 @@ lago_blocks <- function(x) {
   if (!is.null(x$power_goal)) {
     power <- list(
       title = "Power",
-      rows = paste0("Power goal: ", x$power_goal)
+      rows = paste0("Power goal: ", .lago_num_text(x$power_goal))
     )
   }
 
-  # --- confidence set (NULL when no confidence set)
-  confidence_set <- NULL
-  if (!is.null(x$cs)) {
-    cs_rows <- character(0)
-    if (!is.null(x$confidence_set_size_percentage)) {
-      cs_rows <- c(
-        cs_rows,
-        paste0(
-          level, " confidence set size: ",
-          round(100 * x$confidence_set_size_percentage, 2),
-          "% of the grid"
-        )
-      )
-    }
-    if (!is.null(x$cs$cost)) {
+  # --- confidence set. Always present, so the console and the report both
+  # explain why there is no set when it was not computed or is empty.
+  if (is.null(x$confidence_set_size_percentage) && isTRUE(x$shrinking_method_used)) {
+    cs_rows <- "Not computed: the goal could not be reached, so the shrinking method was used and no confidence set is computed."
+  } else if (is.null(x$confidence_set_size_percentage)) {
+    # confidence set was not requested (include_confidence_set = FALSE).
+    cs_rows <- "Not computed (set include_confidence_set = TRUE to compute it)."
+  } else {
+    # 2 decimals, but a set too small for that shows as "< 0.01%" and not
+    # as 0%, which would read as an empty set.
+    size <- 100 * x$confidence_set_size_percentage
+    size_text <- if (size > 0 && size < 0.005) "< 0.01" else .lago_num_text(round(size, 2))
+    cs_rows <- paste0(level, " confidence set size: ", size_text, "% of the grid")
+    if (is.null(x$cs)) {
+      # size field present but no set found for the current goal.
+      cs_rows <- c(cs_rows, "No confidence set was found for the current outcome goal.")
+    } else if (!is.null(x$cs$cost)) {
       # IQR (25th-75th percentile) of the cost within the confidence set, as the
       # old console output reported it.
       qs <- stats::quantile(x$cs$cost, probs = c(0.25, 0.75), names = FALSE)
@@ -274,17 +328,17 @@ lago_blocks <- function(x) {
         cs_rows,
         paste0(
           "IQR of the cost within the ", level, " confidence set: ",
-          .lago_fmt_cost_range(qs[1]),
+          .lago_num_text(.lago_fmt_cost_range(qs[1])),
           " - ",
-          .lago_fmt_cost_range(qs[2])
+          .lago_num_text(.lago_fmt_cost_range(qs[2]))
         )
       )
     }
-    confidence_set <- list(
-      title = "Confidence set",
-      rows = cs_rows
-    )
   }
+  confidence_set <- list(
+    title = "Confidence set",
+    rows = cs_rows
+  )
 
   # --- overall intervention-effect test (NULL when no test results). Binary
   # outcomes use the two-sample test for a difference in proportions; the label
@@ -300,7 +354,7 @@ lago_blocks <- function(x) {
     }
     test_rows <- c(
       test_rows,
-      paste0("Test statistic: ", .lago_fmt_value(x$test_results$test_stat)),
+      paste0("Test statistic: ", .lago_num_text(.lago_fmt_value(x$test_results$test_stat))),
       paste0("P-value: ", .lago_fmt_pval(x$test_results$p_val, 4))
     )
     test <- list(

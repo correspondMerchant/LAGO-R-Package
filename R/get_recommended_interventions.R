@@ -689,9 +689,12 @@ get_recommended_interventions <- function(
       # find the maximum outcome
       max_outcome <- max(all_outcomes)
 
-      if (max_outcome >= new_outcome_goal && !power_unreachable) {
+      # a goal within round off of the best outcome is reached
+      # relative to the outcome, so it does not depend on its units
+      reach_tol <- 1e-10 * max(abs(new_outcome_goal), abs(max_outcome))
+      if (max_outcome >= new_outcome_goal - reach_tol && !power_unreachable) {
         # 1) if the outcome goal is achievable
-        valid_indices <- which(all_outcomes >= new_outcome_goal)
+        valid_indices <- which(all_outcomes >= new_outcome_goal - reach_tol)
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
 
         est_rec_int <- as.numeric(full_grid[best_index, ])
@@ -932,10 +935,24 @@ get_recommended_interventions <- function(
       cost_obj_fun_scaled <- function(x) cost_obj_fun(x) / cost_scale
 
       # 1) if the max achievable outcome is larger than the new outcome goal
-      if (max_achievable_outcome >= new_outcome_goal && !power_unreachable) {
+      # a goal within round off of the best outcome is reached. The tolerance
+      # is relative to the outcome, so it does not depend on its units.
+      if (max_achievable_outcome >= new_outcome_goal -
+        1e-10 * max(abs(new_outcome_goal), abs(max_achievable_outcome)) &&
+        !power_unreachable) {
         # If the goal is achievable, get the recommended intervention that
         # minimizes the total cost function
 
+        # The constraint is handed to solnl() on the scale of the outcome, as
+        # the objective is on the scale of the cost: solnl()'s tolerances are
+        # absolute, so an outcome in very large or very small units would
+        # otherwise stop it at a costlier point.
+        # the goal's own size, so the tolerance is never looser than the one
+        # lago_budget() counts a goal as reached within
+        outcome_scale <- abs(new_outcome_goal)
+        if (!is.finite(outcome_scale) || outcome_scale <= 0) {
+          outcome_scale <- 1
+        }
         # a vector of constraint equations
         # (see helper doc of NlcOptim package for details)
         constraint_fun <- function(x) {
@@ -962,13 +979,13 @@ get_recommended_interventions <- function(
               )
           )
 
-          return(list(ceq = NULL, c = f))
+          return(list(ceq = NULL, c = f / outcome_scale))
         }
 
         cost_results <- numeric(length(quantile_points))
         # solnl() can return a point short of the goal without an error. The
-        # tolerance is the one lago_budget() counts a goal as reached within.
-        goal_tol <- 1e-6 * max(1, abs(new_outcome_goal))
+        # tolerance is relative to the outcome, as the constraint is.
+        goal_tol <- 1e-6
         reaches_goal <- function(x, tol = goal_tol) constraint_fun(x)$c <= tol
         solve_cost <- function(start_points, ...) {
           tryCatch(
@@ -1012,7 +1029,7 @@ get_recommended_interventions <- function(
         # no diagonal restart reached the goal.
         best_cost <- suppressWarnings(min(cost_results, na.rm = TRUE))
         extra_starts <- c(off_diagonal_starts(lo, up), list(max_point))
-        strict_tol <- 1e-8 * max(1, abs(new_outcome_goal))
+        strict_tol <- 1e-8
         for (start in extra_starts) {
           result <- solve_cost(start, maxIter = 100)
           if (is.null(result) || any(!is.finite(result$par))) next
@@ -1087,7 +1104,8 @@ get_recommended_interventions <- function(
         )
         rec_int_cost <- selected$rec_int_cost
 
-        est_rec_int <- selected$int_components
+        # unnamed, as a one-component matrix column can carry the name of a start point
+        est_rec_int <- unname(selected$int_components)
 
         est_reachable_outcome <- get_est_reachable_outcome(
           x = est_rec_int,

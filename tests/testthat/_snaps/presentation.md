@@ -16,9 +16,10 @@
       Outcome model link: logit
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 0.85
+      Outcome goal: 0.85 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 1700), c(0, 8000)
+      Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+      8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
       
@@ -82,9 +83,10 @@
       Outcome model link: logit
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 0.85
+      Outcome goal: 0.85 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 1700), c(0, 8000)
+      Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+      8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
       
@@ -147,9 +149,9 @@
       Outcome model link: identity
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 40
+      Outcome goal: 40 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 4), c(4, 6)
+      Intervention component costs: gear (0, 4), qsec (4, 6)
       Intervention lower bounds: 0, 0
       Intervention upper bounds: 10, 350
       
@@ -163,8 +165,8 @@
       Standard errors are model based, as the confidence set uses them.
       
       -- Overall intervention-effect test 
-      To see the overall test results, include a 'group' column in the data with
-      values 'treatment' or 'control' (binary outcomes only).
+      The overall test is only available for binary outcomes. This outcome is
+      continuous.
       
       -- Recommended intervention 
       gear: 10
@@ -204,9 +206,9 @@
       Outcome model link: identity
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 40
+      Outcome goal: 40 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 4), c(4, 6)
+      Intervention component costs: gear (0, 4), qsec (4, 6)
       Intervention lower bounds: 0, 0
       Intervention upper bounds: 10, 350
       
@@ -220,8 +222,8 @@
       Standard errors are model based, as the confidence set uses them.
       
       -- Overall intervention-effect test 
-      To see the overall test results, include a 'group' column in the data with
-      values 'treatment' or 'control' (binary outcomes only).
+      The overall test is only available for binary outcomes. This outcome is
+      continuous.
       
       -- Recommended intervention 
       gear: 10
@@ -265,7 +267,8 @@
       Outcome goal: not specified
       Power goal: 0.8
       Effective outcome goal (max of outcome goal and power-implied outcome): 0.2429
-      Intervention component costs: c(0, 1700), c(0, 8000)
+      Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+      8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
       
@@ -282,7 +285,7 @@
       -- Overall intervention-effect test 
       Two-sample test for the difference in two proportions:
       Test statistic: 56.4253
-      P-value: 0
+      P-value: < 2.2e-16
       
       -- Recommended intervention 
       coaching_updt: 1
@@ -316,7 +319,8 @@
       Outcome goal: not specified
       Power goal: 0.8
       Effective outcome goal (max of outcome goal and power-implied outcome): 0.2429
-      Intervention component costs: c(0, 1700), c(0, 8000)
+      Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+      8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
       
@@ -333,7 +337,7 @@
       -- Overall intervention-effect test 
       Two-sample test for the difference in two proportions:
       Test statistic: 56.4253
-      P-value: 0
+      P-value: < 2.2e-16
       
       -- Recommended intervention 
       coaching_updt: 1
@@ -363,9 +367,9 @@
       Outcome model link: logit
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 0.6
+      Outcome goal: 0.6 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 1)
+      Intervention component costs: dose (0, 1)
       Intervention lower bounds: 0
       Intervention upper bounds: 3
       
@@ -413,9 +417,9 @@
       Outcome model link: logit
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 0.6
+      Outcome goal: 0.6 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 1)
+      Intervention component costs: dose (0, 1)
       Intervention lower bounds: 0
       Intervention upper bounds: 3
       
@@ -464,9 +468,10 @@
       Outcome model link: logit
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 0.85
+      Outcome goal: 0.85 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 1700), c(0, 8000)
+      Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+      8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
       
@@ -514,9 +519,10 @@
       Outcome model link: logit
       Fixed center effects: FALSE
       Fixed time effects: FALSE
-      Outcome goal: 0.85
+      Outcome goal: 0.85 (maximize: at least this value)
       Power goal: not specified
-      Intervention component costs: c(0, 1700), c(0, 8000)
+      Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+      8000)
       Intervention lower bounds: 1, 1
       Intervention upper bounds: 40, 5
       

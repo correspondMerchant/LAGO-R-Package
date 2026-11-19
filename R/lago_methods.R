@@ -39,10 +39,19 @@
   }
 
   # --- overall intervention-effect test (or the guidance shown when no valid
-  # 'group' column was supplied, matching the old output).
+  # 'group' column was supplied, matching the old output). The test exists only
+  # for binary outcomes, so a result with another outcome type says so instead
+  # of asking for a group column it may already have.
   cli::cli_h3("{accent('Overall intervention-effect test')}")
   if (!is.null(blocks$test)) {
     for (row in blocks$test$rows) cli::cli_text(row)
+  } else if (!is.null(x$outcome_type) && !identical(x$outcome_type, "binary")) {
+    cli::cli_text(
+      paste0(
+        "The overall test is only available for binary outcomes. This ",
+        "outcome is ", x$outcome_type, "."
+      )
+    )
   } else {
     cli::cli_text(
       paste(
@@ -69,31 +78,13 @@
   # --- confidence set: size, cost IQR, and first rows. The size line is shown
   # here (gated on the field) so it still appears when the field is present but
   # no confidence set was found (cs NULL).
-  cli::cli_h3("{accent('Confidence set')}")
-  if (is.null(x$confidence_set_size_percentage) && isTRUE(x$shrinking_method_used)) {
-    cli::cli_text("Not computed: the goal could not be reached, so the shrinking method was used and no confidence set is computed.")
-  } else if (is.null(x$confidence_set_size_percentage)) {
-    # confidence set was not requested (include_confidence_set = FALSE).
-    cli::cli_text(
-      "Not computed (set include_confidence_set = TRUE to compute it)."
-    )
-  } else {
-    level <- .lago_confidence_label(x)
-    cli::cli_text(
-      "{level} confidence set size: {round(100 * x$confidence_set_size_percentage, 2)}% of the grid"
-    )
-    if (!is.null(blocks$confidence_set) && !is.null(x$cs)) {
-      # render the non-size rows (cost IQR) verbatim from the shared block.
-      iqr_rows <- blocks$confidence_set$rows[
-        !startsWith(blocks$confidence_set$rows, paste(level, "confidence set size"))
-      ]
-      for (row in iqr_rows) cli::cli_text(row)
-      cli::cli_text("First rows of the confidence set (use $cs for all):")
-      print(utils::head(x$cs))
-    } else {
-      # size field present but no set found for the current goal.
-      cli::cli_text("No confidence set was found for the current outcome goal.")
-    }
+  # The shared block holds the size and cost IQR, or the reason there is no
+  # set, so the report shows the same lines.
+  cli::cli_h3("{accent(blocks$confidence_set$title)}")
+  for (row in blocks$confidence_set$rows) cli::cli_text(row)
+  if (!is.null(x$confidence_set_size_percentage) && !is.null(x$cs)) {
+    cli::cli_text("First rows of the confidence set (use $cs for all):")
+    print(utils::head(x$cs))
   }
 
   invisible(x)

@@ -471,7 +471,7 @@ test_that("the weight checks cover the DEFAULT weights, not just supplied", {
 
 test_that("include_time_effects must be logical", {
   expect_error(call_vi(include_time_effects = "yes"),
-    "'include_time_effects' must be a boolean")
+    "'include_time_effects' must be TRUE or FALSE")
 })
 
 test_that("unsupported glm_family reaches the switch default", {
@@ -493,7 +493,7 @@ test_that("time_effect_optimization_value must be a single numeric when time eff
     "'time_effect_optimization_value' must be provided")
   expect_error(
     call_vi(data = dt, include_time_effects = TRUE,
-            time_effect_optimization_value = "a"),
+            time_effect_optimization_value = TRUE),
     "'time_effect_optimization_value' must be provided")
   expect_error(
     call_vi(data = dt, include_time_effects = TRUE,
@@ -1013,7 +1013,7 @@ test_that("confidence_set_alpha must be between 0 and 1", {
 })
 
 test_that("glm_family must match the outcome type", {
-  expect_error(call_vi(outcome_type = "binary", glm_family = "gaussian"),
+  expect_error(call_vi(outcome_name = "am", outcome_type = "binary", glm_family = "gaussian"),
     "is not valid for the outcome type")
 })
 

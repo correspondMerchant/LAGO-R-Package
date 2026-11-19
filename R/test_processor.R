@@ -1,6 +1,7 @@
 test_processor <- function(data, outcome_type, outcome_name, row_sizes = NULL) {
   # check if the 'group' column is either 'treatment' or 'control'
-  if (!all(data$group %in% c("treatment", "control"))) {
+  # a row with no arm is left out of the test, as a row with no outcome is
+  if (!all(data$group %in% c("treatment", "control", NA))) {
     warning(paste(
       "To show the overall test results,",
       "the 'group' column must be either 'treatment'",
@@ -35,6 +36,14 @@ test_processor <- function(data, outcome_type, outcome_name, row_sizes = NULL) {
     }
     treatment <- arm_summary("treatment")
     control <- arm_summary("control")
+    # the test needs two observed rows in each arm for its variances
+    if (!is.finite(treatment[["var"]]) || !is.finite(control[["var"]])) {
+      warning(paste(
+        "The overall test is not shown, because each arm of the 'group'",
+        "column needs at least two patients with an observed outcome."
+      ))
+      return(NULL)
+    }
 
     # manually write test for two-sample test
     # with unpooled variance

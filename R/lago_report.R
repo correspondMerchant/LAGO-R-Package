@@ -2,12 +2,13 @@
 #'
 #' @description Renders a self-contained, interactive HTML report for the object
 #' returned by [lago_optimization()]. The report knits a bundled parameterized R
-#' Markdown template and lays out the same sections, in the same order and with
-#' the same labels, as the console methods ([print.lago()] / [summary.lago()]):
-#' the recommended intervention, its cost, the estimated outcome (with its
-#' confidence interval, 95\% by default) and goal, the power goal (when
-#' present), the confidence set (size, cost IQR, and first rows), the overall
-#' intervention-effect test (when present), and
+#' Markdown template. Its text sections use the same labels and the same
+#' formatted lines as the console methods ([print.lago()] / [summary.lago()]),
+#' but the report orders them differently and adds plots. It shows the inputs
+#' recap, the recommended intervention, its cost, the estimated outcome (with
+#' its confidence interval, 95\% by default) and goal, the power goal (when
+#' present), the confidence set (size, cost IQR, and first rows, or the reason
+#' there is no set), the overall intervention-effect test (when present), and
 #' the fitted outcome-model coefficient table. A `sessionInfo()` footer records
 #' the environment the report was produced in.
 #'
@@ -23,10 +24,11 @@
 #' \itemize{
 #'   \item an interactive confidence-set plot: a hover-enabled scatter for a
 #'     two-component intervention (with the recommended intervention
-#'     highlighted) or a one-dimensional strip for a single component. For 3+
-#'     components, or when the interactive view is not applicable, it falls back
-#'     to the static [plot.lago()] figure; when no confidence set is available
-#'     the section is omitted.
+#'     highlighted) or a one-dimensional strip for a single component. The plot
+#'     is drawn for one or two components only, as [plot.lago()] is. With three
+#'     or more components, or when there is no confidence set, the plot section
+#'     is left out, and the confidence set section still gives its size or the
+#'     reason there is no set.
 #'   \item interactive cost curves: for each intervention component, its
 #'     total-cost curve and marginal (per-unit) cost curve, each with a hover
 #'     read-out, drawn from the result's cost functions and bounds.
@@ -40,8 +42,11 @@
 #' @param output_file A character string. The path to write the HTML report to.
 #' If `NULL` (the default), a temporary file with a `.html` extension is used.
 #' If it is an existing folder, the report is written in it as
-#' `lago_report.html`.
-#' @param title A character string. The report title.
+#' `lago_report.html`. A file path must end in `.html` or `.htm`, since the
+#' report is always an HTML file.
+#' @param title A character string. The report title. Every character shows
+#' as typed, so markdown, HTML and math are not interpreted. An empty or
+#' missing title (`""`, `NA` or `NULL`) uses the default title.
 #' Default value without user specification: "LAGO optimization report".
 #' @param open A boolean. If `TRUE`, opens the rendered report in a browser via
 #' [utils::browseURL()]. Default value without user specification: `FALSE`.
@@ -134,6 +139,19 @@ lago_report <- function(x,
   }
   # a folder gets the report inside it, not a file named after it next to it
   if (dir.exists(output_file)) output_file <- file.path(output_file, "lago_report.html")
+  # The report is always HTML. Another extension would make pandoc fail (.pdf)
+  # or write HTML into a file of another kind, such as a user's .Rmd file.
+  if (!tolower(tools::file_ext(output_file)) %in% c("html", "htm")) {
+    cli::cli_abort(c(
+      "{.arg output_file} must end in {.file .html}, not {.file {basename(output_file)}}.",
+      "i" = "{.fn lago_report} writes an HTML file only."
+    ))
+  }
+  # A missing or empty title would leave the page with the name of a working
+  # file as its title, so the default title is used instead.
+  title <- as.character(title)
+  title <- title[!is.na(title) & nzchar(trimws(title))]
+  if (length(title) == 0) title <- "LAGO optimization report"
   output_file <- normalizePath(output_file, mustWork = FALSE)
 
   # quiet and envir have defaults the caller may change. The rest is how the
@@ -172,6 +190,21 @@ lago_report <- function(x,
   }
 
   invisible(rendered)
+}
+
+# The report title as the inside of a YAML double quoted string. Every ASCII
+# punctuation character becomes a numeric HTML entity, such as &#40; for "(".
+# pandoc reads an entity as the plain character, so the title shows literally
+# in the heading and in the page title: no emphasis, links, raw HTML or math.
+# A backslash escape is not enough, because pandoc reads \( and \[ as the start
+# of math. The entities hold no backslash or double quote, so only line breaks
+# need escaping for YAML.
+.lago_report_title_yaml <- function(title) {
+  title <- paste(as.character(title), collapse = " ")
+  chars <- strsplit(title, "", fixed = TRUE)[[1]]
+  punct <- grepl("^[!-/:-@\\[-`{-~]$", chars, perl = TRUE)
+  chars[punct] <- paste0("&#", vapply(chars[punct], utf8ToInt, integer(1)), ";")
+  gsub("\r?\n|\r", "\\\\n", paste(chars, collapse = ""))
 }
 
 # The bundled report template, in a function of its own so a test can point it

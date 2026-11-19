@@ -38,7 +38,8 @@ folder.
 Health Organization's Safe Childbirth Checklist in Uttar Pradesh, India. The
 binary outcome `pp3_oxytocin_mother` records whether oxytocin was administered.
 We treat two intervention components as adjustable: `coaching_updt` (number of
-coaching visits) and `launch_duration` (days of checklist launch).
+coaching visits) and `launch_duration` (duration of the checklist launch,
+which takes the values 0, 2 and 3 in the data).
 
 ```{r}
 bb_data <- BB_data
@@ -49,8 +50,8 @@ head(bb_data[, c("coaching_updt", "launch_duration", "pp3_oxytocin_mother")])
 
 Suppose we want the least costly intervention that raises the probability of
 oxytocin administration to at least `0.85`, for a center with a birth volume of
-1.75 (in hundreds). The costs of the two components are `1.7` and `8` per unit,
-respectively.
+1.75 (in hundreds). The costs of the two components are `1700` and `8000` per
+unit, respectively.
 
 ```{r}
 result <- lago_optimization(

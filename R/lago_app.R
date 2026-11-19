@@ -535,16 +535,20 @@ lago_app <- function(data = NULL,
           if (is.null(f)) {
             NULL
           } else {
-            d <- tryCatch(.app_read_csv(f$datapath, input$sep, input$dec), error = function(e) e)
-            if (inherits(d, "error")) {
+            encoding <- .app_file_encoding(f$datapath)
+            d <- tryCatch(.app_read_csv(f$datapath, input$sep, input$dec, encoding), error = function(e) e)
+            if (identical(encoding, "UTF-16")) {
+              list(error = "The file is saved as UTF-16 text, which the app cannot read. Save it as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again.")
+            } else if (inherits(d, "error")) {
               list(error = sprintf(
                 "The file could not be read with these settings (%s). Check that the separator and the decimal mark match the file.",
                 conditionMessage(d)
               ))
             } else {
               list(
-                data = d, name = .app_read_csv_code(f$name, input$sep, input$dec),
-                hint = .app_csv_hint(d, input$sep, input$dec), renamed = .app_renamed(f$datapath, input$sep, d)
+                data = d, name = .app_read_csv_code(f$name, input$sep, input$dec, encoding, .app_csv_header(f$datapath, input$sep, encoding)),
+                hint = .app_csv_hint(d, input$sep, input$dec), renamed = .app_renamed(f$datapath, input$sep, d, encoding),
+                encoding = encoding
               )
             }
           }
@@ -821,7 +825,7 @@ lago_app <- function(data = NULL,
       }
       shiny::req(d)
       periods <- if (isTRUE(input$period_col %in% names(d))) .app_periods(d[[input$period_col]])$labels else character(0)
-      shiny::updateSelectInput(session, "period_value", choices = periods, selected = if (length(periods)) periods[length(periods)] else character(0))
+      shiny::updateSelectInput(session, "period_value", choices = periods, selected = .app_default_period(shiny::isolate(spec()), d, input$period_col))
     })
 
     output$data_info <- shiny::renderUI({
@@ -848,6 +852,12 @@ lago_app <- function(data = NULL,
             } else {
               "Every setting of it is shown."
             }
+          )
+        },
+        if (isTRUE(got$encoding %in% c("CP1252", "latin1"))) {
+          htmltools::div(
+            class = "alert alert-warning", role = "status",
+            "The file is not UTF-8 text, so it was read as Windows-1252 (Latin-1). Check that names with accents look right. If they do not, save the file as UTF-8 and upload it again."
           )
         },
         if (!is.null(got$hint)) htmltools::div(class = "alert alert-warning", role = "status", got$hint),
@@ -1243,6 +1253,7 @@ lago_app <- function(data = NULL,
         res <- .app_run(function() do.call(lago_optimization, c(list(data = b$data), b$args, list(quiet = TRUE))))
         shiny::setProgress(1)
       })
+      res$error <- .app_explain_error(res$error, b$args$link)
       run_id(run_id() + 1L)
       run_state(list(run = res, build = b, id = run_id()))
       if (is.null(res$error)) {

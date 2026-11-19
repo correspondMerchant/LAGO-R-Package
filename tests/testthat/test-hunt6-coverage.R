@@ -101,9 +101,18 @@ test_that("lago_budget() says when no goal is reachable without a power goal", {
   set.seed(6)
   d <- data.frame(x = stats::runif(300, 0, 2), cc = stats::runif(300, 0, 1))
   d$y <- 5 + 0.5 * d$x + 4 * d$cc + stats::rnorm(300, sd = 0.2)
+  # every run falls short of its goal, as when the reachable outcomes are
+  # nowhere near the goals searched
+  local_mocked_bindings(lago_sensitivity = function(..., values) {
+    out <- data.frame(
+      value = values, x = 0, rec_int_cost = 1, est_outcome_goal = values - 1 - abs(values),
+      status = "ok"
+    )
+    attr(out, "component_names") <- "x"
+    out
+  })
   run <- function() lago_budget(
     data = d, outcome_name = "y", outcome_type = "continuous", intervention_components = "x",
-    center_characteristics = "cc", center_characteristics_optimization_values = -20,
     intervention_lower_bounds = 0, intervention_upper_bounds = 2,
     cost_list_of_vectors = list(c(0, 1)), budget = 10, n_grid = 5
   )

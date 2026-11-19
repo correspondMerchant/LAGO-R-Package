@@ -147,16 +147,74 @@
   if (!length(values) || anyNA(values)) NULL else values
 }
 
-# The R code that reads an uploaded CSV the same way the app did.
-.app_read_csv_code <- function(name, sep = ",", dec = ".") {
+# The R code that reads an uploaded CSV the same way the app did, in any
+# locale. A plain ASCII file is read directly. Other text is read as lines,
+# turned into UTF-8 and then parsed, as read.csv() with a fileEncoding turns
+# the text into the native encoding and loses rows in a locale such as C.
+# header is the header of the file as it was written, which says whether the
+# code must set the column names itself.
+.app_read_csv_code <- function(name, sep = ",", dec = ".", encoding = "UTF-8-BOM", header = character(0)) {
   extra <- c(
     if (!identical(sep, ",")) sprintf("sep = %s", deparse1(sep)),
     if (!identical(dec, ".")) sprintf("dec = %s", deparse1(dec))
   )
-  sprintf(
+  if (identical(encoding, "UTF-8-BOM")) {
+    return(sprintf(
+      "read.csv(%s)",
+      paste(c(deparse1(name), extra, "na.strings = c(\"\", \"NA\")", "fileEncoding = \"UTF-8-BOM\""), collapse = ", ")
+    ))
+  }
+  text <- if (identical(encoding, "UTF-8")) {
+    sprintf("sub(\"^\\ufeff\", \"\", readLines(%s, warn = FALSE, encoding = \"UTF-8\"))", deparse1(name))
+  } else {
+    sprintf("iconv(readLines(%s, warn = FALSE), %s, \"UTF-8\")", deparse1(name), deparse1(encoding))
+  }
+  # make.names() keeps an accented letter only in a locale that has it, so
+  # names with such letters are set by the code
+  wide <- any(utf8ToInt(paste(header, collapse = "")) > 127)
+  fixed <- .app_make_names(header)
+  code <- sprintf(
     "read.csv(%s)",
-    paste(c(deparse1(name), extra, "na.strings = c(\"\", \"NA\")", "fileEncoding = \"UTF-8-BOM\""), collapse = ", ")
+    paste(c(sprintf("text = %s", text), extra, "na.strings = c(\"\", \"NA\")", "encoding = \"UTF-8\"", if (wide) "check.names = FALSE"), collapse = ", ")
   )
+  if (wide && !identical(fixed, header)) {
+    code <- sprintf("stats::setNames(%s, c(%s))", code, paste(vapply(fixed, .app_ascii_string, character(1)), collapse = ", "))
+  }
+  code
+}
+
+# A string as R code in ASCII, with \u escapes for other characters, so the
+# code means the same in every locale.
+.app_ascii_string <- function(x) {
+  chars <- vapply(utf8ToInt(x), function(cp) {
+    if (cp > 127) sprintf("\\u{%x}", cp) else substr(deparse1(intToUtf8(cp)), 2, nchar(deparse1(intToUtf8(cp))) - 1)
+  }, character(1))
+  paste0("\"", paste(chars, collapse = ""), "\"")
+}
+
+# make.names(unique = TRUE) as a UTF-8 locale gives it, in any locale: a
+# letter or digit that is not ASCII stays as it is, and any other character
+# that is not ASCII becomes a dot.
+.app_make_names <- function(x) {
+  x <- enc2utf8(as.character(x))
+  out <- vapply(x, function(s) {
+    cp <- utf8ToInt(s)
+    wide <- which(cp > 127)
+    if (!length(wide)) {
+      return(make.names(s))
+    }
+    chars <- vapply(cp[wide], intToUtf8, character(1))
+    letter <- grepl("^\\p{L}$", chars, perl = TRUE)
+    digit <- grepl("^\\p{N}$", chars, perl = TRUE)
+    # stand in ASCII characters of the same kind, and put the real ones back
+    stand <- cp
+    stand[wide] <- utf8ToInt(paste(ifelse(letter, "a", ifelse(digit, "0", "_")), collapse = ""))
+    made <- utf8ToInt(make.names(intToUtf8(stand)))
+    at <- wide + length(made) - length(cp)
+    made[at] <- ifelse(letter | digit, cp[wide], utf8ToInt("."))
+    intToUtf8(made)
+  }, character(1), USE.NAMES = FALSE)
+  make.unique(out)
 }
 
 # Parse the ICC box: empty, one value, or a control and a treatment value.
@@ -193,7 +251,7 @@
     center_col = center_col,
     centers = if (nzchar(center_col)) sort(unique(as.character(stats::na.omit(data[[center_col]])))) else character(0),
     period_col = period_col,
-    periods = periods, period = if (spec$period_value %in% periods) spec$period_value else utils::tail(periods, 1),
+    periods = periods, period = if (spec$period_value %in% periods) spec$period_value else .app_default_period(spec, data, period_col),
     covariates = setdiff(cols, c(spec$outcome, spec$components, if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total))),
     weights = setdiff(numeric_cols, c(spec$outcome, spec$components)),
     counts = numeric_cols
@@ -225,13 +283,79 @@
   list(labels = labels[order(largest, first, labels, na.last = TRUE)], numeric = FALSE)
 }
 
-# Read an uploaded CSV with the separator and decimal mark the user chose.
-.app_read_csv <- function(path, sep = ",", dec = ".") {
-  utils::read.csv(
-    path,
-    sep = sep, dec = dec, na.strings = c("", "NA"),
-    check.names = TRUE, fileEncoding = "UTF-8-BOM", stringsAsFactors = FALSE
+# The encoding of a file: "UTF-8-BOM" for ASCII text, which may start with a
+# byte order mark, "UTF-8" for other UTF-8 text, "UTF-16" for a file that
+# starts with a UTF-16 byte order mark, and otherwise Windows-1252, which has
+# every printable Latin-1 character. A file with a byte that Windows-1252
+# leaves out is read as Latin-1.
+.app_file_encoding <- function(path) {
+  bytes <- readBin(path, "raw", n = file.size(path))
+  if (length(bytes) >= 2 && (identical(bytes[1:2], as.raw(c(0xFF, 0xFE))) || identical(bytes[1:2], as.raw(c(0xFE, 0xFF))))) {
+    return("UTF-16")
+  }
+  bytes <- bytes[bytes != as.raw(0)]
+  if (validUTF8(rawToChar(bytes))) {
+    if (length(bytes) >= 3 && identical(bytes[1:3], as.raw(c(0xEF, 0xBB, 0xBF)))) bytes <- bytes[-(1:3)]
+    return(if (all(as.integer(bytes) < 128)) "UTF-8-BOM" else "UTF-8")
+  }
+  if (any(bytes %in% as.raw(c(0x81, 0x8D, 0x8F, 0x90, 0x9D)))) "latin1" else "CP1252"
+}
+
+# The lines of a text file in UTF-8, without a byte order mark.
+.app_csv_lines <- function(path, encoding = .app_file_encoding(path)) {
+  if (encoding %in% c("CP1252", "latin1")) {
+    return(iconv(readLines(path, warn = FALSE), encoding, "UTF-8"))
+  }
+  sub("^\ufeff", "", readLines(path, warn = FALSE, encoding = "UTF-8"))
+}
+
+# The column names in the header of a file, as they were written.
+.app_csv_header <- function(path, sep = ",", encoding = .app_file_encoding(path)) {
+  tryCatch(
+    names(utils::read.csv(text = .app_csv_lines(path, encoding), sep = sep, nrows = 1, check.names = FALSE, encoding = "UTF-8")),
+    error = function(e) character(0)
   )
+}
+
+# The periods of a column with a row the model can use: every model column
+# observed and any weight above 0.
+.app_usable_periods <- function(spec, data, period_col) {
+  spec <- .app_resolve(spec)
+  data <- .app_center_columns(spec, data)$data
+  model <- c(
+    spec$outcome, spec$components, spec$covariates, period_col,
+    if (identical(spec$center_mode, "effects")) spec$center_col,
+    if (identical(spec$center_mode, "chars")) spec$center_chars
+  )
+  rows <- .app_fitted_rows(spec, data, model)
+  unique(as.character(data[[period_col]])[rows & !is.na(data[[period_col]])])
+}
+
+# The period to optimize for by default: the latest one with a row the model
+# can use, or the latest one when none has.
+.app_default_period <- function(spec, data, period_col) {
+  if (!isTRUE(period_col %in% names(data))) {
+    return(character(0))
+  }
+  periods <- .app_periods(data[[period_col]])$labels
+  usable <- intersect(periods, .app_usable_periods(spec, data, period_col))
+  utils::tail(if (length(usable)) usable else periods, 1)
+}
+
+# Read an uploaded CSV with the separator and decimal mark the user chose.
+# The text is turned into UTF-8 before it is parsed, so that no locale, such as
+# C, stops the read at an accented letter.
+.app_read_csv <- function(path, sep = ",", dec = ".", encoding = .app_file_encoding(path)) {
+  if (identical(encoding, "UTF-16")) {
+    stop("The file is UTF-16 text. Save it as UTF-8 and read it again.", call. = FALSE)
+  }
+  d <- utils::read.csv(
+    text = .app_csv_lines(path, encoding),
+    sep = sep, dec = dec, na.strings = c("", "NA"),
+    check.names = FALSE, encoding = "UTF-8", stringsAsFactors = FALSE
+  )
+  names(d) <- .app_make_names(names(d))
+  d
 }
 
 .app_center_level <- function(spec) identical(spec$structure, "center")
@@ -506,6 +630,20 @@
   )
 }
 
+# The columns the app builds for the package, which reads them by these names,
+# so a column of the data with such a name is replaced.
+.app_built_columns <- function(spec, data) {
+  built <- character(0)
+  if (.app_center_level(spec)) {
+    if (identical(spec$cl_kind, "successes") || !identical(spec$cl_value, "proportion")) built <- c(built, "proportion")
+    if (!identical(spec$cl_total, "center_sample_size")) built <- c(built, "center_sample_size")
+  }
+  if (.app_power_on(spec) && .app_needs_group(spec, data)) built <- c(built, "group")
+  if (identical(spec$center_mode, "effects") && nzchar(spec$center_col) && spec$center_col != "center") built <- c(built, "center")
+  if (isTRUE(spec$time_on) && nzchar(spec$period_col) && spec$period_col != "period") built <- c(built, "period")
+  built
+}
+
 # Problems that stop a run, each with the step it belongs to and a message that
 # says what to change. An empty data frame means the settings are ready.
 .app_problems <- function(spec, data) {
@@ -566,6 +704,32 @@
       note("outcome", "Center level data does not take weights, as each row is weighted by its total. Choose No weights.")
     }
   }
+  # a column the app builds would replace a chosen column of the same name
+  built <- .app_built_columns(spec, data)
+  roles <- list(
+    "the outcome" = if (!.app_center_level(spec)) spec$outcome,
+    "an intervention component" = spec$components, "a covariate" = spec$covariates,
+    "a center characteristic" = spec$center_chars, "the weights" = spec$weights_col,
+    "the cluster column" = if (.app_power_on(spec)) spec$cluster_col
+  )
+  for (role in names(roles)) {
+    for (nm in intersect(roles[[role]], built)) {
+      note(if (role %in% c("the outcome", "the weights", "the cluster column")) "outcome" else if (role == "an intervention component") "intervention" else "centers", sprintf(
+        "The column %s is chosen as %s, but the app builds its own column named %s for the package, which reads that name. Rename the column in your data, or choose another one.",
+        nm, role, nm
+      ))
+    }
+  }
+  # the package puts these columns in the model formula, which needs valid R names
+  formula_cols <- c(if (!.app_center_level(spec)) spec$outcome, spec$components, spec$covariates, spec$center_chars)
+  bad_names <- unique(formula_cols[nzchar(formula_cols) & formula_cols != make.names(formula_cols)])
+  if (length(bad_names)) {
+    note("data", sprintf(
+      "The column name(s) %s are not valid R names, so the model cannot use them. Rename them in R, for example with names(data) <- make.names(names(data)), which gives %s.",
+      paste0("'", bad_names, "'", collapse = ", "), paste0("'", make.names(bad_names), "'", collapse = ", ")
+    ))
+  }
+
   spec <- .app_resolve(spec)
   data <- .app_center_columns(spec, data)$data
 
@@ -585,6 +749,19 @@
     } else {
       sprintf("The logit link needs an outcome between 0 and 1, and '%s' goes outside it. Choose the usual link or identity.", spec$outcome)
     })
+  }
+  # only the rows glm() fits count, as it leaves out a row with a missing value
+  fit_cols <- c(
+    spec$outcome, spec$components, spec$covariates, if (isTRUE(spec$time_on)) spec$period_col,
+    if (identical(spec$center_mode, "effects")) spec$center_col,
+    if (identical(spec$center_mode, "chars")) spec$center_chars
+  )
+  if (!is.null(y) && logit && !proportion && !any(y < 0 | y > 1, na.rm = TRUE) &&
+    any(y[.app_fitted_rows(spec, data, fit_cols)] %in% c(0, 1))) {
+    note("outcome", sprintf(
+      "The logit link with the normal model needs an outcome strictly between 0 and 1, and '%s' has values of exactly 0 or 1. Choose the proportion model (quasibinomial), which takes 0 and 1.",
+      spec$outcome
+    ))
   }
   if ((proportion || logit) && !identical(spec$goal_mode, "power") && is.finite(spec$goal) && (spec$goal <= 0 || spec$goal >= 1)) {
     note("outcome", "A goal for an outcome between 0 and 1 must be between 0 and 1, such as 0.6 for 60%.")
@@ -726,6 +903,11 @@
       note("centers", "Choose the column that holds the time period.")
     } else if (!nzchar(spec$period_value)) {
       note("centers", "Choose the period to optimize for.")
+    } else if (spec$period_col %in% names(data) && !spec$period_value %in% .app_usable_periods(spec, data, spec$period_col)) {
+      note("centers", sprintf(
+        "The period %s has no row the model can use, where every model column is observed and any weight is above 0, so it cannot be optimized for. Choose another period.",
+        spec$period_value
+      ))
     }
   }
 
@@ -906,14 +1088,11 @@
 }
 
 # Header names the reader changed to valid R names, as "old (now new)".
-.app_renamed <- function(path, sep, d) {
+.app_renamed <- function(path, sep, d, encoding = .app_file_encoding(path)) {
   if (ncol(d) < 2) {
     return(character(0))
   }
-  raw <- tryCatch(
-    names(utils::read.csv(path, sep = sep, nrows = 1, check.names = FALSE, fileEncoding = "UTF-8-BOM")),
-    error = function(e) names(d)
-  )
+  raw <- .app_csv_header(path, sep, encoding)
   if (length(raw) != length(names(d))) {
     return(character(0))
   }
@@ -935,6 +1114,18 @@
     "The cheapest intervention that is estimated to reach the goal sets %s. It costs %s and its estimated outcome is %s.",
     levels, fmt(r$rec_int_cost), fmt(r$est_outcome_goal)
   )
+}
+
+# The error of a run, with a hint when the identity link could not be fitted.
+.app_explain_error <- function(error, link) {
+  if (!is.null(error) && identical(link, "identity") && grepl("no valid set of coefficients", error, fixed = TRUE)) {
+    error <- paste(
+      "The model could not be fitted with the identity link, which can give a probability below 0 or above 1.",
+      "Choose the logit link, or the usual link, in the outcome model settings of step 2.",
+      sprintf("The package said: %s", error)
+    )
+  }
+  error
 }
 
 # Steps a user can take when the package refuses a run.
@@ -1298,7 +1489,12 @@
     s$center_col <- "center"
     if (!is.null(a$center_weights_for_outcome_goal)) {
       s$cw_on <- TRUE
-      s$cw <- as.numeric(a$center_weights_for_outcome_goal)
+      # the app gives the weights in the order of the centers, and the
+      # package matches named weights to the centers by name
+      w <- a$center_weights_for_outcome_goal
+      centers <- .app_center_levels(d, "center")
+      if (!is.null(names(w)) && length(centers) && setequal(names(w), centers)) w <- w[centers]
+      s$cw <- as.numeric(w)
     } else if (!is.null(a$center_effects_optimization_values)) {
       s$center_for <- as.character(a$center_effects_optimization_values)
     }

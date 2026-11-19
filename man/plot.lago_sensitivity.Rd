@@ -25,7 +25,9 @@ value as a line with points: for an \code{"outcome_goal"} sweep this is the
 cost-of-stringency curve, and for a \code{"cost_multiplier"} sweep it is a
 straight line. With \code{show = "components"} it instead plots the recommended
 value of each intervention component against the swept value, one coloured
-line per component. Rows with \code{NA} outputs are dropped with a message.
+line per component. Rows with \code{NA} outputs are dropped with a message. A
+sweep of period labels or dates is drawn on a discrete axis, in the order of
+\code{values}.
 }
 \examples{
 \donttest{

@@ -85,14 +85,22 @@ def in_r_context(fn):
 
 # Calls an R function with a list of arguments, and returns its value with the
 # warnings it gave, so they can be passed on to Python instead of only being
-# printed to the R console.
+# printed to the R console. An error is caught here too and returned as its
+# message, so the warnings R gave before it are not lost.
 _CALL_WITH_WARNINGS = """function(f, args) {
   warned <- character(0)
-  value <- withCallingHandlers(do.call(f, args), warning = function(w) {
-    warned <<- c(warned, conditionMessage(w))
-    invokeRestart("muffleWarning")
-  })
-  list(value = value, warnings = unique(warned))
+  failed <- NULL
+  value <- tryCatch(
+    withCallingHandlers(do.call(f, args), warning = function(w) {
+      warned <<- c(warned, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }),
+    error = function(e) {
+      failed <<- conditionMessage(e)
+      NULL
+    }
+  )
+  list(value = value, warnings = unique(warned), error = failed)
 }"""
 
 
@@ -203,6 +211,68 @@ def _is_null(obj) -> bool:
     return str(type(obj)).endswith("NULLType'>")
 
 
+def _date_text(value):
+    """A date or a time as the text R gives for it, or None for NaT.
+
+    A time at midnight becomes its date, such as "2020-01-01", and any other
+    time also gets its time of day, such as "2020-01-01 10:30:00". That is how
+    R writes the period levels of a Date or a date and time column, so the
+    text names the same period.
+    """
+    import datetime
+
+    import pandas as pd
+
+    if value is pd.NaT:
+        return None
+    if isinstance(value, datetime.datetime):
+        if value.time() == datetime.time(0):
+            return value.strftime("%Y-%m-%d")
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    return value.strftime("%Y-%m-%d")
+
+
+def _plain(value):
+    """Turn numpy and pandas values into plain Python values.
+
+    A numpy scalar becomes its Python number, bool or str. A numpy array, a
+    pandas Series, a pandas Index or a pandas array (such as the
+    ``StringArray`` that ``Series.unique()`` gives, or an ``Int64`` array)
+    becomes a list (a 2D array a list of lists). A missing value of pandas
+    (``pd.NA`` or ``NaT``) becomes None, and a float NaN stays NaN. A
+    categorical value becomes its text. A date or a time becomes text, as
+    :func:`_date_text` writes it. The elements of a list or tuple are turned
+    too. Anything else is returned unchanged. numpy comes with pandas, which
+    the wrapper needs.
+    """
+    import datetime
+
+    import numpy as np
+    import pandas as pd
+
+    if value is None or value is pd.NA or value is pd.NaT:
+        return None
+    if isinstance(value, np.datetime64):
+        return _date_text(pd.Timestamp(value))
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, datetime.date):
+        return _date_text(value)
+    if isinstance(value, (pd.Series, pd.Index)):
+        value = value.array
+    if isinstance(value, pd.Categorical):
+        return [None if pd.isna(el) else str(el) for el in value]
+    if isinstance(value, np.ndarray):
+        if value.dtype.kind == "M":
+            return [_plain(el) for el in value]
+        return [_plain(el) for el in value.tolist()]
+    if isinstance(value, pd.api.extensions.ExtensionArray):
+        return [_plain(el) for el in value]
+    if isinstance(value, (list, tuple)):
+        return [_plain(el) for el in value]
+    return value
+
+
 def py_to_r(value):
     """Convert a single Python value to the corresponding R object.
 
@@ -212,6 +282,9 @@ def py_to_r(value):
     - str / list-of-str -> character vector
     - list-of-lists (e.g. cost_list_of_vectors) -> R list of numeric vectors
     - None -> R NULL
+    - numpy scalars and arrays, pandas Series, Index and arrays -> as the
+      plain Python values they hold (see :func:`_plain`)
+    - None in a list -> the R NA of the type of the other elements
     - an existing rpy2 object -> passed through unchanged
     """
     s = _ensure()
@@ -230,6 +303,8 @@ def py_to_r(value):
         with s["localconverter"](_pandas_converter()):
             return ro.conversion.get_conversion().py2rpy(value)
 
+    value = _plain(value)
+
     # bool must be checked before int (bool is a subclass of int)
     if isinstance(value, bool):
         return BoolVector([value])
@@ -246,13 +321,17 @@ def py_to_r(value):
             return rlist(
                 *[FloatVector([float(x) for x in el]) for el in seq]
             )
-        if len(seq) > 0 and all(isinstance(el, bool) for el in seq):
-            return BoolVector(seq)
+        # None, from a missing value, becomes the NA of the vector type
+        given = [el for el in seq if el is not None]
+        if len(given) < len(seq) and not given:
+            return BoolVector([ro.NA_Logical] * len(seq))
+        if given and all(isinstance(el, bool) for el in given):
+            return BoolVector([ro.NA_Logical if el is None else el for el in seq])
         if all(isinstance(el, (int, float)) and not isinstance(el, bool)
-               for el in seq):
-            return FloatVector([float(x) for x in seq])
-        if all(isinstance(el, str) for el in seq):
-            return StrVector(seq)
+               for el in given):
+            return FloatVector([ro.NA_Real if el is None else float(el) for el in seq])
+        if all(isinstance(el, str) for el in given):
+            return StrVector([ro.NA_Character if el is None else el for el in seq])
         raise TypeError(
             "Cannot convert list with mixed/unsupported element types to an "
             "R vector: {!r}".format(seq)
@@ -298,7 +377,27 @@ def r_to_py(obj):
 
     if isinstance(obj, DataFrame):
         with s["localconverter"](_pandas_converter()):
-            return ro.conversion.get_conversion().rpy2py(obj)
+            frame = ro.conversion.get_conversion().rpy2py(obj)
+        # pandas has no NA for a plain integer or bool column, so rpy2 hands
+        # R's NA through as its sentinel, -2147483648 or True. Such columns
+        # become nullable ones, with NA where R had NA. A text column gets
+        # None where R had NA, instead of rpy2's NA_character_ object.
+        is_na = ro.baseenv["is.na"]
+        for name, col in zip(list(obj.names), list(obj)):
+            if isinstance(col, FactorVector) or not isinstance(col, (IntVector, BoolVector, StrVector)):
+                continue
+            missing = [bool(m) for m in is_na(col)]
+            if not any(missing):
+                continue
+            import pandas as pd
+
+            values = [None if m else v for v, m in zip(frame[name].tolist(), missing)]
+            if isinstance(col, StrVector):
+                frame[name] = pd.Series(values, index=frame.index, dtype=object)
+            else:
+                dtype = "boolean" if isinstance(col, BoolVector) else "Int64"
+                frame[name] = pd.array(values, dtype=dtype)
+        return frame
 
     if isinstance(obj, FactorVector):
         levels = list(obj.levels)
@@ -326,6 +425,11 @@ def r_to_py(obj):
 
     if isinstance(obj, (FloatVector, IntVector, BoolVector, StrVector)):
         vals = list(obj)
+        # R's NA in an integer, logical or text vector becomes None. A real
+        # NA is already a float NaN.
+        if not isinstance(obj, FloatVector):
+            missing = list(ro.baseenv["is.na"](obj))
+            vals = [None if m else v for v, m in zip(vals, missing)]
         names = obj.names
         if not _is_null(names):
             return {str(k): v for k, v in zip(list(names), vals)}
@@ -361,7 +465,9 @@ def call_lago(name: str, kwargs: dict):
 
     Each warning the R function gives is issued again as a Python
     :class:`LagoRWarning`, so a caller can read it with
-    :func:`warnings.catch_warnings`.
+    :func:`warnings.catch_warnings`. When the R function fails, its warnings
+    are issued first, and then an ``RRuntimeError`` with the R error message
+    is raised.
     """
     s = _ensure()
     rfunc = _get_rfunc(name)
@@ -376,6 +482,12 @@ def call_lago(name: str, kwargs: dict):
             warnings.warn(message, LagoRWarning, stacklevel=4)
         elif message not in found:
             found.append(message)
+    failed = out.rx2("error")
+    if not _is_null(failed):
+        # raised after the warnings, so a caller gets both
+        from rpy2.rinterface_lib.embedded import RRuntimeError
+
+        raise RRuntimeError(str(failed[0]))
     return out.rx2("value")
 
 

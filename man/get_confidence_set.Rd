@@ -2,7 +2,7 @@
 % Please edit documentation in R/get_confidence_set.R
 \name{get_confidence_set}
 \alias{get_confidence_set}
-\title{get_confidence_set}
+\title{Calculate the confidence set for a recommended intervention}
 \usage{
 get_confidence_set(
   predictors_data,
@@ -140,7 +140,8 @@ confidence_set_size_percentage = <number, the size of the confidence set
 as a fraction of the grid. Both the count of qualifying interventions
 and the size of the grid count grid interventions only, so rec_int is
 excluded from each>,
-rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
+rec_int_ci = <named numeric c(lower, upper), each bound rounded to 3
+decimal places, or to 4 significant digits when it is below 0.1,
 the confidence interval at rec_int. Computed whether or not it covers
 the outcome goal, so callers never have to look for rec_int inside cs.
 For a binary outcome on the logit link both bounds are confined to
@@ -166,8 +167,9 @@ NULL when no grid intervention qualifies>
 )
 }
 \description{
-Internal function that calculates the confidence set
-for the recommended interventions
+Calculates the confidence set for the recommended
+intervention. lago_optimization() calls it when include_confidence_set is
+TRUE, and it can also be called directly.
 }
 \details{
 Continuous covariance treats fitted prior weights as relative observation

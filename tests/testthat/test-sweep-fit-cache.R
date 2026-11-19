@@ -80,7 +80,7 @@ test_that("each sweep row matches a single lago_optimization() run", {
   }
 })
 
-test_that("fit warnings are still raised for every run of a sweep", {
+test_that("a fit warning is raised once per sweep", {
   args <- fit_cache_args()
   # a copy of a covariate cannot be estimated, so every fit warns about it
   args$data$birth_copy <- args$data$birth_volume_100
@@ -98,7 +98,7 @@ test_that("fit warnings are still raised for every run of a sweep", {
       invokeRestart("muffleWarning")
     }
   )
-  expect_identical(warned, 3)
+  expect_identical(warned, 1)
 })
 
 test_that("the cache is only active during a sweep", {

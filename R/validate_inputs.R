@@ -17,6 +17,7 @@ validate_inputs <- function(
     unit_costs = NULL,
     unit_cost_doses = NULL,
     default_cost_fxn_type = "cubic",
+    cost_type_given = TRUE,
     cost_list_of_vectors = NULL,
     glm_family = "default",
     link = "default",
@@ -146,6 +147,29 @@ validate_inputs <- function(
       "outcome_name must be \"proportion\", not \"", outcome_name, "\"."
     ))
   }
+  # a binary outcome, or the proportion of center level data, is between 0 and 1
+  if (outcome_type == "binary" && any(outcome_column < 0 | outcome_column > 1, na.rm = TRUE)) {
+    stop(paste0(
+      "The outcome column '", outcome_name, "' has values outside 0 to 1, ",
+      "such as ", format(outcome_column[which(outcome_column < 0 |
+        outcome_column > 1)[1]], digits = 10), ". ",
+      if (input_data_structure == "center_level") {
+        "For center level data it must be the proportion of events in each row."
+      } else {
+        "A binary outcome must be between 0 and 1, and is usually 0 or 1."
+      }
+    ))
+  }
+  if (input_data_structure == "center_level" && "center_sample_size" %in% names(data)) {
+    sizes <- data$center_sample_size
+    if (!is.numeric(sizes) || any(!is.finite(sizes) & !is.na(sizes)) ||
+      any(sizes < 0, na.rm = TRUE)) {
+      stop(paste(
+        "The 'center_sample_size' column must hold numbers that are finite",
+        "and not negative, the number of patients in each row."
+      ))
+    }
+  }
 
   # check if the glm family is a character type
   if (!is.character(glm_family)) {
@@ -211,6 +235,12 @@ validate_inputs <- function(
         "The length of the weights must be the same as the ",
         "number of observations in the provided input data."
       ))
+    }
+    # glm() refuses negative weights. All zero weights are named later, with
+    # the rows the model can use.
+    # a row with an NA weight is left out of the fit, as glm() leaves it out
+    if (any(is.infinite(weights)) || any(weights < 0, na.rm = TRUE)) {
+      stop("The 'weights' must not be negative or infinite.")
     }
   }
 
@@ -400,6 +430,25 @@ validate_inputs <- function(
         "the number of unique facilities in the input data."
       ))
     }
+    # named weights are matched to the centers by name, not by position
+    weight_names <- names(center_weights_for_outcome_goal)
+    if (!is.null(weight_names)) {
+      center_levels <- levels(data$center)
+      # an explicit NA level is named "NA", or NA
+      level_keys <- ifelse(is.na(center_levels), "NA", center_levels)
+      name_keys <- ifelse(is.na(weight_names), "NA", weight_names)
+      if (anyDuplicated(name_keys) > 0 || !setequal(name_keys, level_keys)) {
+        stop(paste0(
+          "The names of center_weights_for_outcome_goal must be the centers ",
+          "in the 'center' column, each once: ",
+          paste0("'", center_levels, "'", collapse = ", "),
+          ". Fix the names, or remove them with unname() to match the ",
+          "weights to the centers in this order."
+        ))
+      }
+      center_weights_for_outcome_goal <-
+        unname(center_weights_for_outcome_goal[match(level_keys, name_keys)])
+    }
     if (!is.null(center_effects_optimization_values)) {
       input_warning(paste(
         "Both 'center_weights_for_outcome_goal' and",
@@ -528,8 +577,9 @@ validate_inputs <- function(
   }
 
   # check if include_time_effects is logical
-  if (!is.logical(include_time_effects)) {
-    stop(paste("'include_time_effects' must be a boolean."))
+  if (!is.logical(include_time_effects) || length(include_time_effects) != 1 ||
+    is.na(include_time_effects)) {
+    stop(paste("'include_time_effects' must be TRUE or FALSE."))
   }
   family_object <- switch(glm_family,
     "binomial" = binomial(link = link),
@@ -549,15 +599,25 @@ validate_inputs <- function(
         "column to identify time period."
       ))
     }
-    # the time_effect_optimization_value must be provided, one numeric number
+    # one period: a number, or the label of a text, factor or Date period
     if (is.null(time_effect_optimization_value) ||
-      !is.numeric(time_effect_optimization_value) ||
-      length(time_effect_optimization_value) != 1) {
+      !(is.numeric(time_effect_optimization_value) ||
+        is.character(time_effect_optimization_value) ||
+        is.factor(time_effect_optimization_value) ||
+        inherits(time_effect_optimization_value, c("Date", "POSIXt"))) ||
+      length(time_effect_optimization_value) != 1 ||
+      is.na(time_effect_optimization_value)) {
       stop(paste(
         "'include_time_effects' is set to TRUE,",
         "'time_effect_optimization_value' must be provided,",
-        "and it must be a numeric value."
+        "and it must be one period: a number, or the label of a period",
+        "in the 'period' column."
       ))
+    }
+    # a factor or date-time is matched by its label, as the period levels are
+    if (is.factor(time_effect_optimization_value) ||
+      inherits(time_effect_optimization_value, "POSIXt")) {
+      time_effect_optimization_value <- as.character(time_effect_optimization_value)
     }
     # if "period" column of the input data is not a factor,
     # change it to factor and print a warning message
@@ -779,14 +839,14 @@ validate_inputs <- function(
     min_val <- min(data[[all_components[i]]], na.rm = TRUE)
     max_val <- max(data[[all_components[i]]], na.rm = TRUE)
     if (intervention_lower_bounds[i] > min_val) {
-      warning(paste(
+      input_warning(paste(
         "The lower bound for the intervention component",
         all_components[i],
         "is greater than the minimum value in the data."
       ))
     }
     if (intervention_upper_bounds[i] < max_val) {
-      warning(paste(
+      input_warning(paste(
         "The upper bound for the intervention component",
         all_components[i],
         "is less than the maximum value in the data."
@@ -894,7 +954,7 @@ validate_inputs <- function(
       ))
     }
     # check if default_cost_fxn_type is also provided
-    if (!is.null(default_cost_fxn_type) && !quiet) {
+    if (isTRUE(cost_type_given) && !is.null(default_cost_fxn_type) && !quiet) {
       input_note(paste(
         "When 'cost_list_of_vectors' is provided,",
         "'default_cost_fxn_type' is ignored."
@@ -1002,8 +1062,9 @@ validate_inputs <- function(
   }
 
   # check if the outcome goal is a numeric number (only when provided)
-  if (!is.null(outcome_goal) && !is.numeric(outcome_goal)) {
-    stop("The outcome goal must be a numeric value.")
+  if (!is.null(outcome_goal) && (!is.numeric(outcome_goal) ||
+    length(outcome_goal) != 1 || !is.finite(outcome_goal))) {
+    stop("The outcome goal must be a numeric value, a single finite number.")
   }
 
   # check if the outcome_goal_intention is a character type
@@ -1068,7 +1129,8 @@ validate_inputs <- function(
   }
 
   # check whether the include_confidence_set indicator is boolean
-  if (!is.logical(include_confidence_set)) {
+  if (!is.logical(include_confidence_set) || length(include_confidence_set) != 1 ||
+    is.na(include_confidence_set)) {
     stop("The include_confidence_set indicator must be a boolean.")
   }
 
@@ -1108,8 +1170,9 @@ validate_inputs <- function(
   }
 
   # check if confidence_set_alpha is a numeric type
-  if (!is.numeric(confidence_set_alpha)) {
-    stop("confidence_set_alpha must be a numeric value.")
+  if (!is.numeric(confidence_set_alpha) || length(confidence_set_alpha) != 1 ||
+    is.na(confidence_set_alpha)) {
+    stop("confidence_set_alpha must be a numeric value, a single number.")
   }
   # check if confidence_set_alpha is between 0 and 1
   if (confidence_set_alpha <= 0 || confidence_set_alpha >= 1) {
@@ -1148,14 +1211,20 @@ validate_inputs <- function(
       ))
     }
 
-    # pre_recommended_interventions must be within the bounds
+    if (!all(is.finite(prev_recommended_interventions))) {
+      stop(paste(
+        "prev_recommended_interventions must be finite numbers, one per",
+        "intervention component, with no NA."
+      ))
+    }
+    # prev_recommended_interventions must be within the bounds
     for (i in 1:length(all_components)) {
       if (prev_recommended_interventions[i] <
         intervention_lower_bounds[i] ||
         prev_recommended_interventions[i] >
           intervention_upper_bounds[i]) {
         stop(paste(
-          "The pre_recommended_interventions[", i, "]",
+          "The prev_recommended_interventions[", i, "]",
           "is outside the bounds of the intervention component",
           all_components[i], "."
         ))
@@ -1165,8 +1234,9 @@ validate_inputs <- function(
 
   # check if shrinkage_threshold is a numeric value
   # and is between 0 and 1
-  if (!is.numeric(shrinkage_threshold)) {
-    stop("shrinkage_threshold must be a numeric value.")
+  if (!is.numeric(shrinkage_threshold) || length(shrinkage_threshold) != 1 ||
+    is.na(shrinkage_threshold)) {
+    stop("shrinkage_threshold must be a numeric value, a single number.")
   }
   if (shrinkage_threshold < 0 || shrinkage_threshold > 1) {
     stop("shrinkage_threshold must be between 0 and 1.")
@@ -1174,8 +1244,8 @@ validate_inputs <- function(
 
   # check if power_goal is a numeric number if not null
   if (!is.null(power_goal)) {
-    if (!is.numeric(power_goal)) {
-      stop("The power goal must be a numeric value.")
+    if (!is.numeric(power_goal) || length(power_goal) != 1 || is.na(power_goal)) {
+      stop("The power goal must be a numeric value, a single number.")
     }
     # check if power_goal is between 0 and 1
     if (power_goal <= 0 || power_goal >= 1) {
@@ -1205,14 +1275,26 @@ validate_inputs <- function(
       ))
     }
     if (!all(data$group %in% c("treatment", "control"))) {
-      stop(paste(
-        "The 'group' column must have values 'treatment'",
-        " or 'control'."
+      stop(paste0(
+        "The 'group' column must have values 'treatment' or 'control'",
+        if (anyNA(data$group)) {
+          paste0(
+            ", but ", sum(is.na(data$group)), " row(s) have a missing value. ",
+            "Fill in their arm, or drop those rows"
+          )
+        },
+        "."
       ))
     }
     # the power calculation uses stage-1 rows with an observed outcome, so
     # each arm needs at least one (a missing outcome is not counted)
-    observed_group <- data$group[!is.na(data[[outcome_name]])]
+    # for center level data a row counts only with patients in it
+    has_patients <- if (input_data_structure == "center_level") {
+      !is.na(data$center_sample_size) & data$center_sample_size > 0
+    } else {
+      TRUE
+    }
+    observed_group <- data$group[!is.na(data[[outcome_name]]) & has_patients]
     for (grp in c("control", "treatment")) {
       if (!any(observed_group == grp)) {
         stop(paste0(
@@ -1232,21 +1314,34 @@ validate_inputs <- function(
       ))
     }
     # if num_center_in_next_stage is not null, it must be a numeric value
-    if (!is.null(num_centers_in_next_stage)) {
-      if (!is.numeric(num_centers_in_next_stage)) {
-        stop("num_centers_in_next_stage must be a numeric value.")
+    # each is one count: a whole, finite number above 0
+    next_stage <- list(
+      num_centers_in_next_stage = num_centers_in_next_stage,
+      patients_per_center_in_next_stage = patients_per_center_in_next_stage
+    )
+    for (size_name in names(next_stage)) {
+      size <- next_stage[[size_name]]
+      if (!is.numeric(size)) {
+        stop(paste0(size_name, " must be a numeric value."))
       }
-      if (num_centers_in_next_stage <= 0) {
-        stop("num_centers_in_next_stage must be greater than 0.")
+      if (length(size) != 1 || !is.finite(size) || size != round(size)) {
+        stop(paste0(size_name, " must be one whole, finite number."))
+      }
+      if (size <= 0) {
+        stop(paste0(size_name, " must be greater than 0."))
       }
     }
-    # if patients_per_center_in_next_stage is not null, it must be a numeric value
-    if (!is.null(patients_per_center_in_next_stage)) {
-      if (!is.numeric(patients_per_center_in_next_stage)) {
-        stop("patients_per_center_in_next_stage must be a numeric value.")
+    # a cluster id that is given must name a column, whatever the icc
+    if (!is.null(power_goal_cluster_id)) {
+      if (!is.character(power_goal_cluster_id) ||
+        length(power_goal_cluster_id) != 1 || is.na(power_goal_cluster_id)) {
+        stop("power_goal_cluster_id must be a single column name.")
       }
-      if (patients_per_center_in_next_stage <= 0) {
-        stop("patients_per_center_in_next_stage must be greater than 0.")
+      if (!power_goal_cluster_id %in% names(data)) {
+        stop(paste0(
+          "power_goal_cluster_id column '", power_goal_cluster_id,
+          "' was not found in the data."
+        ))
       }
     }
     # icc (issue #29): optional intra-cluster correlation used to inflate the
@@ -1259,7 +1354,7 @@ validate_inputs <- function(
       if (length(icc) != 1 && length(icc) != 2) {
         stop("icc must have length 1 (shared) or 2 (control, treatment).")
       }
-      if (any(icc < 0) || any(icc >= 1)) {
+      if (!all(is.finite(icc)) || any(icc < 0) || any(icc >= 1)) {
         stop("icc must be in [0, 1).")
       }
       # a non-zero icc needs a stage-1 cluster id to compute the stage-1 design
@@ -1272,22 +1367,12 @@ validate_inputs <- function(
             "can be computed."
           ))
         }
-        if (!is.character(power_goal_cluster_id) ||
-          length(power_goal_cluster_id) != 1) {
-          stop("power_goal_cluster_id must be a single column name.")
-        }
-        if (!power_goal_cluster_id %in% names(data)) {
-          stop(paste0(
-            "power_goal_cluster_id column '", power_goal_cluster_id,
-            "' was not found in the data."
-          ))
-        }
         # need at least two centers per arm to identify between-cluster
         # variance, counted on the rows the power calculation uses (an observed
         # outcome) and ignoring a missing center id, as its table() does
         for (grp in c("control", "treatment")) {
           ids <- data[
-            data$group == grp & !is.na(data[[outcome_name]]),
+            data$group == grp & !is.na(data[[outcome_name]]) & has_patients,
             power_goal_cluster_id,
             drop = TRUE
           ]
@@ -1295,7 +1380,9 @@ validate_inputs <- function(
           if (n_centers < 2) {
             stop(paste0(
               "The '", grp, "' arm has fewer than two distinct ",
-              "power_goal_cluster_id centers with an observed outcome, so ",
+              "power_goal_cluster_id centers with an observed outcome",
+              if (input_data_structure == "center_level") " and patients",
+              ", so ",
               "the stage-1 design effect is not identifiable. Provide data ",
               "with at least two such centers per arm, or set icc = NULL."
             ))
@@ -1314,12 +1401,11 @@ validate_inputs <- function(
     stop("The power_goal_approach must be a character string.")
   }
   allowed_power_goal_approaches <- c("unconditional", "conditional")
-  if (!(power_goal_approach %in% allowed_power_goal_approaches)) {
-    stop(paste(
-      "The power_goal_approach must be one",
-      "of the supported approaches.",
-      "The supported approaches are:",
-      allowed_power_goal_approaches, "."
+  if (length(power_goal_approach) != 1 ||
+    !(power_goal_approach %in% allowed_power_goal_approaches)) {
+    stop(paste0(
+      "The power_goal_approach must be one of the supported approaches: ",
+      paste0("'", allowed_power_goal_approaches, "'", collapse = " or "), "."
     ))
   }
 
@@ -1590,7 +1676,11 @@ warn_center_extrapolation <- function(data, outcome_name, intervention_component
     if (identical(input_data_structure, "center_level")) "center_sample_size"
   ), names(data))
   used <- stats::complete.cases(data[model_cols])
-  # glm() fits no row with a missing or zero weight
+  # glm() fits no row with a missing or zero weight. For center level data the
+  # weights are center_sample_size, and the user's weights are not used.
+  if (identical(input_data_structure, "center_level")) {
+    weights <- data$center_sample_size
+  }
   if (is.numeric(weights) && length(weights) == nrow(data)) used <- used & !is.na(weights) & weights > 0
   warn_outside_centers(
     center_characteristics, values,
@@ -1609,12 +1699,14 @@ warn_outside_centers <- function(center_characteristics, values, columns) {
     x <- columns[[i]]
     v <- values[i]
     if (is.null(x) || !is.finite(v)) next
-    if (is.logical(x)) x <- as.numeric(x)
-    rng <- if (is.numeric(x)) {
+    # a Date or date-time is fitted as its number, as glm() reads it
+    if (is.logical(x) || inherits(x, c("Date", "POSIXt"))) x <- as.numeric(x)
+    dummy <- !is.numeric(x)
+    rng <- if (dummy) {
+      c(0, 1)
+    } else {
       if (!any(is.finite(x))) next
       range(x[is.finite(x)])
-    } else {
-      c(0, 1)
     }
     tol <- sqrt(.Machine$double.eps) * max(1, abs(rng))
     if (v < rng[1] - tol || v > rng[2] + tol) {

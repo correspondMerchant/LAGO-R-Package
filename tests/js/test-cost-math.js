@@ -202,4 +202,66 @@ check("a real move is read as moved", m.readThroughExact(5e-5, moved) === 5e-5);
 check("a move back to the old reading is read as moved", m.readThroughExact(2e-5, moved) === 2e-5);
 check("preferExact reads a real move after a range edit", m.preferExact(3e-5, edited) === 3e-5);
 
+// 13. a cubic drag still solves when the bounds are narrow near 0. Before, the
+// raw powers of x fell below the fixed pivot threshold and every drag failed.
+function designerCubic(lb, ub, uc) {
+  var s = ub - lb, a4 = uc / (2 * s * s * s);
+  return [a4 * Math.pow(lb, 4) + uc / 2 * lb, -4 * a4 * Math.pow(lb, 3) + uc / 2,
+    6 * a4 * lb * lb, -4 * a4 * lb, a4];
+}
+[0.001, 0.0001].forEach(function (ubNarrow) {
+  var cNarrow = designerCubic(0, ubNarrow, 1);
+  var axNarrow = m.anchorXs(0, ubNarrow, 5);
+  var ysNarrow = axNarrow.map(function (x) { return m.costAt(cNarrow, x); });
+  ysNarrow[2] *= 1.1;
+  var sNarrow = m.solveVandermonde(axNarrow, ysNarrow);
+  check("cubic drag solves on [0, " + ubNarrow + "]", sNarrow !== null);
+  var worst = Math.max.apply(null, axNarrow.map(function (x, i) {
+    return Math.abs(m.costAt(sNarrow, x) - ysNarrow[i]);
+  }));
+  check("cubic drag on [0, " + ubNarrow + "] passes through the anchors", worst < 1e-9 * ubNarrow);
+});
+check("solveVandermonde still null on duplicated x in a narrow range",
+  m.solveVandermonde([0, 0.0005, 0.0005, 0.001], [0, 1, 2, 3]) === null);
+
+// 14. validate allows the round-off of a valid cubic whose narrow bounds sit
+// far from 0, but still flags a truly decreasing curve there.
+[[1000, 1001], [1e4, 1e4 + 1]].forEach(function (b) {
+  var vFar = m.validate(designerCubic(b[0], b[1], 1), b[0], b[1], 500);
+  check("valid cubic on [" + b + "] is not flagged",
+    vFar.nonDecreasing && vFar.positiveMarginal && vFar.nonNegativeTotal);
+});
+var vDec = m.validate([2000, -1], 1000, 1001, 500);
+check("decreasing line on [1000, 1001] is flagged", !vDec.nonDecreasing && !vDec.positiveMarginal);
+var vNeg = m.validate([-5, 1], 0, 10, 500);
+check("c(-5, 1) has a positive marginal but a negative total",
+  vNeg.nonDecreasing && vNeg.positiveMarginal && !vNeg.nonNegativeTotal);
+
+// 14b. shiftCoefs re-expands in t = (x - lb) / (ub - lb): 1 + 2x + 3x^2 at
+// x = 1 + 2t is 6 + 16t + 12t^2
+var sh = m.shiftCoefs([1, 2, 3], 1, 3);
+check("shiftCoefs re-expands the cost", sh.d[0] === 6 && sh.d[1] === 16 && sh.d[2] === 12);
+check("shiftCoefs bounds a small round-off", sh.err.every(function (e) { return e >= 0 && e < 1e-12; }));
+// a cubic far from 0 that falls by 49 over its bounds is flagged, which the
+// step by step check with its wide round-off allowance missed
+[1000, 1e4, 1e5].forEach(function (lb) {
+  var c = designerCubic(lb, lb + 1, 1);
+  c[0] += 50 * lb;
+  c[1] -= 50;
+  var v = m.validate(c, lb, lb + 1, 500);
+  check("falling cubic on [" + lb + ", " + (lb + 1) + "] is flagged",
+    !v.nonDecreasing && !v.positiveMarginal);
+});
+check("designer cubic on [5000, 5010] is valid",
+  m.validate(designerCubic(5000, 5010, 1), 5000, 5010, 500).nonDecreasing);
+// a small cost that falls by 2% is flagged
+var vSmall = m.validate([1e-6, -2e-8], 0, 1, 500);
+check("a small falling cost is flagged", !vSmall.nonDecreasing && vSmall.nonNegativeTotal);
+
+// 15. the unit cost label keeps significant digits for small values
+check("formatSig(0.001) is 0.001", m.formatSig(0.001) === "0.001");
+check("formatSig(2) is 2", m.formatSig(2) === "2");
+check("formatSig(1.23456) is 1.235", m.formatSig(1.23456) === "1.235");
+check("formatSig(NaN) is NaN", m.formatSig(NaN) === "NaN");
+
 console.log("\nAll " + passed + " JS math assertions passed.");

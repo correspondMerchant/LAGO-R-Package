@@ -5,8 +5,15 @@
 #' clinic in one time period. This is the version used to fit the "new" LAGO
 #' outcome model, which uses the same clinics and periods as
 #' \code{\link{main_pulesa_data}} but a different specification of the
-#' intervention (the \code{W1}--\code{W8} components and their interaction
-#' terms).
+#' intervention (the \code{W1} to \code{W8} components and the missing value
+#' indicators \code{MI_W5}, \code{MI_W7} and \code{MI_W8}).
+#'
+#' Unlike in \code{\link{main_pulesa_data}}, the missing values of
+#' \code{DeliveryB} (24 rows), \code{RemoteMonitoring} (11 rows) and
+#' \code{PerformanceImprovement} (17 rows) are kept as \code{NA} here. The
+#' matching components \code{W5}, \code{W7} and \code{W8} have no missing
+#' values: in those rows they hold a constant fill value, and the
+#' \code{MI_W5}, \code{MI_W7} and \code{MI_W8} columns flag them.
 #'
 #' @format A data frame with 192 rows and 22 variables:
 #' \describe{
@@ -15,13 +22,22 @@
 #'   \item{AccessBPMachines}{Intervention component: access to blood-pressure machines}
 #'   \item{AccessMedicines}{Intervention component: access to medicines}
 #'   \item{DeliveryA}{Intervention component: care delivery mode A}
-#'   \item{DeliveryB}{Intervention component: care delivery mode B}
+#'   \item{DeliveryB}{Intervention component: care delivery mode B. Contains
+#'     \code{NA} in 24 rows}
 #'   \item{HypertensionTraining}{Intervention component: hypertension training}
-#'   \item{MI_W5}{Interaction term involving component W5}
-#'   \item{MI_W7}{Interaction term involving component W7}
-#'   \item{MI_W8}{Interaction term involving component W8}
-#'   \item{PerformanceImprovement}{Intervention component: performance improvement}
-#'   \item{RemoteMonitoring}{Intervention component: remote monitoring}
+#'   \item{MI_W5}{Missing value indicator for \code{W5}: 1 when
+#'     \code{DeliveryB} is \code{NA} and \code{W5} holds the constant fill
+#'     value 0.4800 (24 rows), 0 otherwise}
+#'   \item{MI_W7}{Missing value indicator for \code{W7}: 1 when
+#'     \code{RemoteMonitoring} is \code{NA} and \code{W7} holds the constant
+#'     fill value 0.2416 (11 rows), 0 otherwise}
+#'   \item{MI_W8}{Missing value indicator for \code{W8}: 1 when
+#'     \code{PerformanceImprovement} is \code{NA} and \code{W8} holds the
+#'     constant fill value 0.4348 (17 rows), 0 otherwise}
+#'   \item{PerformanceImprovement}{Intervention component: performance
+#'     improvement. Contains \code{NA} in 17 rows}
+#'   \item{RemoteMonitoring}{Intervention component: remote monitoring.
+#'     Contains \code{NA} in 11 rows}
 #'   \item{Success}{Outcome: number of successes at the clinic-period}
 #'   \item{Total_visit}{Number of visits at the clinic-period}
 #'   \item{W1}{Intervention component W1}

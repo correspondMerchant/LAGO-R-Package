@@ -1,7 +1,8 @@
-#' get_confidence_set
+#' Calculate the confidence set for a recommended intervention
 #'
-#' @description Internal function that calculates the confidence set
-#' for the recommended interventions
+#' @description Calculates the confidence set for the recommended
+#' intervention. lago_optimization() calls it when include_confidence_set is
+#' TRUE, and it can also be called directly.
 #'
 #' @param predictors_data A data.frame. The input data containing
 #' the intervention components and center characteristics. For a continuous
@@ -89,7 +90,8 @@
 #'     as a fraction of the grid. Both the count of qualifying interventions
 #'     and the size of the grid count grid interventions only, so rec_int is
 #'     excluded from each>,
-#'   rec_int_ci = <named numeric c(lower, upper) rounded to 3 decimal places,
+#'   rec_int_ci = <named numeric c(lower, upper), each bound rounded to 3
+#'     decimal places, or to 4 significant digits when it is below 0.1,
 #'     the confidence interval at rec_int. Computed whether or not it covers
 #'     the outcome goal, so callers never have to look for rec_int inside cs.
 #'     For a binary outcome on the logit link both bounds are confined to
@@ -244,6 +246,66 @@ get_confidence_set <- function(
     cluster_id = NULL,
     cost_list_of_vectors,
     rec_int) {
+  # lago_optimization() checks these in validate_inputs(), and a direct call
+  # gets the same checks, as a wrong value gives a wrong set with no error
+  n_components <- length(
+    if (include_interaction_terms) main_components else intervention_components
+  )
+  component_names <- gsub("`", "", if (include_interaction_terms) main_components else intervention_components)
+  if (!is.numeric(rec_int) || length(rec_int) != n_components ||
+    !all(is.finite(rec_int))) {
+    stop(paste0(
+      "rec_int must be the recommended intervention, ", n_components,
+      " finite number(s), one per ",
+      if (include_interaction_terms) "main component" else "intervention component",
+      "."
+    ))
+  }
+  # a named rec_int is matched to the components by name, not by position
+  if (!is.null(names(rec_int))) {
+    if (!setequal(names(rec_int), component_names) || anyDuplicated(names(rec_int)) > 0) {
+      stop(paste0(
+        "The names of rec_int must be the ",
+        if (include_interaction_terms) "main components" else "intervention components",
+        ", each once: ", paste0("'", component_names, "'", collapse = ", "),
+        ". Fix the names, or remove them with unname()."
+      ))
+    }
+    rec_int <- unname(rec_int[component_names])
+  }
+  # one cost function, and one bound and grid step each, per component
+  if (!is.list(cost_list_of_vectors) || length(cost_list_of_vectors) != n_components) {
+    stop(paste0(
+      "cost_list_of_vectors must be a list with one cost vector per component, ",
+      n_components, " in all."
+    ))
+  }
+  sizes <- list(
+    intervention_lower_bounds = intervention_lower_bounds,
+    intervention_upper_bounds = intervention_upper_bounds,
+    confidence_set_grid_step_size = confidence_set_grid_step_size
+  )
+  for (size_name in names(sizes)) {
+    v <- sizes[[size_name]]
+    if (!is.numeric(v) || length(v) != n_components || !all(is.finite(v))) {
+      stop(paste0(size_name, " must be ", n_components, " finite number(s), one per component."))
+    }
+  }
+  if (any(intervention_lower_bounds > intervention_upper_bounds)) {
+    stop("Each intervention_lower_bounds must not be above its intervention_upper_bounds.")
+  }
+  if (any(confidence_set_grid_step_size <= 0)) {
+    stop("confidence_set_grid_step_size must be above 0 for each component.")
+  }
+  if (!is.numeric(confidence_set_alpha) || length(confidence_set_alpha) != 1 ||
+    !is.finite(confidence_set_alpha) || confidence_set_alpha <= 0 ||
+    confidence_set_alpha >= 1) {
+    stop("confidence_set_alpha must be a single number between 0 and 1.")
+  }
+  if (!is.numeric(outcome_goal) || length(outcome_goal) != 1 ||
+    !is.finite(outcome_goal)) {
+    stop("outcome_goal must be a single finite number.")
+  }
   # Called directly, it checks the center characteristic values against the
   # rows the given model was fitted on, as lago_optimization() does for its
   # own fit. lago_optimization() calls the implementation below, so it warns
@@ -257,9 +319,14 @@ get_confidence_set <- function(
     columns <- lapply(center_characteristics, function(cc) frame[[cc]][fitted])
     warn_outside_centers(center_characteristics, center_characteristics_optimization_values, columns)
   }
-  args <- as.list(environment())
-  args[c("frame", "w", "fitted", "columns")] <- NULL
-  do.call(.get_confidence_set_impl, args)
+  # called by name, so an error inside names the arguments rather than carry
+  # their values, which can be a whole data set
+  arg_names <- names(formals(get_confidence_set))
+  impl_call <- as.call(c(
+    list(quote(.get_confidence_set_impl)),
+    stats::setNames(lapply(arg_names, as.name), arg_names)
+  ))
+  eval(impl_call)
 }
 
 # The confidence set itself, without the check above. lago_optimization()
@@ -1789,6 +1856,14 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
   }
   period_levels <- model$xlevels[["period"]]
   wanted <- as.character(period_value)
+  # a number such as 4 also names the period labelled "04" or "4.0"
+  if (is.numeric(period_value) && length(period_levels) > 0 &&
+    !wanted %in% period_levels) {
+    same <- which(suppressWarnings(as.numeric(period_levels)) == period_value)
+    if (length(same) == 1) {
+      wanted <- period_levels[same]
+    }
+  }
   if (length(period_levels) > 0 && !wanted %in% period_levels) {
     stop(paste0(
       "'time_effect_optimization_value' (", wanted, ") is not one of the ",

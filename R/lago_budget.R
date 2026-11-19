@@ -32,7 +32,13 @@
 #' across the outcome's range. Larger values give a finer, more precise answer
 #' at the cost of more optimization runs. A second refinement pass tries
 #' `n_grid` more goals strictly inside the gap at the affordability boundary,
-#' so the effective resolution is finer than `n_grid` alone. Default 25.
+#' and that gap is then halved one run at a time until it is narrower than
+#' 1/10000 of the goal range and the cost at the boundary is known to within
+#' 1/10000 of the budget, so the answer does not depend much on `n_grid`. Near
+#' the best reachable outcome, where the cost is not known until the goal gets
+#' very close to that outcome, the halving goes on until the gap is narrower
+#' than 1e-9 of the goal range.
+#' Default 25.
 #' @param quiet A boolean forwarded to [lago_optimization()] via
 #' [lago_sensitivity()]. Defaults to `TRUE` so the search is not noisy.
 #'
@@ -49,8 +55,11 @@
 #' `"minimize"`). Goals that tie on the estimated outcome return the same
 #' intervention, and the one furthest in the improving direction is taken. The
 #' grid is extended in the improving direction until goals stop being reached
-#' or affordable, up to 30 times with a warning if that is not enough, and a
-#' refinement sweep is then run near the affordability boundary to tighten the
+#' or affordable, up to 30 times with a warning if that is not enough. When no
+#' reached goal is affordable, the grid is also extended in the other direction,
+#' towards the cheaper and worse outcomes, until a reached goal is affordable or
+#' the cheapest reached goal stops getting cheaper. A refinement sweep and a
+#' bisection are then run near the affordability boundary to tighten the
 #' estimate.
 #'
 #' If no reachable goal is affordable (the budget is below the cost of even the
@@ -177,7 +186,10 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   } else {
     base$intervention_components
   }
-  reserved <- c("outcome_goal", "rec_int_cost", "est_outcome", "status", "reached", "affordable")
+  reserved <- c(
+    "outcome_goal", "rec_int_cost", "est_outcome", "status", "reached",
+    "out_of_reach", "affordable"
+  )
   clashing <- intersect(gsub("`", "", components), reserved)
   if (length(clashing) > 0) {
     stop(paste0(
@@ -252,7 +264,12 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     # Such a point is not a genuine point on the cost/outcome frontier, so mark
     # only goals the recommendation actually meets as `reached` (est reaches the
     # goal, up to a tolerance; overshoot from the grid counts as reached).
-    tol <- 1e-6 * pmax(1, abs(sens$value))
+    # The numerical optimizer accepts a point up to 1e-6 of the larger of the
+    # goal and the best reachable outcome short of the goal, so the tolerance
+    # here allows for that, with the largest estimate standing in for the best
+    # reachable outcome and a margin for the difference.
+    largest <- max(c(0, abs(sens$est_outcome_goal[ok])))
+    tol <- 1e-5 * pmax(1, abs(sens$value), largest)
     # with a power goal a run targets the higher power implied goal, so it
     # reaches its goal only when it meets that one
     target <- sens$value
@@ -274,6 +291,9 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       est_outcome = sens$est_outcome_goal,
       status = sens$status,
       reached = reached,
+      # the shrinking method was used, so the goal is beyond the best
+      # reachable outcome
+      out_of_reach = ok & !not_shrunk,
       affordable = ok & sens$rec_int_cost <= budget,
       stringsAsFactors = FALSE
     ) -> df
@@ -368,61 +388,100 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
   }
 
-  # a rare binary outcome may afford only goals below the grid when maximizing,
-  # or above it when minimizing, so the grid also fills the gap the other way,
-  # towards 0 or 1, until a reached goal is affordable. Once some goal is
-  # reached, it stops when a pass makes the cheapest reached goal no cheaper,
-  # since the goals further on then cost the same, at the lower bounds.
-  if (identical(outcome_type, "binary")) {
-    inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
-    cheapest_reached <- function(df) {
-      costs <- df$rec_int_cost[df$reached]
-      if (length(costs)) min(costs) else NA_real_
-    }
-    passes <- 0L
-    cheapest <- cheapest_reached(fr)
-    while (is.na(best_idx(fr)) && passes < 30L) {
-      g0 <- if (maximize) min(fr$outcome_goal) else max(fr$outcome_goal)
+  # The cheap interventions reach only the worse outcomes, so a small budget
+  # may afford only goals below the grid when maximizing, or above it when
+  # minimizing. The grid then also grows the other way until a reached goal is
+  # affordable: a binary goal fills the gap towards 0 or 1, and a continuous
+  # goal extends by the span of the goals so far. Once some goal is reached, it
+  # stops when a pass makes the cheapest reached goal no cheaper, since the
+  # goals further on then cost the same, at the lower bounds.
+  binary <- identical(outcome_type, "binary")
+  inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
+  cheapest_reached <- function(df) {
+    costs <- df$rec_int_cost[df$reached]
+    if (length(costs)) min(costs) else NA_real_
+  }
+  passes <- 0L
+  cheapest <- cheapest_reached(fr)
+  while (is.na(best_idx(fr)) && passes < 30L) {
+    g0 <- if (maximize) min(fr$outcome_goal) else max(fr$outcome_goal)
+    if (binary) {
       gap <- if (maximize) g0 else 1 - g0
       if (gap < 1e-6) break
       new_goals <- if (maximize) g0 * inside else g0 + (1 - g0) * inside
-      fr <- rbind(fr, sweep(new_goals))
-      fr <- fr[order(fr$outcome_goal), , drop = FALSE]
-      rownames(fr) <- NULL
-      passes <- passes + 1L
-      now <- cheapest_reached(fr)
-      if (!is.na(cheapest) && !(now < cheapest - 1e-9 * max(1, abs(cheapest)))) break
-      cheapest <- now
+    } else {
+      span <- diff(range(fr$outcome_goal))
+      new_goals <- if (maximize) g0 - span * rev(seq_len(n_grid)) / n_grid else g0 + span * seq_len(n_grid) / n_grid
     }
+    fr <- rbind(fr, sweep(new_goals))
+    fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+    rownames(fr) <- NULL
+    passes <- passes + 1L
+    now <- cheapest_reached(fr)
+    if (!is.na(cheapest) && !(now < cheapest - 1e-9 * max(1, abs(cheapest)))) break
+    cheapest <- now
   }
-
-  bi <- best_idx(fr)
 
   # --- refinement: tighten the estimate near the affordability boundary -----
-  # The true best-affordable outcome sits between the chosen goal and the
-  # adjacent goal that was unaffordable or unreachable (in the improving
-  # direction). Sweep a finer grid across that gap and re-pick.
-  if (!is.na(bi)) {
-    ord <- order(fr$outcome_goal)
-    pos <- match(bi, ord)
-    neighbor <- if (maximize) {
-      if (pos < length(ord)) ord[pos + 1L] else NA_integer_
-    } else {
-      if (pos > 1L) ord[pos - 1L] else NA_integer_
+  # The best affordable outcome sits between the furthest goal in the improving
+  # direction that is reached and affordable, and the next goal beyond it, which
+  # is unaffordable or unreachable. A first sweep tries n_grid goals strictly
+  # inside that gap, so n_grid = 2 still refines it. The gap is then halved, one
+  # run at a time, until it is narrower than a small part of the goal range and
+  # the cost is pinned down too, so a coarse grid does not leave a better
+  # affordable outcome behind. Near the best reachable outcome a tiny change of
+  # the goal can still change the cost a lot, so the goal gap alone is not
+  # enough there.
+  bracket <- function(df) {
+    ok <- df$reached & df$affordable
+    # goals in the improving direction are larger here, whatever the intention
+    g <- if (maximize) df$outcome_goal else -df$outcome_goal
+    # with no such goal, or no goal beyond it, max() or min() gives an infinite end
+    lo <- suppressWarnings(max(g[ok]))
+    hi <- suppressWarnings(min(g[g > lo]))
+    if (!is.finite(lo) || !is.finite(hi)) {
+      return(NULL)
     }
-    if (!is.na(neighbor)) {
-      lo <- min(fr$outcome_goal[bi], fr$outcome_goal[neighbor])
-      hi <- max(fr$outcome_goal[bi], fr$outcome_goal[neighbor])
-      if (hi > lo) {
-        # only goals strictly inside the gap, so n_grid = 2 still refines it
-        fr2 <- sweep(seq(lo, hi, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)])
-        fr <- rbind(fr, fr2)
-        fr <- fr[order(fr$outcome_goal), , drop = FALSE]
-        rownames(fr) <- NULL
-        bi <- best_idx(fr)
-      }
-    }
+    sort(if (maximize) c(lo, hi) else -c(lo, hi))
   }
+  # whether the cost at the boundary is known closely enough. When the goal
+  # beyond the boundary is reached but over budget, the cost gap between the two
+  # ends bounds how much of the budget is left unused. When that goal is out of
+  # reach, the cost of the best reachable outcome is unknown, so the gap stays
+  # open until the goals close in on that outcome. A goal whose estimate
+  # falls just short of it by the optimizer's round off is neither, so it does
+  # not keep the halving going.
+  cost_settled <- function(df, br) {
+    ends <- match(br, df$outcome_goal)
+    beyond <- ends[if (maximize) 2L else 1L]
+    within <- ends[if (maximize) 1L else 2L]
+    if (isTRUE(df$out_of_reach[beyond])) {
+      return(FALSE)
+    }
+    !isTRUE(df$reached[beyond]) ||
+      df$rec_int_cost[beyond] - df$rec_int_cost[within] <= cost_tol
+  }
+  goal_range <- diff(range(goal_grid(n_grid)))
+  goal_tol <- 1e-4 * goal_range
+  # the finest goal gap the halving goes down to, where the cost of a goal this
+  # close to the best reachable outcome is that outcome's cost up to round off
+  goal_tol_fine <- 1e-9 * goal_range
+  cost_tol <- 1e-4 * budget
+  br <- bracket(fr)
+  if (!is.null(br)) {
+    fr <- rbind(fr, sweep(seq(br[1], br[2], length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]))
+    fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+    rownames(fr) <- NULL
+  }
+  halvings <- 0L
+  while (!is.null(br <- bracket(fr)) && halvings < 60L &&
+    (diff(br) > goal_tol || (diff(br) > goal_tol_fine && !cost_settled(fr, br)))) {
+    fr <- rbind(fr, sweep(mean(br)))
+    fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+    rownames(fr) <- NULL
+    halvings <- halvings + 1L
+  }
+  bi <- best_idx(fr)
 
   # "reachable" here means genuinely reached (the recommendation delivers the
   # goal), not merely non-erroring: unreachable goals return via shrinking.
@@ -531,7 +590,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
 #' @exportS3Method print lago_budget
 print.lago_budget <- function(x, ...) {
   cli::cli_h2("LAGO budget-constrained optimization")
-  cli::cli_text("Budget: {.val {x$budget}} ({x$intention}).")
+  cli::cli_text("Budget: {(.lago_num_text(x$budget))} ({x$intention}).")
   if (!x$feasible && !is.null(x$run_error)) {
     cli::cli_alert_warning(
       "Every run of lago_optimization() failed, so no recommendation could be made: {x$run_error}"
@@ -546,7 +605,7 @@ print.lago_budget <- function(x, ...) {
       )
     } else {
       cli::cli_alert_warning(
-        "No reachable intervention fits this budget; increase the budget."
+        "No reachable intervention fits this budget. Increase the budget."
       )
     }
     return(invisible(x))
@@ -555,13 +614,25 @@ print.lago_budget <- function(x, ...) {
   comps <- x$component_names
   rec <- x$rec_int
   rec_txt <- if (length(comps)) {
-    paste(paste0(comps, " = ", format(as.numeric(rec))), collapse = ", ")
+    paste(paste0(comps, " = ", .lago_num_text(.lago_fmt_value(as.numeric(rec)))), collapse = ", ")
   } else {
     "(none)"
   }
+  # rounded as print.lago() rounds them
+  cost_txt <- .lago_fmt_cost(x$rec_int_cost)
+  # a cost just under the budget can round up past it, so it is then rounded
+  # down to the same digits, which keeps the printed cost within the budget
+  if (is.finite(x$rec_int_cost) && x$rec_int_cost > 0 && cost_txt > x$budget) {
+    k <- 4 - floor(log10(x$rec_int_cost))
+    cost_txt <- floor(x$rec_int_cost * 10^k) / 10^k
+  }
+  # written in full, as print.lago() writes numbers
+  cost_txt <- .lago_num_text(cost_txt)
+  est_txt <- .lago_num_text(.lago_fmt_value(x$est_outcome))
+  budget_txt <- .lago_num_text(x$budget)
   cli::cli_text("Recommended intervention: {rec_txt}")
-  cli::cli_text("Cost: {.val {x$rec_int_cost}} (of {.val {x$budget}}).")
-  cli::cli_text("Estimated outcome: {.val {x$est_outcome}}.")
+  cli::cli_text("Cost: {cost_txt} (of {budget_txt}).")
+  cli::cli_text("Estimated outcome: {est_txt}.")
   if (!x$binding) {
     best <- if (identical(x$intention, "minimize")) "minimum" else "maximum"
     cli::cli_alert_info(paste0(

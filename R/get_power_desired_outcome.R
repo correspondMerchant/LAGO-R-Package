@@ -17,6 +17,10 @@ get_power_desired_outcome <- function(
   if (is.null(control_rate)) {
     control_rate <- rje::expit(intervention_components_coeff[1])
   }
+  # On the identity link the fitted rate can fall outside 0 to 1, where
+  # p(1 - p) is negative and the variances below are not defined. A rate is a
+  # probability, so it is held within 0 to 1.
+  control_rate <- min(max(control_rate, 0), 1)
   # patients per row: 1 for individual level data, center_sample_size for
   # center level data, whose outcome is a proportion
   if (is.null(row_sizes)) row_sizes <- rep(1, nrow(data))
@@ -129,6 +133,23 @@ get_power_desired_outcome <- function(
     ), call. = FALSE)
   }
 
+  # The grid finds the first point that meets the power goal to within one
+  # grid step. With a large next stage that step is large next to the effect
+  # needed, so the bracket between that point and the one before it is halved
+  # until it is tiny. The upper end always meets the goal, so the result does.
+  refine_first_point <- function(grid, first, meets) {
+    if (first == 1) {
+      return(grid[1])
+    }
+    lo <- grid[first - 1]
+    hi <- grid[first]
+    while (hi - lo > 1e-12 * max(1, abs(hi))) {
+      mid <- (lo + hi) / 2
+      if (meets(mid)) hi <- mid else lo <- mid
+    }
+    hi
+  }
+
   if (power_goal_approach == "unconditional") {
     # helper function to get the power difference
     get_power_diff <- function(ncp, alpha, df, power_goal) {
@@ -144,9 +165,16 @@ get_power_desired_outcome <- function(
 
     # helper function to get the minimum required ncp
     get_min_req_ncp <- function(alpha, df, power_goal) {
+      # with no effect the test already has power alpha, so a power goal at
+      # or below alpha needs no effect at all
+      if (get_power_diff(0, alpha, df, power_goal) >= 0) {
+        return(0)
+      }
+      # extended upward, for a power goal so close to 1 that it needs an ncp
+      # above 100
       root <- uniroot(get_power_diff, c(0, 100),
         alpha = alpha, df = df,
-        power_goal = power_goal
+        power_goal = power_goal, extendInt = "upX", tol = 1e-10
       )
       return(root$root)
     }
@@ -203,6 +231,13 @@ get_power_desired_outcome <- function(
                                            n_points = 1000,
                                            beta0) {
       grid_for_expit_part <- seq(lower, upper, length.out = n_points)
+      # get_ncp_diff() needs only each arm's totals, so they are summed once
+      # here rather than at every grid point
+      arm_totals <- function(arm) {
+        list(.lago_row_size = sum(arm$.lago_row_size), .lago_events = sum(arm$.lago_events))
+      }
+      ctl_data_stage1 <- arm_totals(ctl_data_stage1)
+      int_data_stage1 <- arm_totals(int_data_stage1)
 
       ncp_diffs <- sapply(grid_for_expit_part, function(expit_part) {
         get_ncp_diff(
@@ -229,7 +264,15 @@ get_power_desired_outcome <- function(
         warn_power_goal_unreachable()
         return(structure(1, unreachable = TRUE))
       }
-      found
+      refine_first_point(
+        grid_for_expit_part, pos_diff_idx[1],
+        function(expit_part) {
+          get_ncp_diff(
+            expit_part, desired_ncp, j, n2j, ctl_data_stage1,
+            int_data_stage1, beta0
+          ) >= 0
+        }
+      )
     }
 
     min_ncp_solution <- get_min_req_ncp(
@@ -313,7 +356,14 @@ get_power_desired_outcome <- function(
       ]
 
       if (length(all_possible_expit_part_values) > 0) {
-        final_expit_value <- all_possible_expit_part_values[1]
+        final_expit_value <- refine_first_point(
+          grid_for_expit_part,
+          which(!is.na(pwr_equation_values) & pwr_equation_values <= 0)[1],
+          function(expit_part) {
+            value <- suppressWarnings(conditional_power_function(expit_part))
+            !is.na(value) && value <= 0
+          }
+        )
       } else {
         # no attainable outcome satisfies the conditional power inequality.
         # Returning 0 would drop the power goal downstream through

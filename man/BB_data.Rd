@@ -10,7 +10,8 @@ A data frame with 6124 rows and 21 variables:
 \item{coaching_updt}{Number of coaching visits accrued (at time of birth)}
 \item{data_flag}{Indicator of original dataset}
 \item{datafeedback}{Data feedback loop}
-\item{launch_duration}{Duration of checklist launch}
+\item{launch_duration}{Duration of the checklist launch. The data do not
+record its unit. The observed values are 0, 2 and 3}
 \item{leadership_ITT}{Leadership engagement, ITT}
 \item{leadership_updt}{Intensity of leadership engagement (at time of birth)}
 \item{pre_post}{Indicator for visits after initial coaching visit}
@@ -23,9 +24,15 @@ A data frame with 6124 rows and 21 variables:
 \item{distance}{Estimated distance to nearby hospital (km)}
 \item{distance_10}{Estimated distance to nearby hospital (divided by 10)}
 \item{staff_nurse}{Number of ANM, staff nurses, and lady health visitors}
-\item{pp2_hand_hygiene}{fada_op2_handwashing}
-\item{pp3_oxytocin_mother}{fada_op3_oxytocin_administered}
-\item{center_type}{Phase of the pilot studies}
+\item{pp2_hand_hygiene}{Binary outcome: 1 if hand washing was done,
+0 if not (source variable \code{fada_op2_handwashing}). Contains
+\code{NA} in 30 rows}
+\item{pp3_oxytocin_mother}{Binary outcome: 1 if oxytocin was administered
+to the mother, 0 if not (source variable
+\code{fada_op3_oxytocin_administered})}
+\item{center_type}{Study arm or pilot phase of the site:
+\code{"Pilot 1"}, \code{"Pilot 2"}, \code{"RCT-control"} or
+\code{"RCT-intervention"}}
 \item{coach5}{Number of coaching visits accrued divided by 5}
 \item{coach3}{Number of coaching visits accrued divided by 3}
 }

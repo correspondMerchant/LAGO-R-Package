@@ -2,7 +2,7 @@
 params:
   x: NULL
   title: "LAGO optimization report"
-title: "`r params$title`"
+title: "`r LAGOtrials:::.lago_report_title_yaml(params$title)`"
 date: "`r format(Sys.time(), '%Y-%m-%d %H:%M')`"
 output:
   html_document:
@@ -146,12 +146,13 @@ cat("## ", blocks$power$title, "\n\n", sep = "")
 cat(paste0("- ", blocks$power$rows), sep = "\n")
 ```
 
-```{r confidence-set-text, results='asis', eval=!is.null(blocks$confidence_set)}
+```{r confidence-set-text, results='asis'}
+# Always shown. When there is no set, the rows say why, as print() does.
 cat("## ", blocks$confidence_set$title, "\n\n", sep = "")
 cat(paste0("- ", blocks$confidence_set$rows), sep = "\n")
 ```
 
-```{r confidence-set-head, eval=!is.null(blocks$confidence_set)}
+```{r confidence-set-head, eval=!is.null(x$confidence_set_size_percentage) && cs_present}
 knitr::kable(
   utils::head(x$cs),
   caption = "First rows of the confidence set"

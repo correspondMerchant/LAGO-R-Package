@@ -81,7 +81,7 @@ test_that("the shipped both-stage formula matches an independent reference solve
     S0_1 <- sum(d$y[d$group == "control"])
     beta0 <- coeff[["(Intercept)"]]
     grid <- seq(rje::expit(beta0), 1, length.out = 1000)
-    ncp <- vapply(grid, function(ep) {
+    ncp_at <- function(ep) {
       S1_2 <- n1_2 * ep
       S0_2 <- n0_2 * rje::expit(beta0)
       p1 <- (S1_1 + S1_2) / N1
@@ -89,11 +89,12 @@ test_that("the shipped both-stage formula matches an independent reference solve
       v1 <- p1 * (1 - p1) * (de1_int * n1_1 + de2 * n1_2) / N1^2
       v0 <- p0 * (1 - p0) * (de1_ctl * n0_1 + de2 * n0_2) / N0^2
       ((p1 - p0) / sqrt(v1 + v0))^2
-    }, numeric(1))
-    idx <- which(ncp >= required_ncp)
-    ctl_pct <- S0_1 / n0_1
-    pos <- grid[idx]
-    pos[pos > ctl_pct][1]
+    }
+    ncp <- vapply(grid, ncp_at, numeric(1))
+    k <- which(ncp >= required_ncp)[1]
+    # the outcome where the ncp reaches the required one, between grid points
+    stats::uniroot(function(ep) ncp_at(ep) - required_ncp,
+      c(grid[k - 1], grid[k]), tol = 1e-12)$root
   }
 
   shipped <- suppressWarnings(get_power_desired_outcome(
@@ -136,7 +137,7 @@ test_that("the conditional path matches an independent reference (DE inside sqrt
     S1_1 <- sum(d$y[d$group == "treatment"])
     S0_1 <- sum(d$y[d$group == "control"])
     grid <- seq(rje::expit(beta0), 1, length.out = 1000)
-    vals <- vapply(grid, function(ep) {
+    value_at <- function(ep) {
       S1_2 <- n1_2 * ep
       S0_2 <- n0_2 * rje::expit(beta0)
       p1 <- (S1_1 + S1_2) / N1
@@ -151,9 +152,11 @@ test_that("the conditional path matches an independent reference (DE inside sqrt
           (de2^de2_power) * n1_2 * ep * (1 - ep) / N1^2
       )
       z_part - S1_1 / N1 + S0_1 / N0 - mu + z_pi * sig
-    }, numeric(1))
-    poss <- grid[vals <= 0]
-    if (length(poss) > 0) poss[1] else 0
+    }
+    vals <- vapply(grid, value_at, numeric(1))
+    k <- which(vals <= 0)[1]
+    # the outcome where the inequality starts to hold, between grid points
+    stats::uniroot(value_at, c(grid[k - 1], grid[k]), tol = 1e-12)$root
   }
 
   shipped <- suppressWarnings(get_power_desired_outcome(
