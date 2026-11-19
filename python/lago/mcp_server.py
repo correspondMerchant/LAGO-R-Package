@@ -29,7 +29,13 @@ Every result has a ``warnings`` list with the warnings of the R package, such as
 a recommendation for a center outside the centers in the data, so an agent can
 pass them on instead of reporting a number without its caveats. A tool that
 fails returns ``{"error": "...", "warnings": [...]}`` as a tool result marked
-as an error (``isError`` true).
+as an error (``isError`` true). That includes the warnings R gave before it
+failed, and an argument that does not fit the tool, such as one of the wrong
+type or one the tool does not take.
+
+JSON has no NaN or Infinity. The MCP SDK turns a NaN or an Infinity into null
+before a tool sees it, so the server cannot tell it from null. For an optional
+argument, null means the argument was not given, and the default is used.
 
 Deliberately NOT exposed
 ------------------------
@@ -55,6 +61,7 @@ from typing import Any
 import anyio
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
 
 import lago
 from lago._bridge import collect_warnings
@@ -311,7 +318,7 @@ MODEL_ARGS_DOC = """
     for a cubic cost, optionally `unit_cost_doses`.
 
     Columns the package reads by name can be built from your columns:
-    `group_column` with `treatment_value` (for a power goal), `center_column`
+    {group}`center_column`
     (for center effects), `period_column` (for time effects), and for center
     level data (`input_data_structure="center_level"`, one row per center and
     period, binary outcome) `successes_column` or `proportion_column` with
@@ -327,18 +334,35 @@ MODEL_ARGS_DOC = """
     products listed in `intervention_components` as "a:b" and the mains in
     `main_components`. The server builds the column of a product "a:b" from
     the columns a and b when the data has none. Optimizer: `optimization_method` ("numerical" or
-    "grid_search") with `optimization_grid_search_step_size`. Shrinking
-    method: `prev_recommended_interventions`.
+    "grid_search") with `optimization_grid_search_step_size`.{shrink}
+
+    An argument the tool does not take is an error. JSON has no NaN or
+    Infinity, and the server reads them as null, which for an optional
+    argument means not given.
 """
+
+
+def _model_doc(fn):
+    """The shared model arguments, as far as the tool ``fn`` takes them."""
+    import inspect
+
+    params = inspect.signature(fn).parameters
+    group = "`group_column` with `treatment_value` (for a power goal), " if "group_column" in params else ""
+    shrink = (
+        " Shrinking method: `prev_recommended_interventions`."
+        if "prev_recommended_interventions" in params else ""
+    )
+    return MODEL_ARGS_DOC.format(group=group, shrink=shrink)
 
 
 def _with_model_doc(fn):
     """Put the shared model arguments into a tool's description.
 
-    It runs before ``mcp.tool()``, which reads the description from the
-    docstring when it registers the tool.
+    Only the arguments the tool takes are described. It runs before
+    ``mcp.tool()``, which reads the description from the docstring when it
+    registers the tool.
     """
-    fn.__doc__ = fn.__doc__.format(model=MODEL_ARGS_DOC)
+    fn.__doc__ = fn.__doc__.format(model=_model_doc(fn))
     return fn
 
 
@@ -450,10 +474,10 @@ def optimize(
     the level of the interval and the confidence set (0.05 gives 95%).
     {model}
     Returns `rec_int` (the recommended value per component), `rec_int_cost`,
-    `est_outcome_goal` (the estimated outcome there), `effective_outcome_goal`
-    (the goal used, which a power goal can raise), `shrinking_method_used`
-    (True when the goal cannot be reached within the bounds, so no confidence
-    set is computed), and with a confidence set `est_outcome_ci`
+    `est_outcome_goal` (the estimated outcome there), with a power goal
+    `effective_outcome_goal` (the goal used, which a power goal can raise),
+    `shrinking_method_used` (True when the goal cannot be reached within the
+    bounds, so no confidence set is computed), and with a confidence set `est_outcome_ci`
     (lower/upper), `confidence_level`, `confidence_set_size_percentage` and
     `confidence_set`. `warnings` lists the warnings of the R package. On a bad
     input or optimization error it returns `{{"error": "...", "warnings": [...]}}`
@@ -573,7 +597,13 @@ def sensitivity(
     Returns `{{"runs": [...], "warnings": [...]}}`. `runs` has one record per
     swept value, each with `value` (the swept value), one entry per
     intervention component (its recommended value that run), `rec_int_cost`,
-    `est_outcome_goal`, and `status` (`"ok"` or `"error"`). `warnings` lists
+    `est_outcome_goal`, `status` (`"ok"` or `"error"`),
+    `shrinking_method_used` (true when the goal of that run could not be
+    reached within the bounds), `effective_outcome_goal` (with a power goal,
+    the goal that run used, which the power goal can raise, and null
+    otherwise), and `error_message` (why a run failed, and null for a run that
+    did not fail). A failed run has null for `shrinking_method_used` and
+    `effective_outcome_goal`. `warnings` lists
     the warnings of the R package, each once. On a bad input or setup error it
     returns `{{"error": "...", "warnings": [...]}}` as an error result.
     """
@@ -857,8 +887,69 @@ def _run_in_worker(fn):
     return tool
 
 
+def _validation_message(exc, tool_name):
+    """The problems of a pydantic ValidationError, in one line an agent can act on."""
+    problems = []
+    for err in exc.errors():
+        name = ".".join(str(part) for part in err["loc"])
+        if err["type"] == "extra_forbidden":
+            problems.append(f"`{name}` is not an argument of {tool_name}.")
+        elif err["type"] == "missing":
+            problems.append(f"`{name}` is required.")
+        else:
+            text = f"`{name}`: {err['msg']}."
+            if err.get("input", 0) is None:
+                text += " JSON has no NaN or Infinity, and the server reads them as null."
+            problems.append(text)
+    return f"the arguments do not fit {tool_name}. " + " ".join(problems)
+
+
+class _StrictArguments(FuncMetadata):
+    """FastMCP's argument handling, with bad arguments as a JSON error result.
+
+    FastMCP drops an argument a tool does not take without a word, and reports
+    an argument of the wrong type as plain text. Here both are an error result
+    with the JSON payload every other error has.
+    """
+
+    tool_name: str = ""
+
+    async def call_fn_with_arg_validation(self, fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
+        from pydantic import ValidationError
+
+        try:
+            self.arg_model.model_validate(self.pre_parse_json(arguments_to_validate))
+        except ValidationError as exc:
+            return _error_result(_error(ValueError(_validation_message(exc, self.tool_name))))
+        return await super().call_fn_with_arg_validation(
+            fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly
+        )
+
+
+def _forbid_unknown_arguments(tool):
+    """Make an argument the tool does not take an error, and say so in its schema."""
+    from pydantic import ConfigDict
+
+    base = tool.fn_metadata.arg_model
+
+    class Strict(base):
+        model_config = ConfigDict(extra="forbid")
+
+    Strict.__name__ = Strict.__qualname__ = base.__name__
+    old = tool.fn_metadata
+    tool.fn_metadata = _StrictArguments(
+        arg_model=Strict,
+        output_schema=old.output_schema,
+        output_model=old.output_model,
+        wrap_output=old.wrap_output,
+        tool_name=tool.name,
+    )
+    tool.parameters["additionalProperties"] = False
+
+
 for _fn in (describe_data, optimize, sensitivity, budget):
     mcp.tool(name=_fn.__name__)(_run_in_worker(_fn))
+    _forbid_unknown_arguments(mcp._tool_manager.get_tool(_fn.__name__))
 
 
 def _on_sigterm(signum, frame):

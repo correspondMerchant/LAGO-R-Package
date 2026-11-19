@@ -189,9 +189,15 @@ def sensitivity(
         One row per element of ``values``, matching R's ``lago_sensitivity()``
         ``data.frame``: a ``value`` column, one numeric column per intervention
         component (named by the component) holding its recommended value, a
-        ``rec_int_cost`` column, an ``est_outcome_goal`` column, and a
+        ``rec_int_cost`` column, an ``est_outcome_goal`` column, a
         ``status`` column (``"ok"`` for a successful run, ``"error"``
-        otherwise). Returning a ``pandas.DataFrame`` is consistent with how
+        otherwise), a ``shrinking_method_used`` column (True when the goal of
+        that run could not be reached within the bounds), an
+        ``effective_outcome_goal`` column (with a power goal, the goal that
+        run used, which the power goal can raise, and None otherwise) and an
+        ``error_message`` column (why a run failed, and None for a run that
+        did not fail). A failed run has None for ``shrinking_method_used``
+        and ``effective_outcome_goal``. Returning a ``pandas.DataFrame`` is consistent with how
         :func:`optimize` surfaces R ``data.frame`` fields (e.g. the confidence
         set ``cs``) via :func:`_bridge.r_to_py`.
     """

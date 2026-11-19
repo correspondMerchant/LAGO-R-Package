@@ -175,6 +175,17 @@ with warnings.catch_warnings(record=True) as caught:
 messages = [str(w.message) for w in caught if issubclass(w.category, lago.LagoRWarning)]
 ```
 
+When an R function fails, the function first issues the warnings R gave before
+the error, and then raises the error.
+
+Arguments can be plain Python values, numpy values, or pandas values. A pandas
+Series, Index or array (such as the result of `Series.unique()`, or an `Int64`
+array) becomes a list. A missing value (`None`, `pd.NA` or `NaT`) in a list
+becomes the R `NA` of the type of the other elements. A categorical value
+becomes its text, and a date or a time becomes the text R gives for it, such as
+`"2020-01-01"`, so it names the same period as a date column of the data. In a
+data frame that comes back from R, a missing text value is `None`.
+
 Every function works from any thread or asyncio task. rpy2 keeps its conversion
 rules per context, so each function sets them for its own call, and a lock lets
 one call into R at a time.
@@ -261,7 +272,16 @@ once, such as a recommendation for a center outside the centers in the data. An
 agent should pass them on with the numbers. A tool that fails returns
 `{"error": "...", "warnings": [...]}` with the package's own message, as a tool
 result marked as an error (`isError` true), so a client can tell it from a
-result.
+result. Its `warnings` holds the warnings R gave before the error. An argument
+that does not fit the tool gives the same kind of error result: one of the
+wrong type, a missing required one, or one the tool does not take (the schema
+of each tool says `additionalProperties: false`).
+
+JSON has no NaN or Infinity. The MCP SDK turns a NaN or an Infinity into null
+before a tool sees it, so the server cannot tell it from null. For an optional
+argument, such as `confidence_set_alpha`, null means the argument was not
+given, and the default is used. For a required number, or a number in a list,
+null is an error.
 
 The server also sends the agent short instructions on how to use the tools.
 They say to describe the data first, to report every warning, and to read an
