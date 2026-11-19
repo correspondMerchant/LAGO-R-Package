@@ -180,8 +180,8 @@ test_that("the power goal is not rounded up to the next grid point", {
   grid <- seq(ctl, 1, length.out = 1000)
   for (approach in c("unconditional", "conditional")) {
     big <- bb2_power(0.8, approach, j = 1e4, n = 1e3)
-    # far below one grid step above the stage 1 control rate
-    expect_lt(big, grid[which(grid >= big)[1]])
+    # between grid points, not on the first one that meets the goal
+    expect_gt(min(abs(grid - big)), 1e-9)
     expect_gt(bb2_power(0.8, approach, j = 1e4, n = 1e3, icc = 0.01,
       power_goal_cluster_id = "center"), big)
   }
