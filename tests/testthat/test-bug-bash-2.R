@@ -268,3 +268,39 @@ test_that("a goal within round off of the best outcome is reached, not shrunk", 
     }
   }
 })
+
+test_that("the cost type note is shown only when the caller set the type", {
+  notes <- function(...) {
+    found <- character(0)
+    withCallingHandlers(
+      suppressWarnings(lago_optimization(
+        data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+        intervention_components = c("wt", "qsec"),
+        intervention_lower_bounds = c(1.5, 15), intervention_upper_bounds = c(5, 22),
+        outcome_goal = 22, cost_list_of_vectors = list(c(0, 4), c(0, 6)),
+        include_confidence_set = FALSE, ...
+      )),
+      message = function(m) {
+        found <<- c(found, conditionMessage(m))
+        invokeRestart("muffleMessage")
+      }
+    )
+    any(grepl("'default_cost_fxn_type' is ignored", found, fixed = TRUE))
+  }
+  expect_false(notes())
+  expect_true(notes(default_cost_fxn_type = "linear"))
+})
+
+test_that("the bound warnings are input warnings, so a sweep shows them once", {
+  args <- list(
+    data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(4, 0), intervention_upper_bounds = c(10, 350),
+    outcome_goal = 40, outcome_goal_intention = "maximize", power_goal = NULL,
+    power_goal_approach = "unconditional",
+    cost_list_of_vectors = list(c(0, 4), c(4, 6)), quiet = TRUE
+  )
+  w <- tryCatch(do.call(LAGOtrials:::validate_inputs, args), warning = function(w) w)
+  expect_s3_class(w, "lago_input_warning")
+  expect_match(conditionMessage(w), "lower bound for the intervention component gear")
+})

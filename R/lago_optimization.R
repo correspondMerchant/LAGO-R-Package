@@ -409,6 +409,11 @@ lago_optimization <- function(
   # environment snapshot; otherwise it is passed as an unused argument and errors.
   validation_args <- as.list(environment())
   validation_args$captured_args <- NULL
+  # the note that a cost list overrides default_cost_fxn_type is only for a
+  # caller who set it
+  if (missing(default_cost_fxn_type) && !is.null(cost_list_of_vectors)) {
+    validation_args["default_cost_fxn_type"] <- list(NULL)
+  }
   inputs <- do.call(
     validate_inputs,
     validation_args

@@ -116,8 +116,17 @@ test_that("progress messages are still shown for every run when quiet is FALSE",
   )))
   expect_gt(single$progress, 0)
   expect_identical(out$progress, 3 * single$progress)
-  # with quiet = FALSE the cost note is shown too, once, after the center note
-  expect_identical(out$plain, c(
+  # the cost note is only for a caller who set default_cost_fxn_type
+  expect_identical(out$plain, sweep_messages_expected)
+  set_type <- sweep_messages_collect(do.call(lago_sensitivity, c(
+    args,
+    list(
+      default_cost_fxn_type = "linear", parameter = "outcome_goal",
+      values = c(0.8, 0.85, 0.9)
+    )
+  )))
+  # with quiet = FALSE it is shown once, after the center note
+  expect_identical(set_type$plain, c(
     sweep_messages_expected[1],
     "When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.",
     sweep_messages_expected[2]

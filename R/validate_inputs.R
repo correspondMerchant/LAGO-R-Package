@@ -836,14 +836,14 @@ validate_inputs <- function(
     min_val <- min(data[[all_components[i]]], na.rm = TRUE)
     max_val <- max(data[[all_components[i]]], na.rm = TRUE)
     if (intervention_lower_bounds[i] > min_val) {
-      warning(paste(
+      input_warning(paste(
         "The lower bound for the intervention component",
         all_components[i],
         "is greater than the minimum value in the data."
       ))
     }
     if (intervention_upper_bounds[i] < max_val) {
-      warning(paste(
+      input_warning(paste(
         "The upper bound for the intervention component",
         all_components[i],
         "is less than the maximum value in the data."
