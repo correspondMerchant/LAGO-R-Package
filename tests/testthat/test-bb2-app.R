@@ -17,15 +17,15 @@ bb2_latin1_csv <- function(path) {
 test_that("a CSV that is not UTF-8 is read in full as Latin-1", {
   path <- tempfile(fileext = ".csv")
   bb2_latin1_csv(path)
-  expect_identical(.app_file_encoding(path), "latin1")
+  expect_identical(.app_file_encoding(path), "CP1252")
   d <- .app_read_csv(path, sep = ";", dec = ",")
   expect_equal(nrow(d), 60)
   expect_equal(sum(d$site == "Cl\u00ednica"), 20)
-  expect_identical(.app_renamed(path, ";", d, "latin1"), character(0))
-  expect_match(.app_read_csv_code("a.csv", ";", ",", "latin1"), "fileEncoding = \"latin1\"", fixed = TRUE)
+  expect_identical(.app_renamed(path, ";", d, "CP1252"), character(0))
+  expect_match(.app_read_csv_code("a.csv", ";", ",", "CP1252"), "iconv(readLines(\"a.csv\", warn = FALSE), \"CP1252\", \"UTF-8\")", fixed = TRUE)
   utf8 <- tempfile(fileext = ".csv")
   writeLines(enc2utf8(c("site,y", "Cl\u00ednica,1")), utf8, useBytes = TRUE)
-  expect_identical(.app_file_encoding(utf8), "UTF-8-BOM")
+  expect_identical(.app_file_encoding(utf8), "UTF-8")
 })
 
 test_that("the app tells the user when an upload was read as Latin-1", {
@@ -34,8 +34,8 @@ test_that("the app tells the user when an upload was read as Latin-1", {
   shiny::testServer(.build_lago_app(), {
     session$setInputs(source = "upload", sep = ";", dec = ",", file = list(datapath = path, name = "l.csv"))
     expect_equal(nrow(current_data()), 60)
-    expect_match(loaded()$name, "fileEncoding = \"latin1\"", fixed = TRUE)
-    expect_match(as.character(output$data_info$html), "read as Latin-1")
+    expect_match(loaded()$name, "\"CP1252\", \"UTF-8\"", fixed = TRUE)
+    expect_match(as.character(output$data_info$html), "read as Windows-1252 \\(Latin-1\\)")
   })
 })
 

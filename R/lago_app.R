@@ -537,14 +537,16 @@ lago_app <- function(data = NULL,
           } else {
             encoding <- .app_file_encoding(f$datapath)
             d <- tryCatch(.app_read_csv(f$datapath, input$sep, input$dec, encoding), error = function(e) e)
-            if (inherits(d, "error")) {
+            if (identical(encoding, "UTF-16")) {
+              list(error = "The file is saved as UTF-16 text, which the app cannot read. Save it as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again.")
+            } else if (inherits(d, "error")) {
               list(error = sprintf(
                 "The file could not be read with these settings (%s). Check that the separator and the decimal mark match the file.",
                 conditionMessage(d)
               ))
             } else {
               list(
-                data = d, name = .app_read_csv_code(f$name, input$sep, input$dec, encoding),
+                data = d, name = .app_read_csv_code(f$name, input$sep, input$dec, encoding, .app_csv_header(f$datapath, input$sep, encoding)),
                 hint = .app_csv_hint(d, input$sep, input$dec), renamed = .app_renamed(f$datapath, input$sep, d, encoding),
                 encoding = encoding
               )
@@ -852,10 +854,10 @@ lago_app <- function(data = NULL,
             }
           )
         },
-        if (identical(got$encoding, "latin1")) {
+        if (isTRUE(got$encoding %in% c("CP1252", "latin1"))) {
           htmltools::div(
             class = "alert alert-warning", role = "status",
-            "The file is not UTF-8 text, so it was read as Latin-1. Check that names with accents look right. If they do not, save the file as UTF-8 and upload it again."
+            "The file is not UTF-8 text, so it was read as Windows-1252 (Latin-1). Check that names with accents look right. If they do not, save the file as UTF-8 and upload it again."
           )
         },
         if (!is.null(got$hint)) htmltools::div(class = "alert alert-warning", role = "status", got$hint),
