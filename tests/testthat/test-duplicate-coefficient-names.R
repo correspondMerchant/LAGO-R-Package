@@ -138,7 +138,7 @@ test_that("lago_budget() reports the refusal rather than an unreachable budget",
   printed <- paste(cli::cli_fmt(print(result)), collapse = " ")
   expect_true(grepl("Every run of lago_optimization() failed", printed, fixed = TRUE))
   expect_true(grepl("the name centerNA, from the column center", printed, fixed = TRUE))
-  expect_false(grepl("increase the budget", printed, fixed = TRUE))
+  expect_false(grepl("Increase the budget", printed, fixed = TRUE))
 })
 
 test_that("a center labeled NA or an explicit NA level alone still runs", {

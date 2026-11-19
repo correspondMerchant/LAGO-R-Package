@@ -328,7 +328,7 @@ test_that("a budget below the cheapest reachable cost says to increase it", {
   expect_false(b$feasible)
   expect_gt(nrow(b$frontier), 0)
   printed <- paste(cli::cli_fmt(print(b)), collapse = " ")
-  expect_match(printed, "increase the budget", fixed = TRUE)
+  expect_match(printed, "Increase the budget", fixed = TRUE)
 })
 
 test_that("a component named like a budget search column is refused", {

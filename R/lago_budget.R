@@ -590,7 +590,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
 #' @exportS3Method print lago_budget
 print.lago_budget <- function(x, ...) {
   cli::cli_h2("LAGO budget-constrained optimization")
-  cli::cli_text("Budget: {.val {x$budget}} ({x$intention}).")
+  cli::cli_text("Budget: {(.lago_num_text(x$budget))} ({x$intention}).")
   if (!x$feasible && !is.null(x$run_error)) {
     cli::cli_alert_warning(
       "Every run of lago_optimization() failed, so no recommendation could be made: {x$run_error}"
@@ -605,7 +605,7 @@ print.lago_budget <- function(x, ...) {
       )
     } else {
       cli::cli_alert_warning(
-        "No reachable intervention fits this budget; increase the budget."
+        "No reachable intervention fits this budget. Increase the budget."
       )
     }
     return(invisible(x))
@@ -614,7 +614,7 @@ print.lago_budget <- function(x, ...) {
   comps <- x$component_names
   rec <- x$rec_int
   rec_txt <- if (length(comps)) {
-    paste(paste0(comps, " = ", .lago_fmt_value(as.numeric(rec))), collapse = ", ")
+    paste(paste0(comps, " = ", .lago_num_text(.lago_fmt_value(as.numeric(rec)))), collapse = ", ")
   } else {
     "(none)"
   }
@@ -626,10 +626,13 @@ print.lago_budget <- function(x, ...) {
     k <- 4 - floor(log10(x$rec_int_cost))
     cost_txt <- floor(x$rec_int_cost * 10^k) / 10^k
   }
-  est_txt <- .lago_fmt_value(x$est_outcome)
+  # written in full, as print.lago() writes numbers
+  cost_txt <- .lago_num_text(cost_txt)
+  est_txt <- .lago_num_text(.lago_fmt_value(x$est_outcome))
+  budget_txt <- .lago_num_text(x$budget)
   cli::cli_text("Recommended intervention: {rec_txt}")
-  cli::cli_text("Cost: {.val {cost_txt}} (of {.val {x$budget}}).")
-  cli::cli_text("Estimated outcome: {.val {est_txt}}.")
+  cli::cli_text("Cost: {cost_txt} (of {budget_txt}).")
+  cli::cli_text("Estimated outcome: {est_txt}.")
   if (!x$binding) {
     best <- if (identical(x$intention, "minimize")) "minimum" else "maximum"
     cli::cli_alert_info(paste0(

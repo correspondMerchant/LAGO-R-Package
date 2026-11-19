@@ -261,3 +261,16 @@ test_that("names of a direct rec_int are checked against the main components", {
     "names of rec_int must be the main components"
   )
 })
+
+test_that("print of a budget result writes numbers in full", {
+  b <- structure(list(
+    budget = 2e6, intention = "maximize", feasible = TRUE, binding = TRUE,
+    component_names = "x", rec_int = 1e-5, rec_int_cost = 1e5, est_outcome = 1e5,
+    frontier = data.frame(), run_error = NULL
+  ), class = "lago_budget")
+  printed <- paste(cli::cli_fmt(print(b)), collapse = "\n")
+  expect_match(printed, "Budget: 2000000 (maximize)", fixed = TRUE)
+  expect_match(printed, "x = 0.00001", fixed = TRUE)
+  expect_match(printed, "Cost: 100000 (of 2000000)", fixed = TRUE)
+  expect_match(printed, "Estimated outcome: 100000.", fixed = TRUE)
+})
