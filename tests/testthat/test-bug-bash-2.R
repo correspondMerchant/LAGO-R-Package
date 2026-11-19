@@ -241,3 +241,30 @@ test_that("a direct get_confidence_set() call checks rec_int, alpha and the goal
   expect_error(cs(confidence_set_alpha = c(0.05, 0.5)), "between 0 and 1")
   expect_error(cs(outcome_goal = c(0.5, 0.7)), "single finite number")
 })
+
+test_that("a goal within round off of the best outcome is reached, not shrunk", {
+  set.seed(83)
+  d <- data.frame(x1 = stats::runif(300, 0.5, 4))
+  d$y <- stats::rbinom(300, 1, stats::plogis(0.27 - 1.05 * d$x1))
+  b <- stats::coef(stats::glm(y ~ x1, binomial, d))
+  at <- function(x) unname(stats::plogis(b[1] + b[2] * x))
+  # the goal is 1e-10 past the best outcome, which is at one bound
+  cases <- list(
+    list(intention = "maximize", goal = at(0.7) + 1e-10, best = 0.7),
+    list(intention = "minimize", goal = at(3.7) - 1e-10, best = 3.7)
+  )
+  for (case in cases) {
+    for (method in c("numerical", "grid_search")) {
+      r <- suppressWarnings(lago_optimization(
+        data = d, outcome_name = "y", outcome_type = "binary",
+        intervention_components = "x1", intervention_lower_bounds = 0.7,
+        intervention_upper_bounds = 3.7, outcome_goal = case$goal,
+        outcome_goal_intention = case$intention,
+        cost_list_of_vectors = list(c(0, 1)), optimization_method = method,
+        include_confidence_set = FALSE, quiet = TRUE
+      ))
+      expect_false(r$shrinking_method_used)
+      expect_equal(r$rec_int, case$best, tolerance = 1e-6)
+    }
+  }
+})

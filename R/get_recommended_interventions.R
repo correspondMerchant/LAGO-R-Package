@@ -689,9 +689,12 @@ get_recommended_interventions <- function(
       # find the maximum outcome
       max_outcome <- max(all_outcomes)
 
-      if (max_outcome >= new_outcome_goal && !power_unreachable) {
+      # a goal within round off of the best outcome is reached, with the
+      # tolerance lago_budget() and the numerical method use
+      reach_tol <- 1e-6 * max(1, abs(new_outcome_goal))
+      if (max_outcome >= new_outcome_goal - reach_tol && !power_unreachable) {
         # 1) if the outcome goal is achievable
-        valid_indices <- which(all_outcomes >= new_outcome_goal)
+        valid_indices <- which(all_outcomes >= new_outcome_goal - reach_tol)
         best_index <- valid_indices[which.min(all_costs[valid_indices])]
 
         est_rec_int <- as.numeric(full_grid[best_index, ])
@@ -932,7 +935,10 @@ get_recommended_interventions <- function(
       cost_obj_fun_scaled <- function(x) cost_obj_fun(x) / cost_scale
 
       # 1) if the max achievable outcome is larger than the new outcome goal
-      if (max_achievable_outcome >= new_outcome_goal && !power_unreachable) {
+      # a goal within round off of the best outcome is reached, with the
+      # tolerance the solution is checked with below
+      if (max_achievable_outcome >= new_outcome_goal - 1e-6 * max(1, abs(new_outcome_goal)) &&
+        !power_unreachable) {
         # If the goal is achievable, get the recommended intervention that
         # minimizes the total cost function
 
@@ -1087,7 +1093,8 @@ get_recommended_interventions <- function(
         )
         rec_int_cost <- selected$rec_int_cost
 
-        est_rec_int <- selected$int_components
+        # unnamed, as a one-component matrix column can carry the name of a start point
+        est_rec_int <- unname(selected$int_components)
 
         est_reachable_outcome <- get_est_reachable_outcome(
           x = est_rec_int,
