@@ -203,6 +203,26 @@ def _is_null(obj) -> bool:
     return str(type(obj)).endswith("NULLType'>")
 
 
+def _plain(value):
+    """Turn numpy and pandas values into plain Python values.
+
+    A numpy scalar becomes its Python number, bool or str. A numpy array, a
+    pandas Series or a pandas Index becomes a list (a 2D array a list of
+    lists). The elements of a list or tuple are turned too. Anything else is
+    returned unchanged. numpy comes with pandas, which the wrapper needs.
+    """
+    import numpy as np
+    import pandas as pd
+
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, (np.ndarray, pd.Series, pd.Index)):
+        return [_plain(el) for el in value.tolist()]
+    if isinstance(value, (list, tuple)):
+        return [_plain(el) for el in value]
+    return value
+
+
 def py_to_r(value):
     """Convert a single Python value to the corresponding R object.
 
@@ -212,6 +232,8 @@ def py_to_r(value):
     - str / list-of-str -> character vector
     - list-of-lists (e.g. cost_list_of_vectors) -> R list of numeric vectors
     - None -> R NULL
+    - numpy scalars and arrays, pandas Series and Index -> as the plain
+      Python values they hold
     - an existing rpy2 object -> passed through unchanged
     """
     s = _ensure()
@@ -229,6 +251,8 @@ def py_to_r(value):
     if isinstance(value, pd.DataFrame):
         with s["localconverter"](_pandas_converter()):
             return ro.conversion.get_conversion().py2rpy(value)
+
+    value = _plain(value)
 
     # bool must be checked before int (bool is a subclass of int)
     if isinstance(value, bool):

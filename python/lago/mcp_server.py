@@ -27,7 +27,9 @@ columns the caller names, as ``lago_app()`` does.
 
 Every result has a ``warnings`` list with the warnings of the R package, such as
 a recommendation for a center outside the centers in the data, so an agent can
-pass them on instead of reporting a number without its caveats.
+pass them on instead of reporting a number without its caveats. A tool that
+fails returns ``{"error": "...", "warnings": [...]}`` as a tool result marked
+as an error (``isError`` true).
 
 Deliberately NOT exposed
 ------------------------
@@ -254,10 +256,8 @@ def _error(exc: Exception, warned=None) -> dict:
     if len(lines) > 1 and lines[0].startswith("Error in ") and lines[0].endswith(":"):
         lines = lines[1:]
     message = " ".join(lines) if lines else str(exc)
-    out = {"error": "{}: {}".format(type(exc).__name__, message)}
-    if warned:
-        out["warnings"] = list(warned)
-    return out
+    # every result has a warnings list, an error before R is reached too
+    return {"error": "{}: {}".format(type(exc).__name__, message), "warnings": list(warned or [])}
 
 
 def _finite(x):
@@ -265,13 +265,38 @@ def _finite(x):
 
     Strict JSON (RFC 8259) has no NaN/Infinity tokens, and the MCP serializer
     would emit invalid JSON for them. The DataFrame paths below already map
-    non-finite values to null via to_json; this keeps the scalar fields
+    non-finite values to null via _records. This keeps the scalar fields
     consistent so a pathological R result can never produce invalid JSON.
     """
     if x is None:
         return None
     f = float(x)
     return f if math.isfinite(f) else None
+
+
+def _json_value(v):
+    """A table cell as a JSON-safe Python value, numbers at full precision."""
+    import numpy as np
+    import pandas as pd
+
+    if isinstance(v, np.generic):
+        v = v.item()
+    if isinstance(v, float):
+        return _finite(v)
+    if v is None or isinstance(v, (bool, int, str)):
+        return v
+    # pandas.NA or NaT for a missing cell, and text for anything else
+    return None if pd.isna(v) else str(v)
+
+
+def _records(df):
+    """A pandas DataFrame as a list of row dicts of plain Python values.
+
+    ``DataFrame.to_json()`` rounds every number to 10 decimal places by
+    default, so a cost in small units became 0. This keeps every digit, as
+    the fields of ``optimize`` do.
+    """
+    return [{str(k): _json_value(v) for k, v in row.items()} for row in df.to_dict(orient="records")]
 
 
 # The model arguments every model tool takes, explained once for the agent.
@@ -327,8 +352,10 @@ def describe_data(data_csv: str | None = None, data_records: list[dict] | None =
     (a list of row dicts). Returns `n_rows` and one entry per column with its
     `type` ("numeric", "logical" for true and false, or "text"), `n_missing`,
     `n_distinct`, whether it is `binary` (only 0 and 1, or true and false), and
-    for a numeric column its `min` and `max`. Use the ranges for the bounds
-    of the components and for any center characteristic value.
+    for a numeric column its `min` and `max`, and an empty `warnings` list.
+    Use the ranges for the bounds of the components and for any center
+    characteristic value. On a bad input it returns
+    `{"error": "...", "warnings": []}` as an error result.
     """
     try:
         import pandas as pd
@@ -354,7 +381,7 @@ def describe_data(data_csv: str | None = None, data_records: list[dict] | None =
                 entry["min"] = _finite(values.min())
                 entry["max"] = _finite(values.max())
             cols.append(entry)
-        return {"n_rows": int(len(df)), "columns": cols}
+        return {"n_rows": int(len(df)), "columns": cols, "warnings": []}
     except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
         return _error(exc)
 
@@ -429,7 +456,8 @@ def optimize(
     set is computed), and with a confidence set `est_outcome_ci`
     (lower/upper), `confidence_level`, `confidence_set_size_percentage` and
     `confidence_set`. `warnings` lists the warnings of the R package. On a bad
-    input or optimization error it returns `{{"error": "..."}}`.
+    input or optimization error it returns `{{"error": "...", "warnings": [...]}}`
+    as an error result.
     """
     p = dict(locals())
     try:
@@ -471,10 +499,8 @@ def optimize(
         if csp is not None:
             out["confidence_set_size_percentage"] = _finite(csp)
         cs = res.get("cs")
-        if cs is not None and hasattr(cs, "to_json"):
-            # to_json -> json.loads yields native Python/JSON types (no numpy
-            # scalars that the MCP serializer would choke on).
-            out["confidence_set"] = json.loads(cs.to_json(orient="records"))
+        if cs is not None and hasattr(cs, "to_dict"):
+            out["confidence_set"] = _records(cs)
         out["warnings"] = warned
         return out
     except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
@@ -549,7 +575,7 @@ def sensitivity(
     intervention component (its recommended value that run), `rec_int_cost`,
     `est_outcome_goal`, and `status` (`"ok"` or `"error"`). `warnings` lists
     the warnings of the R package, each once. On a bad input or setup error it
-    returns `{{"error": "..."}}`.
+    returns `{{"error": "...", "warnings": [...]}}` as an error result.
     """
     p = dict(locals())
     try:
@@ -570,9 +596,7 @@ def sensitivity(
                 quiet=True,
                 **extra,
             )
-        # to_json -> json.loads yields native Python/JSON types (records with
-        # no numpy scalars).
-        return {"runs": json.loads(df.to_json(orient="records")), "warnings": warned}
+        return {"runs": _records(df), "warnings": warned}
     except Exception as exc:  # noqa: BLE001 - surface a clean message, not a crash
         return _error(exc, locals().get("warned"))
 
@@ -632,7 +656,7 @@ def budget(
     `outcome_goal`, `frontier` (the goals searched, with their cost and
     outcome), `run_error` (set when every run failed) and `warnings` (the
     warnings of the R package). On a bad input or setup error it returns
-    `{{"error": "..."}}`.
+    `{{"error": "...", "warnings": [...]}}` as an error result.
     """
     p = dict(locals())
     try:
@@ -661,7 +685,7 @@ def budget(
             "rec_int_cost": _finite(res["rec_int_cost"]),
             "est_outcome": _finite(res["est_outcome"]),
             "outcome_goal": _finite(res["outcome_goal"]),
-            "frontier": json.loads(frontier.to_json(orient="records")) if hasattr(frontier, "to_json") else [],
+            "frontier": _records(frontier) if hasattr(frontier, "to_dict") else [],
             "run_error": res.get("run_error"),
             "warnings": warned,
         }
@@ -672,8 +696,28 @@ def budget(
 # --------------------------------------------------------------------------
 # The R worker: the process that runs the tools for the server
 # --------------------------------------------------------------------------
-def _worker_main(conn):
+def _watch_parent(parent_pid, interval=1.0):
+    """Exit the worker when the server that started it is gone.
+
+    Stopping the server with SIGKILL, or any way that skips its cleanup, would
+    otherwise leave a running R call going on its own until it ends. R gives
+    up Python's lock while it computes, so this thread runs during a call.
+    """
+    import os
+    import time
+
+    while True:
+        time.sleep(interval)
+        if os.getppid() != parent_pid:
+            os._exit(1)
+
+
+def _worker_main(conn, parent_pid=None):
     """Run tool calls sent over ``conn`` until the pipe closes."""
+    if parent_pid is not None:
+        import threading
+
+        threading.Thread(target=_watch_parent, args=(parent_pid,), daemon=True).start()
     tools = {fn.__name__: fn for fn in (describe_data, optimize, sensitivity, budget)}
     while True:
         try:
@@ -687,13 +731,22 @@ def _worker_main(conn):
         conn.send(result)
 
 
+class _Call:
+    """One tool call, which the client may cancel before or while it runs."""
+
+    def __init__(self):
+        self.cancelled = False
+
+
 class _RWorker:
     """One worker process that runs the R work of the tools, one call at a time.
 
     A running R call cannot be interrupted from another thread, so the server
-    runs the tools in a process of its own. When a client cancels a call, the
-    process is stopped at once, and the next call starts a new one. The server
-    stays free to answer pings and cancellations while a call runs.
+    runs the tools in a process of its own. When a client cancels the call
+    that is running, the process is stopped at once, and the next call starts
+    a new one. A cancelled call that is still waiting for its turn just never
+    runs, so it does not stop the call ahead of it. The server stays free to
+    answer pings and cancellations while a call runs.
     """
 
     def __init__(self):
@@ -701,40 +754,85 @@ class _RWorker:
 
         self._proc = None
         self._conn = None
-        # one call at a time. stop() does not take it, so a cancel never waits
-        # for the call it cancels: stopping the process ends that call.
+        # one call at a time. cancel() does not take it, so a cancel never
+        # waits for the call it cancels: stopping the process ends that call.
         self._calls = threading.Lock()
+        # guards the process and the running call, which cancel() reads from
+        # another thread
+        self._state = threading.RLock()
+        self._running = None
 
     def start(self):
-        if self._proc is not None and self._proc.is_alive():
-            return
-        import multiprocessing
+        with self._state:
+            if self._proc is not None and self._proc.is_alive():
+                return
+            import multiprocessing
+            import os
 
-        ctx = multiprocessing.get_context("spawn")
-        parent, child = ctx.Pipe()
-        self._proc = ctx.Process(target=_worker_main, args=(child,), daemon=True)
-        self._proc.start()
-        child.close()
-        self._conn = parent
+            ctx = multiprocessing.get_context("spawn")
+            parent, child = ctx.Pipe()
+            self._proc = ctx.Process(target=_worker_main, args=(child, os.getpid()), daemon=True)
+            self._proc.start()
+            child.close()
+            self._conn = parent
 
     def stop(self):
-        if self._proc is not None:
-            self._proc.kill()
-            self._proc.join(5)
-            self._conn.close()
-        self._proc = None
-        self._conn = None
+        with self._state:
+            if self._proc is not None:
+                self._proc.kill()
+                self._proc.join(5)
+                self._conn.close()
+            self._proc = None
+            self._conn = None
 
-    def call(self, name, kwargs):
-        """Run one tool in the worker and wait for its result (blocking)."""
+    def kill(self):
+        """Kill the process now, without waiting for a lock (for a signal handler)."""
+        proc = self._proc
+        if proc is not None:
+            proc.kill()
+
+    def cancel(self, call):
+        """Cancel one call: stop the worker only if that call is the one running."""
+        with self._state:
+            call.cancelled = True
+            if self._running is call:
+                self.stop()
+
+    def call(self, name, kwargs, call=None):
+        """Run one tool in the worker and wait for its result (blocking).
+
+        Returns None, without running, for a call cancelled while it waited.
+        """
+        call = call or _Call()
         with self._calls:
-            self.start()
-            conn = self._conn
-            conn.send((name, kwargs))
-            return conn.recv()
+            with self._state:
+                if call.cancelled:
+                    return None
+                self.start()
+                self._running = call
+                conn = self._conn
+            try:
+                conn.send((name, kwargs))
+                return conn.recv()
+            except (EOFError, OSError):
+                # the process died. Clear it up now, while no other call can
+                # have started a new one.
+                if not call.cancelled:
+                    self.stop()
+                raise
+            finally:
+                with self._state:
+                    self._running = None
 
 
 _WORKER = _RWorker()
+
+
+def _error_result(out):
+    """An error payload as a tool result marked as an error, with the JSON as its text."""
+    from mcp.types import CallToolResult, TextContent
+
+    return CallToolResult(content=[TextContent(type="text", text=json.dumps(out, indent=2))], isError=True)
 
 
 def _run_in_worker(fn):
@@ -742,15 +840,19 @@ def _run_in_worker(fn):
 
     @functools.wraps(fn)
     async def tool(**kwargs):
+        call = _Call()
         try:
-            return await anyio.to_thread.run_sync(_WORKER.call, fn.__name__, kwargs, abandon_on_cancel=True)
+            out = await anyio.to_thread.run_sync(_WORKER.call, fn.__name__, kwargs, call, abandon_on_cancel=True)
         except anyio.get_cancelled_exc_class():
-            # the client cancelled: stop the R work now, not when it ends
-            _WORKER.stop()
+            # the client cancelled: stop the R work now if it is running, and
+            # never start it if it is still waiting
+            _WORKER.cancel(call)
             raise
         except (EOFError, OSError) as exc:
-            _WORKER.stop()
-            return _error(RuntimeError(f"the R worker stopped during the call ({exc!r}). Try the call again."))
+            out = _error(RuntimeError(f"the R worker stopped during the call ({exc!r}). Try the call again."))
+        if isinstance(out, dict) and "error" in out:
+            return _error_result(out)
+        return out
 
     return tool
 
@@ -759,8 +861,22 @@ for _fn in (describe_data, optimize, sensitivity, budget):
     mcp.tool(name=_fn.__name__)(_run_in_worker(_fn))
 
 
+def _on_sigterm(signum, frame):
+    """Stop the R worker, then end the server as SIGTERM would have."""
+    import os
+    import signal
+
+    _WORKER.kill()
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+
 def main():
     """Console entry point: run the stdio MCP server."""
+    import signal
+
+    # SIGTERM ends the process without running the finally below
+    signal.signal(signal.SIGTERM, _on_sigterm)
     # start the R worker now, so the first call does not wait for R to load
     _WORKER.start()
     try:

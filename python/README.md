@@ -56,6 +56,8 @@ result = lago.optimize(
     confidence_set_grid_step_size=[1, 1],
     quiet=True,
 )
+# A list argument can also be a numpy array, a pandas Series or a pandas
+# Index, such as df.columns[1:3], and its elements numpy numbers.
 
 result["rec_int"]           # list[float], the recommended intervention
 result["est_outcome_goal"]  # float
@@ -257,8 +259,9 @@ prepare the data:
 Every tool result has a `warnings` list with the warnings of the R package, each
 once, such as a recommendation for a center outside the centers in the data. An
 agent should pass them on with the numbers. A tool that fails returns
-`{"error": "..."}` with the package's own message, and `warnings` when there
-were any.
+`{"error": "...", "warnings": [...]}` with the package's own message, as a tool
+result marked as an error (`isError` true), so a client can tell it from a
+result.
 
 The server also sends the agent short instructions on how to use the tools.
 They say to describe the data first, to report every warning, and to read an
