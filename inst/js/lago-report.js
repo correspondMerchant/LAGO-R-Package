@@ -80,7 +80,38 @@
     });
   }
 
+  // Write a rounded number in full, as R writes it in the report text. JS
+  // String() keeps plain notation from 1e-6 up to 1e21, so only extreme values
+  // use e notation. -0 is written as 0.
+  function plainNumber(v) {
+    return v === 0 ? "0" : String(v);
+  }
+
+  // A component value, outcome or CI bound, rounded like R's .lago_fmt_value():
+  // 4 decimals, or 4 significant digits for values closer to 0 than 0.1 (values
+  // closer to 0 than 1e-6 keep 4 decimals, so they show as 0).
+  function fmtValue(v) {
+    v = +v;
+    if (!isFinite(v)) {
+      return String(v);
+    }
+    var a = Math.abs(v);
+    var r = a >= 0.1 || a < 1e-6 ? Number(v.toFixed(4)) : Number(v.toPrecision(4));
+    return plainNumber(r);
+  }
+
+  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures.
+  function fmtCost(v) {
+    v = +v;
+    if (!isFinite(v)) {
+      return String(v);
+    }
+    return plainNumber(Number(v.toPrecision(5)));
+  }
+
   var math = {
+    fmtValue: fmtValue,
+    fmtCost: fmtCost,
     costAt: costAt,
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
@@ -125,8 +156,6 @@
   var COLOR_REC = "#cc3300"; // recommended intervention (matches plot.lago)
   var COLOR_TOTAL = "#0066cc"; // total-cost curve
   var COLOR_MARGINAL = "#cc3300"; // marginal-cost curve
-
-  var fmt = d3.format(".4~g");
 
   // Create a titled, axed SVG inside `sel` and return the plot group plus the
   // scales. Shared by the confidence-set and cost-curve charts.
@@ -279,13 +308,13 @@
   // Format the shared tooltip lines for one confidence-set row.
   function csTooltipLines(comps, row) {
     var lines = comps.map(function (c) {
-      return c + ": " + fmt(row[c]);
+      return c + ": " + fmtValue(row[c]);
     });
     if (row.cost != null && isFinite(row.cost)) {
-      lines.push("cost: " + fmt(row.cost));
+      lines.push("cost: " + fmtCost(row.cost));
     }
     if (row.CI_lower_bound != null && row.CI_upper_bound != null) {
-      lines.push(level + " CI: " + fmt(row.CI_lower_bound) + " - " + fmt(row.CI_upper_bound));
+      lines.push(level + " CI: " + fmtValue(row.CI_lower_bound) + " - " + fmtValue(row.CI_upper_bound));
     }
     return lines;
   }
@@ -359,11 +388,11 @@
         .on("mouseover", function () {
           var lines = [
             "recommended",
-            xKey + ": " + fmt(rec[0]),
-            yKey + ": " + fmt(rec[1])
+            xKey + ": " + fmtValue(rec[0]),
+            yKey + ": " + fmtValue(rec[1])
           ];
           if (recCost != null && isFinite(recCost)) {
-            lines.push("cost: " + fmt(recCost));
+            lines.push("cost: " + fmtCost(recCost));
           }
           tip.show(lines, rx, ry);
         })
@@ -443,9 +472,9 @@
         .attr("stroke-width", 1.5)
         .style("cursor", "pointer")
         .on("mouseover", function () {
-          var lines = ["recommended", xKey + ": " + fmt(rec[0])];
+          var lines = ["recommended", xKey + ": " + fmtValue(rec[0])];
           if (recCost != null && isFinite(recCost)) {
-            lines.push("cost: " + fmt(recCost));
+            lines.push("cost: " + fmtCost(recCost));
           }
           tip.show(lines, rx, yLine);
         })
@@ -577,7 +606,7 @@
         var py = yScale(yv);
         guide.attr("x1", px).attr("x2", px);
         dot.attr("cx", px).attr("cy", py);
-        tip.show([name + ": " + fmt(xv), ylab + ": " + fmt(yv)], px, py);
+        tip.show([name + ": " + fmtValue(xv), ylab + ": " + fmtCost(yv)], px, py);
       });
   }
 
@@ -671,13 +700,13 @@
   // Tooltip lines for one sensitivity point: the swept value, the cost, the
   // estimated outcome, then each component's recommended value.
   function sensTooltipLines(comps, param, p) {
-    var lines = [param + ": " + fmt(+p.value), "cost: " + fmt(+p.cost)];
+    var lines = [param + ": " + fmtValue(p.value), "cost: " + fmtCost(p.cost)];
     if (p.est != null && isFinite(+p.est)) {
-      lines.push("est. outcome: " + fmt(+p.est));
+      lines.push("est. outcome: " + fmtValue(p.est));
     }
     (comps || []).forEach(function (c) {
       if (p.comps && p.comps[c] != null && isFinite(+p.comps[c])) {
-        lines.push(c + ": " + fmt(+p.comps[c]));
+        lines.push(c + ": " + fmtValue(p.comps[c]));
       }
     });
     return lines;
@@ -761,8 +790,8 @@
       .on("mouseover", function (event, d) {
         d3.select(this).attr("fill-opacity", 1).attr("r", 6.5);
         tip.show([
-          "cost: " + fmt(+d.rec_int_cost),
-          "est. outcome: " + fmt(+d.est_outcome),
+          "cost: " + fmtCost(d.rec_int_cost),
+          "est. outcome: " + fmtValue(d.est_outcome),
           d.affordable ? "within budget" : "over budget"
         ], xScale(+d.rec_int_cost), yScale(+d.est_outcome));
       })

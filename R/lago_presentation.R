@@ -14,7 +14,8 @@
 #   - recommendation values, estimated outcome: .lago_fmt_value()
 #   - recommended cost: signif(., 5)
 #   - confidence-set cost IQR: round(., 2)
-#   - p-values: signif(., 4)
+#   - p-values: signif(., 4), or "< 2.2e-16" when the p-value is below the
+#     machine precision (it then underflows to 0, which is not a true p-value)
 
 # 4 decimals, or 4 significant digits for values closer to 0 than 0.1, as the
 # interval bounds are stored, so a rare outcome keeps its digits. Values closer
@@ -36,16 +37,28 @@
 
 .lago_fmt_cost_range <- function(v) ifelse(abs(v) >= 1 | v == 0, round(v, 2), signif(v, 3))
 
-.lago_fmt_pval <- function(p, digits = 4) signif(p, digits)
+.lago_fmt_pval <- function(p, digits = 4) {
+  eps <- .Machine$double.eps
+  ifelse(!is.na(p) & p < eps, paste0("< ", format(eps, digits = 2)), signif(p, digits))
+}
+
+# The coefficients of one cost polynomial, rounded to 5 significant figures and
+# written out in full (no scientific notation), such as "0, 2269.9, 14.239".
+.lago_fmt_cost_coefs <- function(v) {
+  paste(trimws(formatC(signif(as.numeric(v), 5), digits = 5, format = "fg")), collapse = ", ")
+}
 
 # --- the shared formatter -----------------------------------------------------
 
 # The confidence level of a result, such as "95%", from the confidence_set_alpha
 # it was computed with. 95% for an object that did not record its arguments.
+# alpha is rounded to 4 significant digits first, so an alpha such as 1/3 gives
+# a short label ("66.67%") while a small alpha such as 1e-5 keeps its digits.
 .lago_confidence_label <- function(x) {
   alpha <- attr(x, "lago_call_args")$confidence_set_alpha
   if (!is.numeric(alpha) || length(alpha) != 1 || is.na(alpha)) alpha <- 0.05
-  paste0(format(round(100 * (1 - alpha), 10), digits = 15, scientific = FALSE), "%")
+  level <- round(100 * (1 - signif(alpha, 4)), 10)
+  paste0(format(level, digits = 15, scientific = FALSE), "%")
 }
 
 #' Build presentation blocks for a LAGO result
@@ -54,8 +67,9 @@
 #' pre-formatted blocks shared by the console methods and the report generator.
 #' Each block is `list(title = <string>, rows = <data.frame or character
 #' vector>)`. Blocks that do not apply to the object are `NULL`
-#' (`power` when there is no power goal, `confidence_set` when there is no
-#' confidence set, `test` when there are no test results).
+#' (`power` when there is no power goal, `test` when there are no test
+#' results). The `confidence_set` block is always present. When there is no
+#' set, its rows say why.
 #'
 #' No new statistics are computed here; every value is taken verbatim from an
 #' existing field and formatted with the same wording and rounding used by
@@ -151,11 +165,22 @@ lago_blocks <- function(x) {
       )
     }
     if (!is.null(x$cost_list_of_vectors)) {
+      # one "component: coefficients" entry per cost polynomial, named by the
+      # components the cost vectors line up with (the main components with
+      # interaction terms), and rounded so the line stays readable.
+      cost_vecs <- x$cost_list_of_vectors
+      cost_labels <- x$display_components %||% x$intervention_components
+      cost_text <- vapply(cost_vecs, .lago_fmt_cost_coefs, character(1))
+      if (length(cost_labels) == length(cost_vecs)) {
+        cost_text <- paste0(cost_labels, " (", cost_text, ")")
+      } else {
+        cost_text <- paste0("(", cost_text, ")")
+      }
       input_rows <- c(
         input_rows,
         paste0(
           "Intervention component costs: ",
-          toString(x$cost_list_of_vectors)
+          paste(cost_text, collapse = ", ")
         )
       )
     }
@@ -252,21 +277,23 @@ lago_blocks <- function(x) {
     )
   }
 
-  # --- confidence set (NULL when no confidence set)
-  confidence_set <- NULL
-  if (!is.null(x$cs)) {
-    cs_rows <- character(0)
-    if (!is.null(x$confidence_set_size_percentage)) {
-      cs_rows <- c(
-        cs_rows,
-        paste0(
-          level, " confidence set size: ",
-          round(100 * x$confidence_set_size_percentage, 2),
-          "% of the grid"
-        )
-      )
-    }
-    if (!is.null(x$cs$cost)) {
+  # --- confidence set. Always present, so the console and the report both
+  # explain why there is no set when it was not computed or is empty.
+  if (is.null(x$confidence_set_size_percentage) && isTRUE(x$shrinking_method_used)) {
+    cs_rows <- "Not computed: the goal could not be reached, so the shrinking method was used and no confidence set is computed."
+  } else if (is.null(x$confidence_set_size_percentage)) {
+    # confidence set was not requested (include_confidence_set = FALSE).
+    cs_rows <- "Not computed (set include_confidence_set = TRUE to compute it)."
+  } else {
+    cs_rows <- paste0(
+      level, " confidence set size: ",
+      round(100 * x$confidence_set_size_percentage, 2),
+      "% of the grid"
+    )
+    if (is.null(x$cs)) {
+      # size field present but no set found for the current goal.
+      cs_rows <- c(cs_rows, "No confidence set was found for the current outcome goal.")
+    } else if (!is.null(x$cs$cost)) {
       # IQR (25th-75th percentile) of the cost within the confidence set, as the
       # old console output reported it.
       qs <- stats::quantile(x$cs$cost, probs = c(0.25, 0.75), names = FALSE)
@@ -280,11 +307,11 @@ lago_blocks <- function(x) {
         )
       )
     }
-    confidence_set <- list(
-      title = "Confidence set",
-      rows = cs_rows
-    )
   }
+  confidence_set <- list(
+    title = "Confidence set",
+    rows = cs_rows
+  )
 
   # --- overall intervention-effect test (NULL when no test results). Binary
   # outcomes use the two-sample test for a difference in proportions; the label

@@ -119,4 +119,21 @@ check("budgetFinitePoints on undefined is []", m.budgetFinitePoints(undefined).l
 check("budgetFinitePoints keeps a legitimate zero cost/outcome",
   m.budgetFinitePoints([{ rec_int_cost: 0, est_outcome: 0 }]).length === 1);
 
+// 8. fmtValue / fmtCost: the hover read-outs round like the R text of the
+// report (.lago_fmt_value and .lago_fmt_cost) and do not use e notation for
+// ordinary numbers. The expected strings are what R writes for the same values.
+check("fmtCost(23927.77) is 23928", m.fmtCost(23927.77) === "23928");
+check("fmtCost(63600) is 63600", m.fmtCost(63600) === "63600");
+check("fmtCost(23927772138) is 23928000000", m.fmtCost(23927772138) === "23928000000");
+check("fmtCost(2.392777e-05) is 0.000023928", m.fmtCost(2.392777e-05) === "0.000023928");
+check("fmtValue(2.778472) is 2.7785", m.fmtValue(2.778472) === "2.7785");
+check("fmtValue(13.62331) is 13.6233", m.fmtValue(13.62331) === "13.6233");
+check("fmtValue(0.85) is 0.85", m.fmtValue(0.85) === "0.85");
+check("fmtValue(0.0123456) keeps 4 significant digits", m.fmtValue(0.0123456) === "0.01235");
+check("fmtValue(5e-7) is 0", m.fmtValue(5e-7) === "0");
+check("fmtValue(-5e-7) is 0, not -0", m.fmtValue(-5e-7) === "0");
+check("fmtValue(1234567) is 1234567", m.fmtValue(1234567) === "1234567");
+check("fmtValue(NaN) is NaN", m.fmtValue(NaN) === "NaN");
+check("fmtCost(Infinity) is Infinity", m.fmtCost(Infinity) === "Infinity");
+
 console.log("\nAll " + passed + " JS report-math assertions passed.");

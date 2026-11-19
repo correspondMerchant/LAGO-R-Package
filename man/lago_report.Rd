@@ -38,12 +38,13 @@ The path to the rendered HTML file, invisibly.
 \description{
 Renders a self-contained, interactive HTML report for the object
 returned by \code{\link[=lago_optimization]{lago_optimization()}}. The report knits a bundled parameterized R
-Markdown template and lays out the same sections, in the same order and with
-the same labels, as the console methods (\code{\link[=print.lago]{print.lago()}} / \code{\link[=summary.lago]{summary.lago()}}):
-the recommended intervention, its cost, the estimated outcome (with its
-confidence interval, 95\\% by default) and goal, the power goal (when
-present), the confidence set (size, cost IQR, and first rows), the overall
-intervention-effect test (when present), and
+Markdown template. Its text sections use the same labels and the same
+formatted lines as the console methods (\code{\link[=print.lago]{print.lago()}} / \code{\link[=summary.lago]{summary.lago()}}),
+but the report orders them differently and adds plots. It shows the inputs
+recap, the recommended intervention, its cost, the estimated outcome (with
+its confidence interval, 95\\% by default) and goal, the power goal (when
+present), the confidence set (size, cost IQR, and first rows, or the reason
+there is no set), the overall intervention-effect test (when present), and
 the fitted outcome-model coefficient table. A \code{sessionInfo()} footer records
 the environment the report was produced in.
 
@@ -60,10 +61,11 @@ additional widget frameworks). It adds two interactive views:
 \itemize{
 \item an interactive confidence-set plot: a hover-enabled scatter for a
 two-component intervention (with the recommended intervention
-highlighted) or a one-dimensional strip for a single component. For 3+
-components, or when the interactive view is not applicable, it falls back
-to the static \code{\link[=plot.lago]{plot.lago()}} figure; when no confidence set is available
-the section is omitted.
+highlighted) or a one-dimensional strip for a single component. The plot
+is drawn for one or two components only, as \code{\link[=plot.lago]{plot.lago()}} is. With three
+or more components, or when there is no confidence set, the plot section
+is left out, and the confidence set section still gives its size or the
+reason there is no set.
 \item interactive cost curves: for each intervention component, its
 total-cost curve and marginal (per-unit) cost curve, each with a hover
 read-out, drawn from the result's cost functions and bounds.
