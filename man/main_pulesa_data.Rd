@@ -14,9 +14,17 @@ A data frame with 192 rows and 15 variables:
 \item{DeliveryA}{Intervention component: care delivery mode A}
 \item{DeliveryB}{Intervention component: care delivery mode B}
 \item{HypertensionTraining}{Intervention component: hypertension training}
-\item{MI_DeliveryB}{Interaction term involving delivery mode B}
-\item{MI_PerformanceImprovement}{Interaction term involving performance improvement}
-\item{MI_RemoteMonitoring}{Interaction term involving remote monitoring}
+\item{MI_DeliveryB}{Missing value indicator for \code{DeliveryB}: 1 when
+the value was missing and \code{DeliveryB} was filled with the constant
+0.2927 (24 rows), 0 otherwise}
+\item{MI_PerformanceImprovement}{Missing value indicator for
+\code{PerformanceImprovement}: 1 when the value was missing and
+\code{PerformanceImprovement} was filled with the constant 0.4348
+(17 rows), 0 otherwise}
+\item{MI_RemoteMonitoring}{Missing value indicator for
+\code{RemoteMonitoring}: 1 when the value was missing and
+\code{RemoteMonitoring} was filled with the constant 0.2886 (11 rows),
+0 otherwise}
 \item{PerformanceImprovement}{Intervention component: performance improvement}
 \item{Proportions}{Outcome: proportion of successes at the clinic-period}
 \item{RemoteMonitoring}{Intervention component: remote monitoring}

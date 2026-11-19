@@ -1,7 +1,8 @@
-#' get_confidence_set
+#' Calculate the confidence set for a recommended intervention
 #'
-#' @description Internal function that calculates the confidence set
-#' for the recommended interventions
+#' @description Calculates the confidence set for the recommended
+#' intervention. lago_optimization() calls it when include_confidence_set is
+#' TRUE, and it can also be called directly.
 #'
 #' @param predictors_data A data.frame. The input data containing
 #' the intervention components and center characteristics. For a continuous

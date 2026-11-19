@@ -134,8 +134,8 @@ sens2 <- lago_sensitivity(
 
 # How sensitive is it to the assumed costs? A uniform rescaling never changes
 # which intervention is cheapest, so the recommendation is unchanged and the
-# cost scales linearly with the multiplier. `...` overrides on top of the
-# fitted object are used here to switch the swept parameter.
+# cost scales linearly with the multiplier. Only the fitted object is
+# passed, so every other argument is reused from the original call.
 cost_sens <- lago_sensitivity(
   opt,
   parameter = "cost_multiplier",

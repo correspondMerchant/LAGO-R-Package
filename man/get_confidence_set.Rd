@@ -2,7 +2,7 @@
 % Please edit documentation in R/get_confidence_set.R
 \name{get_confidence_set}
 \alias{get_confidence_set}
-\title{get_confidence_set}
+\title{Calculate the confidence set for a recommended intervention}
 \usage{
 get_confidence_set(
   predictors_data,
@@ -166,8 +166,9 @@ NULL when no grid intervention qualifies>
 )
 }
 \description{
-Internal function that calculates the confidence set
-for the recommended interventions
+Calculates the confidence set for the recommended
+intervention. lago_optimization() calls it when include_confidence_set is
+TRUE, and it can also be called directly.
 }
 \details{
 Continuous covariance treats fitted prior weights as relative observation

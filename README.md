@@ -113,7 +113,6 @@ Typical output:
 ```
 ℹ Starting LAGO Optimization
 ℹ Validating inputs...
-When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 ✔ Done
 ℹ Assessing the cost function...
 ✔ Done
@@ -145,7 +144,6 @@ Intervention lower bounds: 0, 0
 Intervention upper bounds: 10, 350
 
 ── Outcome model fit
-
             Estimate Std. Error
 (Intercept)  -30.711     9.6702
 gear           4.871     1.0814
@@ -219,7 +217,7 @@ Suppose we want to run LAGO optimization for the BetterBirth Study, a costly fai
 The BetterBirth Study assessed the use of the World Health Organization’s (WHO) Safe Childbirth Checklist, a 31-item checklist of best labor and delivery practices believed to be feasible in resource-limited settings, to reduce maternal and neonatal mortality. The intervention was adapted and tested in a three-phase process. In this setting, neonatal mortality is 32 per 1,000 live births and maternal mortality is 258 per 100,000 births (Semrau et al. 2017).
 
 Suppose that we want to identify the optimal intervention package such that the cost of the intervention is minimized and the probability of a desired binary outcome, oxytocin administered ('pp3_oxytocin_mother'), is above a given threshold (85%).
-The two intervention components are 'coaching_updt' ($x_1$), the number of coaching updates, and 'launch_duration' ($x_2$), the launch duration in days. Suppose that we know the lower and upper bounds of 'coaching_updt' and 'launch_duration' are [1,40] and [1,5], respectively. The total costs of the two components (in USD) are $C(x_1) = 1700x_1$, and $C(x_2) = 8000x_2$, respectively.
+The two intervention components are 'coaching_updt' ($x_1$), the number of coaching updates, and 'launch_duration' ($x_2$), the duration of the checklist launch (0, 2 or 3 in the data). Suppose that we know the lower and upper bounds of 'coaching_updt' and 'launch_duration' are [1,40] and [1,5], respectively. The total costs of the two components (in USD) are $C(x_1) = 1700x_1$, and $C(x_2) = 8000x_2$, respectively.
 In addition, we assign fake centers and fake time periods to all observations to demonstrate fitting outcome models with fixed center and fixed time effects.
 
 Instead of an overall optimal intervention package, we target the optimal intervention package for center "5" in time period "10".
@@ -258,7 +256,6 @@ Output:
 ℹ Validating inputs...
 'center' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
 'period' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
-When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 ✔ Done
 ℹ Assessing the cost function...
 ✔ Done
@@ -290,7 +287,6 @@ Intervention lower bounds: 1, 1
 Intervention upper bounds: 40, 5
 
 ── Outcome model fit
-
                   Estimate Std. Error
 (Intercept)     -7.947e-01   0.134522
 center2          1.419e-01   0.136061
@@ -328,17 +324,27 @@ Estimated outcome: 0.85
 Outcome goal: 0.85
 
 ── Confidence set
-95% confidence set size: 11.85% of the grid
-IQR of the cost within the 95% confidence set: 32400 - 67750
+95% confidence set size: 11.56% of the grid
+IQR of the cost within the 95% confidence set: 33600 - 70350
 First rows of the confidence set (use $cs for all):
    coaching_updt launch_duration CI_lower_bound CI_upper_bound  cost
-78            33            1.45          0.726          0.853 67700
-79            35            1.45          0.722          0.856 71100
-80            37            1.45          0.718          0.860 74500
-81            39            1.45          0.714          0.864 77900
-82             1            1.60          0.769          0.874 14500
-83             3            1.60          0.772          0.872 17900
+81            33            1.45          0.726          0.853 67700
+82            35            1.45          0.722          0.856 71100
+83            37            1.45          0.718          0.860 74500
+84            39            1.45          0.714          0.864 77900
+85            40            1.45          0.712          0.866 79600
+86             1            1.60          0.769          0.874 14500
+Warning messages:
+1: In (function (data, input_data_structure = "individual_level", outcome_name,  :
+  The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
+2: In (function (data, input_data_structure = "individual_level", outcome_name,  :
+  The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
+3: In diagnose_model_fit(model = model, intervention_components = intervention_components,  :
+  The following intervention component(s) do not have a statistically significant association with the outcome (p > 0.05):
+  - coaching_updt
+The LAGO optimization will still run, but the recommendation for these component(s) is not well supported by the data.
 ```
+The warnings are expected here. Many births in the data have 0 coaching visits and a launch_duration of 0, so lower bounds of 1 are above the data minimum. coaching_updt also has no clear association with the outcome in this data, so the recommendation keeps it at its lower bound of 1.
 The outcome model here includes many more coefficients, one per center and per time period, than the previous example, and the console output shows them all. `summary(optimization_results)` prints the same output; inspect `optimization_results$cs` for the full confidence set or `optimization_results$model` for the fitted model, or run `lago_report(optimization_results)` for a shareable HTML report of the result.
 
 

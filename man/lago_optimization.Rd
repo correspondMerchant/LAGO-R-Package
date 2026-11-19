@@ -383,21 +383,24 @@ value, or FALSE for a logical column. Ordered covariates keep their level order
 but do not use polynomial contrasts. Numeric predictors keep their values.
 }
 \examples{
-# Basic case showing how to carry out the optimization with
-# a built-in data set. The confidence set is skipped here to keep this
-# example fast; the \donttest examples below show a full run with one.
+# Basic case with the built-in mtcars data. Treat the number of gears and
+# the quarter mile time as two intervention components, and find the least
+# costly values within the observed ranges that raise the expected miles per
+# gallon to 25. The confidence set uses a coarse grid of whole numbers, so
+# this example stays fast.
 lago_optimization(
-  data = infert,
-  outcome_name = "case",
-  outcome_type = "binary",
-  glm_family = "binomial",
-  intervention_components = c("age", "parity"),
-  intervention_lower_bounds = c(0, 0),
-  intervention_upper_bounds = c(50, 10),
-  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
-  outcome_goal = 0.5,
+  data = mtcars,
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(3, 14),
+  intervention_upper_bounds = c(5, 23),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 25,
   outcome_goal_intention = "maximize",
-  include_confidence_set = FALSE
+  confidence_set_grid_step_size = c(1, 1)
 )
 
 # Fuller examples, including the confidence-set grid search, which is
