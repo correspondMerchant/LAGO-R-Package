@@ -146,6 +146,29 @@ validate_inputs <- function(
       "outcome_name must be \"proportion\", not \"", outcome_name, "\"."
     ))
   }
+  # a binary outcome, or the proportion of center level data, is between 0 and 1
+  if (outcome_type == "binary" && any(outcome_column < 0 | outcome_column > 1, na.rm = TRUE)) {
+    stop(paste0(
+      "The outcome column '", outcome_name, "' has values outside 0 to 1, ",
+      "such as ", format(outcome_column[which(outcome_column < 0 |
+        outcome_column > 1)[1]], digits = 10), ". ",
+      if (input_data_structure == "center_level") {
+        "For center level data it must be the proportion of events in each row."
+      } else {
+        "A binary outcome must be 0 or 1."
+      }
+    ))
+  }
+  if (input_data_structure == "center_level" && "center_sample_size" %in% names(data)) {
+    sizes <- data$center_sample_size
+    if (!is.numeric(sizes) || any(!is.finite(sizes) & !is.na(sizes)) ||
+      any(sizes < 0, na.rm = TRUE)) {
+      stop(paste(
+        "The 'center_sample_size' column must hold numbers that are finite",
+        "and not negative, the number of patients in each row."
+      ))
+    }
+  }
 
   # check if the glm family is a character type
   if (!is.character(glm_family)) {
@@ -210,6 +233,14 @@ validate_inputs <- function(
       stop(paste0(
         "The length of the weights must be the same as the ",
         "number of observations in the provided input data."
+      ))
+    }
+    # glm() refuses negative weights, and fits nothing with no positive weight
+    if (any(is.infinite(weights)) || any(weights < 0, na.rm = TRUE) ||
+      !any(weights > 0, na.rm = TRUE)) {
+      stop(paste(
+        "The 'weights' must be finite and not negative, with at least one",
+        "weight above 0."
       ))
     }
   }
@@ -1231,9 +1262,15 @@ validate_inputs <- function(
       ))
     }
     if (!all(data$group %in% c("treatment", "control"))) {
-      stop(paste(
-        "The 'group' column must have values 'treatment'",
-        " or 'control'."
+      stop(paste0(
+        "The 'group' column must have values 'treatment' or 'control'",
+        if (anyNA(data$group)) {
+          paste0(
+            ", but ", sum(is.na(data$group)), " row(s) have a missing value. ",
+            "Fill in their arm, or drop those rows"
+          )
+        },
+        "."
       ))
     }
     # the power calculation uses stage-1 rows with an observed outcome, so
@@ -1616,7 +1653,11 @@ warn_center_extrapolation <- function(data, outcome_name, intervention_component
     if (identical(input_data_structure, "center_level")) "center_sample_size"
   ), names(data))
   used <- stats::complete.cases(data[model_cols])
-  # glm() fits no row with a missing or zero weight
+  # glm() fits no row with a missing or zero weight. For center level data the
+  # weights are center_sample_size, and the user's weights are not used.
+  if (identical(input_data_structure, "center_level")) {
+    weights <- data$center_sample_size
+  }
   if (is.numeric(weights) && length(weights) == nrow(data)) used <- used & !is.na(weights) & weights > 0
   warn_outside_centers(
     center_characteristics, values,
@@ -1635,12 +1676,14 @@ warn_outside_centers <- function(center_characteristics, values, columns) {
     x <- columns[[i]]
     v <- values[i]
     if (is.null(x) || !is.finite(v)) next
-    if (is.logical(x)) x <- as.numeric(x)
-    rng <- if (is.numeric(x)) {
+    # a Date or date-time is fitted as its number, as glm() reads it
+    if (is.logical(x) || inherits(x, c("Date", "POSIXt"))) x <- as.numeric(x)
+    dummy <- !is.numeric(x)
+    rng <- if (dummy) {
+      c(0, 1)
+    } else {
       if (!any(is.finite(x))) next
       range(x[is.finite(x)])
-    } else {
-      c(0, 1)
     }
     tol <- sqrt(.Machine$double.eps) * max(1, abs(rng))
     if (v < rng[1] - tol || v > rng[2] + tol) {
