@@ -400,6 +400,23 @@ validate_inputs <- function(
         "the number of unique facilities in the input data."
       ))
     }
+    # named weights are matched to the centers by name, not by position
+    weight_names <- names(center_weights_for_outcome_goal)
+    if (!is.null(weight_names)) {
+      center_levels <- levels(data$center)
+      if (anyNA(weight_names) || anyDuplicated(weight_names) > 0 ||
+        !setequal(weight_names, center_levels)) {
+        stop(paste0(
+          "The names of center_weights_for_outcome_goal must be the centers ",
+          "in the 'center' column, each once: ",
+          paste0("'", center_levels, "'", collapse = ", "),
+          ". Fix the names, or remove them with unname() to match the ",
+          "weights to the centers in this order."
+        ))
+      }
+      center_weights_for_outcome_goal <-
+        unname(center_weights_for_outcome_goal[center_levels])
+    }
     if (!is.null(center_effects_optimization_values)) {
       input_warning(paste(
         "Both 'center_weights_for_outcome_goal' and",
@@ -528,8 +545,9 @@ validate_inputs <- function(
   }
 
   # check if include_time_effects is logical
-  if (!is.logical(include_time_effects)) {
-    stop(paste("'include_time_effects' must be a boolean."))
+  if (!is.logical(include_time_effects) || length(include_time_effects) != 1 ||
+    is.na(include_time_effects)) {
+    stop(paste("'include_time_effects' must be TRUE or FALSE."))
   }
   family_object <- switch(glm_family,
     "binomial" = binomial(link = link),
@@ -549,15 +567,23 @@ validate_inputs <- function(
         "column to identify time period."
       ))
     }
-    # the time_effect_optimization_value must be provided, one numeric number
+    # one period: a number, or the label of a text, factor or Date period
     if (is.null(time_effect_optimization_value) ||
-      !is.numeric(time_effect_optimization_value) ||
-      length(time_effect_optimization_value) != 1) {
+      !(is.numeric(time_effect_optimization_value) ||
+        is.character(time_effect_optimization_value) ||
+        is.factor(time_effect_optimization_value) ||
+        inherits(time_effect_optimization_value, "Date")) ||
+      length(time_effect_optimization_value) != 1 ||
+      is.na(time_effect_optimization_value)) {
       stop(paste(
         "'include_time_effects' is set to TRUE,",
         "'time_effect_optimization_value' must be provided,",
-        "and it must be a numeric value."
+        "and it must be one period: a number, or the label of a period",
+        "in the 'period' column."
       ))
+    }
+    if (is.factor(time_effect_optimization_value)) {
+      time_effect_optimization_value <- as.character(time_effect_optimization_value)
     }
     # if "period" column of the input data is not a factor,
     # change it to factor and print a warning message

@@ -162,8 +162,9 @@
 #' @param main_components A character vector. Specifies the main intervention
 #' components in the presence of interaction terms.
 #' For example: c("component1", "component2").
-#' @param time_effect_optimization_value A numeric value. The value of the time
-#' effect that will be used for LAGO optimization.
+#' @param time_effect_optimization_value The period used for LAGO
+#' optimization, as a number or as the label of a period in the 'period'
+#' column (for example "2024-Q1", or a Date for a Date column).
 #' @param  center_weights_for_outcome_goal A numeric vector. Specifies the
 #' weights that will be used for calculating recommended interventions that
 #' satisfy the outcome goal for an (weighted) average center.

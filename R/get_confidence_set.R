@@ -1789,6 +1789,14 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
   }
   period_levels <- model$xlevels[["period"]]
   wanted <- as.character(period_value)
+  # a number such as 4 also names the period labelled "04" or "4.0"
+  if (is.numeric(period_value) && length(period_levels) > 0 &&
+    !wanted %in% period_levels) {
+    same <- which(suppressWarnings(as.numeric(period_levels)) == period_value)
+    if (length(same) == 1) {
+      wanted <- period_levels[same]
+    }
+  }
   if (length(period_levels) > 0 && !wanted %in% period_levels) {
     stop(paste0(
       "'time_effect_optimization_value' (", wanted, ") is not one of the ",

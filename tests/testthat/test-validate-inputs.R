@@ -471,7 +471,7 @@ test_that("the weight checks cover the DEFAULT weights, not just supplied", {
 
 test_that("include_time_effects must be logical", {
   expect_error(call_vi(include_time_effects = "yes"),
-    "'include_time_effects' must be a boolean")
+    "'include_time_effects' must be TRUE or FALSE")
 })
 
 test_that("unsupported glm_family reaches the switch default", {
