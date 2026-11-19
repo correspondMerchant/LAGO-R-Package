@@ -36,7 +36,8 @@ test_that("the server checks the marginal cost and the total cost separately", {
   expect_true(v$non_negative_total)
   # the page has a separate warning for a negative total cost
   p <- .build_cost_parts("A", 2, "linear", 0, 10)
-  html <- as.character(p$ui)
+  # the text of the page, without rendering its dependencies
+  html <- paste(unlist(p$ui), collapse = " ")
   expect_match(html, "negative_total_warning_1", fixed = TRUE)
   expect_match(html, "Total cost should never be negative", fixed = TRUE)
 })

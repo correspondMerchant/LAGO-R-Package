@@ -261,11 +261,24 @@
 
 # Read an uploaded CSV with the separator and decimal mark the user chose.
 .app_read_csv <- function(path, sep = ",", dec = ".", encoding = .app_file_encoding(path)) {
-  utils::read.csv(
+  if (!identical(encoding, "latin1")) {
+    return(utils::read.csv(
+      path,
+      sep = sep, dec = dec, na.strings = c("", "NA"),
+      check.names = TRUE, fileEncoding = encoding, stringsAsFactors = FALSE
+    ))
+  }
+  # Latin-1 text is read as it is and marked as Latin-1, then turned into
+  # UTF-8. Converting while reading would stop at the first accented letter
+  # in a locale that cannot show it, such as C.
+  d <- utils::read.csv(
     path,
     sep = sep, dec = dec, na.strings = c("", "NA"),
-    check.names = TRUE, fileEncoding = encoding, stringsAsFactors = FALSE
+    check.names = TRUE, encoding = "latin1", stringsAsFactors = FALSE
   )
+  text <- vapply(d, is.character, logical(1))
+  d[text] <- lapply(d[text], enc2utf8)
+  d
 }
 
 .app_center_level <- function(spec) identical(spec$structure, "center")
