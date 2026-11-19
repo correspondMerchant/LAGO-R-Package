@@ -217,8 +217,8 @@ outcome model. Continuous confidence covariance uses the actual fitted
 prior weights as relative observation weights, with zero weights excluded
 from covariance contributions and the identity residual degrees of freedom.
 See get_confidence_set() for the covariance formulas and family limits.
-Weights must be finite and not negative, with no NA. A weight of 0 leaves
-its row out of the fit.
+Weights must not be negative or infinite. A row with a weight of 0 or NA
+is left out of the fit.
 A data column named weights does not replace this argument. For center
 level data it is ignored with a warning, since each row is weighted by its
 center_sample_size.}
