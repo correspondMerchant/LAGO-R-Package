@@ -26,7 +26,7 @@
 
 * `lago_optimization()` matches named `center_weights_for_outcome_goal` to the centers by name. It used to ignore the names and match the weights by position, which silently gave the wrong average center when the names were in another order. Names that are not the centers are refused.
 
-* `time_effect_optimization_value` can be the label of a text, factor or Date period, such as `"2024-Q1"`. It used to have to be a number, so such a period could never be chosen. A number such as 4 also finds the period labelled `"04"` or `"4.0"`.
+* `time_effect_optimization_value` can be the label of a text, factor or Date period, such as `"2024-Q1"`. It used to have to be a number, so such a period could never be chosen. A number such as 4 also finds the period labeled `"04"` or `"4.0"`.
 
 * `lago_optimization()` refuses weights that are negative, infinite or all zero, a `center_sample_size` column that is not numbers or has a negative value, and a binary outcome or center level proportion outside 0 to 1, each with a message that names the problem. They used to fail with unclear errors from `glm()`. `include_time_effects = NA` is refused clearly too.
 
@@ -60,7 +60,7 @@
 
 * The `lago_report()` confidence set section is now always shown. When the set is empty, was not requested, or was not computed because the shrinking method was used, the report gives the same reason as `print()`. The `lago_report()` help page now describes the report sections accurately, and says that the plot is drawn for one or two components only.
 
-* The inputs recap of `print()`, `summary()` and `lago_report()` now shows the cost coefficients of each component rounded to 5 significant figures and labeled by component, instead of the unrounded R source of the cost list.
+* The inputs recap of `print()`, `summary()` and `lago_report()` now shows the cost coefficients of each component rounded to 5 significant figures and labeled by component, instead of the R source of the cost list with every digit.
 
 * A p-value of the overall intervention-effect test that is too small to represent now shows as `< 2.2e-16` instead of `0`, in the console and in the report.
 
@@ -94,13 +94,13 @@
 
 * The unit cost label on the marginal cost chart now keeps significant digits, so a unit cost of 0.001 no longer reads as 0.00.
 
-* Fixed the MCP server stopping the call that was running when a client cancelled a different call that was still waiting for its turn. The running call failed with "the R worker stopped during the call". A cancelled call that is still waiting now just never runs.
+* Fixed the MCP server stopping the call that was running when a client canceled a different call that was still waiting for its turn. The running call failed with "the R worker stopped during the call". A canceled call that is still waiting now just never runs.
 
-* The MCP server now stops its R worker when it gets SIGTERM, and the worker exits within a second or two when the server is killed in any other way. A worker in the middle of a long call used to keep running on its own until the call ended.
+* The MCP server now stops its R worker when it gets `SIGTERM`, and the worker exits within a second or two when the server is killed in any other way. A worker in the middle of a long call used to keep running on its own until the call ended.
 
 * The MCP server's `sensitivity` and `budget` tools, and the confidence set of `optimize`, now give every number at full precision. They were rounded to 10 decimal places, so a cost in small units could come back as 0 or differ from what `optimize` gives.
 
-* The Python wrapper now accepts numpy arrays and numbers, pandas Series and pandas Index values wherever it takes a list or a number, for example `intervention_components=df.columns[1:3]` or bounds given as a numpy array. They used to fail with an unclear conversion error.
+* The Python wrapper now accepts `numpy` arrays and numbers, pandas Series and pandas Index values wherever it takes a list or a number, for example `intervention_components=df.columns[1:3]` or bounds given as a `numpy` array. They used to fail with an unclear conversion error.
 
 * The MCP server now marks a failed tool call as an error result (`isError` true), with the JSON body `{"error": "...", "warnings": [...]}` as its text. It used to report failures as successful results.
 

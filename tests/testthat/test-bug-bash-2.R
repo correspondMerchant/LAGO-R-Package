@@ -79,6 +79,7 @@ test_that("a text or Date period can be chosen by its label", {
   dn <- d
   dn$period <- ifelse(d$period == "2024-Q1", "01", "02")
   expect_equal(fit(2, dn)$est_outcome, q2$est_outcome)
+  expect_equal(fit(factor("2024-Q2"))$est_outcome, q2$est_outcome)
   expect_error(fit(NA), "must be one period")
 })
 
@@ -235,6 +236,13 @@ test_that("a direct get_confidence_set() call checks rec_int, alpha and the goal
   expect_length(cs()$rec_int_ci, 2)
   expect_error(cs(rec_int = NULL), "rec_int must be the recommended intervention, 2")
   expect_error(cs(rec_int = 8), "rec_int must be the recommended intervention, 2")
+  expect_error(
+    cs(
+      include_interaction_terms = TRUE, main_components = c("x1", "x2"),
+      intervention_components = c("x1", "x2", "x1:x2"), rec_int = 8
+    ),
+    "2 finite number\\(s\\), one per main component"
+  )
   expect_error(cs(confidence_set_alpha = 0), "between 0 and 1")
   expect_error(cs(confidence_set_alpha = 1.5), "between 0 and 1")
   expect_error(cs(confidence_set_alpha = c(0.05, 0.5)), "between 0 and 1")
