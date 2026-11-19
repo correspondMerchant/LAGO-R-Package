@@ -28,7 +28,11 @@ across the outcome's range. Larger values give a finer, more precise answer
 at the cost of more optimization runs. A second refinement pass tries
 \code{n_grid} more goals strictly inside the gap at the affordability boundary,
 and that gap is then halved one run at a time until it is narrower than
-1/10000 of the goal range, so the answer does not depend much on \code{n_grid}.
+1/10000 of the goal range and the cost at the boundary is known to within
+1/10000 of the budget, so the answer does not depend much on \code{n_grid}. Near
+the best reachable outcome, where the cost is not known until the goal gets
+very close to that outcome, the halving goes on until the gap is narrower
+than 1e-9 of the goal range.
 Default 25.}
 
 \item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}} via

@@ -73,7 +73,9 @@
 #'   element of `values`. Vector-valued arguments such as
 #'   `intervention_lower_bounds`, and confidence-set-only arguments such as
 #'   `confidence_set_alpha` (the confidence set is not computed during a sweep),
-#'   are rejected.
+#'   are rejected. So are `"time_effect_optimization_value"` without
+#'   `include_time_effects = TRUE` and `"icc"` without a `power_goal`, since
+#'   they would not change the recommendation.
 #'   \item The special string `"cost_multiplier"`: each run multiplies every
 #'   coefficient of every vector in the baseline `cost_list_of_vectors` by one
 #'   element of `values`, so `values = c(0.8, 1, 1.2)` evaluates the costs at
@@ -84,9 +86,12 @@
 #'   stored on `object`), and all `values` must be positive.
 #' }
 #' @param values A non-empty numeric vector, all finite. One run per element.
+#' For `parameter = "time_effect_optimization_value"` it can also be a
+#' character vector of period labels or a Date vector, with no `NA`.
 #' @param quiet A boolean forwarded to [lago_optimization()]. Defaults to
 #' `TRUE` so the sweep is not noisy. Genuine warnings about the data or model
-#' fit from each run are still shown.
+#' fit are still shown. The runs share one model fit, so each distinct warning
+#' from that fit is shown once per sweep.
 #'
 #' @details Each run builds the modified argument list from `...`, forces
 #' `include_confidence_set = FALSE`, sets `quiet = quiet`, and calls
@@ -107,8 +112,13 @@
 #' `component_names` (the component column names), `baseline` (the full
 #' [lago_optimization()] result at the baseline value, i.e. multiplier 1 for
 #' `"cost_multiplier"` or the value supplied in `...` for a named parameter, or
-#' `NULL` if not present), and, when any run failed, `error_messages` (the
-#' error text named by the failed values).
+#' `NULL` if not present), `effective_outcome_goal` (one value per run: the
+#' outcome goal the run targeted, which a power goal can raise above the
+#' outcome goal, or `NA` for a failed run), `shrinking_method_used` (one value
+#' per run: `TRUE` when the goal was out of reach and the shrinking method gave
+#' the recommendation, `FALSE` when it was not used, or `NA` for a failed run),
+#' and, when any run failed, `error_messages` (the error text named by the
+#' failed values).
 #'
 #' @examples
 #' \donttest{
@@ -245,13 +255,46 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
         parameter
       ))
     }
+    # these only change the recommendation together with another input, so
+    # without it every row would be the same
+    if (identical(parameter, "time_effect_optimization_value") &&
+      !isTRUE(dots$include_time_effects)) {
+      stop(paste(
+        "`parameter` \"time_effect_optimization_value\" only affects the",
+        "recommendation when include_time_effects = TRUE, so sweeping it",
+        "without time effects would return identical rows. Set",
+        "include_time_effects = TRUE, or sweep another parameter."
+      ))
+    }
+    if (identical(parameter, "icc") && is.null(dots$power_goal)) {
+      stop(paste(
+        "`parameter` \"icc\" only affects the recommendation through the",
+        "power goal, so sweeping it without a power_goal would return",
+        "identical rows. Set power_goal, or sweep another parameter."
+      ))
+    }
   }
 
   # --- validate `values` ----------------------------------------------------
-  if (missing(values) || !is.numeric(values) || length(values) == 0L) {
-    stop("`values` must be a non-empty numeric vector.")
+  # a period can be a label, so the period sweep also takes text or dates
+  period_mode <- identical(parameter, "time_effect_optimization_value")
+  labels_ok <- period_mode &&
+    (is.character(values) || inherits(values, "Date"))
+  if (missing(values) || length(values) == 0L ||
+    !(is.numeric(values) || labels_ok)) {
+    stop(if (period_mode) {
+      paste(
+        "`values` must be a non-empty numeric, character, or Date vector",
+        "for `parameter` \"time_effect_optimization_value\"."
+      )
+    } else {
+      "`values` must be a non-empty numeric vector."
+    })
   }
-  if (any(!is.finite(values))) {
+  if (labels_ok && anyNA(values)) {
+    stop("`values` must not contain NA.")
+  }
+  if (!labels_ok && any(!is.finite(values))) {
     stop("`values` must be all finite (no NA, NaN, or Inf).")
   }
 
@@ -388,7 +431,11 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # --- baseline run (multiplier 1, or the value supplied in `...`) ----------
   baseline <- NULL
   baseline_value <- if (cost_mode) 1 else dots[[parameter]]
-  if (!is.null(baseline_value) && is.numeric(baseline_value) &&
+  if (labels_ok && length(baseline_value) == 1L) {
+    # a period label matches only exactly
+    idx <- which(as.character(values) == as.character(baseline_value) & ok)
+    if (length(idx) >= 1L) baseline <- runs[[idx[1]]]
+  } else if (!is.null(baseline_value) && is.numeric(baseline_value) &&
     length(baseline_value) == 1L) {
     # within rounding, so a value built with seq() still matches
     idx <- which(abs(values - baseline_value) <= sqrt(.Machine$double.eps) *
@@ -500,7 +547,9 @@ print.lago_sensitivity <- function(x, ...) {
 #' cost-of-stringency curve, and for a `"cost_multiplier"` sweep it is a
 #' straight line. With `show = "components"` it instead plots the recommended
 #' value of each intervention component against the swept value, one coloured
-#' line per component. Rows with `NA` outputs are dropped with a message.
+#' line per component. Rows with `NA` outputs are dropped with a message. A
+#' sweep of period labels or dates is drawn on a discrete axis, in the order of
+#' `values`.
 #'
 #' @param x A `"lago_sensitivity"` object from [lago_sensitivity()].
 #' @param show One of `"cost"` (default, plot `rec_int_cost`) or
@@ -533,16 +582,31 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   show <- match.arg(show)
   param <- attr(x, "parameter")
   comps <- attr(x, "component_names")
+  # period labels or dates have no numeric scale, so they go on a discrete
+  # axis in the order of the sweep, and the line joins them in that order
+  discrete <- !is.numeric(x$value)
+  value_ok <- if (discrete) !is.na(x$value) else is.finite(x$value)
+  as_axis <- function(v) {
+    if (!discrete) {
+      return(v)
+    }
+    labels <- as.character(v)
+    factor(labels, levels = unique(as.character(x$value)))
+  }
 
   if (identical(show, "cost")) {
-    keep <- is.finite(x$value) & is.finite(x$rec_int_cost)
+    keep <- value_ok & is.finite(x$rec_int_cost)
     n_drop <- sum(!keep)
     if (n_drop > 0L) {
       message(n_drop, " row(s) with NA cost dropped from the plot.")
     }
-    d <- x[keep, , drop = FALSE]
+    d <- data.frame(
+      value = as_axis(x$value[keep]), rec_int_cost = x$rec_int_cost[keep]
+    )
     p <- ggplot2::ggplot(
-      d, ggplot2::aes(x = .data[["value"]], y = .data[["rec_int_cost"]])
+      d, ggplot2::aes(
+        x = .data[["value"]], y = .data[["rec_int_cost"]], group = 1
+      )
     ) +
       ggplot2::geom_line(color = "#0066cc") +
       ggplot2::geom_point(color = "#0066cc", size = 2) +
@@ -562,13 +626,13 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   # build the long data.frame with base R (tidyr is not a dependency).
   long <- do.call(rbind, lapply(comps, function(cn) {
     data.frame(
-      value = x$value,
+      value = as_axis(x$value),
       component = cn,
       rec_value = x[[cn]],
       stringsAsFactors = FALSE
     )
   }))
-  keep <- is.finite(long$value) & is.finite(long$rec_value)
+  keep <- rep(value_ok, length(comps)) & is.finite(long$rec_value)
   n_drop <- sum(!keep)
   if (n_drop > 0L) {
     message(n_drop, " row(s) with NA component value dropped from the plot.")
@@ -579,7 +643,7 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
     long,
     ggplot2::aes(
       x = .data[["value"]], y = .data[["rec_value"]],
-      color = .data[["component"]]
+      color = .data[["component"]], group = .data[["component"]]
     )
   ) +
     ggplot2::geom_line() +
@@ -614,12 +678,15 @@ merge_call_args <- function(stored, overrides) {
 }
 
 # Return a handler that shows each distinct input note or input warning once
-# and hides later copies of the same text. Every other condition, such as a note
+# and hides later copies of the same text. A warning from fitting the outcome
+# model is handled the same way, since the runs of a sweep share one fit and
+# each run raises its warnings again. Every other condition, such as a note
 # about one run's power goal or the cli progress lines, is shown for every run.
 show_each_input_note_once <- function() {
   seen <- character(0)
   function(m) {
-    if (!inherits(m, c("lago_input_note", "lago_input_warning"))) {
+    if (!inherits(m, c("lago_input_note", "lago_input_warning")) &&
+      !(inherits(m, "warning") && raised_by_model_fit())) {
       return(invisible(NULL))
     }
     # with warnings made errors, every run must stop as a single run would
@@ -632,4 +699,14 @@ show_each_input_note_once <- function() {
     }
     seen <<- c(seen, text)
   }
+}
+
+# Whether the condition being handled was raised while the outcome model was
+# fitted, or while a cached fit raised its warnings again. A calling handler
+# runs on top of the frames that signaled the condition, so the fit is on the
+# call stack exactly then.
+raised_by_model_fit <- function() {
+  any(vapply(sys.calls(), function(cl) {
+    is.call(cl) && identical(cl[[1]], quote(cached_outcome_model_fitting))
+  }, logical(1)))
 }

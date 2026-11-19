@@ -31,7 +31,9 @@ or \code{"icc"}). Each run overrides that argument with one
 element of \code{values}. Vector-valued arguments such as
 \code{intervention_lower_bounds}, and confidence-set-only arguments such as
 \code{confidence_set_alpha} (the confidence set is not computed during a sweep),
-are rejected.
+are rejected. So are \code{"time_effect_optimization_value"} without
+\code{include_time_effects = TRUE} and \code{"icc"} without a \code{power_goal}, since
+they would not change the recommendation.
 \item The special string \code{"cost_multiplier"}: each run multiplies every
 coefficient of every vector in the baseline \code{cost_list_of_vectors} by one
 element of \code{values}, so \code{values = c(0.8, 1, 1.2)} evaluates the costs at
@@ -42,11 +44,14 @@ This mode requires \code{cost_list_of_vectors} or \code{unit_costs} (in \code{..
 stored on \code{object}), and all \code{values} must be positive.
 }}
 
-\item{values}{A non-empty numeric vector, all finite. One run per element.}
+\item{values}{A non-empty numeric vector, all finite. One run per element.
+For \code{parameter = "time_effect_optimization_value"} it can also be a
+character vector of period labels or a Date vector, with no \code{NA}.}
 
 \item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}}. Defaults to
 \code{TRUE} so the sweep is not noisy. Genuine warnings about the data or model
-fit from each run are still shown.}
+fit are still shown. The runs share one model fit, so each distinct warning
+from that fit is shown once per sweep.}
 }
 \value{
 An object of class \code{"lago_sensitivity"}, which is a \code{data.frame}
@@ -63,8 +68,13 @@ The object carries attributes \code{parameter} (the swept string),
 \code{component_names} (the component column names), \code{baseline} (the full
 \code{\link[=lago_optimization]{lago_optimization()}} result at the baseline value, i.e. multiplier 1 for
 \code{"cost_multiplier"} or the value supplied in \code{...} for a named parameter, or
-\code{NULL} if not present), and, when any run failed, \code{error_messages} (the
-error text named by the failed values).
+\code{NULL} if not present), \code{effective_outcome_goal} (one value per run: the
+outcome goal the run targeted, which a power goal can raise above the
+outcome goal, or \code{NA} for a failed run), \code{shrinking_method_used} (one value
+per run: \code{TRUE} when the goal was out of reach and the shrinking method gave
+the recommendation, \code{FALSE} when it was not used, or \code{NA} for a failed run),
+and, when any run failed, \code{error_messages} (the error text named by the
+failed values).
 }
 \description{
 Trial designers often are unsure about some of the inputs to
