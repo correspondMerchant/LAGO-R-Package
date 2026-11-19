@@ -641,6 +641,7 @@ lago_optimization <- function(
     display_components = display_components,
     outcome_type = outcome_type,
     outcome_goal = outcome_goal,
+    outcome_goal_intention = outcome_goal_intention,
     power_goal = power_goal,
     model = model,
     # inputs recap

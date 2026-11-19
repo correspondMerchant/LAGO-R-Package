@@ -37,6 +37,22 @@
 
 .lago_fmt_cost_range <- function(v) ifelse(abs(v) >= 1 | v == 0, round(v, 2), signif(v, 3))
 
+# A number as text, written in full (no e notation) the way the JS
+# fmtValue() and fmtCost() of the report write it: e notation is used only for
+# values from 1e21 up or closer to 0 than 1e-6. paste() would write round
+# numbers such as 1e+05 and small ones such as 1e-05 in e notation. Pass the
+# value rounded first, as the 15 digits here only drop floating point noise.
+.lago_num_text <- function(v) {
+  v <- as.numeric(v)
+  a <- abs(v)
+  plain <- is.finite(v) & a < 1e21 & a >= 1e-6
+  # e notation as JS writes it, such as 1e-7 and 1e+21 (R writes 1e-07)
+  out <- sub("e([+-])0+([0-9])", "e\\1\\2", as.character(v))
+  out[plain] <- vapply(v[plain], format, character(1), digits = 15, scientific = FALSE, trim = TRUE)
+  out[!is.na(v) & v == 0] <- "0"
+  out
+}
+
 .lago_fmt_pval <- function(p, digits = 4) {
   eps <- .Machine$double.eps
   ifelse(!is.na(p) & p < eps, paste0("< ", format(eps, digits = 2)), signif(p, digits))
@@ -141,17 +157,28 @@ lago_blocks <- function(x) {
         paste0("Fixed time effects: ", isTRUE(x$include_time_effects))
       )
     }
+    # The direction of the goal. An object made before the direction was
+    # stored falls back on the arguments it recorded, and shows no direction
+    # when it has neither.
+    intention <- x$outcome_goal_intention %||% attr(x, "lago_call_args")$outcome_goal_intention
+    goal_direction <- ""
+    if (!is.null(x$outcome_goal) && identical(intention, "maximize")) {
+      goal_direction <- " (maximize: at least this value)"
+    } else if (!is.null(x$outcome_goal) && identical(intention, "minimize")) {
+      goal_direction <- " (minimize: at most this value)"
+    }
     # Both goal lines are always shown (with "not specified" when NULL), as the
     # old output did, so the recap is unambiguous about which goal was set.
     input_rows <- c(
       input_rows,
       paste0(
         "Outcome goal: ",
-        if (is.null(x$outcome_goal)) "not specified" else x$outcome_goal
+        if (is.null(x$outcome_goal)) "not specified" else .lago_num_text(.lago_fmt_value(x$outcome_goal)),
+        goal_direction
       ),
       paste0(
         "Power goal: ",
-        if (is.null(x$power_goal)) "not specified" else x$power_goal
+        if (is.null(x$power_goal)) "not specified" else .lago_num_text(x$power_goal)
       )
     )
     if (!is.null(x$power_goal) && !is.null(x$effective_outcome_goal)) {
@@ -160,7 +187,7 @@ lago_blocks <- function(x) {
         paste0(
           "Effective outcome goal (max of outcome goal and ",
           "power-implied outcome): ",
-          .lago_fmt_value(x$effective_outcome_goal)
+          .lago_num_text(.lago_fmt_value(x$effective_outcome_goal))
         )
       )
     }
@@ -189,11 +216,11 @@ lago_blocks <- function(x) {
         input_rows,
         paste0(
           "Intervention lower bounds: ",
-          paste(x$intervention_lower_bounds, collapse = ", ")
+          paste(.lago_num_text(x$intervention_lower_bounds), collapse = ", ")
         ),
         paste0(
           "Intervention upper bounds: ",
-          paste(x$intervention_upper_bounds, collapse = ", ")
+          paste(.lago_num_text(x$intervention_upper_bounds), collapse = ", ")
         )
       )
     }
@@ -210,11 +237,11 @@ lago_blocks <- function(x) {
   if (!is.null(comps) && length(comps) == length(vals)) {
     rec_rows <- data.frame(
       component = comps,
-      value = .lago_fmt_value(vals),
+      value = .lago_num_text(.lago_fmt_value(vals)),
       stringsAsFactors = FALSE
     )
   } else {
-    rec_rows <- data.frame(value = .lago_fmt_value(vals))
+    rec_rows <- data.frame(value = .lago_num_text(.lago_fmt_value(vals)), stringsAsFactors = FALSE)
   }
   recommendation <- list(
     title = "Recommended intervention",
@@ -224,7 +251,7 @@ lago_blocks <- function(x) {
   # --- cost
   cost <- list(
     title = "Cost",
-    rows = paste0("Cost: ", .lago_fmt_cost(x$rec_int_cost))
+    rows = paste0("Cost: ", .lago_num_text(.lago_fmt_cost(x$rec_int_cost)))
   )
 
   # --- outcome (estimated outcome, its CI when available, and the outcome
@@ -232,7 +259,7 @@ lago_blocks <- function(x) {
   # recommended intervention, which get_confidence_set() reports in its own
   # rec_int_ci field, carried on the object as est_outcome_ci.
   outcome_rows <- paste0(
-    "Estimated outcome: ", .lago_fmt_value(x$est_outcome_goal)
+    "Estimated outcome: ", .lago_num_text(.lago_fmt_value(x$est_outcome_goal))
   )
   # Always show a CI line, with the old fallback wording when the interval is
   # not available. The interval no longer depends on the confidence set being
@@ -242,9 +269,9 @@ lago_blocks <- function(x) {
   ci_line <- if (!is.null(x$est_outcome_ci)) {
     paste0(
       level, " CI for the estimated outcome: ",
-      .lago_fmt_value(x$est_outcome_ci[["lower"]]),
+      .lago_num_text(.lago_fmt_value(x$est_outcome_ci[["lower"]])),
       " - ",
-      .lago_fmt_value(x$est_outcome_ci[["upper"]])
+      .lago_num_text(.lago_fmt_value(x$est_outcome_ci[["upper"]]))
     )
   } else if (!is.null(x$confidence_set_size_percentage)) {
     paste0(
@@ -260,7 +287,7 @@ lago_blocks <- function(x) {
   if (!is.null(x$outcome_goal)) {
     outcome_rows <- c(
       outcome_rows,
-      paste0("Outcome goal: ", x$outcome_goal)
+      paste0("Outcome goal: ", .lago_num_text(.lago_fmt_value(x$outcome_goal)))
     )
   }
   outcome <- list(
@@ -273,7 +300,7 @@ lago_blocks <- function(x) {
   if (!is.null(x$power_goal)) {
     power <- list(
       title = "Power",
-      rows = paste0("Power goal: ", x$power_goal)
+      rows = paste0("Power goal: ", .lago_num_text(x$power_goal))
     )
   }
 
@@ -285,11 +312,11 @@ lago_blocks <- function(x) {
     # confidence set was not requested (include_confidence_set = FALSE).
     cs_rows <- "Not computed (set include_confidence_set = TRUE to compute it)."
   } else {
-    cs_rows <- paste0(
-      level, " confidence set size: ",
-      round(100 * x$confidence_set_size_percentage, 2),
-      "% of the grid"
-    )
+    # 2 decimals, but a set too small for that shows as "< 0.01%" and not
+    # as 0%, which would read as an empty set.
+    size <- 100 * x$confidence_set_size_percentage
+    size_text <- if (size > 0 && size < 0.005) "< 0.01" else .lago_num_text(round(size, 2))
+    cs_rows <- paste0(level, " confidence set size: ", size_text, "% of the grid")
     if (is.null(x$cs)) {
       # size field present but no set found for the current goal.
       cs_rows <- c(cs_rows, "No confidence set was found for the current outcome goal.")
@@ -301,9 +328,9 @@ lago_blocks <- function(x) {
         cs_rows,
         paste0(
           "IQR of the cost within the ", level, " confidence set: ",
-          .lago_fmt_cost_range(qs[1]),
+          .lago_num_text(.lago_fmt_cost_range(qs[1])),
           " - ",
-          .lago_fmt_cost_range(qs[2])
+          .lago_num_text(.lago_fmt_cost_range(qs[2]))
         )
       )
     }
@@ -327,7 +354,7 @@ lago_blocks <- function(x) {
     }
     test_rows <- c(
       test_rows,
-      paste0("Test statistic: ", .lago_fmt_value(x$test_results$test_stat)),
+      paste0("Test statistic: ", .lago_num_text(.lago_fmt_value(x$test_results$test_stat))),
       paste0("P-value: ", .lago_fmt_pval(x$test_results$p_val, 4))
     )
     test <- list(

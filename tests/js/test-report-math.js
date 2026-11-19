@@ -135,5 +135,12 @@ check("fmtValue(-5e-7) is 0, not -0", m.fmtValue(-5e-7) === "0");
 check("fmtValue(1234567) is 1234567", m.fmtValue(1234567) === "1234567");
 check("fmtValue(NaN) is NaN", m.fmtValue(NaN) === "NaN");
 check("fmtCost(Infinity) is Infinity", m.fmtCost(Infinity) === "Infinity");
+// Round and small numbers, which R once wrote as 1e+05 and 1e-05. The R test
+// test-bb3-present.R checks that .lago_num_text() gives the same strings.
+check("fmtCost(100000) is 100000", m.fmtCost(100000) === "100000");
+check("fmtCost(2e6) is 2000000", m.fmtCost(2e6) === "2000000");
+check("fmtValue(1e-5) is 0.00001", m.fmtValue(1e-5) === "0.00001");
+check("fmtCost(1e21) is 1e+21", m.fmtCost(1e21) === "1e+21");
+check("fmtCost(1e-7) is 1e-7", m.fmtCost(1e-7) === "1e-7");
 
 console.log("\nAll " + passed + " JS report-math assertions passed.");

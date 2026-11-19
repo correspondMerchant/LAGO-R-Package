@@ -80,9 +80,9 @@
     });
   }
 
-  // Write a rounded number in full, as R writes it in the report text. JS
-  // String() keeps plain notation from 1e-6 up to 1e21, so only extreme values
-  // use e notation. -0 is written as 0.
+  // Write a rounded number in full, as R's .lago_num_text() writes it in the
+  // report text. JS String() keeps plain notation from 1e-6 up to 1e21, so only
+  // extreme values use e notation. -0 is written as 0.
   function plainNumber(v) {
     return v === 0 ? "0" : String(v);
   }

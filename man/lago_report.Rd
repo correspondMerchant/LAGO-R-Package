@@ -18,9 +18,12 @@ lago_report(
 \item{output_file}{A character string. The path to write the HTML report to.
 If \code{NULL} (the default), a temporary file with a \code{.html} extension is used.
 If it is an existing folder, the report is written in it as
-\code{lago_report.html}.}
+\code{lago_report.html}. A file path must end in \code{.html} or \code{.htm}, since the
+report is always an HTML file.}
 
-\item{title}{A character string. The report title.
+\item{title}{A character string. The report title. Every character shows
+as typed, so markdown, HTML and math are not interpreted. An empty or
+missing title (\code{""}, \code{NA} or \code{NULL}) uses the default title.
 Default value without user specification: "LAGO optimization report".}
 
 \item{open}{A boolean. If \code{TRUE}, opens the rendered report in a browser via
