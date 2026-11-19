@@ -322,7 +322,23 @@ def r_to_py(obj):
 
     if isinstance(obj, DataFrame):
         with s["localconverter"](_pandas_converter()):
-            return ro.conversion.get_conversion().rpy2py(obj)
+            frame = ro.conversion.get_conversion().rpy2py(obj)
+        # pandas has no NA for a plain integer or bool column, so rpy2 hands
+        # R's NA through as its sentinel, -2147483648 or True. Such columns
+        # become nullable ones, with NA where R had NA.
+        is_na = ro.baseenv["is.na"]
+        for name, col in zip(list(obj.names), list(obj)):
+            if isinstance(col, FactorVector) or not isinstance(col, (IntVector, BoolVector)):
+                continue
+            missing = [bool(m) for m in is_na(col)]
+            if not any(missing):
+                continue
+            import pandas as pd
+
+            dtype = "boolean" if isinstance(col, BoolVector) else "Int64"
+            values = [None if m else v for v, m in zip(frame[name].tolist(), missing)]
+            frame[name] = pd.array(values, dtype=dtype)
+        return frame
 
     if isinstance(obj, FactorVector):
         levels = list(obj.levels)
@@ -350,6 +366,11 @@ def r_to_py(obj):
 
     if isinstance(obj, (FloatVector, IntVector, BoolVector, StrVector)):
         vals = list(obj)
+        # R's NA in an integer, logical or text vector becomes None. A real
+        # NA is already a float NaN.
+        if not isinstance(obj, FloatVector):
+            missing = list(ro.baseenv["is.na"](obj))
+            vals = [None if m else v for v, m in zip(vals, missing)]
         names = obj.names
         if not _is_null(names):
             return {str(k): v for k, v in zip(list(names), vals)}

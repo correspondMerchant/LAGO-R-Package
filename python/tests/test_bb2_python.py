@@ -333,3 +333,4 @@ def test_every_result_has_a_warnings_list(mtcars):
     assert S.sensitivity(parameter="outcome_goal", values=[30.0], **_args())["warnings"] == []
     assert S.budget(budget=10.0, **_args())["warnings"] == []
     assert S._error(ValueError("x"), ["w"]) == {"error": "ValueError: x", "warnings": ["w"]}
+
