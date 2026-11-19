@@ -9,14 +9,17 @@ bb2_cars <- function() {
 
 # validate_inputs() on a small valid mtcars set, with one argument changed
 bb2_vi <- function(...) {
-  args <- utils::modifyList(list(
+  args <- list(
     data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
     intervention_components = c("gear", "qsec"),
     intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(10, 350),
     outcome_goal = 40, outcome_goal_intention = "maximize", power_goal = NULL,
     power_goal_approach = "unconditional",
     cost_list_of_vectors = list(c(0, 4), c(4, 6))
-  ), list(...))
+  )
+  # replaced whole, as modifyList() would merge two data frames column by column
+  dots <- list(...)
+  args[names(dots)] <- dots
   suppressWarnings(suppressMessages(do.call(LAGOtrials:::validate_inputs, args)))
 }
 
@@ -152,5 +155,62 @@ test_that("a missing arm is named in the power goal check and left out of the te
   expect_warning(
     expect_null(LAGOtrials:::test_processor(d, "binary", "vs")),
     "needs at least two rows"
+  )
+})
+
+bb2_power <- function(power_goal, approach = "unconditional", j = 20, n = 20, ...) {
+  d <- make_small_clustered()
+  suppressWarnings(get_power_desired_outcome(
+    data = d, intervention_components_coeff = small_coeff(d),
+    power_goal = power_goal, power_goal_approach = approach,
+    num_centers_in_next_stage = j, patients_per_center_in_next_stage = n,
+    outcome_name = "y", ...
+  ))
+}
+
+test_that("a power goal at or below alpha, or very close to 1, does not crash", {
+  low <- bb2_power(0.03)
+  expect_true(is.numeric(low) && is.finite(low))
+  expect_no_error(bb2_power(1 - 2^-52))
+})
+
+test_that("the power goal is not rounded up to the next grid point", {
+  d <- make_small_clustered()
+  ctl <- stats::plogis(small_coeff(d)[[1]])
+  grid <- seq(ctl, 1, length.out = 1000)
+  for (approach in c("unconditional", "conditional")) {
+    big <- bb2_power(0.8, approach, j = 1e4, n = 1e3)
+    # far below one grid step above the stage 1 control rate
+    expect_lt(big, grid[which(grid >= big)[1]])
+    expect_gt(bb2_power(0.8, approach, j = 1e4, n = 1e3, icc = 0.01,
+      power_goal_cluster_id = "center"), big)
+  }
+})
+
+test_that("power inputs are checked whatever the icc", {
+  d <- make_small_clustered()
+  d$dose <- ifelse(d$group == "treatment", 1, 0)
+  pv <- function(...) {
+    bb2_vi(
+      data = d, outcome_name = "y", outcome_type = "binary",
+      intervention_components = "dose", intervention_lower_bounds = 0,
+      intervention_upper_bounds = 1, outcome_goal = 0.5,
+      cost_list_of_vectors = list(c(0, 1)), power_goal = 0.8,
+      num_centers_in_next_stage = 10, patients_per_center_in_next_stage = 10, ...
+    )
+  }
+  expect_error(pv(power_goal_cluster_id = "nope"), "'nope' was not found")
+  expect_error(pv(icc = 0, power_goal_cluster_id = "nope"), "'nope' was not found")
+  expect_error(pv(power_goal_cluster_id = NA_character_), "single column name")
+  expect_error(pv(power_goal = NA_real_), "a single number")
+  expect_error(pv(power_goal = c(0.8, 0.9)), "a single number")
+  expect_error(pv(num_centers_in_next_stage = Inf), "one whole, finite number")
+  expect_error(pv(num_centers_in_next_stage = 2.5), "one whole, finite number")
+  expect_error(pv(patients_per_center_in_next_stage = c(5, 6)), "one whole, finite number")
+  expect_error(pv(icc = NA_real_), "icc must be in")
+  expect_error(pv(shrinkage_threshold = NA_real_), "a single number")
+  expect_error(
+    pv(power_goal_approach = "other"),
+    "^The power_goal_approach must be one of the supported approaches: 'unconditional' or 'conditional'\\.$"
   )
 })

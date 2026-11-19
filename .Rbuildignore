@@ -21,3 +21,4 @@
 ^tests/testthat/Rplots\.pdf$
 ^tests/testthat/_problems$
 ^tests/testthat/testthat-problems\.rds$
+^\.claude$

@@ -100,7 +100,13 @@ test_that("the conditional power goal skips grid points it cannot evaluate in pl
   grid <- seq(control_rate, 1, length.out = 1000)
   values <- suppressWarnings(vapply(grid, value, numeric(1)))
   expect_true(anyNA(values))
-  expect_identical(result, grid[!is.na(values) & values <= 0][1])
+  # the first grid point that holds, refined toward the point before it
+  k <- which(!is.na(values) & values <= 0)[1]
+  expect_true(result > grid[k - 1] && result <= grid[k])
+  expect_lte(value(result), 0)
+  # just below it the inequality fails or cannot be evaluated
+  below <- suppressWarnings(value(result - 1e-9))
+  expect_true(is.na(below) || below > 0)
 })
 
 # ---- power goal: center level data -------------------------------------------

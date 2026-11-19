@@ -1222,8 +1222,9 @@ validate_inputs <- function(
 
   # check if shrinkage_threshold is a numeric value
   # and is between 0 and 1
-  if (!is.numeric(shrinkage_threshold)) {
-    stop("shrinkage_threshold must be a numeric value.")
+  if (!is.numeric(shrinkage_threshold) || length(shrinkage_threshold) != 1 ||
+    is.na(shrinkage_threshold)) {
+    stop("shrinkage_threshold must be a numeric value, a single number.")
   }
   if (shrinkage_threshold < 0 || shrinkage_threshold > 1) {
     stop("shrinkage_threshold must be between 0 and 1.")
@@ -1231,8 +1232,8 @@ validate_inputs <- function(
 
   # check if power_goal is a numeric number if not null
   if (!is.null(power_goal)) {
-    if (!is.numeric(power_goal)) {
-      stop("The power goal must be a numeric value.")
+    if (!is.numeric(power_goal) || length(power_goal) != 1 || is.na(power_goal)) {
+      stop("The power goal must be a numeric value, a single number.")
     }
     # check if power_goal is between 0 and 1
     if (power_goal <= 0 || power_goal >= 1) {
@@ -1295,21 +1296,34 @@ validate_inputs <- function(
       ))
     }
     # if num_center_in_next_stage is not null, it must be a numeric value
-    if (!is.null(num_centers_in_next_stage)) {
-      if (!is.numeric(num_centers_in_next_stage)) {
-        stop("num_centers_in_next_stage must be a numeric value.")
+    # each is one count: a whole, finite number above 0
+    next_stage <- list(
+      num_centers_in_next_stage = num_centers_in_next_stage,
+      patients_per_center_in_next_stage = patients_per_center_in_next_stage
+    )
+    for (size_name in names(next_stage)) {
+      size <- next_stage[[size_name]]
+      if (!is.numeric(size)) {
+        stop(paste0(size_name, " must be a numeric value."))
       }
-      if (num_centers_in_next_stage <= 0) {
-        stop("num_centers_in_next_stage must be greater than 0.")
+      if (length(size) != 1 || !is.finite(size) || size != round(size)) {
+        stop(paste0(size_name, " must be one whole, finite number."))
+      }
+      if (size <= 0) {
+        stop(paste0(size_name, " must be greater than 0."))
       }
     }
-    # if patients_per_center_in_next_stage is not null, it must be a numeric value
-    if (!is.null(patients_per_center_in_next_stage)) {
-      if (!is.numeric(patients_per_center_in_next_stage)) {
-        stop("patients_per_center_in_next_stage must be a numeric value.")
+    # a cluster id that is given must name a column, whatever the icc
+    if (!is.null(power_goal_cluster_id)) {
+      if (!is.character(power_goal_cluster_id) ||
+        length(power_goal_cluster_id) != 1 || is.na(power_goal_cluster_id)) {
+        stop("power_goal_cluster_id must be a single column name.")
       }
-      if (patients_per_center_in_next_stage <= 0) {
-        stop("patients_per_center_in_next_stage must be greater than 0.")
+      if (!power_goal_cluster_id %in% names(data)) {
+        stop(paste0(
+          "power_goal_cluster_id column '", power_goal_cluster_id,
+          "' was not found in the data."
+        ))
       }
     }
     # icc (issue #29): optional intra-cluster correlation used to inflate the
@@ -1322,7 +1336,7 @@ validate_inputs <- function(
       if (length(icc) != 1 && length(icc) != 2) {
         stop("icc must have length 1 (shared) or 2 (control, treatment).")
       }
-      if (any(icc < 0) || any(icc >= 1)) {
+      if (!all(is.finite(icc)) || any(icc < 0) || any(icc >= 1)) {
         stop("icc must be in [0, 1).")
       }
       # a non-zero icc needs a stage-1 cluster id to compute the stage-1 design
@@ -1333,16 +1347,6 @@ validate_inputs <- function(
             "A non-zero 'icc' requires 'power_goal_cluster_id', the name of a",
             "column identifying stage-1 centers, so the stage-1 design effect",
             "can be computed."
-          ))
-        }
-        if (!is.character(power_goal_cluster_id) ||
-          length(power_goal_cluster_id) != 1) {
-          stop("power_goal_cluster_id must be a single column name.")
-        }
-        if (!power_goal_cluster_id %in% names(data)) {
-          stop(paste0(
-            "power_goal_cluster_id column '", power_goal_cluster_id,
-            "' was not found in the data."
           ))
         }
         # need at least two centers per arm to identify between-cluster
@@ -1377,12 +1381,11 @@ validate_inputs <- function(
     stop("The power_goal_approach must be a character string.")
   }
   allowed_power_goal_approaches <- c("unconditional", "conditional")
-  if (!(power_goal_approach %in% allowed_power_goal_approaches)) {
-    stop(paste(
-      "The power_goal_approach must be one",
-      "of the supported approaches.",
-      "The supported approaches are:",
-      allowed_power_goal_approaches, "."
+  if (length(power_goal_approach) != 1 ||
+    !(power_goal_approach %in% allowed_power_goal_approaches)) {
+    stop(paste0(
+      "The power_goal_approach must be one of the supported approaches: ",
+      paste0("'", allowed_power_goal_approaches, "'", collapse = " or "), "."
     ))
   }
 
