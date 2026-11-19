@@ -136,8 +136,9 @@ test_that("slider ranges scale with the bounds and steps with the value", {
   expect_true(is.finite(r$min) && is.finite(r$max))
   # the designer opens the x^2 slider on that range
   p <- .build_cost_parts("A", 1, "cubic", 0, 1e-3)
-  html <- as.character(p$ui)
-  expect_match(html, 'id="range_max_1_2"[^>]*value="1000"')
+  # the tag tree, without rendering its dependencies
+  tags <- htmltools::tagQuery(p$ui)$find("#range_max_1_2")$selectedTags()
+  expect_equal(htmltools::tagGetAttribute(tags[[1]], "value"), "1000")
   # the step of a wide range grows with it, and a huge value still moves
   expect_equal(slider_step(-4e11, 6e11), 1e6)
   step <- slider_step(1e12, 1e12 + 1)

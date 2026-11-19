@@ -159,7 +159,9 @@ test_that("lago_report() refuses an output file that is not HTML", {
   skip_if_not_installed("knitr")
   skip_if_not_installed("jsonlite")
   r <- bb3_fit()
-  dir <- withr::local_tempdir()
+  dir <- tempfile("bb3-report-")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
   rmd <- file.path(dir, "x.Rmd")
   writeLines("keep me", rmd)
   expect_error(lago_report(r, output_file = rmd), "must end in", fixed = TRUE)
@@ -172,7 +174,9 @@ test_that("lago_report() refuses an output file that is not HTML", {
 test_that("lago_report() accepts .htm and .HTML, and uses the default title for an empty one", {
   bb3_skip_report()
   r <- bb3_fit()
-  dir <- withr::local_tempdir()
+  dir <- tempfile("bb3-report-")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
   for (f in c("a.htm", "b.HTML")) {
     out <- lago_report(r, output_file = file.path(dir, f))
     expect_true(file.exists(out))

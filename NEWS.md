@@ -158,7 +158,7 @@
 
 * `lago_app()` now reads every row of a UTF-8 CSV in the C locale. The R code it shows for an upload now reads the file the same way in any locale.
 
-* Column names with accents in an uploaded CSV, such as "âge", now keep their letters in any locale.
+* Column names with accents in an uploaded CSV, such as one with an accented first letter, now keep their letters in any locale.
 
 * `lago_app()` now tells you to save a UTF-16 CSV as UTF-8, instead of failing with a hint about the separator and decimal mark.
 
