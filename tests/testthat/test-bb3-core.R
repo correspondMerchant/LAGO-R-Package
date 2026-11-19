@@ -228,3 +228,36 @@ test_that("a direct get_confidence_set() call checks names, costs, bounds and st
   err <- tryCatch(cs(outcome_type = "other"), error = function(e) e)
   expect_lt(nchar(paste(deparse(conditionCall(err)), collapse = "")), 2000)
 })
+
+test_that("a goal of 0 is optimized on the scale of 1", {
+  set.seed(5)
+  d <- data.frame(x = stats::runif(200, 0, 4))
+  d$y <- -1 + 0.5 * d$x + stats::rnorm(200, sd = 0.2)
+  r <- suppressWarnings(lago_optimization(
+    data = d, outcome_name = "y", outcome_type = "continuous",
+    intervention_components = "x", intervention_lower_bounds = 0,
+    intervention_upper_bounds = 4, cost_list_of_vectors = list(c(0, 1)),
+    outcome_goal = 0, include_confidence_set = FALSE, quiet = TRUE
+  ))
+  b <- stats::coef(r$model)
+  expect_equal(r$rec_int, unname(-b[1] / b[2]), tolerance = 1e-5)
+})
+
+test_that("names of a direct rec_int are checked against the main components", {
+  set.seed(3)
+  d <- data.frame(x1 = stats::runif(200, 0, 10), x2 = stats::runif(200, 0, 5))
+  d$`x1:x2` <- d$x1 * d$x2
+  d$yb <- stats::rbinom(200, 1, stats::plogis(-2 + 0.2 * d$x1 + 0.2 * d$x2))
+  m <- stats::glm(yb ~ x1 + x2 + `x1:x2`, binomial, d)
+  expect_error(
+    get_confidence_set(
+      predictors_data = d[c("x1", "x2", "x1:x2")], intervention_components = c("x1", "x2", "x1:x2"),
+      include_interaction_terms = TRUE, main_components = c("x1", "x2"),
+      outcome_data = d$yb, fitted_model = m, link = "logit", outcome_goal = 0.6,
+      outcome_type = "binary", intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 5), confidence_set_grid_step_size = c(5, 5),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)), rec_int = c(a = 1, b = 2)
+    ),
+    "names of rec_int must be the main components"
+  )
+})
