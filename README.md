@@ -137,7 +137,7 @@ Outcome model family: gaussian
 Outcome model link: identity
 Fixed center effects: FALSE
 Fixed time effects: FALSE
-Outcome goal: 40
+Outcome goal: 40 (maximize: at least this value)
 Power goal: not specified
 Intervention component costs: gear (0, 4), qsec (4, 6)
 Intervention lower bounds: 0, 0
@@ -280,7 +280,7 @@ Outcome model family: binomial
 Outcome model link: logit
 Fixed center effects: TRUE
 Fixed time effects: TRUE
-Outcome goal: 0.85
+Outcome goal: 0.85 (maximize: at least this value)
 Power goal: not specified
 Intervention component costs: coaching_updt (0, 1700), launch_duration (0, 8000)
 Intervention lower bounds: 1, 1

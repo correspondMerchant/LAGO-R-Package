@@ -114,6 +114,84 @@
 
 * The basic `lago_optimization()` example now uses `mtcars` and gives a recommendation with a confidence set. The README BetterBirth output now shows the warnings that a real run gives.
 
+* The numerical optimizer now gives the same recommendation whatever the units of a continuous outcome. Its constraint is now on the scale of the goal, as its objective is on the scale of the cost. Before, an outcome in very large or very small units could stop it at a costlier point.
+
+* With a power goal on the identity link, a control rate below 0 is now held at 0. Before, the conditional approach could return a goal set by where its variance stopped being defined. The unconditional power search also sums the stage 1 data once rather than at every grid point, so it is faster on large data.
+
+* A clustered power goal (`icc` above 0) on individual level data no longer fails with the message that an arm has fewer than two centers. On center level data, a power goal now needs patients in both arms, and the center count for `icc` leaves out centers with no `center_sample_size`.
+
+* `lago_optimization()` refuses `prev_recommended_interventions` with `NA` clearly, and its out of bounds message names the argument correctly. It refuses an `outcome_goal`, `confidence_set_alpha` or `include_confidence_set` that is `NA` or has more than one value.
+
+* All zero weights, or all zero `center_sample_size`, are now refused with a clear message also without center or time effects.
+
+* Named `center_weights_for_outcome_goal` can now name an explicit `NA` center (from `addNA()`) as `"NA"` or `NA`. A date-time `time_effect_optimization_value` is matched by its label.
+
+* A rerun of a result in `lago_sensitivity()` or `lago_budget()` no longer shows the note that a cost list overrides `default_cost_fxn_type` when it was not set.
+
+* `get_confidence_set()` called directly matches a named `rec_int` to the components by name, refuses names that are not the components, and checks the length of `cost_list_of_vectors`, the bounds and the grid steps. An error inside it, or inside the input checks of `lago_optimization()`, no longer carries the whole data set in its call.
+
+* The help pages now say that named center weights are matched by name and that a row with an `NA` weight is left out of the fit, and the package description no longer says that `lago_optimization()` uses cluster robust variance for clustered designs. The README lists all four MCP tools.
+
+* `lago_budget()` no longer says the budget did not bind, or that it found the maximum reachable outcome, when that maximum costs more than the budget. The search now also narrows the cost at the boundary, so the recommendation uses the budget more fully. The printed cost is rounded down when rounding would show it above the budget.
+
+* A sweep with `lago_sensitivity()` or `lago_budget()` shows each distinct warning from the shared model fit once, not once for every run.
+
+* `lago_sensitivity()` refuses to sweep `time_effect_optimization_value` without `include_time_effects = TRUE`, and `icc` without a `power_goal`, since those sweeps would return identical rows.
+
+* `lago_sensitivity()` can sweep period labels or dates for `time_effect_optimization_value`, and `plot()` shows them on a discrete axis.
+
+* The help for `lago_sensitivity()` documents the `effective_outcome_goal` and `shrinking_method_used` attributes.
+
+* `lago_report()` now shows every character of the title as typed, in both the heading and the page title. Parentheses and square brackets no longer turn into math, and markdown links, dollar signs, quotes, backslashes and HTML tags are not interpreted.
+
+* The printed and reported results now write numbers in full, such as 100000 and 0.00001 instead of 1e+05 and 1e-05. The text now matches the hover read-outs of the report.
+
+* A confidence set that holds a very small share of the grid now shows as "< 0.01% of the grid" instead of "0% of the grid".
+
+* The outcome goal is now rounded like the estimated outcome, so a goal of 70/3 shows as 23.3333.
+
+* The inputs recap now says whether the outcome goal is to be maximized or minimized, and `lago_optimization()` stores `outcome_goal_intention` in its result.
+
+* `lago_report()` now refuses an `output_file` that does not end in `.html` or `.htm`, so it can no longer fail in pandoc or overwrite a file such as an `.Rmd`. An empty or missing `title` now uses the default title.
+
+* `lago_app()` now reads an uploaded CSV that is not UTF-8 as Windows-1252, even when a text cell starts with an accented letter or a curly quote. Before, such a file failed with an error that wrongly blamed the separator or decimal mark.
+
+* `lago_app()` now reads every row of a UTF-8 CSV in the C locale. The R code it shows for an upload now reads the file the same way in any locale.
+
+* Column names with accents in an uploaded CSV, such as "âge", now keep their letters in any locale.
+
+* `lago_app()` now tells you to save a UTF-16 CSV as UTF-8, instead of failing with a hint about the separator and decimal mark.
+
+* When `lago_app()` starts from a result whose center weights have names, each center now keeps its own weight.
+
+* `lago_app()` now refuses a cluster column named like a column the app builds, such as center, which it would otherwise replace without a word.
+
+* The `lago_app()` check that the logit link with the normal model has no outcome of exactly 0 or 1 now only looks at the rows the model fits.
+
+* The cost designer now warns when a total cost falls across its bounds, even for a cubic on narrow bounds far from 0 or for a very small unit cost. Before, a fall made of many small steps could pass the check.
+
+* The warning below the coefficients in the cost designer is about negative marginal costs, and it now shows when the marginal cost check fails.
+
+* Dragging the cost curve past a slider's range now widens the range in proportion to the new value, so a small unit cost keeps a fine slider.
+
+* The default slider range of a cost coefficient now grows with the bounds, so a high order coefficient can bend the curve on bounds near 0. The slider step grows with the range and the value, so the arrow keys work for very large coefficients.
+
+* The cost summary in the cost designer shows small costs and narrow bounds with significant digits instead of rounding them to 0.
+
+* `visualize_cost()` now gives a clear error for a `default_cost_fxn_type` of more than one value, for zero components, and for missing or empty component names.
+
+* When an R function fails, the Python wrapper now issues the warnings R gave before the error and then raises it. The MCP server's error result now lists those warnings too.
+
+* The `budget` tool of the MCP server no longer describes arguments it does not take. Every tool now refuses an argument it does not take, instead of ignoring it.
+
+* An argument of the wrong type, a missing argument, or an unknown argument to an MCP tool now gives the same JSON error result as every other error, instead of plain text.
+
+* The Python wrapper now takes pandas arrays (such as the result of `Series.unique()` or an `Int64` array), categorical values, and dates as arguments. A date becomes the text R gives for it, so it can name a period.
+
+* A missing text value in a data frame from R is now `None` in Python. A missing value in a list argument now reaches R as `NA` of the type of the other elements.
+
+* The MCP docs now list every column of a `sensitivity` run and say that `effective_outcome_goal` of `optimize` comes only with a power goal. They also say that a NaN or Infinity in JSON reaches a tool as null, which means "not given" for an optional argument.
+
 # LAGOtrials 1.2.0
 
 * New `lago_app()` runs the whole LAGO optimization in a point and click Shiny app on your own computer, with no R code to write (#37). It covers the data (your own data frame, the bundled examples or a CSV file), the outcome and goal with the power goal, the intervention components with their bounds and costs, interaction terms, center characteristics, fixed center and time effects, and additional covariates. Each step says what is missing before a run, every setting has a short explanation, and the result shows the recommendation, the confidence set and the package's warnings. The app shows the R code that reproduces the run, and returns the last result to R when you click Done. It is reachable only from your own computer.
