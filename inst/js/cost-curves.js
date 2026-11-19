@@ -11,8 +11,8 @@
 // sliders on release.
 //
 // The file is split into two parts:
-//   1. Pure math (costAt / marginalAt / sampleCurve / validate / dragScale /
-//      anchorXs / solveVandermonde / formatSig). These have no
+//   1. Pure math (costAt / marginalAt / sampleCurve / shiftCoefs / validate /
+//      dragScale / anchorXs / solveVandermonde / formatSig). These have no
 //      dependency on the DOM, d3, or Shiny and are exported for node so the
 //      curve math can be unit-tested independently (tests/js/test-cost-math.js).
 //   2. Browser rendering + Shiny wiring, only run when d3 and Shiny exist.
@@ -60,62 +60,92 @@
     return pts;
   }
 
-  // A bound on the round-off error of costAt(coefs, x): a small multiple of
-  // the machine epsilon times sum_k |coef[k]| |x|^k. When narrow bounds sit
-  // far from 0 the terms of the sum are large and nearly cancel, so a valid
-  // curve can look a little decreasing between two close points. The checks
-  // below allow this much error, so they do not report such a curve as invalid.
-  var ROUNDOFF = 32 * 2.220446049250313e-16;
-  function costRoundoff(coefs, x) {
-    var acc = 0;
-    var ax = Math.abs(x);
-    for (var k = coefs.length - 1; k >= 0; k--) {
-      acc = acc * ax + Math.abs(coefs[k]);
+  // Re-expand sum_k coef[k] x^k in t = (x - lb) / (ub - lb), which runs from 0
+  // to 1 over the bounds, mirroring .shift_coefs() in visualize_cost.R. Far
+  // from 0 the terms coef[k] x^k are large and nearly cancel, so evaluating in
+  // x loses most of the digits, while in t the terms are about as large as the
+  // cost. err[j] bounds the round-off in d[j]: a few units of the machine
+  // epsilon times the sum of the sizes of the terms that make up d[j].
+  var ROUNDOFF = 8 * 2.220446049250313e-16;
+  function choose(k, j) {
+    var r = 1;
+    for (var i = 1; i <= j; i++) {
+      r = r * (k - j + i) / i;
     }
-    return ROUNDOFF * acc;
+    return r;
   }
-
-  // The same bound for marginalAt(coefs, x).
-  function marginalRoundoff(coefs, x) {
-    var acc = 0;
-    var ax = Math.abs(x);
-    for (var k = coefs.length - 1; k >= 1; k--) {
-      acc = acc * ax + Math.abs(coefs[k]) * k;
+  function shiftCoefs(coefs, lb, ub) {
+    var n = coefs.length;
+    var span = ub - lb;
+    var lbPow = [1];
+    var spanPow = [1];
+    for (var p = 1; p < n; p++) {
+      lbPow.push(lbPow[p - 1] * lb);
+      spanPow.push(spanPow[p - 1] * span);
     }
-    return ROUNDOFF * acc;
+    var d = [];
+    var err = [];
+    for (var j = 0; j < n; j++) {
+      var sum = 0;
+      var abs = 0;
+      for (var k = j; k < n; k++) {
+        var term = choose(k, j) * coefs[k] * lbPow[k - j];
+        sum += term;
+        abs += Math.abs(term);
+      }
+      d.push(sum * spanPow[j]);
+      err.push(ROUNDOFF * abs * spanPow[j]);
+    }
+    return { d: d, err: err };
   }
 
   // Validity check, mirroring the server-side .cost_validity() in
   // visualize_cost.R:
-  //   - total cost must be non-decreasing,
+  //   - total cost must never fall below its highest value so far,
   //   - marginal cost must be non-negative,
   //   - total cost must be non-negative.
-  // Each check allows 1e-10 plus the round-off bound of the evaluation.
+  // The curve is evaluated in the form of shiftCoefs(), and each check allows
+  // only the round-off of that evaluation, so a fall that adds up over many
+  // small steps, or a fall of a small cost, is still caught.
   // Returns {nonDecreasing, positiveMarginal, nonNegativeTotal}. The server
   // keeps using a 2000-point check for its authoritative text warnings; this
   // cheaper check drives the SVG colour cue only.
   function validate(coefs, lb, ub, n) {
     n = n || 500;
-    var tol = 1e-10;
+    var sh = shiftCoefs(coefs, lb, ub);
+    var d = sh.d;
+    var m = d.length;
+    var coefErr = 0;
+    var evalErr = 0;
+    var margErr = 0;
+    for (var j = 1; j < m; j++) {
+      coefErr += sh.err[j];
+      evalErr += ROUNDOFF * Math.abs(d[j]);
+      margErr += j * sh.err[j] + ROUNDOFF * j * Math.abs(d[j]);
+    }
+    var totalErr = sh.err[0] + ROUNDOFF * Math.abs(d[0]) + coefErr + evalErr;
     var nonDecreasing = true;
     var positiveMarginal = true;
     var nonNegativeTotal = true;
-    var prev = costAt(coefs, lb);
-    var prevErr = costRoundoff(coefs, lb);
-    var step = (ub - lb) / (n - 1);
+    var highest = -Infinity;
     for (var i = 0; i < n; i++) {
-      var x = i === n - 1 ? ub : lb + i * step;
-      var c = costAt(coefs, x);
-      var cErr = costRoundoff(coefs, x);
-      if (c - prev < -(tol + cErr + prevErr)) {
+      var t = i === n - 1 ? 1 : i / (n - 1);
+      // the rise above the value at lb (Horner in t without d[0]), and the
+      // derivative in t, which is the marginal cost times (ub - lb)
+      var rise = 0;
+      var marg = 0;
+      for (var k = m - 1; k >= 1; k--) {
+        rise = (rise + d[k]) * t;
+        marg = marg * t + k * d[k];
+      }
+      highest = Math.max(highest, rise);
+      if (rise < highest - (coefErr + 2 * evalErr)) {
         nonDecreasing = false;
       }
-      prev = c;
-      prevErr = cErr;
-      if (marginalAt(coefs, x) < -(tol + marginalRoundoff(coefs, x))) {
+      if (marg < -margErr) {
         positiveMarginal = false;
       }
-      if (c < -(tol + cErr)) {
+      if (d[0] + rise < -totalErr) {
         nonNegativeTotal = false;
       }
     }
@@ -285,6 +315,7 @@
     costAt: costAt,
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
+    shiftCoefs: shiftCoefs,
     validate: validate,
     dragScale: dragScale,
     anchorXs: anchorXs,

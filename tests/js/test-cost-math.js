@@ -237,6 +237,27 @@ var vNeg = m.validate([-5, 1], 0, 10, 500);
 check("c(-5, 1) has a positive marginal but a negative total",
   vNeg.nonDecreasing && vNeg.positiveMarginal && !vNeg.nonNegativeTotal);
 
+// 14b. shiftCoefs re-expands in t = (x - lb) / (ub - lb): 1 + 2x + 3x^2 at
+// x = 1 + 2t is 6 + 16t + 12t^2
+var sh = m.shiftCoefs([1, 2, 3], 1, 3);
+check("shiftCoefs re-expands the cost", sh.d[0] === 6 && sh.d[1] === 16 && sh.d[2] === 12);
+check("shiftCoefs bounds a small round-off", sh.err.every(function (e) { return e >= 0 && e < 1e-12; }));
+// a cubic far from 0 that falls by 49 over its bounds is flagged, which the
+// step by step check with its wide round-off allowance missed
+[1000, 1e4, 1e5].forEach(function (lb) {
+  var c = designerCubic(lb, lb + 1, 1);
+  c[0] += 50 * lb;
+  c[1] -= 50;
+  var v = m.validate(c, lb, lb + 1, 500);
+  check("falling cubic on [" + lb + ", " + (lb + 1) + "] is flagged",
+    !v.nonDecreasing && !v.positiveMarginal);
+});
+check("designer cubic on [5000, 5010] is valid",
+  m.validate(designerCubic(5000, 5010, 1), 5000, 5010, 500).nonDecreasing);
+// a small cost that falls by 2% is flagged
+var vSmall = m.validate([1e-6, -2e-8], 0, 1, 500);
+check("a small falling cost is flagged", !vSmall.nonDecreasing && vSmall.nonNegativeTotal);
+
 // 15. the unit cost label keeps significant digits for small values
 check("formatSig(0.001) is 0.001", m.formatSig(0.001) === "0.001");
 check("formatSig(2) is 2", m.formatSig(2) === "2");

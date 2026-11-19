@@ -51,7 +51,7 @@ test_that("format_coef uses 3 decimals, more for small values, drops zeros", {
   expect_equal(fmt(-10.8629818), "-10.863")
   expect_equal(fmt(0), "0")
   expect_equal(fmt(0.0055), "0.0055") # small: extra places kept
-  expect_equal(fmt(0.000029), "0.00003") # capped at 5 decimals
+  expect_equal(fmt(0.000029), "2.9e-05") # significant digits, not rounded to 0
 })
 
 test_that("get_int_vector prepends 1 and expands interaction products", {

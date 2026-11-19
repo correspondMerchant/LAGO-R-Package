@@ -82,6 +82,10 @@ visualize_cost <- function(
   stopifnot(
     "component names must be a character vector." =
       is.character(component_names),
+    "give at least one component name." =
+      length(component_names) >= 1,
+    "component names must not be missing or empty." =
+      !anyNA(component_names) && all(nzchar(component_names)),
     "unit costs must be a numeric vector." =
       is.numeric(unit_costs),
     "unit costs must all be finite." =
@@ -90,8 +94,8 @@ visualize_cost <- function(
       all(unit_costs >= 0),
     "unit costs must have the same length as component names." =
       length(unit_costs) == length(component_names),
-    "default cost function type must be a character." =
-      is.character(default_cost_fxn_type),
+    "default cost function type must be a single character string." =
+      is.character(default_cost_fxn_type) && length(default_cost_fxn_type) == 1,
     "default cost function type must be either 'linear' or 'cubic'." =
       default_cost_fxn_type %in% c("linear", "cubic"),
     "intervention lower bounds must be a numeric vector." =
@@ -201,8 +205,13 @@ visualize_cost <- function(
   }
   ranges_by_type <- stats::setNames(lapply(cost_types, function(t) {
     lapply(seq_along(coefs_by_type[[t]]), function(ci) {
-      lapply(coefs_by_type[[t]][[ci]], function(init) {
-        compute_slider_range(init, unit_costs[ci])
+      lapply(seq_along(coefs_by_type[[t]][[ci]]), function(i) {
+        compute_slider_range(
+          coefs_by_type[[t]][[ci]][i], unit_costs[ci],
+          power = i - 1,
+          lb = intervention_lower_bounds[ci],
+          ub = intervention_upper_bounds[ci]
+        )
       })
     })
   }), cost_types)
@@ -776,16 +785,18 @@ visualize_cost <- function(
         # Update warnings based on validation results
         if (!is_non_decreasing_valid) {
           shinyjs::show(paste0("plot_warning_", component_idx))
-          shinyjs::show(paste0("coef_warning_", component_idx))
         } else {
           shinyjs::hide(paste0("plot_warning_", component_idx))
-          shinyjs::hide(paste0("coef_warning_", component_idx))
         }
 
+        # the warning below the coefficients is about the marginal cost, so it
+        # follows the marginal check
         if (!is_positive_valid) {
           shinyjs::show(paste0("negative_cost_warning_", component_idx))
+          shinyjs::show(paste0("coef_warning_", component_idx))
         } else {
           shinyjs::hide(paste0("negative_cost_warning_", component_idx))
+          shinyjs::hide(paste0("coef_warning_", component_idx))
         }
 
         if (!is_non_negative_valid) {
@@ -847,16 +858,24 @@ visualize_cost <- function(
             val <- new_coefs[i]
             cur_min <- input[[paste0("range_min_", component_idx, "_", i - 1)]]
             cur_max <- input[[paste0("range_max_", component_idx, "_", i - 1)]]
-            # Expand the range symmetrically with a small margin if the new
-            # value would be clamped. Reuse the range-input mechanism so the
-            # displayed Range min / Range max stay consistent with the slider.
+            # Widen the range on the side the new value would be clamped, to
+            # the default range of a coefficient of that value, so the margin
+            # scales with the value and the bounds. Reuse the range-input
+            # mechanism so the displayed Range min / Range max stay consistent
+            # with the slider.
+            wide <- compute_slider_range(
+              val, unit_costs[component_idx],
+              power = i - 1,
+              lb = intervention_lower_bounds[component_idx],
+              ub = intervention_upper_bounds[component_idx]
+            )
             new_min <- cur_min
             new_max <- cur_max
             if (is.null(new_min) || !is.finite(new_min) || val < new_min) {
-              new_min <- floor((val - abs(val) * 0.5 - 1) * 1000) / 1000
+              new_min <- wide$min
             }
             if (is.null(new_max) || !is.finite(new_max) || val > new_max) {
-              new_max <- ceiling((val + abs(val) * 0.5 + 1) * 1000) / 1000
+              new_max <- wide$max
             }
             if (!identical(new_min, cur_min)) {
               updateNumericInput(
@@ -1206,20 +1225,22 @@ visualize_cost <- function(
   )
 }
 
-# Compute a default slider range for a single cost-function coefficient.
-# The cost-function coefficients span very different scales (for a cubic cost
-# the leading coefficient may be ~1 while the highest-order term is ~0.005),
-# so a single fixed slider range is not usable for all of them. This helper
-# returns a range centered on the coefficient's initial value and scaled to
-# its magnitude, with a floor derived from the component's unit cost so that a
-# zero-valued coefficient is still adjustable. Returns a list(min, max, step).
-compute_slider_range <- function(init, unit_cost, k = 5) {
-  # half-width is k times the coefficient magnitude, but never smaller than a
-  # floor equal to the unit cost (1 when the unit cost is 0), so a coefficient
-  # whose initial value is 0 still has room to move. The floor is at least
-  # 1e-4: the slider cannot show a bound or a step below 1e-6, so a narrower
-  # range would have too few steps to be usable.
-  floor_hw <- if (unit_cost == 0) 1 else max(abs(unit_cost), 1e-4)
+# Compute a default slider range for a single cost-function coefficient, the
+# coefficient of x^power. The coefficients span very different scales, so a
+# single fixed slider range is not usable for all of them. This helper returns a
+# range centered on the coefficient's initial value, with a half width of k
+# times its magnitude. The half width is at least the unit cost (1 when the unit
+# cost is 0), so a zero-valued coefficient is still adjustable, and at least
+# 1e-4, since the slider cannot show a step below 1e-6 (see slider_step()). It is
+# also at least the swing that changes the total cost at the bound farthest
+# from 0 by the cost range unit_cost * (ub - lb), so a high order coefficient on
+# bounds near 0, such as [0, 0.001], can still bend the curve. Returns a
+# list(min, max, step).
+compute_slider_range <- function(init, unit_cost, k = 5, power = 1, lb = 0, ub = 1) {
+  u <- if (unit_cost == 0) 1 else abs(unit_cost)
+  far <- max(abs(lb), abs(ub))
+  # a very large swing is capped, so the range stays finite
+  floor_hw <- min(max(u, 1e-4, u * (ub - lb) / far^power), 1e300)
   half_width <- max(k * abs(init), floor_hw)
   # round the bounds for display: this keeps the auto-generated slider tick
   # labels and the pre-filled range inputs readable (e.g. -10.863 instead of
@@ -1230,45 +1251,81 @@ compute_slider_range <- function(init, unit_cost, k = 5) {
   unit <- 10^-digits
   lower <- round(floor(round((init - half_width) / unit, 6)) * unit, digits)
   upper <- round(ceiling(round((init + half_width) / unit, 6)) * unit, digits)
-  # step: keep the historical fine 0.00001 step for the usual (wide) ranges,
-  # and only go finer than that for a very narrow range (width < 0.01), so the
-  # slider can still resolve values within it.
   list(min = lower, max = upper, step = slider_step(lower, upper))
 }
 
+# Re-expand a cost function sum_k c_k x^k on [lb, ub] in t = (x - lb) / (ub -
+# lb), which runs from 0 to 1 over the bounds: the result d holds the
+# coefficients of sum_j d_j t^j. Far from 0 the terms c_k x^k are large and
+# nearly cancel, so evaluating the curve in x loses most of its digits. In t the
+# terms are about as large as the cost itself, so the curve is evaluated with
+# little round-off. err bounds the round-off in each d_j, a few units of the
+# machine epsilon times the sum of the sizes of the terms that make up d_j. The
+# browser uses the same steps, see shiftCoefs() in cost-curves.js.
+.shift_coefs <- function(coefs, lb, ub) {
+  n <- length(coefs)
+  span <- ub - lb
+  gam <- 8 * .Machine$double.eps
+  # lb^0, lb^1, ... and span^0, span^1, ... by repeated products
+  lb_pow <- cumprod(c(1, rep(lb, n - 1)))
+  span_pow <- cumprod(c(1, rep(span, n - 1)))
+  d <- numeric(n)
+  err <- numeric(n)
+  for (j in seq_len(n) - 1) {
+    k <- j:(n - 1)
+    terms <- choose(k, j) * coefs[k + 1] * lb_pow[k - j + 1]
+    d[j + 1] <- sum(terms) * span_pow[j + 1]
+    err[j + 1] <- gam * sum(abs(terms)) * span_pow[j + 1]
+  }
+  list(d = d, err = err)
+}
+
 # Check a cost function on [lb, ub] at n points. Returns a list of three flags:
-# non_decreasing (the total cost never falls between two points),
+# non_decreasing (the total cost never falls below its highest value so far),
 # positive_marginal (the derivative is never negative) and non_negative_total
-# (the total cost is never negative). Each check allows 1e-10 plus a bound on
-# the round-off of the evaluation, a small multiple of the machine epsilon times
-# sum_k |c_k| |x|^k. When narrow bounds sit far from 0 the terms of that sum
-# are large and nearly cancel, so without this allowance a valid curve, such as
-# the designer's own cubic on [1000, 1001], would look a little decreasing. The
-# browser runs the same checks, see validate() in cost-curves.js.
+# (the total cost is never negative). The curve is evaluated in the form of
+# .shift_coefs(), and each check allows only the round-off of that evaluation,
+# so a fall that adds up over many small steps, or a fall of a small cost, is
+# still caught. The browser runs the same checks, see validate() in
+# cost-curves.js.
 .cost_validity <- function(coefs, lb, ub, n = 2000) {
-  x <- seq(lb, ub, length.out = n)
-  k <- seq_along(coefs) - 1
-  pw <- outer(x, k, "^")
-  eps <- 32 * .Machine$double.eps
-  y <- drop(pw %*% coefs)
-  y_err <- eps * drop(abs(pw) %*% abs(coefs)) + 1e-10
-  # the derivative has the coefficients k * c_k on the powers x^(k - 1)
-  d <- (coefs * k)[-1]
-  pw_d <- pw[, seq_along(d), drop = FALSE]
-  dy <- drop(pw_d %*% d)
-  dy_err <- eps * drop(abs(pw_d) %*% abs(d)) + 1e-10
+  sh <- .shift_coefs(coefs, lb, ub)
+  d <- sh$d
+  j <- seq_along(d) - 1
+  t <- seq(0, 1, length.out = n)
+  pw <- outer(t, j, "^")
+  gam <- 8 * .Machine$double.eps
+  # the rise of the total above its value at lb, and a bound on its error at
+  # any point: the errors of d move every point by at most sum(err), and each
+  # evaluation adds at most gam * sum(abs(d))
+  rise <- drop(pw[, -1, drop = FALSE] %*% d[-1])
+  coef_err <- sum(sh$err[-1])
+  eval_err <- gam * sum(abs(d[-1]))
+  total <- d[1] + rise
+  total_err <- sh$err[1] + gam * abs(d[1]) + coef_err + eval_err
+  # the derivative in t is the marginal cost times (ub - lb)
+  dd <- (d * j)[-1]
+  marg <- drop(pw[, seq_along(dd), drop = FALSE] %*% dd)
+  marg_err <- sum((sh$err * j)[-1]) + gam * sum(abs(dd))
   list(
-    non_decreasing = all(diff(y) >= -(y_err[-1] + y_err[-n])),
-    positive_marginal = all(dy >= -dy_err),
-    non_negative_total = all(y >= -y_err)
+    non_decreasing = all(rise >= cummax(rise) - (coef_err + 2 * eval_err)),
+    positive_marginal = all(marg >= -marg_err),
+    non_negative_total = all(total >= -total_err)
   )
 }
 
-# The slider step for a range: 0.00001, finer for a narrow range, but not
-# below 1e-6, since the slider reads a smaller step written as 1e-07 as a
-# step of whole numbers.
+# The slider step for a range: 0.00001, a finer power of 10 for a narrow
+# range, and a power of 10 near a millionth of the range for a wide range, so
+# the step grows with the range. It is also at least about 1e-12 times the
+# largest value in the range, so the arrow keys still move a slider whose
+# values are so large that a smaller step is lost in rounding. It is never
+# below 1e-6, since the slider reads a smaller step written as 1e-07 as a step
+# of whole numbers.
 slider_step <- function(lower, upper) {
-  max(min((upper - lower) / 1000, 0.00001), 1e-6)
+  by_width <- 10^floor(log10((upper - lower) / 1e6))
+  by_size <- 10^ceiling(log10(max(abs(lower), abs(upper)) * 1e-12))
+  by_narrow <- 10^floor(log10(min((upper - lower) / 1000, 0.00001)))
+  max(by_narrow, by_width, by_size, 1e-6)
 }
 
 # Format a coefficient for the code the user copies or reads back into R, at
@@ -1278,25 +1335,16 @@ format_coef_code <- function(x) {
   vapply(x, function(v) as.character(v), character(1))
 }
 
-# Format a number for display in the app: 3 decimal places by default, but
-# more places (up to 5) for small-magnitude values so that roughly 3
-# significant figures are preserved. Trailing zeros are dropped. This keeps
-# the cost summary readable instead of showing values like -10.8629818181818.
-# The copied coefficient list uses format_coef_code() instead.
+# Format a number for display in the app: 3 decimal places for values of 1 or
+# more, and 3 significant digits for smaller values, so a small cost or a
+# narrow bound does not read as 0. Trailing zeros are dropped. This keeps the
+# cost summary readable instead of showing values like -10.8629818181818. The
+# copied coefficient list uses format_coef_code() instead.
 format_coef <- function(x) {
   vapply(x, function(v) {
-    if (!is.finite(v)) {
-      return(as.character(v))
+    if (!is.finite(v) || abs(v) < 1) {
+      return(as.character(signif(v, 3)))
     }
-    if (v == 0) {
-      return("0")
-    }
-    # for |v| >= 1, use 3 decimals; for smaller values, add places so ~3
-    # significant figures survive, capped at 5 decimals.
-    mag <- floor(log10(abs(v)))
-    digits <- min(max(3, 2 - mag), 5)
-    formatC(round(v, digits),
-      format = "f", digits = digits, drop0trailing = TRUE
-    )
+    formatC(round(v, 3), format = "f", digits = 3, drop0trailing = TRUE)
   }, character(1))
 }
