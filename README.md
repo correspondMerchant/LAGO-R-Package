@@ -139,7 +139,7 @@ Fixed center effects: FALSE
 Fixed time effects: FALSE
 Outcome goal: 40
 Power goal: not specified
-Intervention component costs: c(0, 4), c(4, 6)
+Intervention component costs: gear (0, 4), qsec (4, 6)
 Intervention lower bounds: 0, 0
 Intervention upper bounds: 10, 350
 
@@ -151,8 +151,8 @@ qsec           1.840     0.4465
 Standard errors are model based, as the confidence set uses them.
 
 ── Overall intervention-effect test
-To see the overall test results, include a 'group' column in the data with
-values 'treatment' or 'control' (binary outcomes only).
+The overall test is only available for binary outcomes. This outcome is
+continuous.
 
 ── Recommended intervention
 gear: 10
@@ -282,7 +282,7 @@ Fixed center effects: TRUE
 Fixed time effects: TRUE
 Outcome goal: 0.85
 Power goal: not specified
-Intervention component costs: c(0, 1700), c(0, 8000)
+Intervention component costs: coaching_updt (0, 1700), launch_duration (0, 8000)
 Intervention lower bounds: 1, 1
 Intervention upper bounds: 40, 5
 
