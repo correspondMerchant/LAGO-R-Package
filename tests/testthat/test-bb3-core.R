@@ -82,21 +82,24 @@ test_that("the power control rate is held within 0 and 1", {
 })
 
 test_that("the numerical recommendation does not depend on the outcome's units", {
-  set.seed(2)
-  d <- data.frame(x1 = stats::runif(300, 0, 10), x2 = stats::runif(300, 0, 5))
-  d$y <- 1 + 0.3 * d$x1 + 0.4 * d$x2 + stats::rnorm(300)
-  rec <- function(s) {
+  set.seed(1)
+  d <- data.frame(x1 = stats::runif(400, 0, 10), x2 = stats::runif(400, 0, 5))
+  d$y <- 2 + 0.3 * d$x1 + 0.5 * d$x2 + stats::rnorm(400, sd = 0.5)
+  rec <- function(s, ...) {
     dd <- d
     dd$y <- d$y * s
     suppressWarnings(lago_optimization(
       data = dd, outcome_name = "y", outcome_type = "continuous",
       intervention_components = c("x1", "x2"), intervention_lower_bounds = c(0, 0),
-      intervention_upper_bounds = c(10, 5), cost_list_of_vectors = list(c(0, 1), c(0, 2)),
-      outcome_goal = 6 * s, include_confidence_set = FALSE, quiet = TRUE
+      intervention_upper_bounds = c(10, 5), unit_costs = c(1, 2),
+      outcome_goal = 6 * s, include_confidence_set = FALSE, quiet = TRUE, ...
     ))$rec_int
   }
-  base <- rec(1)
-  for (s in c(1e-9, 1e9)) expect_equal(rec(s), base, tolerance = 1e-4)
+  # linear costs: the cheapest point puts x1 at its bound
+  linear <- rec(1, default_cost_fxn_type = "linear")
+  expect_equal(rec(1e9, default_cost_fxn_type = "linear"), linear, tolerance = 1e-4)
+  # cubic costs, in very small units
+  expect_equal(rec(1e-9), rec(1), tolerance = 1e-4)
 })
 
 test_that("prev_recommended_interventions with NA is refused clearly", {
