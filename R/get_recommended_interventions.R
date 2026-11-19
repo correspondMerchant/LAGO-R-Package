@@ -947,7 +947,9 @@ get_recommended_interventions <- function(
         # the objective is on the scale of the cost: solnl()'s tolerances are
         # absolute, so an outcome in very large or very small units would
         # otherwise stop it at a costlier point.
-        outcome_scale <- max(abs(new_outcome_goal), abs(max_achievable_outcome))
+        # the goal's own size, so the tolerance is never looser than the one
+        # lago_budget() counts a goal as reached within
+        outcome_scale <- abs(new_outcome_goal)
         if (!is.finite(outcome_scale) || outcome_scale <= 0) {
           outcome_scale <- 1
         }

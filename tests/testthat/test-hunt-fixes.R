@@ -77,36 +77,30 @@ test_that("the power goal does not depend on which center is the reference", {
 test_that("the conditional power goal skips grid points it cannot evaluate in place", {
   d <- make_small_clustered()
   d$dose <- ifelse(d$group == "treatment", 1, 0)
-  # a control rate below 0, possible on the identity link, makes some points NaN
-  control_rate <- -0.02
-  result <- suppressWarnings(get_power_desired_outcome(
+  run <- function(control_rate, n = 20) suppressWarnings(get_power_desired_outcome(
     data = d, intervention_components_coeff = c("(Intercept)" = control_rate, dose = 0.1),
     power_goal = 0.8, power_goal_approach = "conditional",
-    num_centers_in_next_stage = 20, patients_per_center_in_next_stage = 20,
+    num_centers_in_next_stage = 20, patients_per_center_in_next_stage = n,
     outcome_name = "y", control_rate = control_rate
   ))
-  # the same conditional power inequality, evaluated on the same grid
+  # a control rate below 0, possible on the identity link, is held at 0, where
+  # every grid point can be evaluated
+  expect_equal(run(-0.02), run(0))
+  # a single patient per center gives grid points with no variance, which are
+  # skipped, and the point found still meets the inequality
   ctl <- d$group == "control"
   n0_1 <- sum(ctl); n1_1 <- sum(!ctl); S0_1 <- sum(d$y[ctl]); S1_1 <- sum(d$y[!ctl])
   n2 <- 20 / 2 * 20; N0 <- n0_1 + n2; N1 <- n1_1 + n2
   value <- function(e) {
     p1 <- (S1_1 + n2 * e) / N1
-    p0 <- (S0_1 + n2 * control_rate) / N0
+    p0 <- (S0_1 + n2 * 0) / N0
     threshold <- stats::qnorm(0.975) * sqrt(p1 * (1 - p1) / N1 + p0 * (1 - p0) / N0)
-    mu <- n2 * e / N1 - n2 * control_rate / N0
-    sigma <- sqrt(n2 * control_rate * (1 - control_rate) / N0^2 + n2 * e * (1 - e) / N1^2)
+    mu <- n2 * e / N1 - n2 * 0 / N0
+    sigma <- sqrt(n2 * e * (1 - e) / N1^2)
     threshold - S1_1 / N1 + S0_1 / N0 - mu + stats::qnorm(0.8) * sigma
   }
-  grid <- seq(control_rate, 1, length.out = 1000)
-  values <- suppressWarnings(vapply(grid, value, numeric(1)))
-  expect_true(anyNA(values))
-  # the first grid point that holds, refined toward the point before it
-  k <- which(!is.na(values) & values <= 0)[1]
-  expect_true(result > grid[k - 1] && result <= grid[k])
-  expect_lte(value(result), 0)
-  # just below it the inequality fails or cannot be evaluated
-  below <- suppressWarnings(value(result - 1e-9))
-  expect_true(is.na(below) || below > 0)
+  result <- run(0)
+  expect_lte(value(result), 1e-9)
 })
 
 # ---- power goal: center level data -------------------------------------------

@@ -115,14 +115,14 @@ test_that("center level extrapolation uses the rows with a positive sample size"
 
 test_that("weights, sizes and outcomes out of range are refused clearly", {
   w <- rep(1, nrow(mtcars))
-  expect_error(bb2_vi(weights = replace(w, 1, Inf)), "must be finite and not negative")
-  expect_error(bb2_vi(weights = replace(w, 1, -1)), "must be finite and not negative")
+  expect_error(bb2_vi(weights = replace(w, 1, Inf)), "must not be negative or infinite")
+  expect_error(bb2_vi(weights = replace(w, 1, -1)), "must not be negative or infinite")
   d <- mtcars
   d$am2 <- d$am
   d$am2[1] <- 2
   expect_error(
     bb2_vi(data = d, outcome_name = "am2", outcome_type = "binary", outcome_goal = 0.5),
-    "values outside 0 to 1, such as 2. A binary outcome must be 0 or 1."
+    "values outside 0 to 1, such as 2. A binary outcome must be between 0 and 1"
   )
   cl <- data.frame(
     proportion = c(0.2, 1.4), center_sample_size = c(10, 10), gear = 1:2, qsec = 1:2

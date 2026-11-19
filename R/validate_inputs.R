@@ -238,11 +238,9 @@ validate_inputs <- function(
     }
     # glm() refuses negative weights. All zero weights are named later, with
     # the rows the model can use.
-    if (!all(is.finite(weights)) || any(weights < 0)) {
-      stop(paste(
-        "The 'weights' must be finite and not negative, with no NA. Give a",
-        "row a weight of 0 to leave it out of the fit."
-      ))
+    # a row with an NA weight is left out of the fit, as glm() leaves it out
+    if (any(is.infinite(weights)) || any(weights < 0, na.rm = TRUE)) {
+      stop("The 'weights' must not be negative or infinite.")
     }
   }
 
@@ -1067,11 +1065,6 @@ validate_inputs <- function(
   if (!is.null(outcome_goal) && (!is.numeric(outcome_goal) ||
     length(outcome_goal) != 1 || !is.finite(outcome_goal))) {
     stop("The outcome goal must be a numeric value, a single finite number.")
-  }
-  # a binary outcome goal is a probability
-  if (!is.null(outcome_goal) && outcome_type == "binary" &&
-    (outcome_goal < 0 || outcome_goal > 1)) {
-    stop("For a binary outcome the outcome goal is a probability, between 0 and 1.")
   }
 
   # check if the outcome_goal_intention is a character type

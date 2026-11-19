@@ -102,8 +102,8 @@
 #' prior weights as relative observation weights, with zero weights excluded
 #' from covariance contributions and the identity residual degrees of freedom.
 #' See get_confidence_set() for the covariance formulas and family limits.
-#' Weights must be finite and not negative, with no NA. A weight of 0 leaves
-#' its row out of the fit.
+#' Weights must not be negative or infinite. A row with a weight of 0 or NA
+#' is left out of the fit.
 #' A data column named weights does not replace this argument. For center
 #' level data it is ignored with a warning, since each row is weighted by its
 #' center_sample_size.
@@ -427,10 +427,13 @@ lago_optimization <- function(
   validation_args$captured_args <- NULL
   # the note that a cost list overrides default_cost_fxn_type is only for a
   # caller who set it
-  validation_args$cost_type_given <- !missing(default_cost_fxn_type)
+  cost_type_given <- !missing(default_cost_fxn_type)
+  validation_args$cost_type_given <- cost_type_given
+  # called with the argument names, so an error names them rather than carry
+  # their values, which include the whole data set
   inputs <- do.call(
     validate_inputs,
-    validation_args
+    sapply(names(validation_args), as.name, simplify = FALSE)
   )
   if (!quiet) Sys.sleep(0.25)
   if (!quiet) cli::cli_alert_success("Done")

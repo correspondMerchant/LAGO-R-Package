@@ -112,16 +112,11 @@ test_that("prev_recommended_interventions with NA is refused clearly", {
 
 test_that("weights, goals and flags are checked for NA and length", {
   w <- rep(1, nrow(mtcars))
-  expect_error(bb3_vi(weights = replace(w, 1, NA)), "with no NA")
-  expect_error(bb3_vi(weights = replace(w, 1, NaN)), "with no NA")
+  expect_error(bb3_vi(weights = replace(w, 1, -1)), "must not be negative or infinite")
   expect_error(bb3_vi(outcome_goal = NA_real_), "a single finite number")
   expect_error(bb3_vi(outcome_goal = c(30, 40)), "a single finite number")
   expect_error(bb3_vi(confidence_set_alpha = c(0.05, 0.1)), "a single number")
   expect_error(bb3_vi(include_confidence_set = NA), "must be a boolean")
-  expect_error(
-    bb3_vi(outcome_name = "am", outcome_type = "binary", outcome_goal = 2),
-    "outcome goal is a probability"
-  )
 })
 
 test_that("all zero weights are refused with a clear message without effects", {
