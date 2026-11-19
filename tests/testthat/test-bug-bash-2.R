@@ -214,3 +214,30 @@ test_that("power inputs are checked whatever the icc", {
     "^The power_goal_approach must be one of the supported approaches: 'unconditional' or 'conditional'\\.$"
   )
 })
+
+test_that("a direct get_confidence_set() call checks rec_int, alpha and the goal", {
+  set.seed(3)
+  d <- data.frame(x1 = runif(200, 0, 10), x2 = runif(200, 0, 5))
+  d$yb <- stats::rbinom(200, 1, stats::plogis(-2 + 0.2 * d$x1 + 0.2 * d$x2))
+  m <- stats::glm(yb ~ x1 + x2, binomial, d)
+  cs <- function(...) {
+    args <- list(
+      predictors_data = d[c("x1", "x2")], intervention_components = c("x1", "x2"),
+      outcome_data = d$yb, fitted_model = m, link = "logit",
+      outcome_goal = 0.6, outcome_type = "binary",
+      intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(10, 5),
+      confidence_set_grid_step_size = c(5, 5),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1)), rec_int = c(8, 0)
+    )
+    dots <- list(...)
+    args[names(dots)] <- dots
+    do.call(get_confidence_set, args)
+  }
+  expect_length(cs()$rec_int_ci, 2)
+  expect_error(cs(rec_int = NULL), "rec_int must be the recommended intervention, 2")
+  expect_error(cs(rec_int = 8), "rec_int must be the recommended intervention, 2")
+  expect_error(cs(confidence_set_alpha = 0), "between 0 and 1")
+  expect_error(cs(confidence_set_alpha = 1.5), "between 0 and 1")
+  expect_error(cs(confidence_set_alpha = c(0.05, 0.5)), "between 0 and 1")
+  expect_error(cs(outcome_goal = c(0.5, 0.7)), "single finite number")
+})

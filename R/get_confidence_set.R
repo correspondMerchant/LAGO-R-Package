@@ -244,6 +244,29 @@ get_confidence_set <- function(
     cluster_id = NULL,
     cost_list_of_vectors,
     rec_int) {
+  # lago_optimization() checks these in validate_inputs(), and a direct call
+  # gets the same checks, as a wrong value gives a wrong set with no error
+  n_components <- length(
+    if (include_interaction_terms) main_components else intervention_components
+  )
+  if (!is.numeric(rec_int) || length(rec_int) != n_components ||
+    !all(is.finite(rec_int))) {
+    stop(paste0(
+      "rec_int must be the recommended intervention, ", n_components,
+      " finite number(s), one per ",
+      if (include_interaction_terms) "main component" else "intervention component",
+      "."
+    ))
+  }
+  if (!is.numeric(confidence_set_alpha) || length(confidence_set_alpha) != 1 ||
+    !is.finite(confidence_set_alpha) || confidence_set_alpha <= 0 ||
+    confidence_set_alpha >= 1) {
+    stop("confidence_set_alpha must be a single number between 0 and 1.")
+  }
+  if (!is.numeric(outcome_goal) || length(outcome_goal) != 1 ||
+    !is.finite(outcome_goal)) {
+    stop("outcome_goal must be a single finite number.")
+  }
   # Called directly, it checks the center characteristic values against the
   # rows the given model was fitted on, as lago_optimization() does for its
   # own fit. lago_optimization() calls the implementation below, so it warns
@@ -258,7 +281,7 @@ get_confidence_set <- function(
     warn_outside_centers(center_characteristics, center_characteristics_optimization_values, columns)
   }
   args <- as.list(environment())
-  args[c("frame", "w", "fitted", "columns")] <- NULL
+  args[c("frame", "w", "fitted", "columns", "n_components")] <- NULL
   do.call(.get_confidence_set_impl, args)
 }
 
