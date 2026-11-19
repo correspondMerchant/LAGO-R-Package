@@ -335,10 +335,8 @@ First rows of the confidence set (use $cs for all):
 85            40            1.45          0.712          0.866 79600
 86             1            1.60          0.769          0.874 14500
 Warning messages:
-1: In (function (data, input_data_structure = "individual_level", outcome_name,  :
-  The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
-2: In (function (data, input_data_structure = "individual_level", outcome_name,  :
-  The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
+1: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
+2: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
 3: In diagnose_model_fit(model = model, intervention_components = intervention_components,  :
   The following intervention component(s) do not have a statistically significant association with the outcome (p > 0.05):
   - coaching_updt
