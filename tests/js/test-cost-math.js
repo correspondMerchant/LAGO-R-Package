@@ -202,4 +202,45 @@ check("a real move is read as moved", m.readThroughExact(5e-5, moved) === 5e-5);
 check("a move back to the old reading is read as moved", m.readThroughExact(2e-5, moved) === 2e-5);
 check("preferExact reads a real move after a range edit", m.preferExact(3e-5, edited) === 3e-5);
 
+// 13. a cubic drag still solves when the bounds are narrow near 0. Before, the
+// raw powers of x fell below the fixed pivot threshold and every drag failed.
+function designerCubic(lb, ub, uc) {
+  var s = ub - lb, a4 = uc / (2 * s * s * s);
+  return [a4 * Math.pow(lb, 4) + uc / 2 * lb, -4 * a4 * Math.pow(lb, 3) + uc / 2,
+    6 * a4 * lb * lb, -4 * a4 * lb, a4];
+}
+[0.001, 0.0001].forEach(function (ubNarrow) {
+  var cNarrow = designerCubic(0, ubNarrow, 1);
+  var axNarrow = m.anchorXs(0, ubNarrow, 5);
+  var ysNarrow = axNarrow.map(function (x) { return m.costAt(cNarrow, x); });
+  ysNarrow[2] *= 1.1;
+  var sNarrow = m.solveVandermonde(axNarrow, ysNarrow);
+  check("cubic drag solves on [0, " + ubNarrow + "]", sNarrow !== null);
+  var worst = Math.max.apply(null, axNarrow.map(function (x, i) {
+    return Math.abs(m.costAt(sNarrow, x) - ysNarrow[i]);
+  }));
+  check("cubic drag on [0, " + ubNarrow + "] passes through the anchors", worst < 1e-9 * ubNarrow);
+});
+check("solveVandermonde still null on duplicated x in a narrow range",
+  m.solveVandermonde([0, 0.0005, 0.0005, 0.001], [0, 1, 2, 3]) === null);
+
+// 14. validate allows the round-off of a valid cubic whose narrow bounds sit
+// far from 0, but still flags a truly decreasing curve there.
+[[1000, 1001], [1e4, 1e4 + 1]].forEach(function (b) {
+  var vFar = m.validate(designerCubic(b[0], b[1], 1), b[0], b[1], 500);
+  check("valid cubic on [" + b + "] is not flagged",
+    vFar.nonDecreasing && vFar.positiveMarginal && vFar.nonNegativeTotal);
+});
+var vDec = m.validate([2000, -1], 1000, 1001, 500);
+check("decreasing line on [1000, 1001] is flagged", !vDec.nonDecreasing && !vDec.positiveMarginal);
+var vNeg = m.validate([-5, 1], 0, 10, 500);
+check("c(-5, 1) has a positive marginal but a negative total",
+  vNeg.nonDecreasing && vNeg.positiveMarginal && !vNeg.nonNegativeTotal);
+
+// 15. the unit cost label keeps significant digits for small values
+check("formatSig(0.001) is 0.001", m.formatSig(0.001) === "0.001");
+check("formatSig(2) is 2", m.formatSig(2) === "2");
+check("formatSig(1.23456) is 1.235", m.formatSig(1.23456) === "1.235");
+check("formatSig(NaN) is NaN", m.formatSig(NaN) === "NaN");
+
 console.log("\nAll " + passed + " JS math assertions passed.");

@@ -12,7 +12,7 @@
 //
 // The file is split into two parts:
 //   1. Pure math (costAt / marginalAt / sampleCurve / validate / dragScale /
-//      anchorXs / solveVandermonde). These have no
+//      anchorXs / solveVandermonde / formatSig). These have no
 //      dependency on the DOM, d3, or Shiny and are exported for node so the
 //      curve math can be unit-tested independently (tests/js/test-cost-math.js).
 //   2. Browser rendering + Shiny wiring, only run when d3 and Shiny exist.
@@ -60,33 +60,62 @@
     return pts;
   }
 
-  // Validity check, mirroring the server-side conditions in visualize_cost.R:
-  //   - total cost must be non-decreasing (diff >= -1e-10),
-  //   - marginal cost must be non-negative (>= -1e-10),
-  //   - total cost must be non-negative (>= -1e-10), matching the server's
-  //     is_positive_valid / negative_cost_warning condition.
+  // A bound on the round-off error of costAt(coefs, x): a small multiple of
+  // the machine epsilon times sum_k |coef[k]| |x|^k. When narrow bounds sit
+  // far from 0 the terms of the sum are large and nearly cancel, so a valid
+  // curve can look a little decreasing between two close points. The checks
+  // below allow this much error, so they do not report such a curve as invalid.
+  var ROUNDOFF = 32 * 2.220446049250313e-16;
+  function costRoundoff(coefs, x) {
+    var acc = 0;
+    var ax = Math.abs(x);
+    for (var k = coefs.length - 1; k >= 0; k--) {
+      acc = acc * ax + Math.abs(coefs[k]);
+    }
+    return ROUNDOFF * acc;
+  }
+
+  // The same bound for marginalAt(coefs, x).
+  function marginalRoundoff(coefs, x) {
+    var acc = 0;
+    var ax = Math.abs(x);
+    for (var k = coefs.length - 1; k >= 1; k--) {
+      acc = acc * ax + Math.abs(coefs[k]) * k;
+    }
+    return ROUNDOFF * acc;
+  }
+
+  // Validity check, mirroring the server-side .cost_validity() in
+  // visualize_cost.R:
+  //   - total cost must be non-decreasing,
+  //   - marginal cost must be non-negative,
+  //   - total cost must be non-negative.
+  // Each check allows 1e-10 plus the round-off bound of the evaluation.
   // Returns {nonDecreasing, positiveMarginal, nonNegativeTotal}. The server
   // keeps using a 2000-point check for its authoritative text warnings; this
   // cheaper check drives the SVG colour cue only.
   function validate(coefs, lb, ub, n) {
     n = n || 500;
-    var tol = -1e-10;
+    var tol = 1e-10;
     var nonDecreasing = true;
     var positiveMarginal = true;
     var nonNegativeTotal = true;
     var prev = costAt(coefs, lb);
+    var prevErr = costRoundoff(coefs, lb);
     var step = (ub - lb) / (n - 1);
     for (var i = 0; i < n; i++) {
       var x = i === n - 1 ? ub : lb + i * step;
       var c = costAt(coefs, x);
-      if (c - prev < tol) {
+      var cErr = costRoundoff(coefs, x);
+      if (c - prev < -(tol + cErr + prevErr)) {
         nonDecreasing = false;
       }
       prev = c;
-      if (marginalAt(coefs, x) < tol) {
+      prevErr = cErr;
+      if (marginalAt(coefs, x) < -(tol + marginalRoundoff(coefs, x))) {
         positiveMarginal = false;
       }
-      if (c < tol) {
+      if (c < -(tol + cErr)) {
         nonNegativeTotal = false;
       }
     }
@@ -139,22 +168,33 @@
   }
 
   // Solve for the polynomial coefficients c[0..n-1] (in the same ascending-power
-  // order as costAt) whose curve passes through the points (xs[i], ys[i]). This
-  // is the Vandermonde system V c = y with V[i][k] = xs[i]^k, solved by Gaussian
-  // elimination with partial pivoting. It is the inverse of costAt: dragging an
-  // anchor to a new y and re-solving reshapes the curve to pass through the new
-  // point while holding the other anchors fixed. Returns null if the system is
+  // order as costAt) whose curve passes through the points (xs[i], ys[i]). It is
+  // the inverse of costAt: dragging an anchor to a new y and re-solving reshapes
+  // the curve to pass through the new point while holding the other anchors
+  // fixed. The x values are first mapped to t = (x - mid) / half in [-1, 1], so
+  // the system is well scaled for any bounds (very narrow bounds near 0 made the
+  // raw powers of x tiny, and every solve failed). The system V d = y with
+  // V[i][k] = t[i]^k is solved by Gaussian elimination with partial pivoting,
+  // and d is then expanded back into powers of x. Returns null if the system is
   // singular (e.g. duplicated x) or the result is non-finite.
   function solveVandermonde(xs, ys) {
     var n = xs.length;
+    var lo = Math.min.apply(null, xs);
+    var hi = Math.max.apply(null, xs);
+    var mid = (lo + hi) / 2;
+    var half = (hi - lo) / 2;
+    if (!(half > 0)) {
+      half = 1;
+    }
     // augmented matrix [V | y]
     var m = [];
     for (var i = 0; i < n; i++) {
       var row = [];
-      var xp = 1;
+      var tp = 1;
+      var t = (xs[i] - mid) / half;
       for (var k = 0; k < n; k++) {
-        row.push(xp);
-        xp *= xs[i];
+        row.push(tp);
+        tp *= t;
       }
       row.push(ys[i]);
       m.push(row);
@@ -167,6 +207,7 @@
           piv = r;
         }
       }
+      // the entries are at most 1 in size, so this threshold is relative
       if (Math.abs(m[piv][col]) < 1e-12) {
         return null;
       }
@@ -184,15 +225,40 @@
         }
       }
     }
-    var coefs = [];
+    var d = [];
     for (var i2 = 0; i2 < n; i2++) {
-      var v = m[i2][n] / m[i2][i2];
-      if (!isFinite(v)) {
+      d.push(m[i2][n] / m[i2][i2]);
+    }
+    // expand sum_k d[k] ((x - mid) / half)^k into powers of x, using
+    // ((x - mid) / half)^k = sum_j choose(k, j) x^j (-mid)^(k - j) / half^k
+    var coefs = [];
+    for (var j = 0; j < n; j++) {
+      coefs.push(0);
+    }
+    for (var k2 = 0; k2 < n; k2++) {
+      var scale = d[k2] / Math.pow(half, k2);
+      var binom = 1;
+      for (var j2 = 0; j2 <= k2; j2++) {
+        // binom is choose(k2, j2)
+        coefs[j2] += scale * binom * Math.pow(-mid, k2 - j2);
+        binom = binom * (k2 - j2) / (j2 + 1);
+      }
+    }
+    for (var i3 = 0; i3 < n; i3++) {
+      if (!isFinite(coefs[i3])) {
         return null;
       }
-      coefs.push(v);
     }
     return coefs;
+  }
+
+  // A number for a chart label, to 4 significant digits, so a small unit cost
+  // such as 0.001 does not read as 0.00.
+  function formatSig(v) {
+    if (!isFinite(v)) {
+      return String(v);
+    }
+    return String(+v.toPrecision(4));
   }
 
   // A slider reports its value rounded to its step. The exact value the server
@@ -223,6 +289,7 @@
     dragScale: dragScale,
     anchorXs: anchorXs,
     solveVandermonde: solveVandermonde,
+    formatSig: formatSig,
     preferExact: preferExact,
     readThroughExact: readThroughExact
   };
@@ -557,7 +624,7 @@
       .attr("y", uy - 4)
       .attr("text-anchor", "end")
       .style("font-size", "11px")
-      .text("Unit Cost: " + cfg.unitCost.toFixed(2));
+      .text("Unit Cost: " + formatSig(cfg.unitCost));
   }
 
   // Attach draggable handles to the total-cost curve so the user can RESHAPE it,

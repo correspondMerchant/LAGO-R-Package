@@ -86,6 +86,8 @@ visualize_cost <- function(
       is.numeric(unit_costs),
     "unit costs must all be finite." =
       all(is.finite(unit_costs)),
+    "unit costs must not be negative." =
+      all(unit_costs >= 0),
     "unit costs must have the same length as component names." =
       length(unit_costs) == length(component_names),
     "default cost function type must be a character." =
@@ -96,10 +98,14 @@ visualize_cost <- function(
       is.numeric(intervention_lower_bounds),
     "intervention lower bounds must have the same length as component names." =
       length(intervention_lower_bounds) == length(component_names),
+    "intervention lower bounds must all be finite." =
+      all(is.finite(intervention_lower_bounds)),
     "intervention upper bounds must be a numeric vector." =
       is.numeric(intervention_upper_bounds),
     "intervention upper bounds must have the same length as component names." =
       length(intervention_upper_bounds) == length(component_names),
+    "intervention upper bounds must all be finite." =
+      all(is.finite(intervention_upper_bounds)),
     "intervention lower bounds must be less than intervention upper bounds." =
       all(intervention_lower_bounds < intervention_upper_bounds)
   )
@@ -345,6 +351,11 @@ visualize_cost <- function(
                 style = "color: red; margin-bottom: 10px; display: none;",
                 "Warning: Marginal cost function should always be positive!"
               ),
+              div(
+                id = ns(paste0("negative_total_warning_", component_idx)),
+                style = "color: red; margin-bottom: 10px; display: none;",
+                "Warning: Total cost should never be negative!"
+              ),
               # Client-side D3 (v7) target. cost-curves.js reads the coefs
               # straight from this component's sliders and the bounds / unit
               # cost from these data-* attributes, then renders both SVGs and
@@ -533,21 +544,30 @@ visualize_cost <- function(
     # high order coefficients of a cubic. The server keeps the exact value it
     # set, and a slider value within half a step of it is read as that value.
     exact <- new.env(parent = emptyenv())
+    # The environment is not reactive, so every change to it bumps this
+    # counter. Everything that reads an exact value depends on the counter, so
+    # it updates even when the slider reports no change, for example after a
+    # drag to a value within half a step of the slider's old reading.
+    exact_rev <- reactiveVal(0)
+    bump_exact <- function() exact_rev(isolate(exact_rev()) + 1)
     # the drawn curves read the same exact values, see preferExact() in
     # cost-curves.js
     # stale is the slider's reading when only its range changed: while the
     # slider still reads that, it has not been moved and the exact value holds
     set_coef <- function(id, value, step, stale = NULL) {
       assign(id, list(value = value, step = step, stale = stale), envir = exact)
+      bump_exact()
       session$sendCustomMessage("lago-exact-coef", list(id = session$ns(id), value = value, step = step, stale = stale))
     }
     drop_coef <- function(id) {
       if (exists(id, envir = exact, inherits = FALSE)) rm(list = id, envir = exact)
+      bump_exact()
       session$sendCustomMessage("lago-exact-coef", list(id = session$ns(id), value = NULL))
     }
     coef_input <- function(component_idx, i) {
       id <- paste0("coef_", component_idx, "_", i - 1)
       v <- input[[id]]
+      exact_rev()
       e <- if (exists(id, envir = exact, inherits = FALSE)) get(id, envir = exact)
       # a slider that has not reported yet, as in a dialog that just opened,
       # reads as the value the server set
@@ -580,11 +600,6 @@ visualize_cost <- function(
     # relaunching does not leak "lago_cost_assets" process-globally across
     # launches. The addResourcePath above re-runs on the next launch.
     if (!embedded) onStop(function() removeResourcePath("lago_cost_assets"))
-
-    # Add function to check if cost function is non-decreasing
-    is_non_decreasing <- function(x_vals, y_vals) {
-      all(diff(y_vals) >= -1e-10) # Using small tolerance for numerical stability
-    }
 
     # The currently selected cost-function form (linear/cubic); defaults to the
     # form the app was launched with until the user toggles it.
@@ -747,18 +762,16 @@ visualize_cost <- function(
         )
         req(all(is.finite(current_coefs)))
 
-        x_vals <- seq(
+        # the total must not fall, the marginal (the derivative) must not be
+        # negative, and the total must not be negative
+        validity <- .cost_validity(
+          current_coefs,
           intervention_lower_bounds[component_idx],
-          intervention_upper_bounds[component_idx],
-          length.out = 2000
+          intervention_upper_bounds[component_idx]
         )
-        y_vals <- calculate_cost(current_coefs, x_vals)
-
-        # Check if cost function is non-decreasing
-        is_non_decreasing_valid <- is_non_decreasing(x_vals, y_vals)
-
-        # Check if cost function is always positive
-        is_positive_valid <- all(y_vals >= -1e-10) # Using small tolerance for numerical stability
+        is_non_decreasing_valid <- validity$non_decreasing
+        is_positive_valid <- validity$positive_marginal
+        is_non_negative_valid <- validity$non_negative_total
 
         # Update warnings based on validation results
         if (!is_non_decreasing_valid) {
@@ -775,12 +788,19 @@ visualize_cost <- function(
           shinyjs::hide(paste0("negative_cost_warning_", component_idx))
         }
 
+        if (!is_non_negative_valid) {
+          shinyjs::show(paste0("negative_total_warning_", component_idx))
+        } else {
+          shinyjs::hide(paste0("negative_total_warning_", component_idx))
+        }
+
         # Briefly outline this component's visualization card in red when a
         # coefficient choice is invalid. This replaces a full-page background
         # flash, which fired the whole body on every reactive tick while
         # dragging through an invalid region and was jarring; the per-card
         # outline plus the inline warnings convey the problem without it.
-        if (!is_non_decreasing_valid || !is_positive_valid) {
+        if (!is_non_decreasing_valid || !is_positive_valid ||
+          !is_non_negative_valid) {
           runjs(sprintf(
             'var w = document.getElementById("%1$s");
              var card = w ? w.closest(".card") : null;
@@ -1195,19 +1215,53 @@ visualize_cost <- function(
 # zero-valued coefficient is still adjustable. Returns a list(min, max, step).
 compute_slider_range <- function(init, unit_cost, k = 5) {
   # half-width is k times the coefficient magnitude, but never smaller than a
-  # floor based on the unit cost (falling back to 1 when the unit cost is 0),
-  # so a coefficient whose initial value is 0 still has room to move.
-  floor_hw <- max(abs(unit_cost), 1)
+  # floor equal to the unit cost (1 when the unit cost is 0), so a coefficient
+  # whose initial value is 0 still has room to move. The floor is at least
+  # 1e-4: the slider cannot show a bound or a step below 1e-6, so a narrower
+  # range would have too few steps to be usable.
+  floor_hw <- if (unit_cost == 0) 1 else max(abs(unit_cost), 1e-4)
   half_width <- max(k * abs(init), floor_hw)
   # round the bounds for display: this keeps the auto-generated slider tick
   # labels and the pre-filled range inputs readable (e.g. -10.863 instead of
   # -10.8629818181818). Round outward so the initial value stays within range.
-  lower <- floor((init - half_width) * 1000) / 1000
-  upper <- ceiling((init + half_width) * 1000) / 1000
+  # Round to 3 decimals, or to 3 significant digits of the half width when it
+  # is small, so a small range is not rounded away.
+  digits <- max(3, 2 - floor(log10(half_width)))
+  unit <- 10^-digits
+  lower <- round(floor(round((init - half_width) / unit, 6)) * unit, digits)
+  upper <- round(ceiling(round((init + half_width) / unit, 6)) * unit, digits)
   # step: keep the historical fine 0.00001 step for the usual (wide) ranges,
   # and only go finer than that for a very narrow range (width < 0.01), so the
   # slider can still resolve values within it.
   list(min = lower, max = upper, step = slider_step(lower, upper))
+}
+
+# Check a cost function on [lb, ub] at n points. Returns a list of three flags:
+# non_decreasing (the total cost never falls between two points),
+# positive_marginal (the derivative is never negative) and non_negative_total
+# (the total cost is never negative). Each check allows 1e-10 plus a bound on
+# the round-off of the evaluation, a small multiple of the machine epsilon times
+# sum_k |c_k| |x|^k. When narrow bounds sit far from 0 the terms of that sum
+# are large and nearly cancel, so without this allowance a valid curve, such as
+# the designer's own cubic on [1000, 1001], would look a little decreasing. The
+# browser runs the same checks, see validate() in cost-curves.js.
+.cost_validity <- function(coefs, lb, ub, n = 2000) {
+  x <- seq(lb, ub, length.out = n)
+  k <- seq_along(coefs) - 1
+  pw <- outer(x, k, "^")
+  eps <- 32 * .Machine$double.eps
+  y <- drop(pw %*% coefs)
+  y_err <- eps * drop(abs(pw) %*% abs(coefs)) + 1e-10
+  # the derivative has the coefficients k * c_k on the powers x^(k - 1)
+  d <- (coefs * k)[-1]
+  pw_d <- pw[, seq_along(d), drop = FALSE]
+  dy <- drop(pw_d %*% d)
+  dy_err <- eps * drop(abs(pw_d) %*% abs(d)) + 1e-10
+  list(
+    non_decreasing = all(diff(y) >= -(y_err[-1] + y_err[-n])),
+    positive_marginal = all(dy >= -dy_err),
+    non_negative_total = all(y >= -y_err)
+  )
 }
 
 # The slider step for a range: 0.00001, finer for a narrow range, but not
