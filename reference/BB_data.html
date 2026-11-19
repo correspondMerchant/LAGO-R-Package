@@ -68,7 +68,8 @@
 <dd><p>Data feedback loop</p></dd>
 
 <dt>launch_duration</dt>
-<dd><p>Duration of checklist launch</p></dd>
+<dd><p>Duration of the checklist launch. The data do not
+record its unit. The observed values are 0, 2 and 3</p></dd>
 
 <dt>leadership_ITT</dt>
 <dd><p>Leadership engagement, ITT</p></dd>
@@ -107,13 +108,19 @@
 <dd><p>Number of ANM, staff nurses, and lady health visitors</p></dd>
 
 <dt>pp2_hand_hygiene</dt>
-<dd><p>fada_op2_handwashing</p></dd>
+<dd><p>Binary outcome: 1 if hand washing was done,
+0 if not (source variable <code>fada_op2_handwashing</code>). Contains
+<code>NA</code> in 30 rows</p></dd>
 
 <dt>pp3_oxytocin_mother</dt>
-<dd><p>fada_op3_oxytocin_administered</p></dd>
+<dd><p>Binary outcome: 1 if oxytocin was administered
+to the mother, 0 if not (source variable
+<code>fada_op3_oxytocin_administered</code>)</p></dd>
 
 <dt>center_type</dt>
-<dd><p>Phase of the pilot studies</p></dd>
+<dd><p>Study arm or pilot phase of the site:
+<code>"Pilot 1"</code>, <code>"Pilot 2"</code>, <code>"RCT-control"</code> or
+<code>"RCT-intervention"</code></p></dd>
 
 <dt>coach5</dt>
 <dd><p>Number of coaching visits accrued divided by 5</p></dd>

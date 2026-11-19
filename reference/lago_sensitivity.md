@@ -62,23 +62,33 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
       one element of `values`. Vector-valued arguments such as
       `intervention_lower_bounds`, and confidence-set-only arguments
       such as `confidence_set_alpha` (the confidence set is not computed
-      during a sweep), are rejected.
+      during a sweep), are rejected. So are
+      `"time_effect_optimization_value"` without
+      `include_time_effects = TRUE` and `"icc"` without a `power_goal`,
+      since they would not change the recommendation.
 
   2.  The special string `"cost_multiplier"`: each run multiplies every
       coefficient of every vector in the baseline `cost_list_of_vectors`
       by one element of `values`, so `values = c(0.8, 1, 1.2)` evaluates
-      the costs at 80\\ `...` and all `values` must be positive.
+      the costs at 80\\ `cost_list_of_vectors`, each run multiplies
+      `unit_costs` by the value, which scales the linear or cubic cost
+      built from them in the same way. This mode requires
+      `cost_list_of_vectors` or `unit_costs` (in `...` or stored on
+      `object`), and all `values` must be positive.
 
 - values:
 
-  A non-empty numeric vector, all finite. One run per element.
+  A non-empty numeric vector, all finite. One run per element. For
+  `parameter = "time_effect_optimization_value"` it can also be a
+  character vector of period labels or a Date vector, with no `NA`.
 
 - quiet:
 
   A boolean forwarded to
   [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
   Defaults to `TRUE` so the sweep is not noisy. Genuine warnings about
-  the data or model fit from each run are still shown.
+  the data or model fit are still shown. The runs share one model fit,
+  so each distinct warning from that fit is shown once per sweep.
 
 ## Value
 
@@ -111,8 +121,13 @@ The object carries attributes `parameter` (the swept string),
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 result at the baseline value, i.e. multiplier 1 for `"cost_multiplier"`
 or the value supplied in `...` for a named parameter, or `NULL` if not
-present), and, when any run failed, `error_messages` (the error text
-named by the failed values).
+present), `effective_outcome_goal` (one value per run: the outcome goal
+the run targeted, which a power goal can raise above the outcome goal,
+or `NA` for a failed run), `shrinking_method_used` (one value per run:
+`TRUE` when the goal was out of reach and the shrinking method gave the
+recommendation, `FALSE` when it was not used, or `NA` for a failed run),
+and, when any run failed, `error_messages` (the error text named by the
+failed values).
 
 ## Details
 
@@ -169,9 +184,9 @@ sens
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear      qsec rec_int_cost est_outcome_goal status
-#> 1    30   10  6.522269     83.13361               30     ok
-#> 2    35   10  9.239851     99.43911               35     ok
-#> 3    40   10 11.957433    115.74460               40     ok
+#> 1    30   10  6.522269     83.13361         30.00000     ok
+#> 2    35   10  9.239845     99.43907         34.99999     ok
+#> 3    40   10 11.957433    115.74460         40.00000     ok
 #> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =
 #> 40.
 plot(sens)
@@ -196,8 +211,8 @@ sens2 <- lago_sensitivity(
 
 # How sensitive is it to the assumed costs? A uniform rescaling never changes
 # which intervention is cheapest, so the recommendation is unchanged and the
-# cost scales linearly with the multiplier. `...` overrides on top of the
-# fitted object are used here to switch the swept parameter.
+# cost scales linearly with the multiplier. Only the fitted object is
+# passed, so every other argument is reused from the original call.
 cost_sens <- lago_sensitivity(
   opt,
   parameter = "cost_multiplier",
@@ -209,10 +224,10 @@ cost_sens
 #> 
 #> Varied cost_multiplier across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1   0.8   10 6.522269     66.50689               30     ok
+#> 1   0.8   10 6.522267     66.50688               30     ok
 #> 2   1.0   10 6.522269     83.13361               30     ok
 #> 3   1.2   10 6.522269     99.76034               30     ok
-#> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at
+#> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at
 #> cost_multiplier = 1.2.
 # }
 ```

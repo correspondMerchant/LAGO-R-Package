@@ -1,7 +1,8 @@
-# get_confidence_set
+# Calculate the confidence set for a recommended intervention
 
-Internal function that calculates the confidence set for the recommended
-interventions
+Calculates the confidence set for the recommended intervention.
+lago_optimization() calls it when include_confidence_set is TRUE, and it
+can also be called directly.
 
 ## Usage
 
@@ -191,7 +192,8 @@ List( confidence_set_size_percentage = \<number, the size of the
 confidence set as a fraction of the grid. Both the count of qualifying
 interventions and the size of the grid count grid interventions only, so
 rec_int is excluded from each\>, rec_int_ci = \<named numeric c(lower,
-upper) rounded to 3 decimal places, the confidence interval at rec_int.
+upper), each bound rounded to 3 decimal places, or to 4 significant
+digits when it is below 0.1, the confidence interval at rec_int.
 Computed whether or not it covers the outcome goal, so callers never
 have to look for rec_int inside cs. For a binary outcome on the logit
 link both bounds are confined to \[0, 1\], where the estimate is a

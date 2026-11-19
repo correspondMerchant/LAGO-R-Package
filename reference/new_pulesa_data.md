@@ -5,8 +5,9 @@ multi-component intervention to improve hypertension care. Each row is
 one clinic in one time period. This is the version used to fit the "new"
 LAGO outcome model, which uses the same clinics and periods as
 [`main_pulesa_data`](https://correspondmerchant.github.io/LAGO-R-Package/reference/main_pulesa_data.md)
-but a different specification of the intervention (the `W1`–`W8`
-components and their interaction terms).
+but a different specification of the intervention (the `W1` to `W8`
+components and the missing value indicators `MI_W5`, `MI_W7` and
+`MI_W8`).
 
 ## Usage
 
@@ -40,7 +41,7 @@ A data frame with 192 rows and 22 variables:
 
 - DeliveryB:
 
-  Intervention component: care delivery mode B
+  Intervention component: care delivery mode B. Contains `NA` in 24 rows
 
 - HypertensionTraining:
 
@@ -48,23 +49,28 @@ A data frame with 192 rows and 22 variables:
 
 - MI_W5:
 
-  Interaction term involving component W5
+  Missing value indicator for `W5`: 1 when `DeliveryB` is `NA` and `W5`
+  holds the constant fill value 0.4800 (24 rows), 0 otherwise
 
 - MI_W7:
 
-  Interaction term involving component W7
+  Missing value indicator for `W7`: 1 when `RemoteMonitoring` is `NA`
+  and `W7` holds the constant fill value 0.2416 (11 rows), 0 otherwise
 
 - MI_W8:
 
-  Interaction term involving component W8
+  Missing value indicator for `W8`: 1 when `PerformanceImprovement` is
+  `NA` and `W8` holds the constant fill value 0.4348 (17 rows), 0
+  otherwise
 
 - PerformanceImprovement:
 
-  Intervention component: performance improvement
+  Intervention component: performance improvement. Contains `NA` in 17
+  rows
 
 - RemoteMonitoring:
 
-  Intervention component: remote monitoring
+  Intervention component: remote monitoring. Contains `NA` in 11 rows
 
 - Success:
 
@@ -105,6 +111,16 @@ A data frame with 192 rows and 22 variables:
 - W8:
 
   Intervention component W8
+
+## Details
+
+Unlike in
+[`main_pulesa_data`](https://correspondmerchant.github.io/LAGO-R-Package/reference/main_pulesa_data.md),
+the missing values of `DeliveryB` (24 rows), `RemoteMonitoring` (11
+rows) and `PerformanceImprovement` (17 rows) are kept as `NA` here. The
+matching components `W5`, `W7` and `W8` have no missing values: in those
+rows they hold a constant fill value, and the `MI_W5`, `MI_W7` and
+`MI_W8` columns flag them.
 
 ## Examples
 

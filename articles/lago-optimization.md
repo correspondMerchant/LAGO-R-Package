@@ -26,8 +26,9 @@ folder.
 World Health Organization’s Safe Childbirth Checklist in Uttar Pradesh,
 India. The binary outcome `pp3_oxytocin_mother` records whether oxytocin
 was administered. We treat two intervention components as adjustable:
-`coaching_updt` (number of coaching visits) and `launch_duration` (days
-of checklist launch).
+`coaching_updt` (number of coaching visits) and `launch_duration`
+(duration of the checklist launch, which takes the values 0, 2 and 3 in
+the data).
 
 ``` r
 
@@ -47,7 +48,7 @@ head(bb_data[, c("coaching_updt", "launch_duration", "pp3_oxytocin_mother")])
 Suppose we want the least costly intervention that raises the
 probability of oxytocin administration to at least `0.85`, for a center
 with a birth volume of 1.75 (in hundreds). The costs of the two
-components are `1.7` and `8` per unit, respectively.
+components are `1700` and `8000` per unit, respectively.
 
 ``` r
 
@@ -66,12 +67,10 @@ result <- lago_optimization(
   confidence_set_grid_step_size = c(1, 0.5),
   quiet = TRUE
 )
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> Warning: The lower bound for the intervention component coaching_updt is
 #> greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component launch_duration
-#> is greater than the minimum value in the data.
+#> Warning: The lower bound for the intervention component launch_duration is
+#> greater than the minimum value in the data.
 ```
 
 The `quiet = TRUE` argument suppresses the progress messages so the
@@ -99,9 +98,10 @@ result
 #> Outcome model link: logit
 #> Fixed center effects: FALSE
 #> Fixed time effects: FALSE
-#> Outcome goal: 0.85
+#> Outcome goal: 0.85 (maximize: at least this value)
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1700), c(0, 8000)
+#> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+#> 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -164,9 +164,10 @@ summary(result)
 #> Outcome model link: logit
 #> Fixed center effects: FALSE
 #> Fixed time effects: FALSE
-#> Outcome goal: 0.85
+#> Outcome goal: 0.85 (maximize: at least this value)
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1700), c(0, 8000)
+#> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+#> 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -263,12 +264,10 @@ power_result <- lago_optimization(
   include_confidence_set = FALSE,
   quiet = TRUE
 )
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> Warning: The lower bound for the intervention component coaching_updt is
 #> greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component launch_duration
-#> is greater than the minimum value in the data.
+#> Warning: The lower bound for the intervention component launch_duration is
+#> greater than the minimum value in the data.
 
 power_result$est_outcome_goal
 #> [1] 0.4781663
@@ -301,30 +300,10 @@ sens <- lago_sensitivity(
   parameter = "outcome_goal",
   values = c(0.75, 0.80, 0.85, 0.90)
 )
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> Warning: The lower bound for the intervention component coaching_updt is
 #> greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component launch_duration
-#> is greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component coaching_updt is
+#> Warning: The lower bound for the intervention component launch_duration is
 #> greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component launch_duration
-#> is greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component coaching_updt is
-#> greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component launch_duration
-#> is greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component coaching_updt is
-#> greater than the minimum value in the data.
-#> Warning in (function (data, input_data_structure = "individual_level",
-#> outcome_name, : The lower bound for the intervention component launch_duration
-#> is greater than the minimum value in the data.
 
 sens
 #> 
@@ -332,10 +311,10 @@ sens
 #> 
 #> Varied outcome_goal across 4 runs; 0 failed.
 #>   value coaching_updt launch_duration rec_int_cost est_outcome_goal status
-#> 1  0.75             1        2.157674     18961.39        0.7499999     ok
-#> 2  0.80             1        2.438484     21207.88        0.8000000     ok
-#> 3  0.85             1        2.778472     23927.77        0.8500000     ok
-#> 4  0.90             1        3.230045     27540.36        0.9000000     ok
+#> 1  0.75             1        2.157674     18961.39             0.75     ok
+#> 2  0.80             1        2.438484     21207.88             0.80     ok
+#> 3  0.85             1        2.778472     23927.77             0.85     ok
+#> 4  0.90             1        3.230045     27540.36             0.90     ok
 #> rec_int_cost is 18961.39 at outcome_goal = 0.75 and 27540.36 at outcome_goal =
 #> 0.9.
 ```

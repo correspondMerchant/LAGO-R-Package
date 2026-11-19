@@ -123,23 +123,31 @@ or <code>"icc"</code>). Each run overrides that argument with one
 element of <code>values</code>. Vector-valued arguments such as
 <code>intervention_lower_bounds</code>, and confidence-set-only arguments such as
 <code>confidence_set_alpha</code> (the confidence set is not computed during a sweep),
-are rejected.</p></li>
+are rejected. So are <code>"time_effect_optimization_value"</code> without
+<code>include_time_effects = TRUE</code> and <code>"icc"</code> without a <code>power_goal</code>, since
+they would not change the recommendation.</p></li>
 <li><p>The special string <code>"cost_multiplier"</code>: each run multiplies every
 coefficient of every vector in the baseline <code>cost_list_of_vectors</code> by one
 element of <code>values</code>, so <code>values = c(0.8, 1, 1.2)</code> evaluates the costs at
-80\<!-- %, 100\\%, and 120\\%. This mode requires \code{cost_list_of_vectors} in -->
-<code>...</code> and all <code>values</code> must be positive.</p></li>
+80\<!-- %, 100\\%, and 120\\%. When the baseline gives \code{unit_costs} instead of -->
+<code>cost_list_of_vectors</code>, each run multiplies <code>unit_costs</code> by the value,
+which scales the linear or cubic cost built from them in the same way.
+This mode requires <code>cost_list_of_vectors</code> or <code>unit_costs</code> (in <code>...</code> or
+stored on <code>object</code>), and all <code>values</code> must be positive.</p></li>
 </ol></dd>
 
 
 <dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
-<dd><p>A non-empty numeric vector, all finite. One run per element.</p></dd>
+<dd><p>A non-empty numeric vector, all finite. One run per element.
+For <code>parameter = "time_effect_optimization_value"</code> it can also be a
+character vector of period labels or a Date vector, with no <code>NA</code>.</p></dd>
 
 
 <dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
 <dd><p>A boolean forwarded to <code><a href="lago_optimization.html">lago_optimization()</a></code>. Defaults to
 <code>TRUE</code> so the sweep is not noisy. Genuine warnings about the data or model
-fit from each run are still shown.</p></dd>
+fit are still shown. The runs share one model fit, so each distinct warning
+from that fit is shown once per sweep.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -166,8 +174,13 @@ the component, holding its recommended value for that run.</p></dd>
 <code>component_names</code> (the component column names), <code>baseline</code> (the full
 <code><a href="lago_optimization.html">lago_optimization()</a></code> result at the baseline value, i.e. multiplier 1 for
 <code>"cost_multiplier"</code> or the value supplied in <code>...</code> for a named parameter, or
-<code>NULL</code> if not present), and, when any run failed, <code>error_messages</code> (the
-error text named by the failed values).</p>
+<code>NULL</code> if not present), <code>effective_outcome_goal</code> (one value per run: the
+outcome goal the run targeted, which a power goal can raise above the
+outcome goal, or <code>NA</code> for a failed run), <code>shrinking_method_used</code> (one value
+per run: <code>TRUE</code> when the goal was out of reach and the shrinking method gave
+the recommendation, <code>FALSE</code> when it was not used, or <code>NA</code> for a failed run),
+and, when any run failed, <code>error_messages</code> (the error text named by the
+failed values).</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -221,9 +234,9 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">outcome_goal</span> across 3 runs; 0 failed.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   value gear      qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10  6.522269     83.13361               30     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10  9.239851     99.43911               35     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.957433    115.74460               40     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10  6.522269     83.13361         30.00000     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10  9.239845     99.43907         34.99999     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.957433    115.74460         40.00000     ok</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 40.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sens</span><span class="op">)</span></span></span>
@@ -248,8 +261,8 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># How sensitive is it to the assumed costs? A uniform rescaling never changes</span></span></span>
 <span class="r-in"><span><span class="co"># which intervention is cheapest, so the recommendation is unchanged and the</span></span></span>
-<span class="r-in"><span><span class="co"># cost scales linearly with the multiplier. `...` overrides on top of the</span></span></span>
-<span class="r-in"><span><span class="co"># fitted object are used here to switch the swept parameter.</span></span></span>
+<span class="r-in"><span><span class="co"># cost scales linearly with the multiplier. Only the fitted object is</span></span></span>
+<span class="r-in"><span><span class="co"># passed, so every other argument is reused from the original call.</span></span></span>
 <span class="r-in"><span><span class="va">cost_sens</span> <span class="op">&lt;-</span> <span class="fu">lago_sensitivity</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">opt</span>,</span></span>
 <span class="r-in"><span>  parameter <span class="op">=</span> <span class="st">"cost_multiplier"</span>,</span></span>
@@ -261,10 +274,10 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">cost_multiplier</span> across 3 runs; 0 failed.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   value gear     qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   0.8   10 6.522269     66.50689               30     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   0.8   10 6.522267     66.50688               30     ok</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2   1.0   10 6.522269     83.13361               30     ok</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3   1.2   10 6.522269     99.76034               30     ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> cost_multiplier = 1.2.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>

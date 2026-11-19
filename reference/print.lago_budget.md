@@ -44,8 +44,8 @@ print(b)
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819396146112 (of 100).
-#> Estimated outcome: 35.1051282051282.
+#> Recommended intervention: gear = 10, qsec = 9.3328
+#> Cost: 99.997 (of 100).
+#> Estimated outcome: 35.171.
 # }
 ```

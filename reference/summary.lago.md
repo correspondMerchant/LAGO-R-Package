@@ -70,9 +70,10 @@ summary(result)
 #> Outcome model link: logit
 #> Fixed center effects: FALSE
 #> Fixed time effects: FALSE
-#> Outcome goal: 0.85
+#> Outcome goal: 0.85 (maximize: at least this value)
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1700), c(0, 8000)
+#> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+#> 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 

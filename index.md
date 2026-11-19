@@ -229,7 +229,6 @@ Typical output:
 
     ℹ Starting LAGO Optimization
     ℹ Validating inputs...
-    When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
     ✔ Done
     ℹ Assessing the cost function...
     ✔ Done
@@ -254,14 +253,13 @@ Typical output:
     Outcome model link: identity
     Fixed center effects: FALSE
     Fixed time effects: FALSE
-    Outcome goal: 40
+    Outcome goal: 40 (maximize: at least this value)
     Power goal: not specified
-    Intervention component costs: c(0, 4), c(4, 6)
+    Intervention component costs: gear (0, 4), qsec (4, 6)
     Intervention lower bounds: 0, 0
     Intervention upper bounds: 10, 350
 
     ── Outcome model fit
-
                 Estimate Std. Error
     (Intercept)  -30.711     9.6702
     gear           4.871     1.0814
@@ -269,8 +267,8 @@ Typical output:
     Standard errors are model based, as the confidence set uses them.
 
     ── Overall intervention-effect test
-    To see the overall test results, include a 'group' column in the data with
-    values 'treatment' or 'control' (binary outcomes only).
+    The overall test is only available for binary outcomes. This outcome is
+    continuous.
 
     ── Recommended intervention
     gear: 10
@@ -393,13 +391,14 @@ that the cost of the intervention is minimized and the probability of a
 desired binary outcome, oxytocin administered (‘pp3_oxytocin_mother’),
 is above a given threshold (85%). The two intervention components are
 ‘coaching_updt’ ($`x_1`$), the number of coaching updates, and
-‘launch_duration’ ($`x_2`$), the launch duration in days. Suppose that
-we know the lower and upper bounds of ‘coaching_updt’ and
-‘launch_duration’ are \[1,40\] and \[1,5\], respectively. The total
-costs of the two components (in USD) are $`C(x_1) = 1700x_1`$, and
-$`C(x_2) = 8000x_2`$, respectively. In addition, we assign fake centers
-and fake time periods to all observations to demonstrate fitting outcome
-models with fixed center and fixed time effects.
+‘launch_duration’ ($`x_2`$), the duration of the checklist launch (0, 2
+or 3 in the data). Suppose that we know the lower and upper bounds of
+‘coaching_updt’ and ‘launch_duration’ are \[1,40\] and \[1,5\],
+respectively. The total costs of the two components (in USD) are
+$`C(x_1) = 1700x_1`$, and $`C(x_2) = 8000x_2`$, respectively. In
+addition, we assign fake centers and fake time periods to all
+observations to demonstrate fitting outcome models with fixed center and
+fixed time effects.
 
 Instead of an overall optimal intervention package, we target the
 optimal intervention package for center “5” in time period “10”.
@@ -437,7 +436,6 @@ Output:
     ℹ Validating inputs...
     'center' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
     'period' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
-    When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
     ✔ Done
     ℹ Assessing the cost function...
     ✔ Done
@@ -462,14 +460,13 @@ Output:
     Outcome model link: logit
     Fixed center effects: TRUE
     Fixed time effects: TRUE
-    Outcome goal: 0.85
+    Outcome goal: 0.85 (maximize: at least this value)
     Power goal: not specified
-    Intervention component costs: c(0, 1700), c(0, 8000)
+    Intervention component costs: coaching_updt (0, 1700), launch_duration (0, 8000)
     Intervention lower bounds: 1, 1
     Intervention upper bounds: 40, 5
 
     ── Outcome model fit
-
                       Estimate Std. Error
     (Intercept)     -7.947e-01   0.134522
     center2          1.419e-01   0.136061
@@ -507,21 +504,32 @@ Output:
     Outcome goal: 0.85
 
     ── Confidence set
-    95% confidence set size: 11.85% of the grid
-    IQR of the cost within the 95% confidence set: 32400 - 67750
+    95% confidence set size: 11.56% of the grid
+    IQR of the cost within the 95% confidence set: 33600 - 70350
     First rows of the confidence set (use $cs for all):
        coaching_updt launch_duration CI_lower_bound CI_upper_bound  cost
-    78            33            1.45          0.726          0.853 67700
-    79            35            1.45          0.722          0.856 71100
-    80            37            1.45          0.718          0.860 74500
-    81            39            1.45          0.714          0.864 77900
-    82             1            1.60          0.769          0.874 14500
-    83             3            1.60          0.772          0.872 17900
+    81            33            1.45          0.726          0.853 67700
+    82            35            1.45          0.722          0.856 71100
+    83            37            1.45          0.718          0.860 74500
+    84            39            1.45          0.714          0.864 77900
+    85            40            1.45          0.712          0.866 79600
+    86             1            1.60          0.769          0.874 14500
+    Warning messages:
+    1: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
+    2: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
+    3: In diagnose_model_fit(model = model, intervention_components = intervention_components,  :
+      The following intervention component(s) do not have a statistically significant association with the outcome (p > 0.05):
+      - coaching_updt
+    The LAGO optimization will still run, but the recommendation for these component(s) is not well supported by the data.
 
-The outcome model here includes many more coefficients, one per center
-and per time period, than the previous example, and the console output
-shows them all. `summary(optimization_results)` prints the same output;
-inspect `optimization_results$cs` for the full confidence set or
+The warnings are expected here. Many births in the data have 0 coaching
+visits and a launch_duration of 0, so lower bounds of 1 are above the
+data minimum. coaching_updt also has no clear association with the
+outcome in this data, so the recommendation keeps it at its lower bound
+of 1. The outcome model here includes many more coefficients, one per
+center and per time period, than the previous example, and the console
+output shows them all. `summary(optimization_results)` prints the same
+output; inspect `optimization_results$cs` for the full confidence set or
 `optimization_results$model` for the fitted model, or run
 `lago_report(optimization_results)` for a shareable HTML report of the
 result.
@@ -734,8 +742,9 @@ cost_list = lago.visualize_cost(
 ```
 
 The Python package also ships an [MCP](https://modelcontextprotocol.io/)
-server (`python -m lago.mcp_server`) that exposes `optimize` and
-`sensitivity` as tools any MCP-aware AI agent can call. See
+server (`python -m lago.mcp_server`) that exposes `describe_data`,
+`optimize`, `sensitivity` and `budget` as tools any MCP-aware AI agent
+can call. See
 [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md)
 for installation, the MCP server, and the full API.
 
@@ -758,10 +767,10 @@ run anything.
 
 **MCP server.** The Python package ships a [Model Context
 Protocol](https://modelcontextprotocol.io/) server
-(`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity`
-as tools an MCP-aware agent can call to actually run LAGOtrials. It
-reuses the Python wrapper, so R and the installed LAGOtrials R package
-are required. See
+(`python -m lago.mcp_server`) that exposes `describe_data`, `optimize`,
+`sensitivity` and `budget` as tools an MCP-aware agent can call to
+actually run LAGOtrials. It reuses the Python wrapper, so R and the
+installed LAGOtrials R package are required. See
 [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md)
 for the client configuration.
 

@@ -27,7 +27,8 @@ A data frame with 6124 rows and 21 variables:
 
 - launch_duration:
 
-  Duration of checklist launch
+  Duration of the checklist launch. The data do not record its unit. The
+  observed values are 0, 2 and 3
 
 - leadership_ITT:
 
@@ -79,15 +80,18 @@ A data frame with 6124 rows and 21 variables:
 
 - pp2_hand_hygiene:
 
-  fada_op2_handwashing
+  Binary outcome: 1 if hand washing was done, 0 if not (source variable
+  `fada_op2_handwashing`). Contains `NA` in 30 rows
 
 - pp3_oxytocin_mother:
 
-  fada_op3_oxytocin_administered
+  Binary outcome: 1 if oxytocin was administered to the mother, 0 if not
+  (source variable `fada_op3_oxytocin_administered`)
 
 - center_type:
 
-  Phase of the pilot studies
+  Study arm or pilot phase of the site: `"Pilot 1"`, `"Pilot 2"`,
+  `"RCT-control"` or `"RCT-intervention"`
 
 - coach5:
 

@@ -112,6 +112,438 @@
   now keeps its value when you tab through it, and the arrow keys move
   it by one step.
 
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  matches named `center_weights_for_outcome_goal` to the centers by
+  name. It used to ignore the names and match the weights by position,
+  which silently gave the wrong average center when the names were in
+  another order. Names that are not the centers are refused.
+
+- `time_effect_optimization_value` can be the label of a text, factor or
+  Date period, such as `"2024-Q1"`. It used to have to be a number, so
+  such a period could never be chosen. A number such as 4 also finds the
+  period labeled `"04"` or `"4.0"`.
+
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  refuses weights that are negative, infinite or all zero, a
+  `center_sample_size` column that is not numbers or has a negative
+  value, and a binary outcome or center level proportion outside 0 to 1,
+  each with a message that names the problem. They used to fail with
+  unclear errors from [`glm()`](https://rdrr.io/r/stats/glm.html).
+  `include_time_effects = NA` is refused clearly too.
+
+- The check for a center characteristic value outside the data now reads
+  a Date characteristic as its number, as the model does, and for center
+  level data it uses the rows with a positive `center_sample_size`.
+
+- With a power goal, a missing value in the `group` column is now named
+  in the error. Without one, rows with no arm are left out of the
+  overall test, and the test is not shown, with a warning, when an arm
+  has fewer than two rows.
+
+- The power goal search no longer fails for a power goal at or below
+  0.05 or very close to 1. With a large next stage it used to round the
+  power-implied outcome goal up to the next of 1000 grid points, so the
+  recommendation could cost much more than needed. It now finds that
+  goal between the grid points.
+
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  checks the power inputs whatever the `icc`. `power_goal_cluster_id`
+  must name a column whenever it is given, and `power_goal`,
+  `num_centers_in_next_stage`, `patients_per_center_in_next_stage`,
+  `icc` and `shrinkage_threshold` must each be one finite number, with
+  whole numbers for the next stage. The error for an unknown
+  `power_goal_approach` no longer repeats itself.
+
+- [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  called directly checks `rec_int`, `confidence_set_alpha` and
+  `outcome_goal`. A wrong `rec_int` used to give the interval of another
+  point with no error.
+
+- An outcome goal within round off of the best reachable outcome now
+  counts as reached. It used to fall back to the shrinking method.
+
+- The note that a `cost_list_of_vectors` overrides
+  `default_cost_fxn_type` is shown only when `default_cost_fxn_type` was
+  set. The warnings that a bound is inside the range of the data are now
+  shown once in a sweep or a budget search, not once per run.
+
+- [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  now finds the cheap interventions below its goal grid for a continuous
+  outcome. Before, a budget between the cost of the cheapest
+  intervention and the cost of the lowest goal on the grid was reported
+  as infeasible, and the warning gave the wrong cheapest cost.
+
+- [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  now halves the gap at the affordability boundary until it is narrow,
+  after its refinement sweep. Before, a small `n_grid` could return an
+  outcome well below the best affordable one, and could call it the
+  maximum reachable outcome.
+
+- `lago_sensitivity(parameter = "cost_multiplier")` now works for a
+  result fitted with `unit_costs` by scaling `unit_costs`. When neither
+  `cost_list_of_vectors` nor `unit_costs` is available, the error now
+  names both.
+
+- [`print()`](https://rdrr.io/r/base/print.html) of a
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  result with one successful run now names that run once, instead of “X
+  at v and X at v”.
+
+- [`print()`](https://rdrr.io/r/base/print.html) of a
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  result now rounds the recommended intervention, its cost and the
+  estimated outcome as [`print()`](https://rdrr.io/r/base/print.html) of
+  a
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  result does.
+
+- [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now shows any `title` literally. A title with a double quote no longer
+  fails with a YAML parser error, backslashes are kept, and markdown
+  characters such as `*` are not turned into formatting.
+
+- The hover read-outs in the
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  plots now round numbers the way the report text does. Costs show 5
+  significant figures and component values show 4 decimals, without e
+  notation for ordinary numbers (for example `cost: 23928` instead of
+  `cost: 2.393e+4`).
+
+- The
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  confidence set section is now always shown. When the set is empty, was
+  not requested, or was not computed because the shrinking method was
+  used, the report gives the same reason as
+  [`print()`](https://rdrr.io/r/base/print.html). The
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  help page now describes the report sections accurately, and says that
+  the plot is drawn for one or two components only.
+
+- The inputs recap of [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html) and
+  [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now shows the cost coefficients of each component rounded to 5
+  significant figures and labeled by component, instead of the R source
+  of the cost list with every digit.
+
+- A p-value of the overall intervention-effect test that is too small to
+  represent now shows as `< 2.2e-16` instead of `0`, in the console and
+  in the report.
+
+- For a continuous outcome,
+  [`print()`](https://rdrr.io/r/base/print.html) now says that the
+  overall intervention-effect test is only available for binary
+  outcomes, instead of asking for a `group` column the data may already
+  have.
+
+- The confidence level label is now short for any
+  `confidence_set_alpha`. For example `confidence_set_alpha = 1/3` gives
+  `66.67%` instead of `66.6666666667%`.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  reads an uploaded CSV that is not UTF-8 as Latin-1 and says so,
+  instead of silently stopping at the first accented letter and losing
+  the rows after it.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  refuses a period to optimize for that has no row the model can use,
+  and by default picks the latest period that has one.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  refuses an outcome, component, covariate, center characteristic or
+  weights column named like a column the app builds for the package
+  (proportion, center_sample_size, group, center or period), and asks to
+  rename it or choose another one. Before, such a choice gave a
+  confusing error or, for a covariate named center, a wrong run.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  refuses a continuous outcome with values of exactly 0 or 1 under the
+  logit link with the normal model, and points to the proportion model,
+  instead of failing with a raw
+  [`glm()`](https://rdrr.io/r/stats/glm.html) error.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  names columns that are not valid R names, such as “launch duration” in
+  data passed to it, before the run, and shows how to rename them with
+  [`make.names()`](https://rdrr.io/r/base/make.names.html).
+
+- When
+  [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  cannot fit a binary outcome with the identity link, it now says to
+  choose the logit link, along with the error of the package.
+
+- In the cost designer
+  ([`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  and the designer in
+  [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)),
+  the copied list, the list returned to R and the costs applied to the
+  app now always match the drawn curve. Before, a drag that moved a
+  coefficient by less than half a slider step left them on the old
+  coefficients.
+
+- The cost designer’s warning that the marginal cost should be positive
+  now checks the marginal cost itself. Before, it checked the total
+  cost. A separate warning now shows when the total cost goes below 0.
+
+- The cost designer no longer reports a valid cost function as
+  decreasing when narrow bounds sit far from 0, for example on \[1000,
+  1001\]. Its checks now allow for the round-off of evaluating the
+  polynomial.
+
+- Dragging a cubic cost curve now works when the bounds are very narrow,
+  for example on \[0, 0.001\]. Before, every such drag was ignored.
+
+- The cost designer’s sliders now scale with a small unit cost. For a
+  unit cost of 1e-6 a slope slider now runs over about 1e-4 in steps of
+  1e-6, instead of over 1 in steps of 1e-5.
+
+- [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  now refuses bounds that are not finite and unit costs below 0 with a
+  clear error. Before, an infinite bound stopped the app with an error.
+
+- The unit cost label on the marginal cost chart now keeps significant
+  digits, so a unit cost of 0.001 no longer reads as 0.00.
+
+- Fixed the MCP server stopping the call that was running when a client
+  canceled a different call that was still waiting for its turn. The
+  running call failed with “the R worker stopped during the call”. A
+  canceled call that is still waiting now just never runs.
+
+- The MCP server now stops its R worker when it gets `SIGTERM`, and the
+  worker exits within a second or two when the server is killed in any
+  other way. A worker in the middle of a long call used to keep running
+  on its own until the call ended.
+
+- The MCP server’s `sensitivity` and `budget` tools, and the confidence
+  set of `optimize`, now give every number at full precision. They were
+  rounded to 10 decimal places, so a cost in small units could come back
+  as 0 or differ from what `optimize` gives.
+
+- The Python wrapper now accepts `numpy` arrays and numbers, pandas
+  Series and pandas Index values wherever it takes a list or a number,
+  for example `intervention_components=df.columns[1:3]` or bounds given
+  as a `numpy` array. They used to fail with an unclear conversion
+  error.
+
+- The MCP server now marks a failed tool call as an error result
+  (`isError` true), with the JSON body
+  `{"error": "...", "warnings": [...]}` as its text. It used to report
+  failures as successful results.
+
+- Every MCP tool result now has a `warnings` list, as the documentation
+  says. The results of `describe_data`, and errors found before R is
+  called, used to have none.
+
+- The Python wrapper turns an R `NA` in an integer, logical or text
+  result into a missing value. It used to come through as -2147483648,
+  or as `True` for a logical column.
+
+- The `main_pulesa_data` and `new_pulesa_data` help pages now describe
+  the `MI_*` columns correctly. They are 0/1 indicators for values that
+  were missing and filled with a constant, not interaction terms. The
+  `new_pulesa_data` page also notes that `DeliveryB`, `RemoteMonitoring`
+  and `PerformanceImprovement` contain `NA`.
+
+- The `BB_data` help page now describes `center_type`,
+  `pp2_hand_hygiene` and `pp3_oxytocin_mother` correctly and lists the
+  observed `launch_duration` values. The vignette now gives the correct
+  unit costs (1700 and 8000).
+
+- The basic
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  example now uses `mtcars` and gives a recommendation with a confidence
+  set. The README BetterBirth output now shows the warnings that a real
+  run gives.
+
+- The numerical optimizer now gives the same recommendation whatever the
+  units of a continuous outcome. Its constraint is now on the scale of
+  the goal, as its objective is on the scale of the cost. Before, an
+  outcome in very large or very small units could stop it at a costlier
+  point.
+
+- With a power goal on the identity link, a control rate below 0 is now
+  held at 0. Before, the conditional approach could return a goal set by
+  where its variance stopped being defined. The unconditional power
+  search also sums the stage 1 data once rather than at every grid
+  point, so it is faster on large data.
+
+- A clustered power goal (`icc` above 0) on individual level data no
+  longer fails with the message that an arm has fewer than two centers.
+  On center level data, a power goal now needs patients in both arms,
+  and the center count for `icc` leaves out centers with no
+  `center_sample_size`.
+
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  refuses `prev_recommended_interventions` with `NA` clearly, and its
+  out of bounds message names the argument correctly. It refuses an
+  `outcome_goal`, `confidence_set_alpha` or `include_confidence_set`
+  that is `NA` or has more than one value.
+
+- All zero weights, or all zero `center_sample_size`, are now refused
+  with a clear message also without center or time effects.
+
+- Named `center_weights_for_outcome_goal` can now name an explicit `NA`
+  center (from [`addNA()`](https://rdrr.io/r/base/factor.html)) as
+  `"NA"` or `NA`. A date-time `time_effect_optimization_value` is
+  matched by its label.
+
+- A rerun of a result in
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  or
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  no longer shows the note that a cost list overrides
+  `default_cost_fxn_type` when it was not set.
+
+- [`get_confidence_set()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/get_confidence_set.md)
+  called directly matches a named `rec_int` to the components by name,
+  refuses names that are not the components, and checks the length of
+  `cost_list_of_vectors`, the bounds and the grid steps. An error inside
+  it, or inside the input checks of
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+  no longer carries the whole data set in its call.
+
+- The help pages now say that named center weights are matched by name
+  and that a row with an `NA` weight is left out of the fit, and the
+  package description no longer says that
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  uses cluster robust variance for clustered designs. The README lists
+  all four MCP tools.
+
+- [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  no longer says the budget did not bind, or that it found the maximum
+  reachable outcome, when that maximum costs more than the budget. The
+  search now also narrows the cost at the boundary, so the
+  recommendation uses the budget more fully. The printed cost is rounded
+  down when rounding would show it above the budget.
+
+- A sweep with
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  or
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  shows each distinct warning from the shared model fit once, not once
+  for every run.
+
+- [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  refuses to sweep `time_effect_optimization_value` without
+  `include_time_effects = TRUE`, and `icc` without a `power_goal`, since
+  those sweeps would return identical rows.
+
+- [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  can sweep period labels or dates for `time_effect_optimization_value`,
+  and [`plot()`](https://rdrr.io/r/graphics/plot.default.html) shows
+  them on a discrete axis.
+
+- The help for
+  [`lago_sensitivity()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_sensitivity.md)
+  documents the `effective_outcome_goal` and `shrinking_method_used`
+  attributes.
+
+- [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now shows every character of the title as typed, in both the heading
+  and the page title. Parentheses and square brackets no longer turn
+  into math, and markdown links, dollar signs, quotes, backslashes and
+  HTML tags are not interpreted.
+
+- The printed and reported results now write numbers in full, such as
+  100000 and 0.00001 instead of 1e+05 and 1e-05. The text now matches
+  the hover read-outs of the report.
+
+- A confidence set that holds a very small share of the grid now shows
+  as “\< 0.01% of the grid” instead of “0% of the grid”.
+
+- The outcome goal is now rounded like the estimated outcome, so a goal
+  of 70/3 shows as 23.3333.
+
+- The inputs recap now says whether the outcome goal is to be maximized
+  or minimized, and
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  stores `outcome_goal_intention` in its result.
+
+- [`lago_report()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_report.md)
+  now refuses an `output_file` that does not end in `.html` or `.htm`,
+  so it can no longer fail in pandoc or overwrite a file such as an
+  `.Rmd`. An empty or missing `title` now uses the default title.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  now reads an uploaded CSV that is not UTF-8 as Windows-1252, even when
+  a text cell starts with an accented letter or a curly quote. Before,
+  such a file failed with an error that wrongly blamed the separator or
+  decimal mark.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  now reads every row of a UTF-8 CSV in the C locale. The R code it
+  shows for an upload now reads the file the same way in any locale.
+
+- Column names with accents in an uploaded CSV, such as one with an
+  accented first letter, now keep their letters in any locale.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  now tells you to save a UTF-16 CSV as UTF-8, instead of failing with a
+  hint about the separator and decimal mark.
+
+- When
+  [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  starts from a result whose center weights have names, each center now
+  keeps its own weight.
+
+- [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  now refuses a cluster column named like a column the app builds, such
+  as center, which it would otherwise replace without a word.
+
+- The
+  [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md)
+  check that the logit link with the normal model has no outcome of
+  exactly 0 or 1 now only looks at the rows the model fits.
+
+- The cost designer now warns when a total cost falls across its bounds,
+  even for a cubic on narrow bounds far from 0 or for a very small unit
+  cost. Before, a fall made of many small steps could pass the check.
+
+- The warning below the coefficients in the cost designer is about
+  negative marginal costs, and it now shows when the marginal cost check
+  fails.
+
+- Dragging the cost curve past a slider’s range now widens the range in
+  proportion to the new value, so a small unit cost keeps a fine slider.
+
+- The default slider range of a cost coefficient now grows with the
+  bounds, so a high order coefficient can bend the curve on bounds
+  near 0. The slider step grows with the range and the value, so the
+  arrow keys work for very large coefficients.
+
+- The cost summary in the cost designer shows small costs and narrow
+  bounds with significant digits instead of rounding them to 0.
+
+- [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  now gives a clear error for a `default_cost_fxn_type` of more than one
+  value, for zero components, and for missing or empty component names.
+
+- When an R function fails, the Python wrapper now issues the warnings R
+  gave before the error and then raises it. The MCP server’s error
+  result now lists those warnings too.
+
+- The `budget` tool of the MCP server no longer describes arguments it
+  does not take. Every tool now refuses an argument it does not take,
+  instead of ignoring it.
+
+- An argument of the wrong type, a missing argument, or an unknown
+  argument to an MCP tool now gives the same JSON error result as every
+  other error, instead of plain text.
+
+- The Python wrapper now takes pandas arrays (such as the result of
+  `Series.unique()` or an `Int64` array), categorical values, and dates
+  as arguments. A date becomes the text R gives for it, so it can name a
+  period.
+
+- A missing text value in a data frame from R is now `None` in Python. A
+  missing value in a list argument now reaches R as `NA` of the type of
+  the other elements.
+
+- The MCP docs now list every column of a `sensitivity` run and say that
+  `effective_outcome_goal` of `optimize` comes only with a power goal.
+  They also say that a NaN or Infinity in JSON reaches a tool as null,
+  which means “not given” for an optional argument.
+
 ## LAGOtrials 1.2.0
 
 CRAN release: 2026-11-11

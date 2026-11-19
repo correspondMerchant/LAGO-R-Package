@@ -47,15 +47,21 @@ A data frame with 192 rows and 15 variables:
 
 - MI_DeliveryB:
 
-  Interaction term involving delivery mode B
+  Missing value indicator for `DeliveryB`: 1 when the value was missing
+  and `DeliveryB` was filled with the constant 0.2927 (24 rows), 0
+  otherwise
 
 - MI_PerformanceImprovement:
 
-  Interaction term involving performance improvement
+  Missing value indicator for `PerformanceImprovement`: 1 when the value
+  was missing and `PerformanceImprovement` was filled with the constant
+  0.4348 (17 rows), 0 otherwise
 
 - MI_RemoteMonitoring:
 
-  Interaction term involving remote monitoring
+  Missing value indicator for `RemoteMonitoring`: 1 when the value was
+  missing and `RemoteMonitoring` was filled with the constant 0.2886 (11
+  rows), 0 otherwise
 
 - PerformanceImprovement:
 

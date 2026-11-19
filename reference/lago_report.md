@@ -3,16 +3,18 @@
 Renders a self-contained, interactive HTML report for the object
 returned by
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
-The report knits a bundled parameterized R Markdown template and lays
-out the same sections, in the same order and with the same labels, as
-the console methods
+The report knits a bundled parameterized R Markdown template. Its text
+sections use the same labels and the same formatted lines as the console
+methods
 ([`print.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago.md)
 /
-[`summary.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.md)):
-the recommended intervention, its cost, the estimated outcome (with its
-confidence interval, 95\\ present), the confidence set (size, cost IQR,
-and first rows), the overall intervention-effect test (when present),
-and the fitted outcome-model coefficient table. A
+[`summary.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.md)),
+but the report orders them differently and adds plots. It shows the
+inputs recap, the recommended intervention, its cost, the estimated
+outcome (with its confidence interval, 95\\ present), the confidence set
+(size, cost IQR, and first rows, or the reason there is no set), the
+overall intervention-effect test (when present), and the fitted
+outcome-model coefficient table. A
 [`sessionInfo()`](https://rdrr.io/r/utils/sessionInfo.html) footer
 records the environment the report was produced in.
 
@@ -44,12 +46,15 @@ lago_report(
   A character string. The path to write the HTML report to. If `NULL`
   (the default), a temporary file with a `.html` extension is used. If
   it is an existing folder, the report is written in it as
-  `lago_report.html`.
+  `lago_report.html`. A file path must end in `.html` or `.htm`, since
+  the report is always an HTML file.
 
 - title:
 
-  A character string. The report title. Default value without user
-  specification: "LAGO optimization report".
+  A character string. The report title. Every character shows as typed,
+  so markdown, HTML and math are not interpreted. An empty or missing
+  title (`""`, `NA` or `NULL`) uses the default title. Default value
+  without user specification: "LAGO optimization report".
 
 - open:
 
@@ -81,11 +86,12 @@ interactive views:
 
 - an interactive confidence-set plot: a hover-enabled scatter for a
   two-component intervention (with the recommended intervention
-  highlighted) or a one-dimensional strip for a single component. For 3+
-  components, or when the interactive view is not applicable, it falls
-  back to the static
+  highlighted) or a one-dimensional strip for a single component. The
+  plot is drawn for one or two components only, as
   [`plot.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/plot.lago.md)
-  figure; when no confidence set is available the section is omitted.
+  is. With three or more components, or when there is no confidence set,
+  the plot section is left out, and the confidence set section still
+  gives its size or the reason there is no set.
 
 - interactive cost curves: for each intervention component, its
   total-cost curve and marginal (per-unit) cost curve, each with a hover

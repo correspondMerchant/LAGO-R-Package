@@ -179,7 +179,8 @@ lago_optimization(
   for the power calculation. Required when icc is non-zero. The stage-1
   cluster size is the variance-appropriate (size-biased) mean sum(m_i^2)
   / sum(m_i) over that arm's centers, where m_i counts the center's rows
-  with an observed outcome, and each arm must have at least two centers
+  with an observed outcome (its patients, the sum of center_sample_size,
+  for center level data), and each arm must have at least two centers
   with an observed outcome. Default value without user specification:
   NULL.
 
@@ -274,9 +275,10 @@ lago_optimization(
   as relative observation weights, with zero weights excluded from
   covariance contributions and the identity residual degrees of freedom.
   See get_confidence_set() for the covariance formulas and family
-  limits. A data column named weights does not replace this argument.
-  For center level data it is ignored with a warning, since each row is
-  weighted by its center_sample_size.
+  limits. Weights must not be negative or infinite. A row with a weight
+  of 0 or NA is left out of the fit. A data column named weights does
+  not replace this argument. For center level data it is ignored with a
+  warning, since each row is weighted by its center_sample_size.
 
 - center_characteristics:
 
@@ -312,8 +314,9 @@ lago_optimization(
 
 - time_effect_optimization_value:
 
-  A numeric value. The value of the time effect that will be used for
-  LAGO optimization.
+  The period used for LAGO optimization, as a number or as the label of
+  a period in the 'period' column (for example "2024-Q1", or a Date for
+  a Date column).
 
 - additional_covariates:
 
@@ -336,15 +339,18 @@ lago_optimization(
   excludes that center from the average. A center with no row where
   every model variable and the row's glm weight (center_sample_size for
   center level data) are observed is left out of the fit, so its weight
-  must be 0. The weights follow the order of the centers: the levels of
-  a factor column once unused levels are dropped (an explicit NA level
-  included), and the sorted values otherwise. Default value without user
-  specification: For each center the model fitted, calculate what
-  percentage its sample size (all of its rows, or the sum of its
-  center_sample_size for center level data) is of the total over those
-  centers, and use that percentage as the center's weight. A center the
-  model could not fit is left out, with a warning. For center level
-  data, a center with no center_sample_size at all is refused instead.
+  must be 0. Named weights are matched to the centers by name (an
+  explicit NA level is named "NA"), and names that are not the centers
+  are refused. Unnamed weights follow the order of the centers: the
+  levels of a factor column once unused levels are dropped (an explicit
+  NA level included), and the sorted values otherwise. Default value
+  without user specification: For each center the model fitted,
+  calculate what percentage its sample size (all of its rows, or the sum
+  of its center_sample_size for center level data) is of the total over
+  those centers, and use that percentage as the center's weight. A
+  center the model could not fit is left out, with a warning. For center
+  level data, a center with no center_sample_size at all is refused
+  instead.
 
 - optimization_grid_search_step_size:
 
@@ -469,38 +475,36 @@ Other LAGO functions:
 ## Examples
 
 ``` r
-# Basic case showing how to carry out the optimization with
-# a built-in data set. The confidence set is skipped here to keep this
-# example fast; the \donttest examples below show a full run with one.
+# Basic case with the built-in mtcars data. Treat the number of gears and
+# the quarter mile time as two intervention components, and find the least
+# costly values within the observed ranges that raise the expected miles per
+# gallon to 25. The confidence set uses a coarse grid of whole numbers, so
+# this example stays fast.
 lago_optimization(
-  data = infert,
-  outcome_name = "case",
-  outcome_type = "binary",
-  glm_family = "binomial",
-  intervention_components = c("age", "parity"),
-  intervention_lower_bounds = c(0, 0),
-  intervention_upper_bounds = c(50, 10),
-  cost_list_of_vectors = list(c(0, 4), c(0, 1)),
-  outcome_goal = 0.5,
+  data = mtcars,
+  outcome_name = "mpg",
+  outcome_type = "continuous",
+  glm_family = "gaussian",
+  link = "identity",
+  intervention_components = c("gear", "qsec"),
+  intervention_lower_bounds = c(3, 14),
+  intervention_upper_bounds = c(5, 23),
+  cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+  outcome_goal = 25,
   outcome_goal_intention = "maximize",
-  include_confidence_set = FALSE
+  confidence_set_grid_step_size = c(1, 1)
 )
 #> ℹ Starting LAGO Optimization
 #> ℹ Validating inputs...
-#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
 #> ℹ Fitting the outcome model...
-#> Warning: The following intervention component(s) do not have a statistically significant association with the outcome (p > 0.05):
-#>   - age
-#>   - parity
-#> The LAGO optimization will still run, but the recommendation for these component(s) is not well supported by the data.
 #> ✔ Done
 #> ℹ Calculating the recommended intervention...
-#> Warning: The outcome goal is not estimated to be achievable. Since the maximum estimated achievable outcome
-#>  is less than the outcome goal, we will shrink the recommended intervention towards the
-#>  recommended intervention from the previous stage.
+#> ✔ Done
+#> ℹ Calculating the confidence set...
+#> If the confidence set calculation takes a long time to run, please consider changing the confidence set step size. 
 #> ✔ Done
 #> → ♥ LAGO optimization complete ♥
 #> ℹ Printing the output...
@@ -508,43 +512,50 @@ lago_optimization(
 #> ── LAGO optimization result ────────────────────────────────────────────────────
 #> 
 #> ── Inputs 
-#> Input data dimensions: 248 rows, 8 columns
-#> Outcome name: case
-#> Outcome type: binary
-#> 2 intervention component(s): age, parity
-#> Outcome model family: binomial
-#> Outcome model link: logit
+#> Input data dimensions: 32 rows, 11 columns
+#> Outcome name: mpg
+#> Outcome type: continuous
+#> 2 intervention component(s): gear, qsec
+#> Outcome model family: gaussian
+#> Outcome model link: identity
 #> Fixed center effects: FALSE
 #> Fixed time effects: FALSE
-#> Outcome goal: 0.5
+#> Outcome goal: 25 (maximize: at least this value)
 #> Power goal: not specified
-#> Intervention component costs: c(0, 4), c(0, 1)
-#> Intervention lower bounds: 0, 0
-#> Intervention upper bounds: 50, 10
+#> Intervention component costs: gear (0, 4), qsec (4, 6)
+#> Intervention lower bounds: 3, 14
+#> Intervention upper bounds: 5, 23
 #> 
 #> ── Outcome model fit 
-#>              Estimate Std. Error
-#> (Intercept) -0.753683    0.83584
-#> age          0.001137    0.02578
-#> parity       0.014662    0.10768
-#> Standard errors are those of the fitted glm().
+#>             Estimate Std. Error
+#> (Intercept)  -30.711     9.6702
+#> gear           4.871     1.0814
+#> qsec           1.840     0.4465
+#> Standard errors are model based, as the confidence set uses them.
 #> 
 #> ── Overall intervention-effect test 
-#> To see the overall test results, include a 'group' column in the data with
-#> values 'treatment' or 'control' (binary outcomes only).
+#> The overall test is only available for binary outcomes. This outcome is
+#> continuous.
 #> 
 #> ── Recommended intervention 
-#> age: 31.504
-#> parity: 2.0927
-#> Cost: 128.11
-#> Estimated outcome: 0.3347
-#> 95% CI for the estimated outcome: not available (the goal could not be reached,
-#> so the shrinking method was used and no confidence set is computed)
-#> Outcome goal: 0.5
+#> gear: 5
+#> qsec: 17.0422
+#> Cost: 126.25
+#> Estimated outcome: 25
+#> 95% CI for the estimated outcome: 21.891 - 28.109
+#> Outcome goal: 25
 #> 
 #> ── Confidence set 
-#> Not computed: the goal could not be reached, so the shrinking method was used
-#> and no confidence set is computed.
+#> 95% confidence set size: 30% of the grid
+#> IQR of the cost within the 95% confidence set: 132 - 146
+#> First rows of the confidence set (use $cs for all):
+#>    gear qsec CI_lower_bound CI_upper_bound cost
+#> 10    5   16         19.811         26.354  120
+#> 13    5   17         21.812         28.032  126
+#> 16    5   18         23.573         29.952  132
+#> 18    4   19         21.731         25.731  134
+#> 21    4   20         22.968         28.174  140
+#> 23    3   21         19.333         25.746  142
 
 # Fuller examples, including the confidence-set grid search, which is
 # inherently slower. Wrapped in \donttest{} so they are still checkable
@@ -569,7 +580,6 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -595,9 +605,10 @@ lago_optimization(
 #> Outcome model link: logit
 #> Fixed center effects: FALSE
 #> Fixed time effects: FALSE
-#> Outcome goal: 0.85
+#> Outcome goal: 0.85 (maximize: at least this value)
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1700), c(0, 8000)
+#> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+#> 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -640,6 +651,9 @@ lago_optimization(
 #> 72 68700
 #> 73 70400
 
+# This goal of 0.85 is above what the data reach at the bounds, so it warns
+# that the goal is not achievable and uses the shrinking method, with no
+# confidence set.
 lago_optimization(
   data = BB_proportions,
   outcome_name = "EBP_proportions",
@@ -660,7 +674,6 @@ lago_optimization(
 #> ℹ Validating inputs...
 #> Warning: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
 #> Warning: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
-#> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 #> ✔ Done
 #> ℹ Assessing the cost function...
 #> ✔ Done
@@ -686,9 +699,10 @@ lago_optimization(
 #> Outcome model link: logit
 #> Fixed center effects: FALSE
 #> Fixed time effects: FALSE
-#> Outcome goal: 0.85
+#> Outcome goal: 0.85 (maximize: at least this value)
 #> Power goal: not specified
-#> Intervention component costs: c(0, 1700), c(0, 8000)
+#> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
+#> 8000)
 #> Intervention lower bounds: 1, 1
 #> Intervention upper bounds: 40, 5
 #> 
@@ -701,8 +715,8 @@ lago_optimization(
 #> Standard errors are robust (sandwich, HC0), as the confidence set uses them.
 #> 
 #> ── Overall intervention-effect test 
-#> To see the overall test results, include a 'group' column in the data with
-#> values 'treatment' or 'control' (binary outcomes only).
+#> The overall test is only available for binary outcomes. This outcome is
+#> continuous.
 #> 
 #> ── Recommended intervention 
 #> coaching_updt: 38.9881

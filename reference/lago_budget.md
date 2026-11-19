@@ -60,7 +60,12 @@ lago_budget(object = NULL, ..., budget, n_grid = 25L, quiet = TRUE)
   the outcome's range. Larger values give a finer, more precise answer
   at the cost of more optimization runs. A second refinement pass tries
   `n_grid` more goals strictly inside the gap at the affordability
-  boundary, so the effective resolution is finer than `n_grid` alone.
+  boundary, and that gap is then halved one run at a time until it is
+  narrower than 1/10000 of the goal range and the cost at the boundary
+  is known to within 1/10000 of the budget, so the answer does not
+  depend much on `n_grid`. Near the best reachable outcome, where the
+  cost is not known until the goal gets very close to that outcome, the
+  halving goes on until the gap is narrower than 1e-9 of the goal range.
   Default 25.
 
 - quiet:
@@ -143,8 +148,11 @@ estimated outcome is chosen (largest for `"maximize"`, smallest for
 intervention, and the one furthest in the improving direction is taken.
 The grid is extended in the improving direction until goals stop being
 reached or affordable, up to 30 times with a warning if that is not
-enough, and a refinement sweep is then run near the affordability
-boundary to tighten the estimate.
+enough. When no reached goal is affordable, the grid is also extended in
+the other direction, towards the cheaper and worse outcomes, until a
+reached goal is affordable or the cheapest reached goal stops getting
+cheaper. A refinement sweep and a bisection are then run near the
+affordability boundary to tighten the estimate.
 
 If no reachable goal is affordable (the budget is below the cost of even
 the cheapest reachable intervention), the result has `feasible = FALSE`
@@ -192,9 +200,9 @@ b
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819396146112 (of 100).
-#> Estimated outcome: 35.1051282051282.
+#> Recommended intervention: gear = 10, qsec = 9.3328
+#> Cost: 99.997 (of 100).
+#> Estimated outcome: 35.171.
 plot(b)
 
 
@@ -214,8 +222,8 @@ lago_budget(opt, budget = 100)
 #> ── LAGO budget-constrained optimization ──
 #> 
 #> Budget: 100 (maximize).
-#> Recommended intervention: gear = 10.00000, qsec = 9.29699
-#> Cost: 99.7819396146112 (of 100).
-#> Estimated outcome: 35.1051282051282.
+#> Recommended intervention: gear = 10, qsec = 9.3328
+#> Cost: 99.997 (of 100).
+#> Estimated outcome: 35.171.
 # }
 ```

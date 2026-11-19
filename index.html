@@ -15,8 +15,8 @@
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Learn-as-You-Go Adaptive Trial Optimization">
-<meta name="description" content="Optimizes interventions for adaptive &quot;Learn-As-you-GO&quot; (LAGO) trials, in which the intervention package is updated between stages using accumulating data. Given data from completed stages, lago_optimization() fits the outcome model (via stats generalized linear models or, for clustered designs, cluster-robust variance) and computes the cost-optimal recommended intervention for the next stage that is expected to reach a target mean outcome and/or a desired statistical power. get_confidence_set() constructs confidence sets for the optimal intervention, and visualize_cost() and lago_report() summarize the cost surface and results. Methods are described in Nevo, Lok and Spiegelman (2021) &lt;doi:10.1214/20-aos1978&gt; and Bing, Spiegelman, Nevo and Lok (2025) &lt;doi:10.1093/biomtc/ujaf061&gt;.">
-<meta property="og:description" content="Optimizes interventions for adaptive &quot;Learn-As-you-GO&quot; (LAGO) trials, in which the intervention package is updated between stages using accumulating data. Given data from completed stages, lago_optimization() fits the outcome model (via stats generalized linear models or, for clustered designs, cluster-robust variance) and computes the cost-optimal recommended intervention for the next stage that is expected to reach a target mean outcome and/or a desired statistical power. get_confidence_set() constructs confidence sets for the optimal intervention, and visualize_cost() and lago_report() summarize the cost surface and results. Methods are described in Nevo, Lok and Spiegelman (2021) &lt;doi:10.1214/20-aos1978&gt; and Bing, Spiegelman, Nevo and Lok (2025) &lt;doi:10.1093/biomtc/ujaf061&gt;.">
+<meta name="description" content="Optimizes interventions for adaptive &quot;Learn-As-you-GO&quot; (LAGO) trials, in which the intervention package is updated between stages using accumulating data. Given data from completed stages, lago_optimization() fits the outcome model (with stats generalized linear models, and robust variance for a quasibinomial model) and computes the cost-optimal recommended intervention for the next stage that is expected to reach a target mean outcome and/or a desired statistical power. get_confidence_set() constructs confidence sets for the optimal intervention, and visualize_cost() and lago_report() summarize the cost surface and results. Methods are described in Nevo, Lok and Spiegelman (2021) &lt;doi:10.1214/20-aos1978&gt; and Bing, Spiegelman, Nevo and Lok (2025) &lt;doi:10.1093/biomtc/ujaf061&gt;.">
+<meta property="og:description" content="Optimizes interventions for adaptive &quot;Learn-As-you-GO&quot; (LAGO) trials, in which the intervention package is updated between stages using accumulating data. Given data from completed stages, lago_optimization() fits the outcome model (with stats generalized linear models, and robust variance for a quasibinomial model) and computes the cost-optimal recommended intervention for the next stage that is expected to reach a target mean outcome and/or a desired statistical power. get_confidence_set() constructs confidence sets for the optimal intervention, and visualize_cost() and lago_report() summarize the cost surface and results. Methods are described in Nevo, Lok and Spiegelman (2021) &lt;doi:10.1214/20-aos1978&gt; and Bing, Spiegelman, Nevo and Lok (2025) &lt;doi:10.1093/biomtc/ujaf061&gt;.">
 <meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg">
 </head>
 <body>
@@ -167,7 +167,6 @@
 <p>Typical output:</p>
 <pre><code>ℹ Starting LAGO Optimization
 ℹ Validating inputs...
-When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 ✔ Done
 ℹ Assessing the cost function...
 ✔ Done
@@ -192,14 +191,13 @@ Outcome model family: gaussian
 Outcome model link: identity
 Fixed center effects: FALSE
 Fixed time effects: FALSE
-Outcome goal: 40
+Outcome goal: 40 (maximize: at least this value)
 Power goal: not specified
-Intervention component costs: c(0, 4), c(4, 6)
+Intervention component costs: gear (0, 4), qsec (4, 6)
 Intervention lower bounds: 0, 0
 Intervention upper bounds: 10, 350
 
 ── Outcome model fit
-
             Estimate Std. Error
 (Intercept)  -30.711     9.6702
 gear           4.871     1.0814
@@ -207,8 +205,8 @@ qsec           1.840     0.4465
 Standard errors are model based, as the confidence set uses them.
 
 ── Overall intervention-effect test
-To see the overall test results, include a 'group' column in the data with
-values 'treatment' or 'control' (binary outcomes only).
+The overall test is only available for binary outcomes. This outcome is
+continuous.
 
 ── Recommended intervention
 gear: 10
@@ -258,7 +256,7 @@ First rows of the confidence set (use $cs for all):
 </h2>
 <p>We consider a more complicated example, which is adapted from Nevo et al., 2021.</p>
 <p>Suppose we want to run LAGO optimization for the BetterBirth Study, a costly failed trial of maternal and newborn care that took place in Uttar Pradesh, India (Hirschhorn et al. 2015; Semrau et al. 2017). The BetterBirth Study assessed the use of the World Health Organization’s (WHO) Safe Childbirth Checklist, a 31-item checklist of best labor and delivery practices believed to be feasible in resource-limited settings, to reduce maternal and neonatal mortality. The intervention was adapted and tested in a three-phase process. In this setting, neonatal mortality is 32 per 1,000 live births and maternal mortality is 258 per 100,000 births (Semrau et al. 2017).</p>
-<p>Suppose that we want to identify the optimal intervention package such that the cost of the intervention is minimized and the probability of a desired binary outcome, oxytocin administered (‘pp3_oxytocin_mother’), is above a given threshold (85%). The two intervention components are ‘coaching_updt’ (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>x</mi><mn>1</mn></msub><annotation encoding="application/x-tex">x_1</annotation></semantics></math>), the number of coaching updates, and ‘launch_duration’ (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>x</mi><mn>2</mn></msub><annotation encoding="application/x-tex">x_2</annotation></semantics></math>), the launch duration in days. Suppose that we know the lower and upper bounds of ‘coaching_updt’ and ‘launch_duration’ are [1,40] and [1,5], respectively. The total costs of the two components (in USD) are <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mn>1</mn></msub><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mn>1700</mn><msub><mi>x</mi><mn>1</mn></msub></mrow><annotation encoding="application/x-tex">C(x_1) = 1700x_1</annotation></semantics></math>, and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mn>2</mn></msub><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mn>8000</mn><msub><mi>x</mi><mn>2</mn></msub></mrow><annotation encoding="application/x-tex">C(x_2) = 8000x_2</annotation></semantics></math>, respectively. In addition, we assign fake centers and fake time periods to all observations to demonstrate fitting outcome models with fixed center and fixed time effects.</p>
+<p>Suppose that we want to identify the optimal intervention package such that the cost of the intervention is minimized and the probability of a desired binary outcome, oxytocin administered (‘pp3_oxytocin_mother’), is above a given threshold (85%). The two intervention components are ‘coaching_updt’ (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>x</mi><mn>1</mn></msub><annotation encoding="application/x-tex">x_1</annotation></semantics></math>), the number of coaching updates, and ‘launch_duration’ (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>x</mi><mn>2</mn></msub><annotation encoding="application/x-tex">x_2</annotation></semantics></math>), the duration of the checklist launch (0, 2 or 3 in the data). Suppose that we know the lower and upper bounds of ‘coaching_updt’ and ‘launch_duration’ are [1,40] and [1,5], respectively. The total costs of the two components (in USD) are <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mn>1</mn></msub><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mn>1700</mn><msub><mi>x</mi><mn>1</mn></msub></mrow><annotation encoding="application/x-tex">C(x_1) = 1700x_1</annotation></semantics></math>, and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mn>2</mn></msub><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mn>8000</mn><msub><mi>x</mi><mn>2</mn></msub></mrow><annotation encoding="application/x-tex">C(x_2) = 8000x_2</annotation></semantics></math>, respectively. In addition, we assign fake centers and fake time periods to all observations to demonstrate fitting outcome models with fixed center and fixed time effects.</p>
 <p>Instead of an overall optimal intervention package, we target the optimal intervention package for center “5” in time period “10”.</p>
 <pre><code><span><span class="co"># The BetterBirth data has been open sourced so a version of</span></span>
 <span><span class="co"># the BetterBirth data is included in the LAGOtrials R package</span></span>
@@ -291,7 +289,6 @@ First rows of the confidence set (use $cs for all):
 ℹ Validating inputs...
 'center' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
 'period' column is not a factor type. To ensure the correct model fit, it has been converted to the factor type.
-When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.
 ✔ Done
 ℹ Assessing the cost function...
 ✔ Done
@@ -316,14 +313,13 @@ Outcome model family: binomial
 Outcome model link: logit
 Fixed center effects: TRUE
 Fixed time effects: TRUE
-Outcome goal: 0.85
+Outcome goal: 0.85 (maximize: at least this value)
 Power goal: not specified
-Intervention component costs: c(0, 1700), c(0, 8000)
+Intervention component costs: coaching_updt (0, 1700), launch_duration (0, 8000)
 Intervention lower bounds: 1, 1
 Intervention upper bounds: 40, 5
 
 ── Outcome model fit
-
                   Estimate Std. Error
 (Intercept)     -7.947e-01   0.134522
 center2          1.419e-01   0.136061
@@ -361,17 +357,24 @@ Estimated outcome: 0.85
 Outcome goal: 0.85
 
 ── Confidence set
-95% confidence set size: 11.85% of the grid
-IQR of the cost within the 95% confidence set: 32400 - 67750
+95% confidence set size: 11.56% of the grid
+IQR of the cost within the 95% confidence set: 33600 - 70350
 First rows of the confidence set (use $cs for all):
    coaching_updt launch_duration CI_lower_bound CI_upper_bound  cost
-78            33            1.45          0.726          0.853 67700
-79            35            1.45          0.722          0.856 71100
-80            37            1.45          0.718          0.860 74500
-81            39            1.45          0.714          0.864 77900
-82             1            1.60          0.769          0.874 14500
-83             3            1.60          0.772          0.872 17900</code></pre>
-<p>The outcome model here includes many more coefficients, one per center and per time period, than the previous example, and the console output shows them all. <code>summary(optimization_results)</code> prints the same output; inspect <code>optimization_results$cs</code> for the full confidence set or <code>optimization_results$model</code> for the fitted model, or run <code>lago_report(optimization_results)</code> for a shareable HTML report of the result.</p>
+81            33            1.45          0.726          0.853 67700
+82            35            1.45          0.722          0.856 71100
+83            37            1.45          0.718          0.860 74500
+84            39            1.45          0.714          0.864 77900
+85            40            1.45          0.712          0.866 79600
+86             1            1.60          0.769          0.874 14500
+Warning messages:
+1: The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.
+2: The lower bound for the intervention component launch_duration is greater than the minimum value in the data.
+3: In diagnose_model_fit(model = model, intervention_components = intervention_components,  :
+  The following intervention component(s) do not have a statistically significant association with the outcome (p &gt; 0.05):
+  - coaching_updt
+The LAGO optimization will still run, but the recommendation for these component(s) is not well supported by the data.</code></pre>
+<p>The warnings are expected here. Many births in the data have 0 coaching visits and a launch_duration of 0, so lower bounds of 1 are above the data minimum. coaching_updt also has no clear association with the outcome in this data, so the recommendation keeps it at its lower bound of 1. The outcome model here includes many more coefficients, one per center and per time period, than the previous example, and the console output shows them all. <code>summary(optimization_results)</code> prints the same output; inspect <code>optimization_results$cs</code> for the full confidence set or <code>optimization_results$model</code> for the fitted model, or run <code>lago_report(optimization_results)</code> for a shareable HTML report of the result.</p>
 </div>
 <div class="section level2">
 <h2 id="sensitivity-analysis">Sensitivity analysis<a class="anchor" aria-label="anchor" href="#sensitivity-analysis"></a>
@@ -462,14 +465,14 @@ First rows of the confidence set (use $cs for all):
 <span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a>    intervention_lower_bounds<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>],</span>
 <span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>    intervention_upper_bounds<span class="op">=</span>[<span class="dv">10</span>, <span class="dv">10</span>],</span>
 <span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a>)</span></code></pre></div>
-<p>The Python package also ships an <a href="https://modelcontextprotocol.io/" class="external-link">MCP</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>optimize</code> and <code>sensitivity</code> as tools any MCP-aware AI agent can call. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for installation, the MCP server, and the full API.</p>
+<p>The Python package also ships an <a href="https://modelcontextprotocol.io/" class="external-link">MCP</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>describe_data</code>, <code>optimize</code>, <code>sensitivity</code> and <code>budget</code> as tools any MCP-aware AI agent can call. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for installation, the MCP server, and the full API.</p>
 </div>
 <div class="section level2">
 <h2 id="using-lagotrials-with-ai-agents">Using LAGOtrials with AI agents<a class="anchor" aria-label="anchor" href="#using-lagotrials-with-ai-agents"></a>
 </h2>
 <p>LAGOtrials ships two ways to drive it from AI coding agents.</p>
 <p><strong>Agent skill.</strong> <a href="https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills/lagotrials" class="external-link"><code>skills/lagotrials</code></a> is an <a href="https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills" class="external-link">agent skill</a> (a <code>SKILL.md</code> of curated instructions and triggers) that teaches an agent how to use the package: the <code><a href="reference/lago_optimization.html">lago_optimization()</a></code> workflow, goal modes, cost functions, confidence sets, common errors, and the result object. Copy the skill directory into your agent’s skills path (for example <code>.claude/skills/</code> for Claude Code) and it loads automatically when a task matches. This teaches the agent; it does not run anything.</p>
-<p><strong>MCP server.</strong> The Python package ships a <a href="https://modelcontextprotocol.io/" class="external-link">Model Context Protocol</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>optimize</code> and <code>sensitivity</code> as tools an MCP-aware agent can call to actually run LAGOtrials. It reuses the Python wrapper, so R and the installed LAGOtrials R package are required. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for the client configuration.</p>
+<p><strong>MCP server.</strong> The Python package ships a <a href="https://modelcontextprotocol.io/" class="external-link">Model Context Protocol</a> server (<code>python -m lago.mcp_server</code>) that exposes <code>describe_data</code>, <code>optimize</code>, <code>sensitivity</code> and <code>budget</code> as tools an MCP-aware agent can call to actually run LAGOtrials. It reuses the Python wrapper, so R and the installed LAGOtrials R package are required. See <a href="https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md" class="external-link"><code>python/README.md</code></a> for the client configuration.</p>
 <p>In short: the skill tells an agent how to use LAGOtrials, the MCP server lets it execute LAGOtrials.</p>
 </div>
 <div class="section level2">

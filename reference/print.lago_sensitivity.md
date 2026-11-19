@@ -46,9 +46,9 @@ print(sens)
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear      qsec rec_int_cost est_outcome_goal status
-#> 1    30   10  6.522269     83.13361               30     ok
-#> 2    35   10  9.239851     99.43911               35     ok
-#> 3    40   10 11.957433    115.74460               40     ok
+#> 1    30   10  6.522269     83.13361         30.00000     ok
+#> 2    35   10  9.239845     99.43907         34.99999     ok
+#> 3    40   10 11.957433    115.74460         40.00000     ok
 #> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =
 #> 40.
 # }

@@ -4,14 +4,14 @@ multi-component intervention to improve hypertension care. Each row is one
 clinic in one time period. This is the version used to fit the &quot;new&quot; LAGO
 outcome model, which uses the same clinics and periods as
 main_pulesa_data but a different specification of the
-intervention (the W1–W8 components and their interaction
-terms)."><meta property="og:description" content="Clinic-level data from the PULESA study, a cluster-randomized trial of a
+intervention (the W1 to W8 components and the missing value
+indicators MI_W5, MI_W7 and MI_W8)."><meta property="og:description" content="Clinic-level data from the PULESA study, a cluster-randomized trial of a
 multi-component intervention to improve hypertension care. Each row is one
 clinic in one time period. This is the version used to fit the &quot;new&quot; LAGO
 outcome model, which uses the same clinics and periods as
 main_pulesa_data but a different specification of the
-intervention (the W1–W8 components and their interaction
-terms)."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
+intervention (the W1 to W8 components and the missing value
+indicators MI_W5, MI_W7 and MI_W8)."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -65,8 +65,8 @@ multi-component intervention to improve hypertension care. Each row is one
 clinic in one time period. This is the version used to fit the "new" LAGO
 outcome model, which uses the same clinics and periods as
 <code><a href="main_pulesa_data.html">main_pulesa_data</a></code> but a different specification of the
-intervention (the <code>W1</code>–<code>W8</code> components and their interaction
-terms).</p>
+intervention (the <code>W1</code> to <code>W8</code> components and the missing value
+indicators <code>MI_W5</code>, <code>MI_W7</code> and <code>MI_W8</code>).</p>
     </div>
 
     <div class="section level2">
@@ -92,25 +92,34 @@ terms).</p>
 <dd><p>Intervention component: care delivery mode A</p></dd>
 
 <dt>DeliveryB</dt>
-<dd><p>Intervention component: care delivery mode B</p></dd>
+<dd><p>Intervention component: care delivery mode B. Contains
+<code>NA</code> in 24 rows</p></dd>
 
 <dt>HypertensionTraining</dt>
 <dd><p>Intervention component: hypertension training</p></dd>
 
 <dt>MI_W5</dt>
-<dd><p>Interaction term involving component W5</p></dd>
+<dd><p>Missing value indicator for <code>W5</code>: 1 when
+<code>DeliveryB</code> is <code>NA</code> and <code>W5</code> holds the constant fill
+value 0.4800 (24 rows), 0 otherwise</p></dd>
 
 <dt>MI_W7</dt>
-<dd><p>Interaction term involving component W7</p></dd>
+<dd><p>Missing value indicator for <code>W7</code>: 1 when
+<code>RemoteMonitoring</code> is <code>NA</code> and <code>W7</code> holds the constant
+fill value 0.2416 (11 rows), 0 otherwise</p></dd>
 
 <dt>MI_W8</dt>
-<dd><p>Interaction term involving component W8</p></dd>
+<dd><p>Missing value indicator for <code>W8</code>: 1 when
+<code>PerformanceImprovement</code> is <code>NA</code> and <code>W8</code> holds the
+constant fill value 0.4348 (17 rows), 0 otherwise</p></dd>
 
 <dt>PerformanceImprovement</dt>
-<dd><p>Intervention component: performance improvement</p></dd>
+<dd><p>Intervention component: performance
+improvement. Contains <code>NA</code> in 17 rows</p></dd>
 
 <dt>RemoteMonitoring</dt>
-<dd><p>Intervention component: remote monitoring</p></dd>
+<dd><p>Intervention component: remote monitoring.
+Contains <code>NA</code> in 11 rows</p></dd>
 
 <dt>Success</dt>
 <dd><p>Outcome: number of successes at the clinic-period</p></dd>
@@ -144,6 +153,15 @@ terms).</p>
 
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Unlike in <code><a href="main_pulesa_data.html">main_pulesa_data</a></code>, the missing values of
+<code>DeliveryB</code> (24 rows), <code>RemoteMonitoring</code> (11 rows) and
+<code>PerformanceImprovement</code> (17 rows) are kept as <code>NA</code> here. The
+matching components <code>W5</code>, <code>W7</code> and <code>W8</code> have no missing
+values: in those rows they hold a constant fill value, and the
+<code>MI_W5</code>, <code>MI_W7</code> and <code>MI_W8</code> columns flag them.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

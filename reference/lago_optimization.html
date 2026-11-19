@@ -251,8 +251,9 @@ data identifying the stage-1 centers (clusters), used to compute the stage-1
 design effect for the power calculation. Required when icc is non-zero. The
 stage-1 cluster size is the variance-appropriate (size-biased) mean
 sum(m_i^2) / sum(m_i) over that arm's centers, where m_i counts the center's
-rows with an observed outcome, and each arm must have at least two centers
-with an observed outcome.
+rows with an observed outcome (its patients, the sum of center_sample_size,
+for center level data), and each arm must have at least two centers with an
+observed outcome.
 Default value without user specification: NULL.</p></dd>
 
 
@@ -334,6 +335,8 @@ outcome model. Continuous confidence covariance uses the actual fitted
 prior weights as relative observation weights, with zero weights excluded
 from covariance contributions and the identity residual degrees of freedom.
 See get_confidence_set() for the covariance formulas and family limits.
+Weights must not be negative or infinite. A row with a weight of 0 or NA
+is left out of the fit.
 A data column named weights does not replace this argument. For center
 level data it is ignored with a warning, since each row is weighted by its
 center_sample_size.</p></dd>
@@ -372,8 +375,9 @@ For example: c("component1", "component2").</p></dd>
 
 
 <dt id="arg-time-effect-optimization-value">time_effect_optimization_value<a class="anchor" aria-label="anchor" href="#arg-time-effect-optimization-value"></a></dt>
-<dd><p>A numeric value. The value of the time
-effect that will be used for LAGO optimization.</p></dd>
+<dd><p>The period used for LAGO
+optimization, as a number or as the label of a period in the 'period'
+column (for example "2024-Q1", or a Date for a Date column).</p></dd>
 
 
 <dt id="arg-additional-covariates">additional_covariates<a class="anchor" aria-label="anchor" href="#arg-additional-covariates"></a></dt>
@@ -396,7 +400,9 @@ The weights need to sum up to 1, and must all be non-negative and finite.
 A weight of 0 is allowed and excludes that center from the average. A center
 with no row where every model variable and the row's glm weight
 (center_sample_size for center level data) are observed is left out of the
-fit, so its weight must be 0. The weights follow the order of the centers:
+fit, so its weight must be 0. Named weights are matched to the centers by
+name (an explicit NA level is named "NA"), and names that are not the
+centers are refused. Unnamed weights follow the order of the centers:
 the levels of a factor column once unused levels are dropped (an explicit NA
 level included), and the sorted values otherwise.
 Default value without user specification:
@@ -533,38 +539,36 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Basic case showing how to carry out the optimization with</span></span></span>
-<span class="r-in"><span><span class="co"># a built-in data set. The confidence set is skipped here to keep this</span></span></span>
-<span class="r-in"><span><span class="co"># example fast; the \donttest examples below show a full run with one.</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Basic case with the built-in mtcars data. Treat the number of gears and</span></span></span>
+<span class="r-in"><span><span class="co"># the quarter mile time as two intervention components, and find the least</span></span></span>
+<span class="r-in"><span><span class="co"># costly values within the observed ranges that raise the expected miles per</span></span></span>
+<span class="r-in"><span><span class="co"># gallon to 25. The confidence set uses a coarse grid of whole numbers, so</span></span></span>
+<span class="r-in"><span><span class="co"># this example stays fast.</span></span></span>
 <span class="r-in"><span><span class="fu">lago_optimization</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  data <span class="op">=</span> <span class="va">infert</span>,</span></span>
-<span class="r-in"><span>  outcome_name <span class="op">=</span> <span class="st">"case"</span>,</span></span>
-<span class="r-in"><span>  outcome_type <span class="op">=</span> <span class="st">"binary"</span>,</span></span>
-<span class="r-in"><span>  glm_family <span class="op">=</span> <span class="st">"binomial"</span>,</span></span>
-<span class="r-in"><span>  intervention_components <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"age"</span>, <span class="st">"parity"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  intervention_lower_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">50</span>, <span class="fl">10</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">4</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  outcome_goal <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
+<span class="r-in"><span>  data <span class="op">=</span> <span class="va">mtcars</span>,</span></span>
+<span class="r-in"><span>  outcome_name <span class="op">=</span> <span class="st">"mpg"</span>,</span></span>
+<span class="r-in"><span>  outcome_type <span class="op">=</span> <span class="st">"continuous"</span>,</span></span>
+<span class="r-in"><span>  glm_family <span class="op">=</span> <span class="st">"gaussian"</span>,</span></span>
+<span class="r-in"><span>  link <span class="op">=</span> <span class="st">"identity"</span>,</span></span>
+<span class="r-in"><span>  intervention_components <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gear"</span>, <span class="st">"qsec"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  intervention_lower_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">14</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  intervention_upper_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">23</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  cost_list_of_vectors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">4</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">6</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  outcome_goal <span class="op">=</span> <span class="fl">25</span>,</span></span>
 <span class="r-in"><span>  outcome_goal_intention <span class="op">=</span> <span class="st">"maximize"</span>,</span></span>
-<span class="r-in"><span>  include_confidence_set <span class="op">=</span> <span class="cn">FALSE</span></span></span>
+<span class="r-in"><span>  confidence_set_grid_step_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Starting LAGO Optimization</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Validating inputs...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Assessing the cost function...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fitting the outcome model...</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The following intervention component(s) do not have a statistically significant association with the outcome (p &gt; 0.05):</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span>   - age</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span>   - parity</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> The LAGO optimization will still run, but the recommendation for these component(s) is not well supported by the data.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Calculating the recommended intervention...</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The outcome goal is not estimated to be achievable. Since the maximum estimated achievable outcome</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span>  is less than the outcome goal, we will shrink the recommended intervention towards the</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span>  recommended intervention from the previous stage.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Calculating the confidence set...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> If the confidence set calculation takes a long time to run, please consider changing the confidence set step size. </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> → ♥ LAGO optimization complete ♥</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Printing the output...</span>
@@ -572,43 +576,50 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="color: #0087D7; font-weight: bold;">LAGO optimization result</span> <span style="color: #00BBBB;">────────────────────────────────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Inputs</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Input data dimensions: 248 rows, 8 columns</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome name: case</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome type: binary</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> 2 intervention component(s): age, parity</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model family: binomial</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model link: logit</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Input data dimensions: 32 rows, 11 columns</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome name: mpg</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome type: continuous</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 2 intervention component(s): gear, qsec</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model family: gaussian</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model link: identity</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed center effects: FALSE</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed time effects: FALSE</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.5</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 25 (maximize: at least this value)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Power goal: not specified</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: c(0, 4), c(0, 1)</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention lower bounds: 0, 0</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention upper bounds: 50, 10</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: gear (0, 4), qsec (4, 6)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention lower bounds: 3, 14</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention upper bounds: 5, 23</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Outcome model fit</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              Estimate Std. Error</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (Intercept) -0.753683    0.83584</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> age          0.001137    0.02578</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> parity       0.014662    0.10768</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Standard errors are those of the fitted glm().</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>             Estimate Std. Error</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (Intercept)  -30.711     9.6702</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> gear           4.871     1.0814</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> qsec           1.840     0.4465</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Standard errors are model based, as the confidence set uses them.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Overall intervention-effect test</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> To see the overall test results, include a 'group' column in the data with</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> values 'treatment' or 'control' (binary outcomes only).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> The overall test is only available for binary outcomes. This outcome is</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> continuous.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> age: 31.504</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> parity: 2.0927</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 128.11</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.3347</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (the goal could not be reached,</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> so the shrinking method was used and no confidence set is computed)</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.5</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> gear: 5</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> qsec: 17.0422</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 126.25</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 25</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: 21.891 - 28.109</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 25</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Confidence set</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Not computed: the goal could not be reached, so the shrinking method was used</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> and no confidence set is computed.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 95% confidence set size: 30% of the grid</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> IQR of the cost within the 95% confidence set: 132 - 146</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> First rows of the confidence set (use $cs for all):</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    gear qsec CI_lower_bound CI_upper_bound cost</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10    5   16         19.811         26.354  120</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13    5   17         21.812         28.032  126</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16    5   18         23.573         29.952  132</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18    4   19         21.731         25.731  134</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 21    4   20         22.968         28.174  140</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 23    3   21         19.333         25.746  142</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Fuller examples, including the confidence-set grid search, which is</span></span></span>
 <span class="r-in"><span><span class="co"># inherently slower. Wrapped in \donttest{} so they are still checkable</span></span></span>
@@ -633,7 +644,6 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Validating inputs...</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component launch_duration is greater than the minimum value in the data.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Assessing the cost function...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
@@ -659,9 +669,10 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model link: logit</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed center effects: FALSE</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed time effects: FALSE</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85 (maximize: at least this value)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Power goal: not specified</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: c(0, 1700), c(0, 8000)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 8000)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention lower bounds: 1, 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention upper bounds: 40, 5</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -704,6 +715,9 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-out co"><span class="r-pr">#&gt;</span> 72 68700</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 73 70400</span>
 <span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># This goal of 0.85 is above what the data reach at the bounds, so it warns</span></span></span>
+<span class="r-in"><span><span class="co"># that the goal is not achievable and uses the shrinking method, with no</span></span></span>
+<span class="r-in"><span><span class="co"># confidence set.</span></span></span>
 <span class="r-in"><span><span class="fu">lago_optimization</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  data <span class="op">=</span> <span class="va">BB_proportions</span>,</span></span>
 <span class="r-in"><span>  outcome_name <span class="op">=</span> <span class="st">"EBP_proportions"</span>,</span></span>
@@ -724,7 +738,6 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Validating inputs...</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component coaching_updt is greater than the minimum value in the data.</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The lower bound for the intervention component launch_duration is greater than the minimum value in the data.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> When 'cost_list_of_vectors' is provided, 'default_cost_fxn_type' is ignored.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Assessing the cost function...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Done</span>
@@ -750,9 +763,10 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome model link: logit</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed center effects: FALSE</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Fixed time effects: FALSE</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85 (maximize: at least this value)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Power goal: not specified</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: c(0, 1700), c(0, 8000)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention component costs: coaching_updt (0, 1700), launch_duration (0,</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> 8000)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention lower bounds: 1, 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Intervention upper bounds: 40, 5</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -765,8 +779,8 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Standard errors are robust (sandwich, HC0), as the confidence set uses them.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Overall intervention-effect test</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> To see the overall test results, include a 'group' column in the data with</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> values 'treatment' or 'control' (binary outcomes only).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> The overall test is only available for binary outcomes. This outcome is</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> continuous.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 38.9881</span>

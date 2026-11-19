@@ -104,7 +104,8 @@ Uttar Pradesh, India. The binary outcome
 <code>pp3_oxytocin_mother</code> records whether oxytocin was
 administered. We treat two intervention components as adjustable:
 <code>coaching_updt</code> (number of coaching visits) and
-<code>launch_duration</code> (days of checklist launch).</p>
+<code>launch_duration</code> (duration of the checklist launch, which
+takes the values 0, 2 and 3 in the data).</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">bb_data</span> <span class="op">&lt;-</span> <span class="va">BB_data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">bb_data</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coaching_updt"</span>, <span class="st">"launch_duration"</span>, <span class="st">"pp3_oxytocin_mother"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
@@ -122,7 +123,7 @@ administered. We treat two intervention components as adjustable:
 <p>Suppose we want the least costly intervention that raises the
 probability of oxytocin administration to at least <code>0.85</code>,
 for a center with a birth volume of 1.75 (in hundreds). The costs of the
-two components are <code>1.7</code> and <code>8</code> per unit,
+two components are <code>1700</code> and <code>8000</code> per unit,
 respectively.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lago_optimization.html">lago_optimization</a></span><span class="op">(</span></span>
@@ -140,12 +141,10 @@ respectively.</p>
 <span>  confidence_set_grid_step_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>  quiet <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; Warning: The lower bound for the intervention component coaching_updt is</span></span>
 <span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
-<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span></code></pre></div>
+<span><span class="co">#&gt; Warning: The lower bound for the intervention component launch_duration is</span></span>
+<span><span class="co">#&gt; greater than the minimum value in the data.</span></span></code></pre></div>
 <p>The <code>quiet = TRUE</code> argument suppresses the progress
 messages so the vignette output stays clean; it does not change the
 result.</p>
@@ -169,9 +168,10 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; Outcome model link: logit</span></span>
 <span><span class="co">#&gt; Fixed center effects: FALSE</span></span>
 <span><span class="co">#&gt; Fixed time effects: FALSE</span></span>
-<span><span class="co">#&gt; Outcome goal: 0.85</span></span>
+<span><span class="co">#&gt; Outcome goal: 0.85 (maximize: at least this value)</span></span>
 <span><span class="co">#&gt; Power goal: not specified</span></span>
-<span><span class="co">#&gt; Intervention component costs: c(0, 1700), c(0, 8000)</span></span>
+<span><span class="co">#&gt; Intervention component costs: coaching_updt (0, 1700), launch_duration (0,</span></span>
+<span><span class="co">#&gt; 8000)</span></span>
 <span><span class="co">#&gt; Intervention lower bounds: 1, 1</span></span>
 <span><span class="co">#&gt; Intervention upper bounds: 40, 5</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -229,9 +229,10 @@ interval, and the confidence set:</p>
 <span><span class="co">#&gt; Outcome model link: logit</span></span>
 <span><span class="co">#&gt; Fixed center effects: FALSE</span></span>
 <span><span class="co">#&gt; Fixed time effects: FALSE</span></span>
-<span><span class="co">#&gt; Outcome goal: 0.85</span></span>
+<span><span class="co">#&gt; Outcome goal: 0.85 (maximize: at least this value)</span></span>
 <span><span class="co">#&gt; Power goal: not specified</span></span>
-<span><span class="co">#&gt; Intervention component costs: c(0, 1700), c(0, 8000)</span></span>
+<span><span class="co">#&gt; Intervention component costs: coaching_updt (0, 1700), launch_duration (0,</span></span>
+<span><span class="co">#&gt; 8000)</span></span>
 <span><span class="co">#&gt; Intervention lower bounds: 1, 1</span></span>
 <span><span class="co">#&gt; Intervention upper bounds: 40, 5</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -319,12 +320,10 @@ alone.</p>
 <span>  include_confidence_set <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  quiet <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; Warning: The lower bound for the intervention component coaching_updt is</span></span>
 <span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
-<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
+<span><span class="co">#&gt; Warning: The lower bound for the intervention component launch_duration is</span></span>
+<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
 <span></span>
 <span><span class="va">power_result</span><span class="op">$</span><span class="va">est_outcome_goal</span></span>
 <span><span class="co">#&gt; [1] 0.4781663</span></span></code></pre></div>
@@ -353,30 +352,10 @@ fast.</p>
 <span>  parameter <span class="op">=</span> <span class="st">"outcome_goal"</span>,</span>
 <span>  values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.75</span>, <span class="fl">0.80</span>, <span class="fl">0.85</span>, <span class="fl">0.90</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; Warning: The lower bound for the intervention component coaching_updt is</span></span>
 <span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
-<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
+<span><span class="co">#&gt; Warning: The lower bound for the intervention component launch_duration is</span></span>
 <span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
-<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
-<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
-<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component coaching_updt is</span></span>
-<span><span class="co">#&gt; greater than the minimum value in the data.</span></span>
-<span><span class="co">#&gt; Warning in (function (data, input_data_structure = "individual_level",</span></span>
-<span><span class="co">#&gt; outcome_name, : The lower bound for the intervention component launch_duration</span></span>
-<span><span class="co">#&gt; is greater than the minimum value in the data.</span></span>
 <span></span>
 <span><span class="va">sens</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -384,10 +363,10 @@ fast.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Varied <span style="color: #00BB00;">outcome_goal</span> across 4 runs; 0 failed.</span></span>
 <span><span class="co">#&gt;   value coaching_updt launch_duration rec_int_cost est_outcome_goal status</span></span>
-<span><span class="co">#&gt; 1  0.75             1        2.157674     18961.39        0.7499999     ok</span></span>
-<span><span class="co">#&gt; 2  0.80             1        2.438484     21207.88        0.8000000     ok</span></span>
-<span><span class="co">#&gt; 3  0.85             1        2.778472     23927.77        0.8500000     ok</span></span>
-<span><span class="co">#&gt; 4  0.90             1        3.230045     27540.36        0.9000000     ok</span></span>
+<span><span class="co">#&gt; 1  0.75             1        2.157674     18961.39             0.75     ok</span></span>
+<span><span class="co">#&gt; 2  0.80             1        2.438484     21207.88             0.80     ok</span></span>
+<span><span class="co">#&gt; 3  0.85             1        2.778472     23927.77             0.85     ok</span></span>
+<span><span class="co">#&gt; 4  0.90             1        3.230045     27540.36             0.90     ok</span></span>
 <span><span class="co">#&gt; rec_int_cost is 18961.39 at outcome_goal = 0.75 and 27540.36 at outcome_goal =</span></span>
 <span><span class="co">#&gt; 0.9.</span></span></code></pre></div>
 <p>The result is a tidy data frame with one row per swept value: the
