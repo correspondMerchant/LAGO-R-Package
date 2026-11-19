@@ -148,14 +148,14 @@
 }
 
 # The R code that reads an uploaded CSV the same way the app did.
-.app_read_csv_code <- function(name, sep = ",", dec = ".") {
+.app_read_csv_code <- function(name, sep = ",", dec = ".", encoding = "UTF-8-BOM") {
   extra <- c(
     if (!identical(sep, ",")) sprintf("sep = %s", deparse1(sep)),
     if (!identical(dec, ".")) sprintf("dec = %s", deparse1(dec))
   )
   sprintf(
     "read.csv(%s)",
-    paste(c(deparse1(name), extra, "na.strings = c(\"\", \"NA\")", "fileEncoding = \"UTF-8-BOM\""), collapse = ", ")
+    paste(c(deparse1(name), extra, "na.strings = c(\"\", \"NA\")", sprintf("fileEncoding = %s", deparse1(encoding))), collapse = ", ")
   )
 }
 
@@ -193,7 +193,7 @@
     center_col = center_col,
     centers = if (nzchar(center_col)) sort(unique(as.character(stats::na.omit(data[[center_col]])))) else character(0),
     period_col = period_col,
-    periods = periods, period = if (spec$period_value %in% periods) spec$period_value else utils::tail(periods, 1),
+    periods = periods, period = if (spec$period_value %in% periods) spec$period_value else .app_default_period(spec, data, period_col),
     covariates = setdiff(cols, c(spec$outcome, spec$components, if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total))),
     weights = setdiff(numeric_cols, c(spec$outcome, spec$components)),
     counts = numeric_cols
@@ -225,12 +225,46 @@
   list(labels = labels[order(largest, first, labels, na.last = TRUE)], numeric = FALSE)
 }
 
+# The encoding to read a file with: UTF-8, or Latin-1 when its bytes are not
+# valid UTF-8. read.csv() stops at the first byte that is not valid in the
+# encoding it is given, with only a warning, so the rows after it would be lost.
+.app_file_encoding <- function(path) {
+  bytes <- readBin(path, "raw", n = file.size(path))
+  bytes <- bytes[bytes != as.raw(0)]
+  if (validUTF8(rawToChar(bytes))) "UTF-8-BOM" else "latin1"
+}
+
+# The periods of a column with a row the model can use: every model column
+# observed and any weight above 0.
+.app_usable_periods <- function(spec, data, period_col) {
+  spec <- .app_resolve(spec)
+  data <- .app_center_columns(spec, data)$data
+  model <- c(
+    spec$outcome, spec$components, spec$covariates, period_col,
+    if (identical(spec$center_mode, "effects")) spec$center_col,
+    if (identical(spec$center_mode, "chars")) spec$center_chars
+  )
+  rows <- .app_fitted_rows(spec, data, model)
+  unique(as.character(data[[period_col]])[rows & !is.na(data[[period_col]])])
+}
+
+# The period to optimize for by default: the latest one with a row the model
+# can use, or the latest one when none has.
+.app_default_period <- function(spec, data, period_col) {
+  if (!isTRUE(period_col %in% names(data))) {
+    return(character(0))
+  }
+  periods <- .app_periods(data[[period_col]])$labels
+  usable <- intersect(periods, .app_usable_periods(spec, data, period_col))
+  utils::tail(if (length(usable)) usable else periods, 1)
+}
+
 # Read an uploaded CSV with the separator and decimal mark the user chose.
-.app_read_csv <- function(path, sep = ",", dec = ".") {
+.app_read_csv <- function(path, sep = ",", dec = ".", encoding = .app_file_encoding(path)) {
   utils::read.csv(
     path,
     sep = sep, dec = dec, na.strings = c("", "NA"),
-    check.names = TRUE, fileEncoding = "UTF-8-BOM", stringsAsFactors = FALSE
+    check.names = TRUE, fileEncoding = encoding, stringsAsFactors = FALSE
   )
 }
 
@@ -506,6 +540,20 @@
   )
 }
 
+# The columns the app builds for the package, which reads them by these names,
+# so a column of the data with such a name is replaced.
+.app_built_columns <- function(spec, data) {
+  built <- character(0)
+  if (.app_center_level(spec)) {
+    if (identical(spec$cl_kind, "successes") || !identical(spec$cl_value, "proportion")) built <- c(built, "proportion")
+    if (!identical(spec$cl_total, "center_sample_size")) built <- c(built, "center_sample_size")
+  }
+  if (.app_power_on(spec) && .app_needs_group(spec, data)) built <- c(built, "group")
+  if (identical(spec$center_mode, "effects") && nzchar(spec$center_col) && spec$center_col != "center") built <- c(built, "center")
+  if (isTRUE(spec$time_on) && nzchar(spec$period_col) && spec$period_col != "period") built <- c(built, "period")
+  built
+}
+
 # Problems that stop a run, each with the step it belongs to and a message that
 # says what to change. An empty data frame means the settings are ready.
 .app_problems <- function(spec, data) {
@@ -566,6 +614,31 @@
       note("outcome", "Center level data does not take weights, as each row is weighted by its total. Choose No weights.")
     }
   }
+  # a column the app builds would replace a chosen column of the same name
+  built <- .app_built_columns(spec, data)
+  roles <- list(
+    "the outcome" = if (!.app_center_level(spec)) spec$outcome,
+    "an intervention component" = spec$components, "a covariate" = spec$covariates,
+    "a center characteristic" = spec$center_chars, "the weights" = spec$weights_col
+  )
+  for (role in names(roles)) {
+    for (nm in intersect(roles[[role]], built)) {
+      note(if (role %in% c("the outcome", "the weights")) "outcome" else if (role == "an intervention component") "intervention" else "centers", sprintf(
+        "The column %s is chosen as %s, but the app builds its own column named %s for the package, which reads that name. Rename the column in your data, or choose another one.",
+        nm, role, nm
+      ))
+    }
+  }
+  # the package puts these columns in the model formula, which needs valid R names
+  formula_cols <- c(if (!.app_center_level(spec)) spec$outcome, spec$components, spec$covariates, spec$center_chars)
+  bad_names <- unique(formula_cols[nzchar(formula_cols) & formula_cols != make.names(formula_cols)])
+  if (length(bad_names)) {
+    note("data", sprintf(
+      "The column name(s) %s are not valid R names, so the model cannot use them. Rename them in R, for example with names(data) <- make.names(names(data)), which gives %s.",
+      paste0("'", bad_names, "'", collapse = ", "), paste0("'", make.names(bad_names), "'", collapse = ", ")
+    ))
+  }
+
   spec <- .app_resolve(spec)
   data <- .app_center_columns(spec, data)$data
 
@@ -585,6 +658,12 @@
     } else {
       sprintf("The logit link needs an outcome between 0 and 1, and '%s' goes outside it. Choose the usual link or identity.", spec$outcome)
     })
+  }
+  if (!is.null(y) && logit && !proportion && !any(y < 0 | y > 1, na.rm = TRUE) && any(y %in% c(0, 1))) {
+    note("outcome", sprintf(
+      "The logit link with the normal model needs an outcome strictly between 0 and 1, and '%s' has values of exactly 0 or 1. Choose the proportion model (quasibinomial), which takes 0 and 1.",
+      spec$outcome
+    ))
   }
   if ((proportion || logit) && !identical(spec$goal_mode, "power") && is.finite(spec$goal) && (spec$goal <= 0 || spec$goal >= 1)) {
     note("outcome", "A goal for an outcome between 0 and 1 must be between 0 and 1, such as 0.6 for 60%.")
@@ -726,6 +805,11 @@
       note("centers", "Choose the column that holds the time period.")
     } else if (!nzchar(spec$period_value)) {
       note("centers", "Choose the period to optimize for.")
+    } else if (spec$period_col %in% names(data) && !spec$period_value %in% .app_usable_periods(spec, data, spec$period_col)) {
+      note("centers", sprintf(
+        "The period %s has no row the model can use, where every model column is observed and any weight is above 0, so it cannot be optimized for. Choose another period.",
+        spec$period_value
+      ))
     }
   }
 
@@ -906,12 +990,12 @@
 }
 
 # Header names the reader changed to valid R names, as "old (now new)".
-.app_renamed <- function(path, sep, d) {
+.app_renamed <- function(path, sep, d, encoding = "UTF-8-BOM") {
   if (ncol(d) < 2) {
     return(character(0))
   }
   raw <- tryCatch(
-    names(utils::read.csv(path, sep = sep, nrows = 1, check.names = FALSE, fileEncoding = "UTF-8-BOM")),
+    names(utils::read.csv(path, sep = sep, nrows = 1, check.names = FALSE, fileEncoding = encoding)),
     error = function(e) names(d)
   )
   if (length(raw) != length(names(d))) {
@@ -935,6 +1019,18 @@
     "The cheapest intervention that is estimated to reach the goal sets %s. It costs %s and its estimated outcome is %s.",
     levels, fmt(r$rec_int_cost), fmt(r$est_outcome_goal)
   )
+}
+
+# The error of a run, with a hint when the identity link could not be fitted.
+.app_explain_error <- function(error, link) {
+  if (!is.null(error) && identical(link, "identity") && grepl("no valid set of coefficients", error, fixed = TRUE)) {
+    error <- paste(
+      "The model could not be fitted with the identity link, which can give a probability below 0 or above 1.",
+      "Choose the logit link, or the usual link, in the outcome model settings of step 2.",
+      sprintf("The package said: %s", error)
+    )
+  }
+  error
 }
 
 # Steps a user can take when the package refuses a run.
