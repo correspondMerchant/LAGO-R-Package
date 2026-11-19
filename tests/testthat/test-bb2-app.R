@@ -9,27 +9,27 @@ bb2_msgs <- function(s, data) paste(.app_problems(s, data)$message, collapse = "
 
 bb2_latin1_csv <- function(path) {
   set.seed(1)
-  site <- rep(c("Abc", "Clínica", "Def"), each = 20)
+  site <- rep(c("Abc", "Cl\u00ednica", "Def"), each = 20)
   lines <- c("site;y;x1", sprintf("%s;%d;%s", site, rbinom(60, 1, 0.5), sub(".", ",", format(runif(60, 0, 5)), fixed = TRUE)))
   writeBin(iconv(paste0(paste(lines, collapse = "\n"), "\n"), "UTF-8", "latin1", toRaw = TRUE)[[1]], path)
 }
 
 test_that("a CSV that is not UTF-8 is read in full as Latin-1", {
-  path <- withr::local_tempfile(fileext = ".csv")
+  path <- tempfile(fileext = ".csv")
   bb2_latin1_csv(path)
   expect_identical(.app_file_encoding(path), "latin1")
   d <- .app_read_csv(path, sep = ";", dec = ",")
   expect_equal(nrow(d), 60)
-  expect_equal(sum(d$site == "Clínica"), 20)
+  expect_equal(sum(d$site == "Cl\u00ednica"), 20)
   expect_identical(.app_renamed(path, ";", d, "latin1"), character(0))
   expect_match(.app_read_csv_code("a.csv", ";", ",", "latin1"), "fileEncoding = \"latin1\"", fixed = TRUE)
-  utf8 <- withr::local_tempfile(fileext = ".csv")
-  writeLines(enc2utf8(c("site,y", "Clínica,1")), utf8, useBytes = TRUE)
+  utf8 <- tempfile(fileext = ".csv")
+  writeLines(enc2utf8(c("site,y", "Cl\u00ednica,1")), utf8, useBytes = TRUE)
   expect_identical(.app_file_encoding(utf8), "UTF-8-BOM")
 })
 
 test_that("the app tells the user when an upload was read as Latin-1", {
-  path <- withr::local_tempfile(fileext = ".csv")
+  path <- tempfile(fileext = ".csv")
   bb2_latin1_csv(path)
   shiny::testServer(.build_lago_app(), {
     session$setInputs(source = "upload", sep = ";", dec = ",", file = list(datapath = path, name = "l.csv"))

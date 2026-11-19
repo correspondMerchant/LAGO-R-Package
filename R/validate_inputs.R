@@ -17,6 +17,7 @@ validate_inputs <- function(
     unit_costs = NULL,
     unit_cost_doses = NULL,
     default_cost_fxn_type = "cubic",
+    cost_type_given = TRUE,
     cost_list_of_vectors = NULL,
     glm_family = "default",
     link = "default",
@@ -235,13 +236,10 @@ validate_inputs <- function(
         "number of observations in the provided input data."
       ))
     }
-    # glm() refuses negative weights, and fits nothing with no positive weight
-    if (any(is.infinite(weights)) || any(weights < 0, na.rm = TRUE) ||
-      !any(weights > 0, na.rm = TRUE)) {
-      stop(paste(
-        "The 'weights' must be finite and not negative, with at least one",
-        "weight above 0."
-      ))
+    # glm() refuses negative weights. All zero weights are named later, with
+    # the rows the model can use.
+    if (any(is.infinite(weights)) || any(weights < 0, na.rm = TRUE)) {
+      stop("The 'weights' must be finite and not negative.")
     }
   }
 
@@ -951,7 +949,7 @@ validate_inputs <- function(
       ))
     }
     # check if default_cost_fxn_type is also provided
-    if (!is.null(default_cost_fxn_type) && !quiet) {
+    if (isTRUE(cost_type_given) && !is.null(default_cost_fxn_type) && !quiet) {
       input_note(paste(
         "When 'cost_list_of_vectors' is provided,",
         "'default_cost_fxn_type' is ignored."

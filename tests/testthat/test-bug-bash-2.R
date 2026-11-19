@@ -114,7 +114,6 @@ test_that("center level extrapolation uses the rows with a positive sample size"
 
 test_that("weights, sizes and outcomes out of range are refused clearly", {
   w <- rep(1, nrow(mtcars))
-  expect_error(bb2_vi(weights = w * 0), "at least one weight above 0")
   expect_error(bb2_vi(weights = replace(w, 1, Inf)), "must be finite and not negative")
   expect_error(bb2_vi(weights = replace(w, 1, -1)), "must be finite and not negative")
   d <- mtcars
@@ -248,10 +247,10 @@ test_that("a goal within round off of the best outcome is reached, not shrunk", 
   d$y <- stats::rbinom(300, 1, stats::plogis(0.27 - 1.05 * d$x1))
   b <- stats::coef(stats::glm(y ~ x1, binomial, d))
   at <- function(x) unname(stats::plogis(b[1] + b[2] * x))
-  # the goal is 1e-10 past the best outcome, which is at one bound
+  # the goal is 1e-12 past the best outcome, which is at one bound
   cases <- list(
-    list(intention = "maximize", goal = at(0.7) + 1e-10, best = 0.7),
-    list(intention = "minimize", goal = at(3.7) - 1e-10, best = 3.7)
+    list(intention = "maximize", goal = at(0.7) + 1e-12, best = 0.7),
+    list(intention = "minimize", goal = at(3.7) - 1e-12, best = 3.7)
   )
   for (case in cases) {
     for (method in c("numerical", "grid_search")) {

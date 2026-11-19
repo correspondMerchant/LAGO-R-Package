@@ -689,9 +689,9 @@ get_recommended_interventions <- function(
       # find the maximum outcome
       max_outcome <- max(all_outcomes)
 
-      # a goal within round off of the best outcome is reached, with the
-      # tolerance lago_budget() and the numerical method use
-      reach_tol <- 1e-6 * max(1, abs(new_outcome_goal))
+      # a goal within round off of the best outcome is reached
+      # relative to the outcome, so it does not depend on its units
+      reach_tol <- 1e-10 * max(abs(new_outcome_goal), abs(max_outcome))
       if (max_outcome >= new_outcome_goal - reach_tol && !power_unreachable) {
         # 1) if the outcome goal is achievable
         valid_indices <- which(all_outcomes >= new_outcome_goal - reach_tol)
@@ -935,9 +935,10 @@ get_recommended_interventions <- function(
       cost_obj_fun_scaled <- function(x) cost_obj_fun(x) / cost_scale
 
       # 1) if the max achievable outcome is larger than the new outcome goal
-      # a goal within round off of the best outcome is reached, with the
-      # tolerance the solution is checked with below
-      if (max_achievable_outcome >= new_outcome_goal - 1e-6 * max(1, abs(new_outcome_goal)) &&
+      # a goal within round off of the best outcome is reached. The tolerance
+      # is relative to the outcome, so it does not depend on its units.
+      if (max_achievable_outcome >= new_outcome_goal -
+        1e-10 * max(abs(new_outcome_goal), abs(max_achievable_outcome)) &&
         !power_unreachable) {
         # If the goal is achievable, get the recommended intervention that
         # minimizes the total cost function

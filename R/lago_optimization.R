@@ -414,9 +414,7 @@ lago_optimization <- function(
   validation_args$captured_args <- NULL
   # the note that a cost list overrides default_cost_fxn_type is only for a
   # caller who set it
-  if (missing(default_cost_fxn_type) && !is.null(cost_list_of_vectors)) {
-    validation_args["default_cost_fxn_type"] <- list(NULL)
-  }
+  validation_args$cost_type_given <- !missing(default_cost_fxn_type)
   inputs <- do.call(
     validate_inputs,
     validation_args
