@@ -77,8 +77,11 @@
 #'   \item The special string `"cost_multiplier"`: each run multiplies every
 #'   coefficient of every vector in the baseline `cost_list_of_vectors` by one
 #'   element of `values`, so `values = c(0.8, 1, 1.2)` evaluates the costs at
-#'   80\%, 100\%, and 120\%. This mode requires `cost_list_of_vectors` in
-#'   `...` and all `values` must be positive.
+#'   80\%, 100\%, and 120\%. When the baseline gives `unit_costs` instead of
+#'   `cost_list_of_vectors`, each run multiplies `unit_costs` by the value,
+#'   which scales the linear or cubic cost built from them in the same way.
+#'   This mode requires `cost_list_of_vectors` or `unit_costs` (in `...` or
+#'   stored on `object`), and all `values` must be positive.
 #' }
 #' @param values A non-empty numeric vector, all finite. One run per element.
 #' @param quiet A boolean forwarded to [lago_optimization()]. Defaults to
@@ -253,12 +256,17 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   }
 
   # --- cost_multiplier-specific validation ----------------------------------
+  # lago_optimization() uses cost_list_of_vectors when it is given, and
+  # otherwise builds the costs from unit_costs. Both the linear and the cubic
+  # cost built from unit_costs scale with them, so scaling unit_costs scales
+  # the whole cost function.
+  scale_unit_costs <- cost_mode && is.null(dots$cost_list_of_vectors)
   if (cost_mode) {
-    if (!"cost_list_of_vectors" %in% names(dots) ||
-      is.null(dots$cost_list_of_vectors)) {
+    if (scale_unit_costs && is.null(dots$unit_costs)) {
       stop(paste(
-        "`parameter = \"cost_multiplier\"` requires `cost_list_of_vectors`",
-        "in `...` (the baseline cost functions to scale)."
+        "`parameter = \"cost_multiplier\"` requires `cost_list_of_vectors` or",
+        "`unit_costs`, in `...` or stored on `object` (the baseline costs to",
+        "scale)."
       ))
     }
     if (any(values <= 0)) {
@@ -299,7 +307,9 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   if (open_fit_cache()) on.exit(close_fit_cache(), add = TRUE)
   for (i in seq_len(n)) {
     args <- dots
-    if (cost_mode) {
+    if (scale_unit_costs) {
+      args$unit_costs <- dots$unit_costs * values[i]
+    } else if (cost_mode) {
       args$cost_list_of_vectors <- lapply(
         dots$cost_list_of_vectors, function(v) v * values[i]
       )
@@ -465,10 +475,17 @@ print.lago_sensitivity <- function(x, ...) {
     vals <- x$value[ok][ord]
     # pre-format so there are no glue braces in the interpolated string.
     msg <- sprintf(
-      "rec_int_cost is %s at %s = %s and %s at %s = %s.",
-      format(cost[1]), param, format(vals[1]),
-      format(cost[length(cost)]), param, format(vals[length(vals)])
+      "rec_int_cost is %s at %s = %s",
+      format(cost[1]), param, format(vals[1])
     )
+    # a single successful run has no second end to report
+    if (length(cost) > 1L) {
+      msg <- paste(msg, sprintf(
+        "and %s at %s = %s", format(cost[length(cost)]), param,
+        format(vals[length(vals)])
+      ))
+    }
+    msg <- paste0(msg, ".")
     cli::cli_text(msg)
   }
 

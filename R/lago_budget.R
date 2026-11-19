@@ -32,7 +32,9 @@
 #' across the outcome's range. Larger values give a finer, more precise answer
 #' at the cost of more optimization runs. A second refinement pass tries
 #' `n_grid` more goals strictly inside the gap at the affordability boundary,
-#' so the effective resolution is finer than `n_grid` alone. Default 25.
+#' and that gap is then halved one run at a time until it is narrower than
+#' 1/10000 of the goal range, so the answer does not depend much on `n_grid`.
+#' Default 25.
 #' @param quiet A boolean forwarded to [lago_optimization()] via
 #' [lago_sensitivity()]. Defaults to `TRUE` so the search is not noisy.
 #'
@@ -49,8 +51,11 @@
 #' `"minimize"`). Goals that tie on the estimated outcome return the same
 #' intervention, and the one furthest in the improving direction is taken. The
 #' grid is extended in the improving direction until goals stop being reached
-#' or affordable, up to 30 times with a warning if that is not enough, and a
-#' refinement sweep is then run near the affordability boundary to tighten the
+#' or affordable, up to 30 times with a warning if that is not enough. When no
+#' reached goal is affordable, the grid is also extended in the other direction,
+#' towards the cheaper and worse outcomes, until a reached goal is affordable or
+#' the cheapest reached goal stops getting cheaper. A refinement sweep and a
+#' bisection are then run near the affordability boundary to tighten the
 #' estimate.
 #'
 #' If no reachable goal is affordable (the budget is below the cost of even the
@@ -368,61 +373,74 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     tied[if (maximize) which.max(df$outcome_goal[tied]) else which.min(df$outcome_goal[tied])]
   }
 
-  # a rare binary outcome may afford only goals below the grid when maximizing,
-  # or above it when minimizing, so the grid also fills the gap the other way,
-  # towards 0 or 1, until a reached goal is affordable. Once some goal is
-  # reached, it stops when a pass makes the cheapest reached goal no cheaper,
-  # since the goals further on then cost the same, at the lower bounds.
-  if (identical(outcome_type, "binary")) {
-    inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
-    cheapest_reached <- function(df) {
-      costs <- df$rec_int_cost[df$reached]
-      if (length(costs)) min(costs) else NA_real_
-    }
-    passes <- 0L
-    cheapest <- cheapest_reached(fr)
-    while (is.na(best_idx(fr)) && passes < 30L) {
-      g0 <- if (maximize) min(fr$outcome_goal) else max(fr$outcome_goal)
+  # The cheap interventions reach only the worse outcomes, so a small budget
+  # may afford only goals below the grid when maximizing, or above it when
+  # minimizing. The grid then also grows the other way until a reached goal is
+  # affordable: a binary goal fills the gap towards 0 or 1, and a continuous
+  # goal extends by the span of the goals so far. Once some goal is reached, it
+  # stops when a pass makes the cheapest reached goal no cheaper, since the
+  # goals further on then cost the same, at the lower bounds.
+  binary <- identical(outcome_type, "binary")
+  inside <- seq(0, 1, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]
+  cheapest_reached <- function(df) {
+    costs <- df$rec_int_cost[df$reached]
+    if (length(costs)) min(costs) else NA_real_
+  }
+  passes <- 0L
+  cheapest <- cheapest_reached(fr)
+  while (is.na(best_idx(fr)) && passes < 30L) {
+    g0 <- if (maximize) min(fr$outcome_goal) else max(fr$outcome_goal)
+    if (binary) {
       gap <- if (maximize) g0 else 1 - g0
       if (gap < 1e-6) break
       new_goals <- if (maximize) g0 * inside else g0 + (1 - g0) * inside
-      fr <- rbind(fr, sweep(new_goals))
-      fr <- fr[order(fr$outcome_goal), , drop = FALSE]
-      rownames(fr) <- NULL
-      passes <- passes + 1L
-      now <- cheapest_reached(fr)
-      if (!is.na(cheapest) && !(now < cheapest - 1e-9 * max(1, abs(cheapest)))) break
-      cheapest <- now
+    } else {
+      span <- diff(range(fr$outcome_goal))
+      new_goals <- if (maximize) g0 - span * rev(seq_len(n_grid)) / n_grid else g0 + span * seq_len(n_grid) / n_grid
     }
+    fr <- rbind(fr, sweep(new_goals))
+    fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+    rownames(fr) <- NULL
+    passes <- passes + 1L
+    now <- cheapest_reached(fr)
+    if (!is.na(cheapest) && !(now < cheapest - 1e-9 * max(1, abs(cheapest)))) break
+    cheapest <- now
   }
-
-  bi <- best_idx(fr)
 
   # --- refinement: tighten the estimate near the affordability boundary -----
-  # The true best-affordable outcome sits between the chosen goal and the
-  # adjacent goal that was unaffordable or unreachable (in the improving
-  # direction). Sweep a finer grid across that gap and re-pick.
-  if (!is.na(bi)) {
-    ord <- order(fr$outcome_goal)
-    pos <- match(bi, ord)
-    neighbor <- if (maximize) {
-      if (pos < length(ord)) ord[pos + 1L] else NA_integer_
-    } else {
-      if (pos > 1L) ord[pos - 1L] else NA_integer_
+  # The best affordable outcome sits between the furthest goal in the improving
+  # direction that is reached and affordable, and the next goal beyond it, which
+  # is unaffordable or unreachable. A first sweep tries n_grid goals strictly
+  # inside that gap, so n_grid = 2 still refines it. The gap is then halved, one
+  # run at a time, until it is narrower than a small part of the goal range, so
+  # a coarse grid does not leave a better affordable outcome behind.
+  bracket <- function(df) {
+    ok <- df$reached & df$affordable
+    # goals in the improving direction are larger here, whatever the intention
+    g <- if (maximize) df$outcome_goal else -df$outcome_goal
+    # with no such goal, or no goal beyond it, max() or min() gives an infinite end
+    lo <- suppressWarnings(max(g[ok]))
+    hi <- suppressWarnings(min(g[g > lo]))
+    if (!is.finite(lo) || !is.finite(hi)) {
+      return(NULL)
     }
-    if (!is.na(neighbor)) {
-      lo <- min(fr$outcome_goal[bi], fr$outcome_goal[neighbor])
-      hi <- max(fr$outcome_goal[bi], fr$outcome_goal[neighbor])
-      if (hi > lo) {
-        # only goals strictly inside the gap, so n_grid = 2 still refines it
-        fr2 <- sweep(seq(lo, hi, length.out = n_grid + 2L)[-c(1L, n_grid + 2L)])
-        fr <- rbind(fr, fr2)
-        fr <- fr[order(fr$outcome_goal), , drop = FALSE]
-        rownames(fr) <- NULL
-        bi <- best_idx(fr)
-      }
-    }
+    sort(if (maximize) c(lo, hi) else -c(lo, hi))
   }
+  goal_tol <- 1e-4 * diff(range(goal_grid(n_grid)))
+  br <- bracket(fr)
+  if (!is.null(br)) {
+    fr <- rbind(fr, sweep(seq(br[1], br[2], length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]))
+    fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+    rownames(fr) <- NULL
+  }
+  halvings <- 0L
+  while (!is.null(br <- bracket(fr)) && diff(br) > goal_tol && halvings < 40L) {
+    fr <- rbind(fr, sweep(mean(br)))
+    fr <- fr[order(fr$outcome_goal), , drop = FALSE]
+    rownames(fr) <- NULL
+    halvings <- halvings + 1L
+  }
+  bi <- best_idx(fr)
 
   # "reachable" here means genuinely reached (the recommendation delivers the
   # goal), not merely non-erroring: unreachable goals return via shrinking.
@@ -555,13 +573,16 @@ print.lago_budget <- function(x, ...) {
   comps <- x$component_names
   rec <- x$rec_int
   rec_txt <- if (length(comps)) {
-    paste(paste0(comps, " = ", format(as.numeric(rec))), collapse = ", ")
+    paste(paste0(comps, " = ", .lago_fmt_value(as.numeric(rec))), collapse = ", ")
   } else {
     "(none)"
   }
+  # rounded as print.lago() rounds them
+  cost_txt <- .lago_fmt_cost(x$rec_int_cost)
+  est_txt <- .lago_fmt_value(x$est_outcome)
   cli::cli_text("Recommended intervention: {rec_txt}")
-  cli::cli_text("Cost: {.val {x$rec_int_cost}} (of {.val {x$budget}}).")
-  cli::cli_text("Estimated outcome: {.val {x$est_outcome}}.")
+  cli::cli_text("Cost: {.val {cost_txt}} (of {.val {x$budget}}).")
+  cli::cli_text("Estimated outcome: {.val {est_txt}}.")
   if (!x$binding) {
     best <- if (identical(x$intention, "minimize")) "minimum" else "maximum"
     cli::cli_alert_info(paste0(

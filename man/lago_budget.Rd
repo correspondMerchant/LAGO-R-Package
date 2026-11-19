@@ -27,7 +27,9 @@ allowed, in the same units as the supplied \code{cost_list_of_vectors} (or
 across the outcome's range. Larger values give a finer, more precise answer
 at the cost of more optimization runs. A second refinement pass tries
 \code{n_grid} more goals strictly inside the gap at the affordability boundary,
-so the effective resolution is finer than \code{n_grid} alone. Default 25.}
+and that gap is then halved one run at a time until it is narrower than
+1/10000 of the goal range, so the answer does not depend much on \code{n_grid}.
+Default 25.}
 
 \item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}} via
 \code{\link[=lago_sensitivity]{lago_sensitivity()}}. Defaults to \code{TRUE} so the search is not noisy.}
@@ -86,8 +88,11 @@ estimated outcome is chosen (largest for \code{"maximize"}, smallest for
 \code{"minimize"}). Goals that tie on the estimated outcome return the same
 intervention, and the one furthest in the improving direction is taken. The
 grid is extended in the improving direction until goals stop being reached
-or affordable, up to 30 times with a warning if that is not enough, and a
-refinement sweep is then run near the affordability boundary to tighten the
+or affordable, up to 30 times with a warning if that is not enough. When no
+reached goal is affordable, the grid is also extended in the other direction,
+towards the cheaper and worse outcomes, until a reached goal is affordable or
+the cheapest reached goal stops getting cheaper. A refinement sweep and a
+bisection are then run near the affordability boundary to tighten the
 estimate.
 
 If no reachable goal is affordable (the budget is below the cost of even the
