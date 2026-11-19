@@ -466,7 +466,7 @@ cost_list = lago.visualize_cost(
 )
 ```
 
-The Python package also ships an [MCP](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity` as tools any MCP-aware AI agent can call. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for installation, the MCP server, and the full API.
+The Python package also ships an [MCP](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `describe_data`, `optimize`, `sensitivity` and `budget` as tools any MCP-aware AI agent can call. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for installation, the MCP server, and the full API.
 
 ## Using LAGOtrials with AI agents
 
@@ -474,7 +474,7 @@ LAGOtrials ships two ways to drive it from AI coding agents.
 
 **Agent skill.** [`skills/lagotrials`](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills/lagotrials) is an [agent skill](https://github.com/correspondMerchant/LAGO-R-Package/tree/main/skills) (a `SKILL.md` of curated instructions and triggers) that teaches an agent how to use the package: the `lago_optimization()` workflow, goal modes, cost functions, confidence sets, common errors, and the result object. Copy the skill directory into your agent's skills path (for example `.claude/skills/` for Claude Code) and it loads automatically when a task matches. This teaches the agent; it does not run anything.
 
-**MCP server.** The Python package ships a [Model Context Protocol](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `optimize` and `sensitivity` as tools an MCP-aware agent can call to actually run LAGOtrials. It reuses the Python wrapper, so R and the installed LAGOtrials R package are required. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for the client configuration.
+**MCP server.** The Python package ships a [Model Context Protocol](https://modelcontextprotocol.io/) server (`python -m lago.mcp_server`) that exposes `describe_data`, `optimize`, `sensitivity` and `budget` as tools an MCP-aware agent can call to actually run LAGOtrials. It reuses the Python wrapper, so R and the installed LAGOtrials R package are required. See [`python/README.md`](https://github.com/correspondMerchant/LAGO-R-Package/blob/main/python/README.md) for the client configuration.
 
 In short: the skill tells an agent how to use LAGOtrials, the MCP server lets it execute LAGOtrials.
 

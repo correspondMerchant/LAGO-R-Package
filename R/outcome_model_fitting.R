@@ -152,6 +152,15 @@ outcome_model_fitting <- function(
       "' has one. Fill in the missing values", turn_off(term), "."
     ))
   }
+  # with no positive weight at all there is nothing to fit
+  if (!is.null(weights) && !any(weights > 0, na.rm = TRUE)) {
+    stop(paste(
+      "No row has a positive glm weight",
+      if (input_data_structure == "center_level") "(center_sample_size)," else "('weights'),",
+      "so the outcome model cannot be fitted. Give at least some rows a weight",
+      "above 0."
+    ))
+  }
   # A center or period whose usable rows all have zero weight has a dummy glm()
   # cannot estimate. Its rows add nothing to the fit, so they are left out as rows
   # with a missing weight are, and the center is left out of the average.

@@ -139,8 +139,9 @@ data identifying the stage-1 centers (clusters), used to compute the stage-1
 design effect for the power calculation. Required when icc is non-zero. The
 stage-1 cluster size is the variance-appropriate (size-biased) mean
 sum(m_i^2) / sum(m_i) over that arm's centers, where m_i counts the center's
-rows with an observed outcome, and each arm must have at least two centers
-with an observed outcome.
+rows with an observed outcome (its patients, the sum of center_sample_size,
+for center level data), and each arm must have at least two centers with an
+observed outcome.
 Default value without user specification: NULL.}
 
 \item{unit_costs}{A numeric vector. Specifies the unit costs for each
@@ -216,6 +217,8 @@ outcome model. Continuous confidence covariance uses the actual fitted
 prior weights as relative observation weights, with zero weights excluded
 from covariance contributions and the identity residual degrees of freedom.
 See get_confidence_set() for the covariance formulas and family limits.
+Weights must be finite and not negative, with no NA. A weight of 0 leaves
+its row out of the fit.
 A data column named weights does not replace this argument. For center
 level data it is ignored with a warning, since each row is weighted by its
 center_sample_size.}
@@ -246,8 +249,9 @@ recommended intervention for a center with birth_volume_100 = 1.75.}
 components in the presence of interaction terms.
 For example: c("component1", "component2").}
 
-\item{time_effect_optimization_value}{A numeric value. The value of the time
-effect that will be used for LAGO optimization.}
+\item{time_effect_optimization_value}{The period used for LAGO
+optimization, as a number or as the label of a period in the 'period'
+column (for example "2024-Q1", or a Date for a Date column).}
 
 \item{additional_covariates}{A character vector. The names of the columns in
 the dataset that represent additional covariates that need to be included
@@ -266,7 +270,9 @@ The weights need to sum up to 1, and must all be non-negative and finite.
 A weight of 0 is allowed and excludes that center from the average. A center
 with no row where every model variable and the row's glm weight
 (center_sample_size for center level data) are observed is left out of the
-fit, so its weight must be 0. The weights follow the order of the centers:
+fit, so its weight must be 0. Named weights are matched to the centers by
+name (an explicit NA level is named "NA"), and names that are not the
+centers are refused. Unnamed weights follow the order of the centers:
 the levels of a factor column once unused levels are dropped (an explicit NA
 level included), and the sorted values otherwise.
 Default value without user specification:
@@ -423,6 +429,9 @@ lago_optimization(
   confidence_set_grid_step_size = c(1, 1)
 )
 
+# This goal of 0.85 is above what the data reach at the bounds, so it warns
+# that the goal is not achievable and uses the shrinking method, with no
+# confidence set.
 lago_optimization(
   data = BB_proportions,
   outcome_name = "EBP_proportions",

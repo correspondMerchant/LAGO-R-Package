@@ -102,7 +102,8 @@
 #' prior weights as relative observation weights, with zero weights excluded
 #' from covariance contributions and the identity residual degrees of freedom.
 #' See get_confidence_set() for the covariance formulas and family limits.
-#' A row with an NA weight is left out of the fit, as glm() leaves it out.
+#' Weights must be finite and not negative, with no NA. A weight of 0 leaves
+#' its row out of the fit.
 #' A data column named weights does not replace this argument. For center
 #' level data it is ignored with a warning, since each row is weighted by its
 #' center_sample_size.
@@ -173,7 +174,9 @@
 #' A weight of 0 is allowed and excludes that center from the average. A center
 #' with no row where every model variable and the row's glm weight
 #' (center_sample_size for center level data) are observed is left out of the
-#' fit, so its weight must be 0. The weights follow the order of the centers:
+#' fit, so its weight must be 0. Named weights are matched to the centers by
+#' name (an explicit NA level is named "NA"), and names that are not the
+#' centers are refused. Unnamed weights follow the order of the centers:
 #' the levels of a factor column once unused levels are dropped (an explicit NA
 #' level included), and the sorted values otherwise.
 #' Default value without user specification:
@@ -332,6 +335,9 @@
 #'   confidence_set_grid_step_size = c(1, 1)
 #' )
 #'
+#' # This goal of 0.85 is above what the data reach at the bounds, so it warns
+#' # that the goal is not achievable and uses the shrinking method, with no
+#' # confidence set.
 #' lago_optimization(
 #'   data = BB_proportions,
 #'   outcome_name = "EBP_proportions",
@@ -405,6 +411,11 @@ lago_optimization <- function(
   # it does not disturb the printed output, the documented $-accessible fields,
   # or the list's named-element set, and lets lago_sensitivity() reuse the call.
   captured_args <- mget(names(formals()))
+  # a cost type the caller did not set is not stored, so a rerun from the
+  # result does not show the note that a cost list overrides it
+  if (missing(default_cost_fxn_type) && !is.null(cost_list_of_vectors)) {
+    captured_args$default_cost_fxn_type <- NULL
+  }
 
   if (!quiet) cli::cli_alert_info("Starting LAGO Optimization")
 

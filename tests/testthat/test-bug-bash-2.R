@@ -154,7 +154,7 @@ test_that("a missing arm is named in the power goal check and left out of the te
   d$group <- c("treatment", rep("control", nrow(d) - 1))
   expect_warning(
     expect_null(LAGOtrials:::test_processor(d, "binary", "vs")),
-    "needs at least two rows"
+    "needs at least two patients"
   )
 })
 

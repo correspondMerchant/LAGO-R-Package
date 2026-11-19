@@ -175,8 +175,10 @@ distinguish from the goal," not "interventions that meet it."
   aliased terms. Switching to `grid_search` does not help, as the fit is the
   problem. Drop or combine the collinear predictors.
 - `center_weights_for_outcome_goal` must be numeric, finite and non-negative,
-  sum to 1, and follow the order of the centers: the levels of the `center`
-  factor, or its sorted values. A center with no complete row must get 0.
+  sum to 1. Named weights are matched to the centers by name, and unknown
+  names are refused. Unnamed weights follow the order of the centers: the
+  levels of the `center` factor, or its sorted values. A center with no
+  complete row must get 0.
 - A `center_characteristics_optimization_values` value outside the range of
   that characteristic in the data gives a warning: the recommendation is then
   an extrapolation, and its interval can be very wide. Pass the warning on to
@@ -224,9 +226,8 @@ plot(b)                         # the cost and outcome of the goals searched
 ```
 `parameter` is a scalar numeric argument of `lago_optimization()`, such as
 `"outcome_goal"`, `"power_goal"`, `"icc"` or `"time_effect_optimization_value"`,
-or `"cost_multiplier"`, which needs `cost_list_of_vectors` (a result keeps
-it, so pass `cost_list_of_vectors = res$cost_list_of_vectors` for a result
-fitted with unit costs). Neither computes the confidence set. A failed run is
+or `"cost_multiplier"`, which scales the costs of the result, either its
+`cost_list_of_vectors` or its `unit_costs`. Neither computes the confidence set. A failed run is
 a row with status `"error"`, not a stopped sweep.
 
 ## From an agent: the MCP server

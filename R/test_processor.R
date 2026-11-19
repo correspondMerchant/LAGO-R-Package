@@ -40,7 +40,7 @@ test_processor <- function(data, outcome_type, outcome_name, row_sizes = NULL) {
     if (!is.finite(treatment[["var"]]) || !is.finite(control[["var"]])) {
       warning(paste(
         "The overall test is not shown, because each arm of the 'group'",
-        "column needs at least two rows with an observed outcome."
+        "column needs at least two patients with an observed outcome."
       ))
       return(NULL)
     }

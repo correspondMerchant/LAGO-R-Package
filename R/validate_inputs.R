@@ -156,7 +156,7 @@ validate_inputs <- function(
       if (input_data_structure == "center_level") {
         "For center level data it must be the proportion of events in each row."
       } else {
-        "A binary outcome must be 0 or 1."
+        "A binary outcome must be between 0 and 1, and is usually 0 or 1."
       }
     ))
   }
@@ -238,8 +238,11 @@ validate_inputs <- function(
     }
     # glm() refuses negative weights. All zero weights are named later, with
     # the rows the model can use.
-    if (any(is.infinite(weights)) || any(weights < 0, na.rm = TRUE)) {
-      stop("The 'weights' must be finite and not negative.")
+    if (!all(is.finite(weights)) || any(weights < 0)) {
+      stop(paste(
+        "The 'weights' must be finite and not negative, with no NA. Give a",
+        "row a weight of 0 to leave it out of the fit."
+      ))
     }
   }
 
@@ -433,8 +436,10 @@ validate_inputs <- function(
     weight_names <- names(center_weights_for_outcome_goal)
     if (!is.null(weight_names)) {
       center_levels <- levels(data$center)
-      if (anyNA(weight_names) || anyDuplicated(weight_names) > 0 ||
-        !setequal(weight_names, center_levels)) {
+      # an explicit NA level is named "NA", or NA
+      level_keys <- ifelse(is.na(center_levels), "NA", center_levels)
+      name_keys <- ifelse(is.na(weight_names), "NA", weight_names)
+      if (anyDuplicated(name_keys) > 0 || !setequal(name_keys, level_keys)) {
         stop(paste0(
           "The names of center_weights_for_outcome_goal must be the centers ",
           "in the 'center' column, each once: ",
@@ -444,7 +449,7 @@ validate_inputs <- function(
         ))
       }
       center_weights_for_outcome_goal <-
-        unname(center_weights_for_outcome_goal[center_levels])
+        unname(center_weights_for_outcome_goal[match(level_keys, name_keys)])
     }
     if (!is.null(center_effects_optimization_values)) {
       input_warning(paste(
@@ -601,7 +606,7 @@ validate_inputs <- function(
       !(is.numeric(time_effect_optimization_value) ||
         is.character(time_effect_optimization_value) ||
         is.factor(time_effect_optimization_value) ||
-        inherits(time_effect_optimization_value, "Date")) ||
+        inherits(time_effect_optimization_value, c("Date", "POSIXt"))) ||
       length(time_effect_optimization_value) != 1 ||
       is.na(time_effect_optimization_value)) {
       stop(paste(
@@ -611,7 +616,9 @@ validate_inputs <- function(
         "in the 'period' column."
       ))
     }
-    if (is.factor(time_effect_optimization_value)) {
+    # a factor or date-time is matched by its label, as the period levels are
+    if (is.factor(time_effect_optimization_value) ||
+      inherits(time_effect_optimization_value, "POSIXt")) {
       time_effect_optimization_value <- as.character(time_effect_optimization_value)
     }
     # if "period" column of the input data is not a factor,
@@ -1057,8 +1064,14 @@ validate_inputs <- function(
   }
 
   # check if the outcome goal is a numeric number (only when provided)
-  if (!is.null(outcome_goal) && !is.numeric(outcome_goal)) {
-    stop("The outcome goal must be a numeric value.")
+  if (!is.null(outcome_goal) && (!is.numeric(outcome_goal) ||
+    length(outcome_goal) != 1 || !is.finite(outcome_goal))) {
+    stop("The outcome goal must be a numeric value, a single finite number.")
+  }
+  # a binary outcome goal is a probability
+  if (!is.null(outcome_goal) && outcome_type == "binary" &&
+    (outcome_goal < 0 || outcome_goal > 1)) {
+    stop("For a binary outcome the outcome goal is a probability, between 0 and 1.")
   }
 
   # check if the outcome_goal_intention is a character type
@@ -1123,7 +1136,8 @@ validate_inputs <- function(
   }
 
   # check whether the include_confidence_set indicator is boolean
-  if (!is.logical(include_confidence_set)) {
+  if (!is.logical(include_confidence_set) || length(include_confidence_set) != 1 ||
+    is.na(include_confidence_set)) {
     stop("The include_confidence_set indicator must be a boolean.")
   }
 
@@ -1163,8 +1177,9 @@ validate_inputs <- function(
   }
 
   # check if confidence_set_alpha is a numeric type
-  if (!is.numeric(confidence_set_alpha)) {
-    stop("confidence_set_alpha must be a numeric value.")
+  if (!is.numeric(confidence_set_alpha) || length(confidence_set_alpha) != 1 ||
+    is.na(confidence_set_alpha)) {
+    stop("confidence_set_alpha must be a numeric value, a single number.")
   }
   # check if confidence_set_alpha is between 0 and 1
   if (confidence_set_alpha <= 0 || confidence_set_alpha >= 1) {
@@ -1280,7 +1295,13 @@ validate_inputs <- function(
     }
     # the power calculation uses stage-1 rows with an observed outcome, so
     # each arm needs at least one (a missing outcome is not counted)
-    observed_group <- data$group[!is.na(data[[outcome_name]])]
+    # for center level data a row counts only with patients in it
+    has_patients <- if (input_data_structure == "center_level") {
+      !is.na(data$center_sample_size) & data$center_sample_size > 0
+    } else {
+      TRUE
+    }
+    observed_group <- data$group[!is.na(data[[outcome_name]]) & has_patients]
     for (grp in c("control", "treatment")) {
       if (!any(observed_group == grp)) {
         stop(paste0(
@@ -1358,8 +1379,7 @@ validate_inputs <- function(
         # outcome) and ignoring a missing center id, as its table() does
         for (grp in c("control", "treatment")) {
           ids <- data[
-            data$group == grp & !is.na(data[[outcome_name]]) &
-              (input_data_structure != "center_level" | !is.na(data$center_sample_size)),
+            data$group == grp & !is.na(data[[outcome_name]]) & has_patients,
             power_goal_cluster_id,
             drop = TRUE
           ]
@@ -1368,7 +1388,7 @@ validate_inputs <- function(
             stop(paste0(
               "The '", grp, "' arm has fewer than two distinct ",
               "power_goal_cluster_id centers with an observed outcome",
-              if (input_data_structure == "center_level") " and a center_sample_size",
+              if (input_data_structure == "center_level") " and patients",
               ", so ",
               "the stage-1 design effect is not identifiable. Provide data ",
               "with at least two such centers per arm, or set icc = NULL."
