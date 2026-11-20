@@ -94,7 +94,9 @@ def test_a_call_without_an_error_still_returns_its_value(bb_data):
 # 2. each tool describes only its own arguments, and refuses unknown ones
 # --------------------------------------------------------------------------
 def _tool(name):
-    return S.mcp._tool_manager.get_tool(name)
+    """The tool as a client sees it, through the public list_tools()."""
+    tools = {t.name: t for t in asyncio.run(S.mcp.list_tools())}
+    return tools[name]
 
 
 def test_budget_description_leaves_out_what_budget_does_not_take():
@@ -111,13 +113,13 @@ def test_budget_description_leaves_out_what_budget_does_not_take():
 def test_every_argument_in_the_model_doc_is_an_argument_of_the_tool(tool):
     fn = getattr(S, tool)
     names = set(re.findall(r"`([a-z_]+)`", S._model_doc(fn)))
-    params = set(_tool(tool).parameters["properties"])
+    params = set(_tool(tool).inputSchema["properties"])
     assert names and names <= params, names - params
 
 
 @pytest.mark.parametrize("tool", ["describe_data", "optimize", "sensitivity", "budget"])
 def test_an_unknown_argument_is_a_json_error(tool):
-    assert _tool(tool).parameters["additionalProperties"] is False
+    assert _tool(tool).inputSchema["additionalProperties"] is False
     body, is_error = _call(tool, {"bogus_arg": 1})
     assert is_error
     assert f"`bogus_arg` is not an argument of {tool}." in body["error"]
@@ -270,3 +272,20 @@ def test_the_docs_say_what_a_nan_does():
         text = " ".join(_tool(tool).description.split())
         assert "JSON has no NaN or Infinity" in text
         assert "An argument the tool does not take is an error." in text
+
+
+def test_the_server_uses_no_private_part_of_the_sdk():
+    import inspect
+
+    source = inspect.getsource(S)
+    for private in ("_tool_manager", "_mcp_server", "fn_metadata", "FuncMetadata"):
+        assert private not in source, private
+
+
+def test_a_list_or_object_sent_as_json_text_is_still_read(bb_csv):
+    # FastMCP reads a list sent as JSON text, so the check before it does too
+    body, is_error = _call(
+        "optimize",
+        _bb_args(data_csv=bb_csv, intervention_lower_bounds="[1, 1]", outcome_goal=0.85, include_confidence_set=False),
+    )
+    assert not is_error, body

@@ -1,5 +1,7 @@
 # LAGOtrials (development version)
 
+* The MCP server checks tool arguments with public parts of the `mcp` Python package only. It used to replace private parts of `FastMCP`, which a new release of that package could break without warning. The behavior is unchanged: an unknown argument or an argument of the wrong type is a JSON error result, and a list sent as JSON text is still read.
+
 * `lago_optimization()` warns when a value in `center_characteristics_optimization_values` is outside the range of that characteristic in the rows the model is fitted on. The recommendation is then for a center the model has not seen, so the estimated outcome and its confidence interval are an extrapolation. With few centers the interval can be so wide that it covers every probability from 0 to 1. The warning names each such characteristic, the value and the range. A true or false characteristic is read as 0 and 1, and a text or factor one as its 0 or 1 dummy. The check comes after every input error, so with `options(warn = 2)` it never hides one.
 
 * `get_confidence_set()` called directly gives the same warning, checked against the rows its `fitted_model` was fitted on. Through `lago_optimization()` the warning still comes once.

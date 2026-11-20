@@ -61,7 +61,6 @@ from typing import Any
 import anyio
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
 
 import lago
 from lago._bridge import collect_warnings
@@ -89,7 +88,76 @@ How to use them well:
    bounds, and the recommendation falls short of it. Say so.
 """
 
-mcp = FastMCP("lago", instructions=INSTRUCTIONS)
+class _StrictFastMCP(FastMCP):
+    """FastMCP that checks the arguments of its tools before it runs them.
+
+    FastMCP drops an argument a tool does not take without a word, and reports
+    an argument of the wrong type as plain text. Here both are an error result
+    with the JSON payload every other error has, and each tool's schema says
+    that no other argument is allowed. Only the public `call_tool` and
+    `list_tools` methods are overridden, so no private part of the SDK is used.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # tool name -> pydantic model of its arguments, filled by strict_tool()
+        self._strict_models = {}
+
+    def strict_tool(self, fn, run):
+        """Register `run` as the tool `fn.__name__`, checked against `fn`'s signature."""
+        self.tool(name=fn.__name__)(run)
+        self._strict_models[fn.__name__] = _argument_model(fn)
+
+    async def list_tools(self):
+        tools = await super().list_tools()
+        for t in tools:
+            if t.name in self._strict_models:
+                t.inputSchema = {**t.inputSchema, "additionalProperties": False}
+        return tools
+
+    async def call_tool(self, name, arguments):
+        model = self._strict_models.get(name)
+        if model is not None:
+            from pydantic import ValidationError
+
+            try:
+                model.model_validate(_parse_json_strings(model, arguments or {}))
+            except ValidationError as exc:
+                return _error_result(_error(ValueError(_validation_message(exc, name))))
+        return await super().call_tool(name, arguments)
+
+
+def _argument_model(fn):
+    """A pydantic model of `fn`'s arguments that refuses any other argument."""
+    import inspect
+
+    from pydantic import ConfigDict, create_model
+
+    fields = {}
+    for name, param in inspect.signature(fn).parameters.items():
+        annotation = Any if param.annotation is inspect.Parameter.empty else param.annotation
+        default = ... if param.default is inspect.Parameter.empty else param.default
+        fields[name] = (annotation, default)
+    return create_model(f"{fn.__name__}Arguments", __config__=ConfigDict(extra="forbid"), **fields)
+
+
+def _parse_json_strings(model, arguments):
+    """Read a list or object sent as JSON text, as FastMCP does, before checking it."""
+    out = dict(arguments)
+    for name, value in arguments.items():
+        field = model.model_fields.get(name)
+        if field is None or not isinstance(value, str) or field.annotation is str:
+            continue
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            continue
+        if isinstance(parsed, (list, dict)):
+            out[name] = parsed
+    return out
+
+
+mcp = _StrictFastMCP("lago", instructions=INSTRUCTIONS)
 
 
 # --------------------------------------------------------------------------
@@ -904,52 +972,8 @@ def _validation_message(exc, tool_name):
     return f"the arguments do not fit {tool_name}. " + " ".join(problems)
 
 
-class _StrictArguments(FuncMetadata):
-    """FastMCP's argument handling, with bad arguments as a JSON error result.
-
-    FastMCP drops an argument a tool does not take without a word, and reports
-    an argument of the wrong type as plain text. Here both are an error result
-    with the JSON payload every other error has.
-    """
-
-    tool_name: str = ""
-
-    async def call_fn_with_arg_validation(self, fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
-        from pydantic import ValidationError
-
-        try:
-            self.arg_model.model_validate(self.pre_parse_json(arguments_to_validate))
-        except ValidationError as exc:
-            return _error_result(_error(ValueError(_validation_message(exc, self.tool_name))))
-        return await super().call_fn_with_arg_validation(
-            fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly
-        )
-
-
-def _forbid_unknown_arguments(tool):
-    """Make an argument the tool does not take an error, and say so in its schema."""
-    from pydantic import ConfigDict
-
-    base = tool.fn_metadata.arg_model
-
-    class Strict(base):
-        model_config = ConfigDict(extra="forbid")
-
-    Strict.__name__ = Strict.__qualname__ = base.__name__
-    old = tool.fn_metadata
-    tool.fn_metadata = _StrictArguments(
-        arg_model=Strict,
-        output_schema=old.output_schema,
-        output_model=old.output_model,
-        wrap_output=old.wrap_output,
-        tool_name=tool.name,
-    )
-    tool.parameters["additionalProperties"] = False
-
-
 for _fn in (describe_data, optimize, sensitivity, budget):
-    mcp.tool(name=_fn.__name__)(_run_in_worker(_fn))
-    _forbid_unknown_arguments(mcp._tool_manager.get_tool(_fn.__name__))
+    mcp.strict_tool(_fn, _run_in_worker(_fn))
 
 
 def _on_sigterm(signum, frame):
