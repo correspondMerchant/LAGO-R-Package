@@ -2,6 +2,13 @@
 
 ## LAGOtrials (development version)
 
+- The MCP server checks tool arguments with public parts of the `mcp`
+  Python package only. It used to replace private parts of `FastMCP`,
+  which a new release of that package could break without warning. The
+  behavior is unchanged: an unknown argument or an argument of the wrong
+  type is a JSON error result, and a list sent as JSON text is still
+  read.
+
 - [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
   warns when a value in `center_characteristics_optimization_values` is
   outside the range of that characteristic in the rows the model is
