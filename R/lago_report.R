@@ -143,7 +143,7 @@ lago_report <- function(x,
   # a folder gets the report inside it, not a file named after it next to it
   if (dir.exists(output_file)) {
     output_file <- file.path(output_file, "lago_report.html")
-  } else if (grepl("[/\\\\]$", output_file)) {
+  } else if (endsWith(output_file, "/") || endsWith(output_file, "\\")) {
     cli::cli_abort(c(
       "The folder {.file {output_file}} does not exist.",
       "i" = "Create it first, or give a file path that ends in {.file .html}."

@@ -33,11 +33,28 @@
 # first digit. sprintf() rounds correctly and breaks an exact tie to even, as
 # jsonlite does when it writes the report data, and as the JS decDigits() does.
 .lago_dec_digits <- function(v) {
-  s <- sprintf("%.14e", abs(v))
+  # 31 significant digits, which hold the 15 digits and show whether the rest
+  # is an exact tie. They are rounded to 15 here, a tie to even, rather than by
+  # sprintf("%.14e"), which settles a tie to even on Linux and macOS but up on
+  # Windows. The JS decDigits() rounds the same way.
+  s <- sprintf("%.30e", abs(v))
+  mant <- sub("[eE].*$", "", s)
+  all_digits <- gsub("[^0-9]", "", mant)
+  exp <- as.integer(sub("^.*[eE]", "", s))
+  head <- substr(all_digits, 1, 15)
+  rest <- substr(all_digits, 16, 31)
+  tie <- rest == "5000000000000000"
+  last_even <- as.integer(substr(head, 15, 15)) %% 2L == 0L
+  up <- substr(rest, 1, 1) >= "5" & !(tie & last_even)
+  kept <- as.numeric(head) + up
+  # a carry to 16 digits, as 999999999999999.5 gives, moves the point
+  carry <- kept >= 1e15
+  kept[carry] <- kept[carry] / 10
+  exp[carry] <- exp[carry] + 1L
   list(
     neg = v < 0,
-    digits = paste0(substr(s, 1, 1), substr(s, 3, 16)),
-    exp = as.integer(substring(s, 18))
+    digits = sprintf("%015.0f", kept),
+    exp = exp
   )
 }
 

@@ -211,7 +211,7 @@ test_that("lago_report() says what is wrong with the output path", {
   base <- tempfile("bb4_")
   dir.create(base)
   on.exit(unlink(base, recursive = TRUE))
-  expect_error(lago_report(x, output_file = file.path(base, "nodir/")), "does not exist", fixed = TRUE)
+  expect_error(lago_report(x, output_file = paste0(base, "/nodir/")), "does not exist", fixed = TRUE)
   afile <- file.path(base, "afile")
   file.create(afile)
   expect_error(lago_report(x, output_file = file.path(afile, "x.html")), "is a file and not a folder", fixed = TRUE)

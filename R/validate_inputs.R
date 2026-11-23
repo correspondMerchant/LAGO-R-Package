@@ -1384,12 +1384,15 @@ validate_inputs <- function(
     m <- if (any(ok) && sum(w[ok]) > 0) stats::weighted.mean(y[ok], w[ok]) else NaN
     if (is.finite(m)) m else mean(y, na.rm = TRUE)
   })
+  # a goal equal to the mean up to round off counts as equal, as the mean is
+  # summed in an order that differs from platform to platform
+  at_mean_tol <- if (is.null(outcome_goal)) 0 else 1e-9 * max(1, abs(observed_mean))
   if (is.null(outcome_goal)) {
     lower_outcome_goal <- FALSE
   } else if (outcome_goal_intention == "minimize") {
     lower_outcome_goal <- TRUE
     # a goal at the observed mean asks for no change, in either direction
-    if (outcome_goal >= observed_mean) {
+    if (outcome_goal >= observed_mean - at_mean_tol) {
       warning(paste(
         "The specified outcome goal intention is",
         "to minimize the outcome.",
@@ -1400,7 +1403,7 @@ validate_inputs <- function(
     }
   } else {
     lower_outcome_goal <- FALSE
-    if (outcome_goal <= observed_mean) {
+    if (outcome_goal <= observed_mean + at_mean_tol) {
       warning(paste(
         "The specified outcome goal intention",
         "is to maximize the outcome.",
