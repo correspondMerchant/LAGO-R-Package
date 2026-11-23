@@ -306,34 +306,91 @@
     return String(+v.toPrecision(4));
   }
 
-  // Write a rounded number in full. JS String() keeps plain notation from 1e-6
-  // up to 1e21, so only extreme values use e notation. -0 is written as 0.
-  function plainNumber(v) {
-    return v === 0 ? "0" : String(v);
+  // The number formatters of the report, copied from lago-report.js so the
+  // designer rounds as the report and the R text do. A test checks that the
+  // two copies agree.
+  // The decimal digits of a finite, nonzero number, as 15 significant digits
+  // (all a double holds without noise), with the sign and the power of 10 of
+  // the first digit, the way R's .lago_dec_digits() gets them from sprintf().
+  // toExponential() rounds an exact tie up, while sprintf() and jsonlite, which
+  // writes the report data, round it to even, so a tie is settled to even
+  // here too. The 31 digits of toExponential(30) show whether it is a tie.
+  function decDigits(v) {
+    var a = Math.abs(v);
+    var s = a.toExponential(14);
+    var digits = s.charAt(0) + s.slice(2, 16);
+    var exp = parseInt(s.slice(17), 10);
+    var l = a.toExponential(30);
+    var ld = l.charAt(0) + l.slice(2, 32);
+    if (ld.slice(15) === "5000000000000000" && +ld.charAt(14) % 2 === 0) {
+      digits = ld.slice(0, 15);
+      exp = parseInt(l.slice(33), 10);
+    }
+    return { neg: v < 0, digits: digits, exp: exp };
   }
 
-  // A component value, rounded like the report's fmtValue() in lago-report.js
-  // and R's .lago_fmt_value(): 4 decimals, or 4 significant digits for values
-  // closer to 0 than 0.1 (values closer to 0 than 1e-6 keep 4 decimals, so
-  // they show as 0).
+  // v rounded to n significant digits (sig true) or to n decimals (sig false),
+  // from the decimal digits above, with a cut digit of 5 rounded up, away from
+  // 0, as R's .lago_round_dec() does. toFixed() and toPrecision() settle a cut
+  // digit of 5 by the binary value instead, so 0.10005 and 12.3455 would round
+  // differently from the R text of the report.
+  function roundDec(v, n, sig) {
+    v = +v;
+    if (!isFinite(v) || v === 0) {
+      return v;
+    }
+    var p = decDigits(v);
+    var keep = Math.min(sig ? n : n + p.exp + 1, 15);
+    var next = keep >= 0 && keep < 15 ? +p.digits.charAt(keep) : 0;
+    var kept = keep > 0 ? +p.digits.slice(0, keep) : 0;
+    if (next >= 5) {
+      kept += 1;
+    }
+    var r = Number((p.neg ? "-" : "") + kept + "e" + (p.exp + 1 - keep));
+    // a value rounded to 0 is 0, not -0
+    return r === 0 ? 0 : r;
+  }
+
+  // Write a rounded number the way R's .lago_num_text() writes it in the
+  // report text: in full from 1e-6 up to 1e21, and in e notation such as 1e-7
+  // and 1.5e+21 outside that range, with at most 15 significant digits.
+  function numText(v) {
+    v = +v;
+    if (!isFinite(v)) {
+      return String(v);
+    }
+    if (v === 0) {
+      return "0";
+    }
+    var p = decDigits(v);
+    var d = p.digits.replace(/0+$/, "");
+    var k = d.length;
+    var e = p.exp;
+    var out;
+    if (e < -6 || e > 20) {
+      out = (k > 1 ? d.charAt(0) + "." + d.slice(1) : d) + "e" + (e >= 0 ? "+" : "-") + Math.abs(e);
+    } else if (e >= k - 1) {
+      out = d + new Array(e - k + 2).join("0");
+    } else if (e < 0) {
+      out = "0." + new Array(-e).join("0") + d;
+    } else {
+      out = d.slice(0, e + 1) + "." + d.slice(e + 1);
+    }
+    return (p.neg ? "-" : "") + out;
+  }
+
+  // A component value, rounded like R's .lago_fmt_value(): 4 decimals, or 4
+  // significant digits for values closer to 0 than 0.1 (values closer to 0
+  // than 1e-6 keep 4 decimals, so they show as 0).
   function fmtValue(v) {
     v = +v;
-    if (!isFinite(v)) {
-      return String(v);
-    }
     var a = Math.abs(v);
-    var r = a >= 0.1 || a < 1e-6 ? Number(v.toFixed(4)) : Number(v.toPrecision(4));
-    return plainNumber(r);
+    return numText(a >= 0.1 || a < 1e-6 || !isFinite(v) ? roundDec(v, 4, false) : roundDec(v, 4, true));
   }
 
-  // A cost, rounded like the report's fmtCost() in lago-report.js and R's
-  // .lago_fmt_cost(): 5 significant figures.
+  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures.
   function fmtCost(v) {
-    v = +v;
-    if (!isFinite(v)) {
-      return String(v);
-    }
-    return plainNumber(Number(v.toPrecision(5)));
+    return numText(roundDec(v, 5, true));
   }
 
   // A slider reports its value rounded to its step. The exact value the server
