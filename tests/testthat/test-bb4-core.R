@@ -179,3 +179,18 @@ test_that("a warning from the input checks names validate_inputs, not the whole 
   expect_match(call_text, "^validate_inputs\\(")
   expect_false(grepl("function (data", call_text, fixed = TRUE))
 })
+
+test_that("lago_optimization() runs at an explicit NA period level", {
+  d <- mtcars
+  d$period <- addNA(factor(ifelse(seq_len(nrow(d)) %% 3 == 0, NA, seq_len(nrow(d)) %% 2)))
+  run <- function(v) bb4_quiet(lago_optimization(
+    data = d, outcome_name = "mpg", outcome_type = "continuous",
+    intervention_components = c("wt", "qsec"), intervention_lower_bounds = c(1.5, 15),
+    intervention_upper_bounds = c(5, 22), outcome_goal = 22,
+    cost_list_of_vectors = list(c(0, 4), c(0, 6)), include_time_effects = TRUE,
+    time_effect_optimization_value = v, include_confidence_set = FALSE, quiet = TRUE
+  ))
+  r <- run(NA_character_)
+  b <- stats::coef(r$model)
+  expect_equal(r$est_outcome, b[["(Intercept)"]] + b[["periodNA"]] + sum(b[c("wt", "qsec")] * r$rec_int), tolerance = 1e-6)
+})
