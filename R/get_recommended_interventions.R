@@ -832,11 +832,16 @@ get_recommended_interventions <- function(
         start_points <- lo + quantile_points[i] * (up - lo)
         result <- tryCatch(
           {
+            # capped as the scaled start below is: a linear objective on a box
+            # can make one start wander until the default 4000 iterations,
+            # 66 thousand evaluations under OpenBLAS, while the others finish
+            # in a few dozen and the corners are tried as well
             NlcOptim::solnl(
               X = start_points,
               objfun = obj_fun_for_max_outcome,
               lb = lo,
-              ub = up
+              ub = up,
+              maxIter = 100
             )
           },
           error = function(e) {
@@ -953,6 +958,11 @@ get_recommended_interventions <- function(
         if (!is.finite(outcome_scale) || outcome_scale <= 0) {
           outcome_scale <- 1
         }
+        # A goal within round off above the best outcome counts as reached, but
+        # no point meets it, so solnl() would run every restart to its last
+        # iteration. The constraint asks for the best outcome instead, which
+        # meets the goal within that round off.
+        target_goal <- min(new_outcome_goal, max_achievable_outcome)
         # a vector of constraint equations
         # (see helper doc of NlcOptim package for details)
         constraint_fun <- function(x) {
@@ -967,7 +977,7 @@ get_recommended_interventions <- function(
 
           f <- rbind(
             f,
-            new_outcome_goal -
+            target_goal -
               get_outcome(
                 center_weights_for_outcome_goal,
                 all_center_lvl_effects,
