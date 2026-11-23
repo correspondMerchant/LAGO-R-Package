@@ -2,6 +2,18 @@
 
 ## LAGOtrials (development version)
 
+- In the cost designer of
+  [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
+  and
+  [`lago_app()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_app.md),
+  a coefficient whose slider range is very small or very large is now
+  shown in a unit of its own size, and its label names the unit, for
+  example “A^4 coefficient (shown in units of 1e-18)”. Its range then
+  shrinks to the size of the coefficient. On wide bounds such as 0 to
+  1000000, the sliders of the higher order coefficients can now bend the
+  curve, where one step used to change the cost by far more than the
+  whole curve. Ordinary sliders are unchanged.
+
 - The MCP server checks tool arguments with public parts of the `mcp`
   Python package only. It used to replace private parts of `FastMCP`,
   which a new release of that package could break without warning. The
