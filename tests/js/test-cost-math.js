@@ -264,4 +264,39 @@ check("formatSig(2) is 2", m.formatSig(2) === "2");
 check("formatSig(1.23456) is 1.235", m.formatSig(1.23456) === "1.235");
 check("formatSig(NaN) is NaN", m.formatSig(NaN) === "NaN");
 
+// 16. the designer tooltips round like the report: no e notation for an
+// ordinary cost, and the same text as lago-report.js for every value.
+var rep = require("../../inst/js/lago-report.js");
+check("fmtCost(23928) is 23928", m.fmtCost(23928) === "23928");
+check("fmtCost(12345.6) is 12346", m.fmtCost(12345.6) === "12346");
+check("fmtValue(1000.37) is 1000.37", m.fmtValue(1000.37) === "1000.37");
+check("fmtValue(5e6) is 5000000", m.fmtValue(5e6) === "5000000");
+[23928, 1000.37, 1000.999, 12345.6, 1e-7, 0.000123456, 5e6, -0, -2.5, 0.05,
+  1e21, NaN, Infinity].forEach(function (v) {
+  check("fmtValue(" + v + ") matches the report", m.fmtValue(v) === rep.fmtValue(v));
+  check("fmtCost(" + v + ") matches the report", m.fmtCost(v) === rep.fmtCost(v));
+});
+
+// 17. a curve fitted through dragged points on narrow bounds far from 0 misses
+// its points by more than it rises, which validate flags as not accurate. The
+// other checks pass there, so before only the miss went unflagged.
+var farXs = m.anchorXs(1e4, 1e4 + 1, 5);
+var farFit = m.solveVandermonde(farXs, [10, 11, 12.5, 14, 20]);
+var farMiss = Math.max.apply(null, farXs.map(function (x, i) {
+  return Math.abs(m.costAt(farFit, x) - [10, 11, 12.5, 14, 20][i]);
+}));
+check("the fit on [1e4, 1e4 + 1] misses its points", farMiss > 1);
+var vFit = m.validate(farFit, 1e4, 1e4 + 1, 500);
+check("the fit on [1e4, 1e4 + 1] is not accurate", vFit.accurate === false);
+check("the designer cubic on [1000, 1001] is not accurate",
+  m.validate(designerCubic(1000, 1001, 1), 1000, 1001, 500).accurate === false);
+// ordinary curves are accurate
+var nearFit = m.solveVandermonde(m.anchorXs(0, 100, 5), [10, 11, 12.5, 14, 20]);
+check("a fit on [0, 100] is accurate", m.validate(nearFit, 0, 100, 500).accurate === true);
+check("the designer cubic on [10, 20] is accurate",
+  m.validate(designerCubic(10, 20, 1), 10, 20, 500).accurate === true);
+check("a line on [1000, 1001] is accurate", m.validate([0, 1], 1000, 1001, 500).accurate === true);
+check("a constant cost is accurate", m.validate([5, 0, 0, 0, 0], 0, 10, 500).accurate === true);
+check("a zero cost is accurate", m.validate([0, 0], 0, 10, 500).accurate === true);
+
 console.log("\nAll " + passed + " JS math assertions passed.");
