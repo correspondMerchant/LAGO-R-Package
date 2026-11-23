@@ -91,7 +91,8 @@
 #'     and the size of the grid count grid interventions only, so rec_int is
 #'     excluded from each>,
 #'   rec_int_ci = <named numeric c(lower, upper), each bound rounded to 3
-#'     decimal places, or to 4 significant digits when it is below 0.1,
+#'     decimal places, or to 4 significant digits when it is below 0.1 in
+#'     absolute value,
 #'     the confidence interval at rec_int. Computed whether or not it covers
 #'     the outcome goal, so callers never have to look for rec_int inside cs.
 #'     For a binary outcome on the logit link both bounds are confined to
@@ -305,6 +306,28 @@ get_confidence_set <- function(
   if (!is.numeric(outcome_goal) || length(outcome_goal) != 1 ||
     !is.finite(outcome_goal)) {
     stop("outcome_goal must be a single finite number.")
+  }
+  # one center weight per center the model was fitted with, and the center
+  # and period columns as factors on the model's levels, as
+  # lago_optimization() passes them
+  if (inherits(fitted_model, "glm")) {
+    levels_of <- function(term) fitted_model$xlevels[[term]]
+    if (include_center_effects && !is.null(levels_of("center")) &&
+      length(center_weights_for_outcome_goal) != length(levels_of("center"))) {
+      stop(paste0(
+        "center_weights_for_outcome_goal must have one weight per center of ",
+        "'fitted_model', ", length(levels_of("center")), " in all (",
+        paste0("'", levels_of("center"), "'", collapse = ", "), "), but it has ",
+        length(center_weights_for_outcome_goal), ". Its default of 1 is for a ",
+        "model without center effects."
+      ))
+    }
+    for (term in c(if (include_center_effects) "center", if (include_time_effects) "period")) {
+      if (term %in% names(predictors_data) && !is.factor(predictors_data[[term]]) &&
+        !is.null(levels_of(term))) {
+        predictors_data[[term]] <- factor(predictors_data[[term]], levels = levels_of(term))
+      }
+    }
   }
   # Called directly, it checks the center characteristic values against the
   # rows the given model was fitted on, as lago_optimization() does for its
@@ -1003,14 +1026,14 @@ get_confidence_set <- function(
                                                    fitted_values) {
         if (unit_weights) {
           residuals <- outcome - fitted_values
-          bread <- solve(t(X) %*% X)
+          bread <- xtx_inverse(X)
         } else {
           positive <- prior_weights > 0
           X_positive <- X[positive, , drop = FALSE]
           residuals <- numeric(nrow(X))
           residuals[positive] <- prior_weights[positive] *
             (outcome[positive] - fitted_values[positive])
-          bread <- solve(t(X_positive) %*% (prior_weights[positive] * X_positive))
+          bread <- xtx_inverse(X_positive, prior_weights[positive])
         }
 
         # Initialize cluster sum
@@ -1847,7 +1870,10 @@ model_factor_levels <- function(x) {
 # the term name followed by the level, so the dummy of level "1" is exactly
 # "period1" and never "period10".
 time_effect_indicator <- function(model, time_effect_names, period_value) {
-  if (length(period_value) != 1 || is.na(period_value)) {
+  # an explicit NA period level, from addNA(), is chosen with NA_character_
+  na_level <- length(period_value) == 1 && is.na(period_value) &&
+    anyNA(model$xlevels[["period"]])
+  if (length(period_value) != 1 || (is.na(period_value) && !na_level)) {
     stop(paste0(
       "'time_effect_optimization_value' must be a single non-missing value ",
       "identifying the period to compute at when 'include_time_effects' is ",
@@ -1881,7 +1907,7 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
     return(indicator)
   }
   if (length(hits) == 0 && length(period_levels) > 0 &&
-    wanted == period_levels[1]) {
+    identical(wanted, period_levels[1])) {
     # the reference period, which glm() left out of the dummies on purpose
     return(indicator)
   }

@@ -32,12 +32,12 @@ continuous_vcov <- function(X, model, outcome_data, link) {
     if (unit_weights) {
       residuals <- outcome_data - fitted_values
       sigma2 <- sum(residuals^2) / (n - n_params)
-      bread <- solve(t(X) %*% X)
+      bread <- xtx_inverse(X)
     } else {
       X_positive <- X[positive, , drop = FALSE]
       residuals <- outcome_data[positive] - fitted_values[positive]
       sigma2 <- sum(prior_weights[positive] * residuals^2) / residual_df
-      bread <- solve(t(X_positive) %*% (prior_weights[positive] * X_positive))
+      bread <- xtx_inverse(X_positive, prior_weights[positive])
     }
     vcov_matrix <- bread * sigma2
   } else {
@@ -95,4 +95,22 @@ lago_se_note <- function(x) {
   } else {
     "Standard errors are model based, as the confidence set uses them."
   }
+}
+
+
+# The inverse of X'WX, from a QR decomposition of sqrt(W) X. Forming X'X and
+# solving it squares the condition number of X, so a component far from 0,
+# such as values near 100000, made solve() call a well fitted model singular.
+# glm() fits by QR too. A rank deficient X is refused as solve() refused it.
+xtx_inverse <- function(X, w = NULL) {
+  Xw <- if (is.null(w)) X else sqrt(w) * X
+  q <- qr(Xw)
+  if (q$rank < ncol(Xw)) {
+    stop("system is computationally singular: the design matrix is not of full rank")
+  }
+  inv <- chol2inv(qr.R(q))
+  back <- order(q$pivot)
+  inv <- inv[back, back, drop = FALSE]
+  dimnames(inv) <- list(colnames(X), colnames(X))
+  inv
 }

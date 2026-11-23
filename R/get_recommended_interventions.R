@@ -662,9 +662,12 @@ get_recommended_interventions <- function(
         return(list(outcome = outcome, cost = cost))
       }
 
-      # apply f_combined to all grid points
+      # apply f_combined to all grid points. Rows of a matrix are read far
+      # faster than rows of a data frame, which made a large grid slow
+      new_grid_m <- as.matrix(new_grid)
+      full_grid_m <- as.matrix(full_grid)
       all_results <- mapply(
-        function(i) f_combined(new_grid[i, ], full_grid[i, ], link),
+        function(i) f_combined(new_grid_m[i, ], full_grid_m[i, ], link),
         seq_len(nrow(new_grid)),
         SIMPLIFY = FALSE # so it rerturns a list
       )
@@ -1013,7 +1016,11 @@ get_recommended_interventions <- function(
 
         for (i in seq_along(quantile_points)) {
           start_points <- lo + quantile_points[i] * (up - lo)
-          result <- solve_cost(start_points)
+          # capped, as every other start is: a start that lands on a saddle
+          # which cannot reach the goal would otherwise run all 4000 of
+          # solnl()'s default iterations, about 10 seconds, while the off
+          # diagonal starts below find the answer at once
+          result <- solve_cost(start_points, maxIter = 200)
 
           if (!is.null(result) && all(is.finite(result$par))) {
             # result$fn is the NORMALIZED objective; record the true cost so the
@@ -1047,7 +1054,7 @@ get_recommended_interventions <- function(
           # a cheaper start not yet at the goal is finished with full iterations
           if (is.finite(best_cost) && !reaches_goal(x, strict_tol) &&
             cost_obj_fun(x) < best_cost) {
-            polished <- solve_cost(x)
+            polished <- solve_cost(x, maxIter = 500)
             if (!is.null(polished) && all(is.finite(polished$par))) x <- pmin(pmax(polished$par, lo), up)
           }
           if (!reaches_goal(x)) next
@@ -1074,7 +1081,7 @@ get_recommended_interventions <- function(
               X = (best_point - lo) / span,
               objfun = function(t) cost_obj_fun_scaled(to_x(t)),
               confun = function(t) constraint_fun(to_x(t)),
-              lb = rep(0, length(lo)), ub = (up - lo) / span
+              lb = rep(0, length(lo)), ub = (up - lo) / span, maxIter = 200
             ),
             error = function(e) NULL
           )

@@ -348,15 +348,18 @@ test_that("the shrunk recommendation does not depend on the order of the terms",
     ))
     stats::setNames(res$rec_int, mains)[c("a", "b")]
   }
-  # Nevo's shrinking formula by hand, each component with its own coefficient
+  # Nevo's shrinking formula by hand. With an interaction a component's slope
+  # at the corner is its own coefficient plus the interaction coefficient
+  # times the other component there, which is 4
   b <- stats::coef(stats::glm(y ~ a + b + a:b, data = d))
   s1 <- colMeans(d[, c("a", "b")])
   oracle <- vapply(1:2, function(k) {
     other <- 3 - k
     rest <- b[[1]] + b[[1 + other]] * 4 + b[[4]] * 16
-    beta_max <- (9 - rest) / 4
+    beta_max <- (9 - rest) / 4 + b[[4]] * 4
     beta_min <- beta_max / 2
-    s1[[k]] + (4 - s1[[k]]) * (b[[1 + k]] - beta_min) / (beta_max - beta_min)
+    slope <- b[[1 + k]] + b[[4]] * 4
+    s1[[k]] + (4 - s1[[k]]) * (slope - beta_min) / (beta_max - beta_min)
   }, numeric(1))
   expect_equal(unname(run(c("a", "b", "a:b"), c("a", "b"))), oracle, tolerance = 1e-5)
   expect_equal(unname(run(c("a:b", "a", "b"), c("a", "b"))), oracle, tolerance = 1e-5)

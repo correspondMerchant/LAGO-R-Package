@@ -87,17 +87,51 @@ shrinking_method <- function(
       next
     }
     other_indices <- setdiff(1:n_components, c)
+    # the other components are held at the corner of their bounds where the
+    # outcome is highest. Without interaction terms that is the bound the sign
+    # of each coefficient picks. With them, a component's effect depends on the
+    # others, so the corners are tried, up to 2^10 of them
     other_boundaries <- ifelse(beta_vec[other_indices] < 0,
       lo[other_indices],
       up[other_indices]
     )
+    if (include_interaction_terms && length(other_indices) > 0 &&
+      length(other_indices) <= 10) {
+      corners <- as.matrix(expand.grid(lapply(other_indices, function(k) unique(c(lo[k], up[k])))))
+      outcomes <- apply(corners, 1, function(corner) {
+        calculate_effect(beta_vec[c], up[c], c, corner, beta_vec[other_indices])
+      })
+      if (any(is.finite(outcomes))) {
+        other_boundaries <- as.numeric(corners[which.max(outcomes), ])
+      }
+    }
+
+    # With interaction terms the slope of this component is its own
+    # coefficient plus each interaction coefficient times the other components
+    # in that term, at the corner. The shrinking formula reads the slope, so
+    # the offset is added to every coefficient it compares. Without
+    # interactions the offset is 0.
+    offset <- 0
+    if (include_interaction_terms) {
+      x_corner <- numeric(n_components)
+      x_corner[other_indices] <- other_boundaries
+      for (i in seq_along(intervention_components)) {
+        parts <- strsplit(gsub("`", "", intervention_components[i]), ":")[[1]]
+        if (length(parts) > 1 && main_components[c] %in% parts) {
+          rest <- match(setdiff(parts, main_components[c]), main_components)
+          offset <- offset + beta[1 + i] * prod(x_corner[rest])
+        }
+      }
+      if (!is.finite(offset)) offset <- 0
+    }
+    slope_now <- beta_vec[c] + offset
 
     # Fix X at upper boundary
     X_fixed <- up[c]
 
     beta_max <- find_needed_coefficient(function(b) {
       calculate_effect(b, X_fixed, c, other_boundaries, beta_vec[other_indices])
-    }, outcome_goal, near_one = link == "logit")
+    }, outcome_goal, near_one = link == "logit") + offset
 
     # beta_max is the coefficient this component would need, at its upper
     # bound, to reach the outcome goal on its own. The recommendation is an
@@ -131,10 +165,10 @@ shrinking_method <- function(
     # direction: an inverted bracket is refused the same way whichever
     # direction produced it.
     beta_min <- beta_max / 2
-    if (beta_max - beta_min <= 0 || beta_vec[c] <= beta_min) {
+    if (beta_max - beta_min <= 0 || slope_now <= beta_min) {
       # at or below the bottom of the bracket, or no usable bracket at all
       recommended_values[c] <- stage_1_intervention[c]
-    } else if (beta_vec[c] >= beta_max) {
+    } else if (slope_now >= beta_max) {
       # at or above the top of the bracket. The interpolation's value at
       # beta_max is up[c], and extrapolating past it would recommend more of
       # the component than the upper bound allows.
@@ -142,7 +176,7 @@ shrinking_method <- function(
     } else {
       slope <- (up[c] - stage_1_intervention[c]) / (beta_max - beta_min)
       recommended_values[c] <- stage_1_intervention[c] +
-        slope * (beta_vec[c] - beta_min)
+        slope * (slope_now - beta_min)
     }
   }
 
