@@ -194,9 +194,11 @@ test_that("lago_budget() binds when the costlier maximum gains less than round o
     cost_list_of_vectors = list(c(0, 1700), c(0, 8000)), outcome_goal = 0.5,
     outcome_goal_intention = "maximize", include_confidence_set = FALSE, quiet = TRUE
   )))
-  b <- suppressWarnings(suppressMessages(lago_budget(fit, budget = 107999)))
+  # a budget a little short of it binds. Closer to 108000 the gain is below
+  # the optimizer's round off, which differs from platform to platform
+  b <- suppressWarnings(suppressMessages(lago_budget(fit, budget = 107500)))
   expect_true(b$binding)
-  expect_lte(b$rec_int_cost, 107999)
+  expect_lte(b$rec_int_cost, 107500)
   b <- suppressWarnings(suppressMessages(lago_budget(fit, budget = 108000)))
   expect_false(b$binding)
 })

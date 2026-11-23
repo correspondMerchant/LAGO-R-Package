@@ -129,12 +129,11 @@ cost_fxn_calculator <- function(
         x <- seq(range_min, range_max, length.out = 2001)
         total <- vapply(x, function(v) sum(final_coeff * v^(seq_along(final_coeff) - 1)), numeric(1))
         rise <- range_max * f(range_max, coeff) - range_min * f(range_min, coeff)
-        if (!is.finite(rise) || rise <= 0) {
-          return(TRUE)
-        }
         steps <- diff(total)
-        all(is.finite(total)) && min(steps) >= -1e-6 * rise &&
-          abs((total[length(total)] - total[1]) - rise) <= 1e-3 * rise
+        # a curve that does not rise, which the checks above rule out, is not
+        # judged here
+        !isTRUE(rise > 0) || (all(is.finite(total)) && min(steps) >= -1e-6 * rise &&
+          abs((total[length(total)] - total[1]) - rise) <= 1e-3 * rise)
       }
 
       # Function to evaluate f(x)

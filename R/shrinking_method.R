@@ -122,7 +122,6 @@ shrinking_method <- function(
           offset <- offset + beta[1 + i] * prod(x_corner[rest])
         }
       }
-      if (!is.finite(offset)) offset <- 0
     }
     slope_now <- beta_vec[c] + offset
 

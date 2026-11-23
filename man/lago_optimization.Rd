@@ -82,8 +82,8 @@ c(0,0).}
 of the intervention components.
 For example: for a two-component intervention package, upper bounds could be
 c(10,20).
-The bounds, unit_costs, unit_cost_doses, cost_list_of_vectors,
-prev_recommended_interventions and the step sizes hold one value per
+The bounds, \code{unit_costs}, \code{unit_cost_doses}, \code{cost_list_of_vectors},
+\code{prev_recommended_interventions} and the step sizes hold one value per
 intervention component, or per main component with interaction terms. An
 unnamed vector is matched to the components by position. A named one is
 matched by name, and its names must then be those components, each once.}
