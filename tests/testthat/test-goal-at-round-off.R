@@ -51,3 +51,25 @@ test_that("lago_budget() extends a continuous goal grid one goal at a time", {
   expect_equal(sizes[1], 5L)
   expect_true(sizes[2] == 1L)
 })
+
+test_that("every search for the best outcome caps its iterations", {
+  orig <- NlcOptim::solnl
+  caps <- c()
+  local_mocked_bindings(
+    solnl = function(X, objfun, confun = NULL, ..., maxIter = 4000) {
+      # the search for the best outcome has no constraint
+      if (is.null(confun)) caps <<- c(caps, maxIter)
+      if (is.null(confun)) orig(X = X, objfun = objfun, ..., maxIter = maxIter) else
+        orig(X = X, objfun = objfun, confun = confun, ..., maxIter = maxIter)
+    },
+    .package = "NlcOptim"
+  )
+  suppressWarnings(lago_optimization(
+    data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+    intervention_components = c("gear", "qsec"), intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(10, 350), cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+    outcome_goal = 30, include_confidence_set = FALSE, quiet = TRUE
+  ))
+  expect_gt(length(caps), 10)
+  expect_true(all(caps <= 100))
+})

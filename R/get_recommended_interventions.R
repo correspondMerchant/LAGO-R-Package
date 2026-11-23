@@ -832,11 +832,16 @@ get_recommended_interventions <- function(
         start_points <- lo + quantile_points[i] * (up - lo)
         result <- tryCatch(
           {
+            # capped as the scaled start below is: a linear objective on a box
+            # can make one start wander until the default 4000 iterations,
+            # 66 thousand evaluations under OpenBLAS, while the others finish
+            # in a few dozen and the corners are tried as well
             NlcOptim::solnl(
               X = start_points,
               objfun = obj_fun_for_max_outcome,
               lb = lo,
-              ub = up
+              ub = up,
+              maxIter = 100
             )
           },
           error = function(e) {
