@@ -431,8 +431,10 @@ lago_optimization <- function(
   validation_args$cost_type_given <- cost_type_given
   # called with the argument names, so an error names them rather than carry
   # their values, which include the whole data set
+  # by name, so a warning from it is headed "In validate_inputs(...)" rather
+  # than by the whole function
   inputs <- do.call(
-    validate_inputs,
+    "validate_inputs",
     sapply(names(validation_args), as.name, simplify = FALSE)
   )
   if (!quiet) Sys.sleep(0.25)

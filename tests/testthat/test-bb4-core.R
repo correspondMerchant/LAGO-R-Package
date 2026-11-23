@@ -162,3 +162,20 @@ test_that("a center with zero weights is warned about once", {
   )
   expect_equal(sum(grepl("'C'", found, fixed = TRUE)), 1)
 })
+
+test_that("a warning from the input checks names validate_inputs, not the whole function", {
+  w <- tryCatch(
+    lago_optimization(
+      data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+      intervention_components = c("gear", "qsec"), intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 350), cost_list_of_vectors = list(c(0, 4), c(4, 6)),
+      outcome_goal = 15, include_confidence_set = FALSE, quiet = TRUE
+    ),
+    warning = function(w) w
+  )
+  # the goal below the observed mean warning, which carries its call
+  expect_match(conditionMessage(w), "observed mean")
+  call_text <- paste(deparse(conditionCall(w)), collapse = "")
+  expect_match(call_text, "^validate_inputs\\(")
+  expect_false(grepl("function (data", call_text, fixed = TRUE))
+})
