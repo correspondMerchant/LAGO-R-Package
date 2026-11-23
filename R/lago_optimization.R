@@ -23,6 +23,13 @@
 #' @param intervention_components A character vector. The names of the columns
 #' in the dataset that represent the intervention components.
 #' For example: c("component1", "component2").
+#' Each column can be given only once, and a column cannot also be the outcome,
+#' a center characteristic or an additional covariate.
+#' An interaction term such as "component1:component2" must also be a column
+#' of the dataset with that name, and that column must hold the product of its
+#' components, for example
+#' \code{data[["component1:component2"]] <- data$component1 * data$component2}.
+#' A column that is not that product is refused.
 #' @param intervention_lower_bounds A numeric vector. Specifies the lower bounds
 #' of the intervention components.
 #' For example: for a two-component intervention package, lower bounds could be
@@ -31,6 +38,11 @@
 #' of the intervention components.
 #' For example: for a two-component intervention package, upper bounds could be
 #' c(10,20).
+#' The bounds, unit_costs, unit_cost_doses, cost_list_of_vectors,
+#' prev_recommended_interventions and the step sizes hold one value per
+#' intervention component, or per main component with interaction terms. An
+#' unnamed vector is matched to the components by position. A named one is
+#' matched by name, and its names must then be those components, each once.
 #' @param outcome_goal A numeric value. Specifies the outcome goal, a desired
 #' probability or mean value.
 #' Default value without user specification: NULL.
@@ -119,7 +131,9 @@
 #' characteristic values, i.e. the optimization answers "what is the optimal
 #' intervention for a center whose characteristics equal these values?". Must
 #' be provided when center_characteristics is used, must be numeric, and must
-#' have the same length and order as center_characteristics.
+#' have the same length and order as center_characteristics. Named values are
+#' matched to the characteristics by name instead, and the names must then be
+#' the center characteristics, each once.
 #' For a categorical characteristic with two levels, use 0 for the reference
 #' level and 1 for the other level. For a logical characteristic, these values
 #' select FALSE and TRUE. Categorical characteristics with more than two levels
@@ -160,13 +174,23 @@
 #' interaction terms in the intervention components. Please make sure the
 #' interaction terms are included in "intervention_components", and they
 #' follow the correct naming scheme: "component1:component3".
+#' The dataset must have a column with that exact name that holds the product
+#' of the components, for example
+#' \code{data[["component1:component3"]] <- data$component1 * data$component3}.
+#' The model is fitted on that column and the recommendation computes the
+#' product, so a column that is not the product, within a small relative
+#' tolerance on the rows the model uses, is refused. The main components must
+#' be numeric columns of the dataset too.
 #' Default value without user specification: FALSE.
 #' @param main_components A character vector. Specifies the main intervention
 #' components in the presence of interaction terms.
 #' For example: c("component1", "component2").
 #' @param time_effect_optimization_value The period used for LAGO
 #' optimization, as a number or as the label of a period in the 'period'
-#' column (for example "2024-Q1", or a Date for a Date column).
+#' column (for example "2024-Q1", or a Date for a Date column). To select the
+#' rows with a missing period, make them an explicit level of a factor period
+#' column with \code{addNA()} and pass \code{NA_character_}. A value given
+#' while include_time_effects is FALSE is ignored with a warning.
 #' @param  center_weights_for_outcome_goal A numeric vector. Specifies the
 #' weights that will be used for calculating recommended interventions that
 #' satisfy the outcome goal for an (weighted) average center.
@@ -259,7 +283,8 @@
 #' the number of patients per center in the next stage of the trial.
 #' Default value without user specification: NULL.
 #' @param icc A numeric value in [0, 1), or a length-2 numeric vector
-#' c(control, treatment). Specifies the intra-cluster correlation used to
+#' c(control, treatment), matched by name when it is named
+#' c(control = , treatment = ). Specifies the intra-cluster correlation used to
 #' inflate the variance of the power-calculation test statistic by a design
 #' effect, so that the power goal accounts for within-center clustering.
 #' Only used when a power_goal is provided (ignored otherwise). When NULL, the
@@ -417,6 +442,9 @@ lago_optimization <- function(
     captured_args$default_cost_fxn_type <- NULL
   }
 
+  if (!is.logical(quiet) || length(quiet) != 1 || is.na(quiet)) {
+    stop("'quiet' must be TRUE or FALSE.")
+  }
   if (!quiet) cli::cli_alert_info("Starting LAGO Optimization")
 
   if (!quiet) cli::cli_alert_info("Validating inputs...")

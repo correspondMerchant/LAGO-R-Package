@@ -57,6 +57,7 @@ validate_inputs <- function(
   if (!is.character(input_data_structure)) {
     stop("The input_data_structure must be a character string.")
   }
+  refuse_not_one_string(input_data_structure, "input_data_structure")
   # check if the input data structure is supported
   if (!(input_data_structure %in% c("individual_level", "center_level"))) {
     stop(paste(
@@ -70,6 +71,7 @@ validate_inputs <- function(
   if (!is.character(outcome_name)) {
     stop("The outcome name must be a character string.")
   }
+  refuse_not_one_string(outcome_name, "outcome_name")
   # check if the outcome name is empty
   if (nchar(outcome_name) == 0) {
     stop("The outcome name is empty.")
@@ -90,6 +92,7 @@ validate_inputs <- function(
   if (!is.character(outcome_type)) {
     stop("The outcome type must be a character string.")
   }
+  refuse_not_one_string(outcome_type, "outcome_type")
   # check if the outcome type is either continuous or binary
   allowed_outcome_types <- c("continuous", "binary")
   if (!(outcome_type %in% allowed_outcome_types)) {
@@ -175,6 +178,7 @@ validate_inputs <- function(
   if (!is.character(glm_family)) {
     stop("The glm family must be a character string.")
   }
+  refuse_not_one_string(glm_family, "glm_family")
   # assign default glm_family based on the outcome type
   if (glm_family == "default") {
     if (outcome_type == "continuous") {
@@ -188,6 +192,7 @@ validate_inputs <- function(
   if (!is.character(link)) {
     stop("The link option must be a character string.")
   }
+  refuse_not_one_string(link, "link")
   # check if the provided link option is supported. The set is
   # supported_outcome_links(), the one place the links the outcome machinery
   # implements are written down, plus "default", which is resolved to one of
@@ -212,6 +217,20 @@ validate_inputs <- function(
     } else if (glm_family == "gaussian") {
       link <- "identity"
     }
+  }
+
+  # check if the outcome goal optimization method is a character type
+  if (!is.character(optimization_method)) {
+    stop("The optimization_method must be a character string.")
+  }
+  refuse_not_one_string(optimization_method, "optimization_method")
+  # check if the outcome goal optimization method is one of the defined methods
+  optimization_method_list <- c("numerical", "grid_search")
+  if (!(optimization_method %in% optimization_method_list)) {
+    stop(paste(
+      "optimization_method must be one of the supported methods.",
+      "The supported methods are:", optimization_method_list, "."
+    ))
   }
 
   # center level rows are weighted by their center_sample_size
@@ -251,11 +270,28 @@ validate_inputs <- function(
   }
   # check if intervention_components are all columns in the data frame
   if (!all(intervention_components %in% names(data))) {
+    missing_interactions <- setdiff(
+      intervention_components[grepl(":", intervention_components, fixed = TRUE)],
+      names(data)
+    )
     stop(paste0(
       "All elements in intervention_components ",
-      "must be columns in the data frame."
+      "must be columns in the data frame.",
+      if (length(missing_interactions) > 0) {
+        example <- strsplit(missing_interactions[1], ":", fixed = TRUE)[[1]]
+        paste0(
+          " The interaction term(s) ",
+          paste0("'", missing_interactions, "'", collapse = ", "),
+          " are not columns. An interaction term needs a column with that ",
+          "name that holds the product of its components, for example ",
+          "data[[\"", missing_interactions[1], "\"]] <- ",
+          paste0("data$", example, collapse = " * "), "."
+        )
+      }
     ))
   }
+  # a column given twice would be counted as two components
+  refuse_repeated_columns(intervention_components, "intervention_components")
   # refuse any intervention component whose column is entirely NA. glm()'s
   # internal na.omit drops every row in that case, and the fit dies with an
   # opaque error ("Argument mu must be a nonempty numeric vector") that never
@@ -307,6 +343,10 @@ validate_inputs <- function(
         "must be columns in the data frame."
       ))
     }
+    # a characteristic given twice would be fitted and set twice
+    refuse_repeated_columns(center_characteristics, "center_characteristics")
+    center_characteristics_optimization_values <-
+      drop_1d_array(center_characteristics_optimization_values)
     # check if center_characteristics_optimization_values
     # is a numeric vector type
     if (!(is.vector(center_characteristics_optimization_values) &&
@@ -343,6 +383,10 @@ validate_inputs <- function(
         "one per center characteristic. NA, NaN, Inf and -Inf name no center."
       ))
     }
+    center_characteristics_optimization_values <- match_by_names(
+      center_characteristics_optimization_values, center_characteristics,
+      "center_characteristics_optimization_values", "center characteristics"
+    )
   }
 
   # if include_center_effects is not specified, set the default value: TRUE
@@ -599,24 +643,43 @@ validate_inputs <- function(
         "column to identify time period."
       ))
     }
+    # an explicit NA level, as from addNA(), is a period that NA selects
+    has_na_period <- is.factor(data$period) && anyNA(levels(data$period))
+    value_is_na <- length(time_effect_optimization_value) == 1 &&
+      is.na(time_effect_optimization_value)
     # one period: a number, or the label of a text, factor or Date period
     if (is.null(time_effect_optimization_value) ||
       !(is.numeric(time_effect_optimization_value) ||
         is.character(time_effect_optimization_value) ||
         is.factor(time_effect_optimization_value) ||
-        inherits(time_effect_optimization_value, c("Date", "POSIXt"))) ||
+        inherits(time_effect_optimization_value, c("Date", "POSIXt")) ||
+        (value_is_na && is.logical(time_effect_optimization_value))) ||
       length(time_effect_optimization_value) != 1 ||
-      is.na(time_effect_optimization_value)) {
+      (value_is_na && !has_na_period)) {
       stop(paste(
         "'include_time_effects' is set to TRUE,",
         "'time_effect_optimization_value' must be provided,",
         "and it must be one period: a number, or the label of a period",
-        "in the 'period' column."
+        "in the 'period' column.",
+        if (value_is_na) {
+          paste(
+            "NA selects the rows with a missing period only when they are an",
+            "explicit level of a factor 'period' column, made with addNA()."
+          )
+        }
       ))
     }
-    # a factor or date-time is matched by its label, as the period levels are
+    # a date-time is labeled in the time zone of the period column, as its
+    # levels are, so the same instant in another time zone is the same period
+    if (inherits(time_effect_optimization_value, "POSIXt") &&
+      inherits(data$period, "POSIXt")) {
+      time_effect_optimization_value <- as.POSIXct(time_effect_optimization_value)
+      attr(time_effect_optimization_value, "tzone") <- attr(data$period, "tzone")
+    }
+    # a factor or date-time is matched by its label, as the period levels are,
+    # and NA by the explicit NA level
     if (is.factor(time_effect_optimization_value) ||
-      inherits(time_effect_optimization_value, "POSIXt")) {
+      inherits(time_effect_optimization_value, "POSIXt") || value_is_na) {
       time_effect_optimization_value <- as.character(time_effect_optimization_value)
     }
     # if "period" column of the input data is not a factor,
@@ -640,6 +703,13 @@ validate_inputs <- function(
     }
   }
 
+  if (!is.logical(include_interaction_terms) ||
+    length(include_interaction_terms) != 1 || is.na(include_interaction_terms)) {
+    stop("'include_interaction_terms' must be TRUE or FALSE.")
+  }
+  # the component columns as they are named in the data, before an interaction
+  # term is quoted for the model formula below
+  component_columns <- intervention_components
   # if include_interaction_terms is set to TRUE
   if (include_interaction_terms) {
     # check if interaction terms are included in intervention_components
@@ -674,19 +744,27 @@ validate_inputs <- function(
       ))
     }
 
-    # check if main_components are all columns in the data frame
-    # need this to calculate the step size if the step size is not specified.
-    if (optimization_method == "grid_search" &&
-      is.null(optimization_grid_search_step_size)) {
-      if (!all(main_components %in% names(data))) {
-        stop(paste(
-          "When 'optimization_method' is set to 'grid_search',",
-          "and optimization_grid_search_step_size is not specified,",
-          "all elements in the main_components",
-          "must be columns in the data frame for auto calculating",
-          "the step size."
-        ))
-      }
+    refuse_repeated_columns(main_components, "main_components")
+    # the bounds are checked against the main components, and each interaction
+    # column against their product, so they must be numeric columns
+    missing_main <- main_components[!main_components %in% names(data)]
+    if (length(missing_main) > 0) {
+      stop(paste0(
+        "With interaction terms, all elements in the main_components must be ",
+        "columns in the data frame, but ",
+        paste0("'", missing_main, "'", collapse = ", "), " are not."
+      ))
+    }
+    non_numeric_main <- main_components[!vapply(
+      main_components, function(component) is.numeric(data[[component]]),
+      logical(1)
+    )]
+    if (length(non_numeric_main) > 0) {
+      stop(paste0(
+        "The main component(s) ",
+        paste0("'", non_numeric_main, "'", collapse = ", "),
+        " must be numeric columns."
+      ))
     }
 
     # check if interaction terms can be found in the main_components
@@ -737,6 +815,7 @@ validate_inputs <- function(
         "must be columns in the data frame."
       ))
     }
+    refuse_repeated_columns(additional_covariates, "additional_covariates")
     # refuse any additional covariate whose column is entirely NA. glm()'s
     # internal na.omit drops every row in that case, and the fit dies with an
     # opaque error that never names the column. This runs after the
@@ -767,6 +846,16 @@ validate_inputs <- function(
     additional_covariates, center_characteristics
   ))
   model_names <- model_names[!grepl(":", model_names, fixed = TRUE)]
+  # ..1 and ... pass make.names() but are reserved, so a formula cannot use them
+  reserved_names <- model_names[grepl("^[.][.]([.]|[0-9]+)$", model_names)]
+  if (length(reserved_names) > 0) {
+    stop(paste0(
+      "The column name(s) ", paste0("'", reserved_names, "'", collapse = ", "),
+      " are reserved in R, so they cannot be used in the outcome model ",
+      "formula. Rename them, for example to ",
+      paste0("'X", reserved_names, "'", collapse = ", "), "."
+    ))
+  }
   bad_names <- model_names[make.names(model_names) != model_names]
   if (length(bad_names) > 0) {
     stop(paste0(
@@ -775,6 +864,152 @@ validate_inputs <- function(
       "formula. Rename them, for example with make.names(), which gives ",
       paste0("'", make.names(bad_names), "'", collapse = ", "), "."
     ))
+  }
+
+  # A column can have one role in the model. A characteristic that is also a
+  # component, for example, would be fitted once and then set twice.
+  roles <- list(
+    "the outcome" = outcome_name,
+    "an intervention component" = unique(c(component_columns, main_components)),
+    "a center characteristic" = center_characteristics,
+    "an additional covariate" = additional_covariates
+  )
+  role_columns <- unlist(lapply(roles, unique), use.names = FALSE)
+  shared_columns <- unique(role_columns[duplicated(role_columns)])
+  if (length(shared_columns) > 0) {
+    stop(paste0(
+      "Each column can have only one role in the outcome model, but ",
+      paste(vapply(shared_columns, function(column) {
+        in_roles <- names(roles)[vapply(roles, function(r) column %in% r, logical(1))]
+        paste0("'", column, "' is ", paste(in_roles, collapse = " and "))
+      }, character(1)), collapse = ", and "),
+      ". Remove it from all but one of them."
+    ))
+  }
+
+  # the columns the outcome model is fitted on, and the glm weights of its rows
+  fit_weights <- if (input_data_structure == "center_level") {
+    data$center_sample_size
+  } else {
+    weights
+  }
+  base_columns <- unique(c(
+    outcome_name, component_columns, center_characteristics,
+    additional_covariates,
+    if (input_data_structure == "center_level") "center_sample_size"
+  ))
+  effect_columns <- c(
+    if (include_center_effects) "center",
+    if (include_time_effects) "period"
+  )
+  # a second column with the same name would be read in place of the first
+  repeated_data_columns <- intersect(
+    c(base_columns, main_components, effect_columns),
+    names(data)[duplicated(names(data))]
+  )
+  if (length(repeated_data_columns) > 0) {
+    stop(paste0(
+      "The data has more than one column named ",
+      paste0("'", repeated_data_columns, "'", collapse = ", "),
+      ". Rename or remove the extra columns, so the model uses the one you mean."
+    ))
+  }
+  # glm() cannot use an infinite value, and the observed mean would be infinite
+  infinite_columns <- Filter(function(column) {
+    is.numeric(data[[column]]) && any(is.infinite(data[[column]]))
+  }, unique(c(base_columns, main_components)))
+  if (length(infinite_columns) > 0) {
+    stop(paste0(
+      "The column(s) ", paste0("'", infinite_columns, "'", collapse = ", "),
+      " hold Inf or -Inf, which the outcome model cannot use. Replace those ",
+      "values with finite numbers, or with NA to leave their rows out."
+    ))
+  }
+  observed_weight <- if (is.null(fit_weights)) TRUE else !is.na(fit_weights)
+  base_rows <- stats::complete.cases(data[base_columns]) & observed_weight
+  # with center or time effects the fit refuses this, and says whether turning
+  # an effect off would help
+  if (!any(base_rows) && length(effect_columns) == 0) {
+    with_missing <- c(
+      sprintf("'%s'", base_columns[vapply(
+        base_columns, function(column) anyNA(data[[column]]), logical(1)
+      )]),
+      if (input_data_structure != "center_level" && anyNA(weights)) "'weights'"
+    )
+    stop(paste0(
+      "No row has every model variable and its glm weight observed, so the ",
+      "outcome model cannot be fitted. The values with missing entries are ",
+      paste(with_missing, collapse = ", "), ". Fill in the missing values, or ",
+      "remove a column from the model."
+    ))
+  }
+  # the rows glm() keeps, and among them the rows it fits, with a positive weight
+  complete_rows <- base_rows
+  if (length(effect_columns) > 0) {
+    complete_rows <- complete_rows & stats::complete.cases(data[effect_columns])
+  }
+  if (!any(complete_rows)) {
+    # the fit refuses this with a message about the center or period effects
+    complete_rows <- base_rows
+  }
+  fitted_rows <- complete_rows
+  if (!is.null(fit_weights)) fitted_rows <- fitted_rows & fit_weights > 0
+  if (!any(fitted_rows)) fitted_rows <- complete_rows
+
+  # a text, factor or logical column with one value has no effect to estimate
+  single_level <- list(
+    "additional covariate" = additional_covariates,
+    "center characteristic" = center_characteristics
+  )
+  # only judged when some row can be used, as the fit refuses the rest
+  for (role in if (any(complete_rows)) names(single_level)) {
+    for (column in single_level[[role]]) {
+      x <- data[[column]]
+      if (!(is.factor(x) || is.character(x) || is.logical(x))) next
+      values <- unique(as.character(x[complete_rows]))
+      if (length(values) < 2) {
+        stop(paste0(
+          "The ", role, " '", column, "' has only the value '", values,
+          "' on the rows the outcome model can use, so the model cannot ",
+          "estimate its effect. Remove it from ",
+          if (role == "additional covariate") "additional_covariates" else "center_characteristics",
+          ", or add data with another value."
+        ))
+      }
+    }
+  }
+
+  # The model reads an interaction column as the product of its components,
+  # and the recommendation computes that product, so the two must agree.
+  for (term in component_columns[grepl(":", component_columns, fixed = TRUE)]) {
+    parts <- strsplit(term, ":", fixed = TRUE)[[1]]
+    product <- Reduce(`*`, lapply(parts, function(part) data[[part]]))
+    rows <- which(fitted_rows & !is.na(product))
+    difference <- abs(data[[term]][rows] - product[rows])
+    tolerance <- 1e-6 * max(abs(product[rows]), 0)
+    mismatch <- rows[difference > tolerance]
+    if (length(mismatch) > 0) {
+      row <- mismatch[1]
+      stop(paste0(
+        "The interaction column '", term, "' must hold the product ",
+        paste(parts, collapse = " * "), ", but in row ", row, " it is ",
+        format(data[[term]][row], digits = 10), " while the product is ",
+        format(product[row], digits = 10), ". The model reads the column as ",
+        "that product, so the recommendation would be wrong. Set it with ",
+        "data[[\"", term, "\"]] <- ", paste0("data$", parts, collapse = " * "),
+        "."
+      ))
+    }
+  }
+
+  intervention_lower_bounds <- drop_1d_array(intervention_lower_bounds)
+  intervention_upper_bounds <- drop_1d_array(intervention_upper_bounds)
+  # the components each per component vector is given for
+  per_component <- if (include_interaction_terms) main_components else component_columns
+  per_component_what <- if (include_interaction_terms) {
+    "main components"
+  } else {
+    "intervention components"
   }
 
   # check if intervention_lower_bounds and intervention_upper_bounds are both
@@ -812,6 +1047,21 @@ validate_inputs <- function(
   if (length(intervention_lower_bounds) != length(intervention_upper_bounds)) {
     stop("The lengths of lower and upper bounds must be the same.")
   }
+  if (!all(is.finite(intervention_lower_bounds)) ||
+    !all(is.finite(intervention_upper_bounds))) {
+    stop(paste(
+      "intervention_lower_bounds and intervention_upper_bounds must be finite",
+      "numbers, one per component. NA, NaN, Inf and -Inf are not bounds."
+    ))
+  }
+  intervention_lower_bounds <- match_by_names(
+    intervention_lower_bounds, per_component, "intervention_lower_bounds",
+    per_component_what
+  )
+  intervention_upper_bounds <- match_by_names(
+    intervention_upper_bounds, per_component, "intervention_upper_bounds",
+    per_component_what
+  )
   if (any(intervention_lower_bounds < 0)) {
     stop("The intervention must have non-negative values only.")
   }
@@ -828,16 +1078,15 @@ validate_inputs <- function(
     ))
   }
 
-  # check if lower bounds and upper bounds make sense
-  # by checking the actual min and max values of components in the data
-  if (include_interaction_terms) {
-    all_components <- main_components
-  } else {
-    all_components <- intervention_components
-  }
+  # check if lower bounds and upper bounds make sense by checking the min and
+  # max values of the components on the rows the model is fitted on
+  all_components <- per_component
   for (i in seq_along(all_components)) {
-    min_val <- min(data[[all_components[i]]], na.rm = TRUE)
-    max_val <- max(data[[all_components[i]]], na.rm = TRUE)
+    fitted_values <- data[[all_components[i]]][fitted_rows]
+    fitted_values <- fitted_values[!is.na(fitted_values)]
+    if (length(fitted_values) == 0) next
+    min_val <- min(fitted_values)
+    max_val <- max(fitted_values)
     if (intervention_lower_bounds[i] > min_val) {
       input_warning(paste(
         "The lower bound for the intervention component",
@@ -881,10 +1130,14 @@ validate_inputs <- function(
         "'main_components' must be the same."
       ))
     }
+    unit_costs <- match_by_names(
+      drop_1d_array(unit_costs), per_component, "unit_costs", per_component_what
+    )
     # check if default_cost_fxn_type is valid
     if (!is.character(default_cost_fxn_type)) {
       stop("default_cost_fxn_type must be a character string.")
     }
+    refuse_not_one_string(default_cost_fxn_type, "default_cost_fxn_type")
     # check if default_cost_fxn_type is one of the supported types
     supported_cost_fxn_types <- c("linear", "cubic")
     if (!(default_cost_fxn_type %in% supported_cost_fxn_types)) {
@@ -893,8 +1146,17 @@ validate_inputs <- function(
         paste(supported_cost_fxn_types, collapse = ", ")
       ))
     }
-    # the dose each unit cost was measured at pins the cubic cost there
-    if (!is.null(unit_cost_doses)) {
+    # the dose each unit cost was measured at pins the cubic cost there. With a
+    # cost list the doses are ignored, as said below.
+    if (!is.null(unit_cost_doses) && is.null(cost_list_of_vectors) &&
+      default_cost_fxn_type == "linear") {
+      input_warning(paste(
+        "'unit_cost_doses' is ignored, because the linear cost is the unit",
+        "cost at every dose."
+      ))
+      unit_cost_doses <- NULL
+    } else if (!is.null(unit_cost_doses) && is.null(cost_list_of_vectors)) {
+      unit_cost_doses <- drop_1d_array(unit_cost_doses)
       if (!is.numeric(unit_cost_doses) || length(unit_cost_doses) != length(unit_costs) ||
         any(!is.finite(unit_cost_doses))) {
         stop(paste(
@@ -902,6 +1164,9 @@ validate_inputs <- function(
           "each unit cost."
         ))
       }
+      unit_cost_doses <- match_by_names(
+        unit_cost_doses, per_component, "unit_cost_doses", per_component_what
+      )
       if (any(unit_cost_doses < intervention_lower_bounds) ||
         any(unit_cost_doses > intervention_upper_bounds)) {
         stop(paste(
@@ -909,7 +1174,8 @@ validate_inputs <- function(
           "bounds of its intervention component."
         ))
       }
-    } else if (is.null(cost_list_of_vectors) && default_cost_fxn_type == "cubic") {
+    } else if (is.null(unit_cost_doses) && is.null(cost_list_of_vectors) &&
+      default_cost_fxn_type == "cubic") {
       input_warning(paste(
         "'unit_cost_doses' is not given, so the cubic cost only matches each",
         "unit cost on average over the bounds, not at the dose it was measured",
@@ -925,14 +1191,25 @@ validate_inputs <- function(
     if (!is.list(cost_list_of_vectors)) {
       stop("cost_list_of_vectors must be a list.")
     }
-    # Check if all elements of sublists in cost_list_of_vectors are numeric
-    all_numeric <- all(sapply(cost_list_of_vectors, function(sublist) {
-      all(sapply(sublist, is.numeric))
-    }))
+    # Check if every vector in cost_list_of_vectors is numeric
+    all_numeric <- all(vapply(cost_list_of_vectors, is.numeric, logical(1)))
     if (!all_numeric) {
       stop(paste(
         "All elements in the sublists of cost_list_of_vectors",
         "must be numeric."
+      ))
+    }
+    # a missing or infinite coefficient gives no cost, and an empty vector no
+    # cost function at all
+    usable_costs <- vapply(cost_list_of_vectors, function(coefficients) {
+      length(coefficients) > 0 && all(is.finite(coefficients))
+    }, logical(1))
+    if (!all(usable_costs)) {
+      stop(paste0(
+        "Each vector in cost_list_of_vectors must hold at least one ",
+        "coefficient, and each coefficient must be a finite number, but the ",
+        "vector(s) at position(s) ", paste(which(!usable_costs), collapse = ", "),
+        " do not. NA, NaN, Inf and -Inf are not coefficients."
       ))
     }
     # check if the dimension of cost_list_of_vectors matches
@@ -953,6 +1230,17 @@ validate_inputs <- function(
         "'main_components' must be the same."
       ))
     }
+    cost_list_of_vectors <- match_by_names(
+      cost_list_of_vectors, per_component, "cost_list_of_vectors",
+      per_component_what
+    )
+    if (!is.null(unit_cost_doses)) {
+      input_warning(paste(
+        "'unit_cost_doses' is ignored, because the cost functions are given",
+        "in 'cost_list_of_vectors'."
+      ))
+      unit_cost_doses <- NULL
+    }
     # check if default_cost_fxn_type is also provided
     if (isTRUE(cost_type_given) && !is.null(default_cost_fxn_type) && !quiet) {
       input_note(paste(
@@ -970,23 +1258,12 @@ validate_inputs <- function(
     ))
   }
 
-  # check if the outcome goal optimization method is a character type
-  if (!is.character(optimization_method)) {
-    stop("The optimization_method must be a character string.")
-  }
-  # check if the outcome goal optimization method is one of the defined methods
-  optimization_method_list <- c("numerical", "grid_search")
-  if (!(optimization_method %in% optimization_method_list)) {
-    stop(paste(
-      "optimization_method must be one of the supported methods.",
-      "The supported methods are:", optimization_method_list, "."
-    ))
-  }
-
   # if optimization_grid_search_step_size is provided, validate it before it
   # can influence optimization_method below, so that an invalid step size is
   # rejected up front rather than after a "switched to grid_search" message.
   if (!is.null(optimization_grid_search_step_size)) {
+    optimization_grid_search_step_size <-
+      drop_1d_array(optimization_grid_search_step_size)
     # it needs to be a numeric vector
     if (!(is.vector(optimization_grid_search_step_size) &&
       is.numeric(optimization_grid_search_step_size))) {
@@ -1020,6 +1297,10 @@ validate_inputs <- function(
         "finite and greater than 0."
       ))
     }
+    optimization_grid_search_step_size <- match_by_names(
+      optimization_grid_search_step_size, per_component,
+      "optimization_grid_search_step_size", per_component_what
+    )
   }
 
   # optimization_grid_search_step_size is only used by the grid search
@@ -1040,7 +1321,7 @@ validate_inputs <- function(
   # when the optimization_method is grid_search,
   # check the number of intervention components
   if (optimization_method == "grid_search") {
-    if (length(intervention_components) > 3) {
+    if (length(per_component) > 3) {
       input_note(paste0(
         "There are more than 3 intervention components, and the grid search ",
         "algorithm may take significant amount of time to run. ",
@@ -1071,6 +1352,7 @@ validate_inputs <- function(
   if (!is.character(outcome_goal_intention)) {
     stop("The outcome_goal_intention must be a character string.")
   }
+  refuse_not_one_string(outcome_goal_intention, "outcome_goal_intention")
   # check if the outcome_goal_intention is one of the defined intentions
   allowed_outcome_goal_intentions <- c("minimize", "maximize")
   if (!(outcome_goal_intention %in% allowed_outcome_goal_intentions)) {
@@ -1106,7 +1388,8 @@ validate_inputs <- function(
     lower_outcome_goal <- FALSE
   } else if (outcome_goal_intention == "minimize") {
     lower_outcome_goal <- TRUE
-    if (outcome_goal > observed_mean) {
+    # a goal at the observed mean asks for no change, in either direction
+    if (outcome_goal >= observed_mean) {
       warning(paste(
         "The specified outcome goal intention is",
         "to minimize the outcome.",
@@ -1136,6 +1419,7 @@ validate_inputs <- function(
 
   # check if confidence set step size is provided
   if (include_confidence_set && !is.null(confidence_set_grid_step_size)) {
+    confidence_set_grid_step_size <- drop_1d_array(confidence_set_grid_step_size)
     # if confidence_set_grid_step_size is provided,
     # it needs to be a numeric vector
     if (!(is.vector(confidence_set_grid_step_size) &&
@@ -1167,6 +1451,10 @@ validate_inputs <- function(
       any(confidence_set_grid_step_size <= 0)) {
       stop("confidence_set_grid_step_size must be finite and positive.")
     }
+    confidence_set_grid_step_size <- match_by_names(
+      confidence_set_grid_step_size, per_component,
+      "confidence_set_grid_step_size", per_component_what
+    )
   }
 
   # check if confidence_set_alpha is a numeric type
@@ -1191,23 +1479,48 @@ validate_inputs <- function(
       sep = ""
     ))
   }
+  # a quasibinomial outcome is a proportion, and a logit link on a continuous
+  # outcome needs values strictly between 0 and 1, where the logit is finite
+  observed_outcome <- outcome_column[!is.na(outcome_column)]
+  outside_range <- if (glm_family == "quasibinomial") {
+    observed_outcome[observed_outcome < 0 | observed_outcome > 1]
+  } else if (glm_family == "gaussian" && link == "logit") {
+    observed_outcome[observed_outcome <= 0 | observed_outcome >= 1]
+  } else {
+    numeric(0)
+  }
+  if (length(outside_range) > 0) {
+    stop(paste0(
+      "The outcome column '", outcome_name, "' has values ",
+      if (glm_family == "quasibinomial") {
+        "outside 0 to 1"
+      } else {
+        "that are not strictly between 0 and 1"
+      },
+      ", such as ", format(outside_range[1], digits = 10), ". ",
+      if (glm_family == "quasibinomial") {
+        "The quasibinomial family models a proportion, which is from 0 to 1."
+      } else {
+        paste(
+          "A logit link on a continuous outcome needs values above 0 and",
+          "below 1. Use the identity link, or rescale the outcome."
+        )
+      }
+    ))
+  }
 
   # check if the prev_recommended_interventions is numeric and
   # has the same length as the number of intervention components
   if (!is.null(prev_recommended_interventions)) {
+    prev_recommended_interventions <- drop_1d_array(prev_recommended_interventions)
     if (!is.numeric(prev_recommended_interventions)) {
       stop("prev_recommended_interventions must be a numeric vector.")
     }
-    if (include_interaction_terms) {
-      all_components <- main_components
-    } else {
-      all_components <- intervention_components
-    }
+    all_components <- per_component
     if (length(prev_recommended_interventions) != length(all_components)) {
-      stop(paste(
-        "The length of prev_recommended_interventions",
-        "must be the same as",
-        "the number of intervention components."
+      stop(paste0(
+        "The length of prev_recommended_interventions must be the same as ",
+        "the number of ", per_component_what, ", ", length(all_components), "."
       ))
     }
 
@@ -1217,6 +1530,10 @@ validate_inputs <- function(
         "intervention component, with no NA."
       ))
     }
+    prev_recommended_interventions <- match_by_names(
+      prev_recommended_interventions, per_component,
+      "prev_recommended_interventions", per_component_what
+    )
     # prev_recommended_interventions must be within the bounds
     for (i in 1:length(all_components)) {
       if (prev_recommended_interventions[i] <
@@ -1357,6 +1674,10 @@ validate_inputs <- function(
       if (!all(is.finite(icc)) || any(icc < 0) || any(icc >= 1)) {
         stop("icc must be in [0, 1).")
       }
+      # a pair is read as c(control, treatment), and named values by name
+      if (length(icc) == 2) {
+        icc <- match_by_names(icc, c("control", "treatment"), "icc", "arms")
+      }
       # a non-zero icc needs a stage-1 cluster id to compute the stage-1 design
       # effect; validate the column exists and is non-degenerate per arm.
       if (any(icc > 0)) {
@@ -1410,6 +1731,25 @@ validate_inputs <- function(
   }
 
 
+  # A value for an effect that is not in the model is not used. Said here,
+  # after the input errors, as the warning below is.
+  ignored_values <- c(
+    if (!include_center_effects && !is.null(center_effects_optimization_values)) {
+      "'center_effects_optimization_values' is ignored, because include_center_effects is FALSE."
+    },
+    if (!include_time_effects && !is.null(time_effect_optimization_value)) {
+      "'time_effect_optimization_value' is ignored, because include_time_effects is FALSE."
+    },
+    if (length(center_characteristics) == 0 &&
+      !is.null(center_characteristics_optimization_values)) {
+      paste(
+        "'center_characteristics_optimization_values' is ignored, because no",
+        "center_characteristics are given."
+      )
+    }
+  )
+  for (text in ignored_values) input_warning(text)
+
   # A value outside the centers the model is fitted on asks it about a center
   # it has not seen. The estimate and its interval are then an extrapolation,
   # and with few centers the interval can cover every probability. It is
@@ -1454,7 +1794,8 @@ validate_inputs <- function(
     family_object = family_object,
     link = link,
     lower_outcome_goal = lower_outcome_goal,
-    prev_recommended_interventions = prev_recommended_interventions
+    prev_recommended_interventions = prev_recommended_interventions,
+    icc = icc
   )
 }
 
@@ -1724,6 +2065,60 @@ warn_outside_centers <- function(center_characteristics, values, columns) {
       "confidence interval are then an extrapolation of the model, so the ",
       "interval can be very wide. Choose a value within the data, or make ",
       "sure the model holds for such a center."
+    ))
+  }
+  invisible(NULL)
+}
+
+# Refuses a string argument that is not one value, such as character(0), two
+# strings or NA_character_, which would otherwise fail on an unclear message.
+refuse_not_one_string <- function(x, arg) {
+  if (length(x) != 1 || is.na(x)) {
+    stop(paste0(
+      "'", arg, "' must be one character string, but it is ",
+      if (length(x) != 1) paste0("a vector of length ", length(x)) else "NA",
+      "."
+    ))
+  }
+  invisible(NULL)
+}
+
+# A one dimensional array, as tapply() returns, is read as the plain vector it
+# holds, with its names kept.
+drop_1d_array <- function(x) {
+  if (is.array(x) && length(dim(x)) == 1) {
+    x <- stats::setNames(as.vector(x), names(x))
+  }
+  x
+}
+
+# Matches a named vector or list to the expected names, and returns it in their
+# order without names. A vector without names is kept as it is, in its order.
+# Names that are not exactly the expected ones, each once, are refused.
+match_by_names <- function(x, expected, arg, what) {
+  x_names <- names(x)
+  if (is.null(x_names)) {
+    return(x)
+  }
+  if (anyNA(x_names) || anyDuplicated(x_names) > 0 ||
+    !setequal(x_names, expected)) {
+    stop(paste0(
+      "The names of ", arg, " must be the ", what, ", each once: ",
+      paste0("'", expected, "'", collapse = ", "),
+      ". Fix the names, or remove them with unname() to match the values to ",
+      "the ", what, " in this order."
+    ))
+  }
+  unname(x[match(expected, x_names)])
+}
+
+# Refuses a column list that names a column more than once.
+refuse_repeated_columns <- function(columns, arg) {
+  repeated <- unique(columns[duplicated(columns)])
+  if (length(repeated) > 0) {
+    stop(paste0(
+      arg, " names the column(s) ", paste0("'", repeated, "'", collapse = ", "),
+      " more than once. Give each column once."
     ))
   }
   invisible(NULL)
