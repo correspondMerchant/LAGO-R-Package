@@ -16,6 +16,11 @@ Exposed functions (mirroring the exported R functions):
     get_confidence_set() -> get_confidence_set()
     visualize_cost()     -> visualize_cost()   (opens a browser, BLOCKS)
     lago_report()        -> lago_report()
+
+Not supported: the ``object`` argument of R's ``lago_sensitivity()`` and
+``lago_budget()``, which takes a ``lago`` result and reuses the arguments of
+the call that made it. Python's :func:`sensitivity` and :func:`budget` take the
+optimization arguments directly, so pass them again for each call.
 """
 
 from __future__ import annotations
@@ -162,19 +167,24 @@ def sensitivity(
         What to vary. Either the name of a scalar numeric argument of
         ``lago_optimization()`` that affects the recommendation (for example
         ``"outcome_goal"``, ``"power_goal"``, ``"icc"``) or the
-        special string ``"cost_multiplier"`` (each run multiplies every cost
-        coefficient by one element of ``values``; requires ``cost_list`` and all
-        ``values`` positive).
+        special string ``"cost_multiplier"``. Each run of a cost multiplier
+        multiplies every coefficient of ``cost_list`` by one element of
+        ``values``, or, when ``unit_costs`` is given instead, multiplies the
+        unit costs, which scales the linear or cubic cost built from them in
+        the same way. It needs ``cost_list`` or ``unit_costs``, and all
+        ``values`` must be positive.
     values : list[float]
-        A non-empty list of finite numbers. One run per element.
+        A non-empty list of finite numbers. One run per element. For
+        ``parameter="time_effect_optimization_value"`` it can also hold period
+        labels or dates.
     outcome_goal : float, optional
         The desired outcome level, forwarded as the baseline for every run.
         When sweeping ``parameter="outcome_goal"`` it is overridden per run, so
         it need not be supplied in that case.
     cost_list : list[list[float]], optional
         The cost-function coefficients per component, as a Python list of
-        lists. Maps to R's ``cost_list_of_vectors``. Required when
-        ``parameter="cost_multiplier"``.
+        lists. Maps to R's ``cost_list_of_vectors``. Either this or
+        ``unit_costs`` must be supplied.
     quiet : bool, default True
         Suppress R's paced console output. Forwarded to each run.
     **kwargs
@@ -313,6 +323,11 @@ def get_confidence_set(
 ):
     """Compute a confidence set by calling R's ``get_confidence_set()``.
 
+    ``cost_list`` and ``rec_int`` are required. They keep a default of None
+    so that calls that give them by position, or give
+    ``cost_list_of_vectors`` by name, keep working. Leaving out both cost
+    arguments, or ``rec_int``, raises a ``TypeError``.
+
     Parameters
     ----------
     predictors_data : pandas.DataFrame
@@ -331,9 +346,12 @@ def get_confidence_set(
     intervention_lower_bounds, intervention_upper_bounds : list[float]
     confidence_set_grid_step_size : list[float]
     cost_list : list[list[float]]
-        Cost coefficients per component (maps to ``cost_list_of_vectors``).
+        Required. Cost coefficients per component (maps to
+        ``cost_list_of_vectors``, which may be given by that name instead).
     rec_int : list[float]
-        The recommended intervention, e.g. ``optimize(...)["rec_int"]``.
+        Required. The recommended intervention, e.g.
+        ``optimize(...)["rec_int"]``.
+
     **kwargs
         Other ``get_confidence_set()`` arguments (e.g.
         ``center_characteristics``,
@@ -361,8 +379,11 @@ def get_confidence_set(
     )
     if cost_list is not None:
         call_kwargs["cost_list_of_vectors"] = cost_list
-    if rec_int is not None:
-        call_kwargs["rec_int"] = rec_int
+    elif kwargs.get("cost_list_of_vectors") is None:
+        raise TypeError("get_confidence_set() needs `cost_list`, the cost coefficients per component.")
+    if rec_int is None:
+        raise TypeError("get_confidence_set() needs `rec_int`, the recommended intervention, such as optimize(...)[\"rec_int\"].")
+    call_kwargs["rec_int"] = rec_int
     call_kwargs.update(kwargs)
 
     result = _bridge.call_lago("get_confidence_set", call_kwargs)

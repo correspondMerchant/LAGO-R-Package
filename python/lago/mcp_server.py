@@ -30,12 +30,15 @@ a recommendation for a center outside the centers in the data, so an agent can
 pass them on instead of reporting a number without its caveats. A tool that
 fails returns ``{"error": "...", "warnings": [...]}`` as a tool result marked
 as an error (``isError`` true). That includes the warnings R gave before it
-failed, and an argument that does not fit the tool, such as one of the wrong
-type or one the tool does not take.
+failed, an argument that does not fit the tool, such as one of the wrong
+type or one the tool does not take, and a call to a tool the server does not
+have.
 
 JSON has no NaN or Infinity. The MCP SDK turns a NaN or an Infinity into null
 before a tool sees it, so the server cannot tell it from null. For an optional
-argument, null means the argument was not given, and the default is used.
+argument, null means the argument was not given, and the default is used. A
+null where a value is needed is an error, and its message says that a NaN or an
+Infinity would have become null, in case the client sent one.
 
 Deliberately NOT exposed
 ------------------------
@@ -94,7 +97,8 @@ class _StrictFastMCP(FastMCP):
     FastMCP drops an argument a tool does not take without a word, and reports
     an argument of the wrong type as plain text. Here both are an error result
     with the JSON payload every other error has, and each tool's schema says
-    that no other argument is allowed. Only the public `call_tool` and
+    that no other argument is allowed. A call to a tool the server does not
+    have gets the same error result. Only the public `call_tool` and
     `list_tools` methods are overridden, so no private part of the SDK is used.
     """
 
@@ -117,7 +121,15 @@ class _StrictFastMCP(FastMCP):
 
     async def call_tool(self, name, arguments):
         model = self._strict_models.get(name)
-        if model is not None:
+        if model is None:
+            # FastMCP answers an unknown tool with plain text, so it gets the
+            # JSON error result of every other error here
+            known = [t.name for t in await super().list_tools()]
+            if name not in known:
+                return _error_result(_error(ValueError(
+                    f"`{name}` is not a tool of this server. Its tools are {', '.join(known)}."
+                )))
+        else:
             from pydantic import ValidationError
 
             try:
@@ -314,12 +326,32 @@ def _model_kwargs(p, df):
         "optimization_method", "optimization_grid_search_step_size", "prev_recommended_interventions",
     ]
     extra = {n: p[n] for n in names if p.get(n) is not None}
+    center = extra.get("center_effects_optimization_values")
+    if isinstance(center, (int, float)) and not isinstance(center, bool):
+        # a center is named by its label, which is text in R, and R writes a
+        # number such as 2 as "2", with up to 15 significant digits
+        extra["center_effects_optimization_values"] = format(center, ".15g")
     for n in ("glm_family", "link"):
         if p.get(n) not in (None, "default"):
             extra[n] = p[n]
     if p.get("weights_column"):
-        extra["weights"] = [float(v) for v in _column(df, p["weights_column"], "weights")]
+        name = p["weights_column"]
+        column = _column(df, name, "weights")
+        try:
+            extra["weights"] = [float(v) for v in column]
+        except (TypeError, ValueError):
+            bad = next(v for v in column if not _is_number(v))
+            raise ValueError(f"the weights column {name!r} must hold numbers, and it holds {bad!r}.") from None
     return extra
+
+
+def _is_number(v):
+    """True when float() can read the value."""
+    try:
+        float(v)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _error(exc: Exception, warned=None) -> dict:
@@ -395,10 +427,12 @@ MODEL_ARGS_DOC = """
     Model: `glm_family` and `link` ("logit" or "identity"),
     `center_characteristics` with `center_characteristics_optimization_values`,
     `additional_covariates`, `include_center_effects` with either
-    `center_effects_optimization_values` (one center to plan for) or
+    `center_effects_optimization_values` (one center to plan for, by its
+    label or number) or
     `center_weights_for_outcome_goal` (one weight per center, in sorted order,
     summing to 1), `include_time_effects` with
-    `time_effect_optimization_value`, and `include_interaction_terms` with the
+    `time_effect_optimization_value` (one period, by its number or its label),
+    and `include_interaction_terms` with the
     products listed in `intervention_components` as "a:b" and the mains in
     `main_components`. The server builds the column of a product "a:b" from
     the columns a and b when the data has none. Optimizer: `optimization_method` ("numerical" or
@@ -520,10 +554,10 @@ def optimize(
     weights_column: str | None = None,
     additional_covariates: list[str] | None = None,
     include_center_effects: bool | None = None,
-    center_effects_optimization_values: str | None = None,
+    center_effects_optimization_values: str | float | None = None,
     center_weights_for_outcome_goal: list[float] | None = None,
     include_time_effects: bool | None = None,
-    time_effect_optimization_value: float | None = None,
+    time_effect_optimization_value: float | str | None = None,
     include_interaction_terms: bool | None = None,
     main_components: list[str] | None = None,
     optimization_method: str | None = None,
@@ -586,7 +620,9 @@ def optimize(
         ci = res.get("est_outcome_ci")
         if isinstance(ci, dict):
             out["est_outcome_ci"] = {k: _finite(v) for k, v in ci.items()}
-            out["confidence_level"] = 1 - (confidence_set_alpha if confidence_set_alpha is not None else 0.05)
+            # rounded, so an alpha of 0.07 gives 0.93 and not 0.9299999999999999
+            alpha = confidence_set_alpha if confidence_set_alpha is not None else 0.05
+            out["confidence_level"] = float(f"{1 - alpha:.12g}")
         csp = res.get("confidence_set_size_percentage")
         if csp is not None:
             out["confidence_set_size_percentage"] = _finite(csp)
@@ -640,10 +676,10 @@ def sensitivity(
     weights_column: str | None = None,
     additional_covariates: list[str] | None = None,
     include_center_effects: bool | None = None,
-    center_effects_optimization_values: str | None = None,
+    center_effects_optimization_values: str | float | None = None,
     center_weights_for_outcome_goal: list[float] | None = None,
     include_time_effects: bool | None = None,
-    time_effect_optimization_value: float | None = None,
+    time_effect_optimization_value: float | str | None = None,
     include_interaction_terms: bool | None = None,
     main_components: list[str] | None = None,
     optimization_method: str | None = None,
@@ -657,10 +693,11 @@ def sensitivity(
     that affects the recommendation (for example `"outcome_goal"`,
     `"power_goal"`, `"icc"`, `"num_centers_in_next_stage"` or
     `"time_effect_optimization_value"`) or the special string
-    `"cost_multiplier"` (each run scales every cost coefficient by one element
-    of `values`. All values must be positive, and it needs
-    `cost_list_of_vectors`.) `values` is a non-empty list of finite numbers,
-    one run per element. The confidence set is not computed.
+    `"cost_multiplier"` (each run scales every cost coefficient of
+    `cost_list_of_vectors` by one element of `values`, or with `unit_costs`
+    scales the unit costs, which scales the cost built from them in the same
+    way. All values must be positive.) `values` is a non-empty list of finite
+    numbers, one run per element. The confidence set is not computed.
     {model}
     Returns `{{"runs": [...], "warnings": [...]}}`. `runs` has one record per
     swept value, each with `value` (the swept value), one entry per
@@ -731,10 +768,10 @@ def budget(
     weights_column: str | None = None,
     additional_covariates: list[str] | None = None,
     include_center_effects: bool | None = None,
-    center_effects_optimization_values: str | None = None,
+    center_effects_optimization_values: str | float | None = None,
     center_weights_for_outcome_goal: list[float] | None = None,
     include_time_effects: bool | None = None,
-    time_effect_optimization_value: float | None = None,
+    time_effect_optimization_value: float | str | None = None,
     include_interaction_terms: bool | None = None,
     main_components: list[str] | None = None,
     optimization_method: str | None = None,
@@ -967,7 +1004,7 @@ def _validation_message(exc, tool_name):
         else:
             text = f"`{name}`: {err['msg']}."
             if err.get("input", 0) is None:
-                text += " JSON has no NaN or Infinity, and the server reads them as null."
+                text += " If you sent NaN or Infinity, note that JSON has no NaN or Infinity, and the server reads them as null."
             problems.append(text)
     return f"the arguments do not fit {tool_name}. " + " ".join(problems)
 
