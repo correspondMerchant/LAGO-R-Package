@@ -350,11 +350,11 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
         g0 * inside
       }
     } else if (maximize) {
-      g0 <- max(fr$outcome_goal)
-      new_goals <- seq(g0, g0 + span, length.out = n_grid + 1L)[-1]
+      # only the far goal decides whether to extend again, and the refinement
+      # below fills in the gap it leaves, so one run per extension is enough
+      new_goals <- max(fr$outcome_goal) + span
     } else {
-      g0 <- min(fr$outcome_goal)
-      new_goals <- seq(g0 - span, g0, length.out = n_grid + 1L)[-(n_grid + 1L)]
+      new_goals <- min(fr$outcome_goal) - span
     }
     fr <- rbind(fr, sweep(new_goals))
     fr <- fr[order(fr$outcome_goal), , drop = FALSE]

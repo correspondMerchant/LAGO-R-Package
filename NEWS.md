@@ -1,5 +1,7 @@
 # LAGOtrials (development version)
 
+* `lago_optimization()` is much faster for an outcome goal within round off above the best reachable outcome. Such a goal counts as reached, but no point meets it exactly, so every start of the optimizer ran to its last iteration. It now aims at the best outcome, which meets the goal within that round off. `lago_budget()` meets such goals near the top of the reachable range, and on a continuous outcome it now extends its goal grid one goal at a time. The search for a budget that affords the best reachable outcome is now about 6 times faster on `mtcars`.
+
 * In the cost designer of `visualize_cost()` and `lago_app()`, a coefficient whose slider range is very small or very large is now shown in a unit of its own size, and its label names the unit, for example "A^4 coefficient (shown in units of 1e-18)". Its range then shrinks to the size of the coefficient. On wide bounds such as 0 to 1000000, the sliders of the higher order coefficients can now bend the curve, where one step used to change the cost by far more than the whole curve. Ordinary sliders are unchanged.
 
 * The MCP server checks tool arguments with public parts of the `mcp` Python package only. It used to replace private parts of `FastMCP`, which a new release of that package could break without warning. The behavior is unchanged: an unknown argument or an argument of the wrong type is a JSON error result, and a list sent as JSON text is still read.
