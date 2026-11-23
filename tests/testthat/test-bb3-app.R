@@ -67,14 +67,14 @@ test_that("a UTF-8 file keeps every row in the C locale, and the shown code does
   expect_identical(got$from_code, got$d)
 })
 
-test_that("a header with accents gives the UTF-8 name in any locale", {
+test_that("a header with accents gives the same ASCII name in any locale", {
   path <- bb3_file(charToRaw("y,x,"), as.raw(0xE2), charToRaw("ge\n1,2,3\n0,3,4\n"))
   for (kind in c("C", "UTF-8")) {
     got <- bb3_read(path, kind)
-    expect_identical(bb3_codes(names(got$d)), bb3_codes(c("y", "x", "\u00e2ge")))
+    expect_identical(names(got$d), c("y", "x", "age"))
     expect_identical(got$from_code, got$d)
     expect_match(got$code, "check.names = FALSE", fixed = TRUE)
-    expect_length(got$renamed, 0)
+    expect_length(got$renamed, 1)
   }
   # names that must change are set by the shown code
   path <- bb3_file(
@@ -82,12 +82,13 @@ test_that("a header with accents gives the UTF-8 name in any locale", {
   )
   for (kind in c("C", "UTF-8")) {
     got <- bb3_read(path, kind)
-    expect_identical(bb3_codes(names(got$d)), bb3_codes(c("y", "\u00e2.ge", "X.q.", "x.1")))
+    expect_identical(bb3_codes(names(got$d)), bb3_codes(c("y", "a.ge", "X.q.", "x.1")))
     expect_identical(got$from_code, got$d)
     expect_match(got$code, "stats::setNames(", fixed = TRUE)
     expect_length(got$renamed, 3)
   }
-  expect_identical(.app_make_names(c("\u0661x", "a", "a", "if")), c("X\u0661x", "a", "a.1", "if."))
+  x <- c("\u0661x", "a", "a", "if")
+  expect_identical(bb3_codes(.app_make_names(x)), bb3_in_locale("UTF-8", function() bb3_codes(make.names(x, unique = TRUE))))
   expect_identical(.app_ascii_string("\u00e2\"b"), "\"\\u{e2}\\\"b\"")
 })
 

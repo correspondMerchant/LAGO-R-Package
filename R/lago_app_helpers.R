@@ -172,7 +172,7 @@
   # make.names() keeps an accented letter only in a locale that has it, so
   # names with such letters are set by the code
   wide <- any(utf8ToInt(paste(header, collapse = "")) > 127)
-  fixed <- .app_make_names(header)
+  fixed <- .app_csv_names(header)
   code <- sprintf(
     "read.csv(%s)",
     paste(c(sprintf("text = %s", text), extra, "na.strings = c(\"\", \"NA\")", "encoding = \"UTF-8\"", if (wide) "check.names = FALSE"), collapse = ", ")
@@ -192,29 +192,63 @@
   paste0("\"", paste(chars, collapse = ""), "\"")
 }
 
-# make.names(unique = TRUE) as a UTF-8 locale gives it, in any locale: a
-# letter or digit that is not ASCII stays as it is, and any other character
-# that is not ASCII becomes a dot.
-.app_make_names <- function(x) {
+# make.names(unique = TRUE) as a UTF-8 locale gives it, in any locale. In
+# another locale the names are made in a UTF-8 locale for a moment, as which
+# letters a name may keep depends on the locale. Where the system has no
+# UTF-8 locale, the letters that are not ASCII are first turned into ASCII.
+.app_make_names <- function(x, utf8_locales = c("C.UTF-8", "en_US.UTF-8", "UTF-8")) {
   x <- enc2utf8(as.character(x))
-  out <- vapply(x, function(s) {
-    cp <- utf8ToInt(s)
-    wide <- which(cp > 127)
-    if (!length(wide)) {
-      return(make.names(s))
+  if (isTRUE(l10n_info()[["UTF-8"]]) || all(utf8ToInt(paste(x, collapse = "")) < 128)) {
+    return(make.names(x, unique = TRUE))
+  }
+  old <- Sys.getlocale("LC_CTYPE")
+  on.exit(Sys.setlocale("LC_CTYPE", old), add = TRUE)
+  for (loc in utf8_locales) {
+    if (nzchar(suppressWarnings(Sys.setlocale("LC_CTYPE", loc)))) {
+      out <- make.names(x, unique = TRUE)
+      Encoding(out) <- "UTF-8"
+      return(out)
     }
-    chars <- vapply(cp[wide], intToUtf8, character(1))
-    letter <- grepl("^\\p{L}$", chars, perl = TRUE)
-    digit <- grepl("^\\p{N}$", chars, perl = TRUE)
-    # stand in ASCII characters of the same kind, and put the real ones back
-    stand <- cp
-    stand[wide] <- utf8ToInt(paste(ifelse(letter, "a", ifelse(digit, "0", "_")), collapse = ""))
-    made <- utf8ToInt(make.names(intToUtf8(stand)))
-    at <- wide + length(made) - length(cp)
-    made[at] <- ifelse(letter | digit, cp[wide], utf8ToInt("."))
-    intToUtf8(made)
+  }
+  make.names(.app_ascii_fold(x), unique = TRUE)
+}
+
+# Letters with accents and other Latin letters as their plain ASCII letters,
+# and any other character that is not ASCII as a dot.
+.app_ascii_fold <- function(x) {
+  from <- c(0xAA, 0xB5, 0xBA, 0xC0:0xD6, 0xD8:0xF6, 0xF8:0x17F)
+  to <- strsplit(paste(
+    "a u o A A A A A A AE C E E E E I I I I D N O O O O O",
+    "O U U U U Y TH ss a a a a a a ae c e e e e i i i i d n o o o o o",
+    "o u u u u y th y",
+    "A a A a A a C c C c C c C c D d D d E e E e E e E e E e G g G g",
+    "G g G g H h H h I i I i I i I i I i IJ ij J j K k k L l L l L l L",
+    "l L l N n N n N n n N n O o O o O o OE oe R r R r R r S s S s S s",
+    "S s T t T t T t U u U u U u U u U u U u W w Y y Y Z z Z z Z z s"
+  ), " ")[[1]]
+  vapply(enc2utf8(as.character(x)), function(s) {
+    cp <- utf8ToInt(s)
+    chars <- vapply(cp, function(k) if (k < 128) intToUtf8(k) else if (k %in% from) to[match(k, from)] else ".", character(1))
+    paste(chars, collapse = "")
   }, character(1), USE.NAMES = FALSE)
-  make.unique(out)
+}
+
+# The names the app gives the columns of an uploaded file: the names of
+# make.names(unique = TRUE) in a UTF-8 locale, with any name that is not ASCII
+# then turned into ASCII. The C locale cannot read a name that is not ASCII,
+# so these names work in the model and in the shown code in every locale.
+.app_csv_names <- function(header) {
+  header <- enc2utf8(as.character(header))
+  made <- .app_make_names(header)
+  wide <- vapply(made, function(s) any(utf8ToInt(s) > 127), logical(1), USE.NAMES = FALSE)
+  if (!any(wide)) {
+    return(made)
+  }
+  made[wide] <- make.names(.app_ascii_fold(made[wide]))
+  # as make.names() does, a name that did not change keeps its name
+  o <- order(made != header)
+  made[o] <- make.unique(made[o])
+  made
 }
 
 # Parse the ICC box: empty, one value, or a control and a treatment value.
@@ -245,7 +279,7 @@
     outcomes = numeric_cols,
     components = setdiff(numeric_cols, spec$outcome),
     arms = arms, arm = arm, arm_values = arm_values, arm_value = arm_value,
-    clusters = if (length(arm)) .app_cluster_choices(.app_center_columns(spec, data)$data, .app_resolve(spec)$outcome, arm, arm_value, exclude = spec$components) else character(0),
+    clusters = if (length(arm)) .app_cluster_choices(.app_center_columns(spec, data)$data, .app_resolve(spec)$outcome, arm, arm_value, exclude = c(spec$components, if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total)), center_level = .app_center_level(spec)) else character(0),
     others = others,
     center_chars = setdiff(numeric_cols, c(spec$outcome, spec$components)),
     center_col = center_col,
@@ -284,14 +318,23 @@
 }
 
 # The encoding of a file: "UTF-8-BOM" for ASCII text, which may start with a
-# byte order mark, "UTF-8" for other UTF-8 text, "UTF-16" for a file that
-# starts with a UTF-16 byte order mark, and otherwise Windows-1252, which has
+# byte order mark, "UTF-8" for other UTF-8 text, "UTF-16" for UTF-16 text,
+# with or without a byte order mark, and otherwise Windows-1252, which has
 # every printable Latin-1 character. A file with a byte that Windows-1252
 # leaves out is read as Latin-1.
 .app_file_encoding <- function(path) {
   bytes <- readBin(path, "raw", n = file.size(path))
   if (length(bytes) >= 2 && (identical(bytes[1:2], as.raw(c(0xFF, 0xFE))) || identical(bytes[1:2], as.raw(c(0xFE, 0xFF))))) {
     return("UTF-16")
+  }
+  # UTF-16 text without a byte order mark has a zero byte in most of its odd
+  # or most of its even places, as each ASCII character takes two bytes
+  if (length(bytes) >= 4) {
+    zero <- bytes == as.raw(0)
+    odd <- seq(1, length(bytes), by = 2)
+    if (mean(zero[odd]) > 0.5 || mean(zero[-odd]) > 0.5) {
+      return("UTF-16")
+    }
   }
   bytes <- bytes[bytes != as.raw(0)]
   if (validUTF8(rawToChar(bytes))) {
@@ -354,7 +397,7 @@
     sep = sep, dec = dec, na.strings = c("", "NA"),
     check.names = FALSE, encoding = "UTF-8", stringsAsFactors = FALSE
   )
-  names(d) <- .app_make_names(names(d))
+  names(d) <- .app_csv_names(names(d))
   d
 }
 
@@ -720,13 +763,31 @@
       ))
     }
   }
+  # the app builds its columns in the order of `built`, so a column that one
+  # of them reads must not be one that an earlier one replaced
+  sources <- list(
+    center_sample_size = list(col = spec$cl_total, role = "the total column", step = "outcome"),
+    group = list(col = spec$arm_col, role = "the treatment arm column", step = "outcome"),
+    center = list(col = spec$center_col, role = "the center column", step = "centers"),
+    period = list(col = spec$period_col, role = "the period column", step = "centers")
+  )
+  for (target in intersect(names(sources), built)) {
+    src <- sources[[target]]
+    earlier <- built[seq_len(match(target, built) - 1L)]
+    if (src$col %in% earlier) {
+      note(src$step, sprintf(
+        "The column %s is chosen as %s, but the app first builds its own column named %s for the package, which reads that name. Rename the column in your data, or choose another one.",
+        src$col, src$role, src$col
+      ))
+    }
+  }
   # the package puts these columns in the model formula, which needs valid R names
   formula_cols <- c(if (!.app_center_level(spec)) spec$outcome, spec$components, spec$covariates, spec$center_chars)
   bad_names <- unique(formula_cols[nzchar(formula_cols) & formula_cols != make.names(formula_cols)])
   if (length(bad_names)) {
     note("data", sprintf(
-      "The column name(s) %s are not valid R names, so the model cannot use them. Rename them in R, for example with names(data) <- make.names(names(data)), which gives %s.",
-      paste0("'", bad_names, "'", collapse = ", "), paste0("'", make.names(bad_names), "'", collapse = ", ")
+      "The column name(s) %s are not valid R names here, so the model cannot use them. Rename them in R to names of ASCII letters, digits, dots and underscores, such as %s.",
+      paste0("'", bad_names, "'", collapse = ", "), paste0("'", .app_csv_names(bad_names), "'", collapse = ", ")
     ))
   }
 
@@ -903,6 +964,11 @@
       note("centers", "Choose the column that holds the time period.")
     } else if (!nzchar(spec$period_value)) {
       note("centers", "Choose the period to optimize for.")
+    } else if (spec$period_col %in% names(data) && length(.app_usable_periods(spec, data, spec$period_col)) < 2) {
+      note("centers", sprintf(
+        "Fixed time effects need at least two periods with a row the model can use, where every model column is observed and any weight is above 0, and %s has fewer. Turn off the time effects, or choose another period column.",
+        spec$period_col
+      ))
     } else if (spec$period_col %in% names(data) && !spec$period_value %in% .app_usable_periods(spec, data, spec$period_col)) {
       note("centers", sprintf(
         "The period %s has no row the model can use, where every model column is observed and any weight is above 0, so it cannot be optimized for. Choose another period.",
@@ -924,13 +990,29 @@
         note("outcome", sprintf("The treatment arm column '%s' has missing values.", spec$arm_col))
       } else if (!any(arm == as.character(spec$arm_value)) || all(arm == as.character(spec$arm_value))) {
         note("outcome", "The treatment arm column needs both treated and control patients.")
+      } else if (!is.null(y)) {
+        # the power is computed from the rows with an observed outcome, and for
+        # center level data only from rows with patients
+        seen <- !is.na(y)
+        if (.app_center_level(spec) && is.numeric(data$center_sample_size)) {
+          seen <- seen & !is.na(data$center_sample_size) & data$center_sample_size > 0
+        }
+        treated <- arm == as.character(spec$arm_value)
+        empty <- c(treatment = !any(seen & treated), control = !any(seen & !treated))
+        for (side in names(empty)[empty]) {
+          note("outcome", sprintf(
+            "The %s arm has no row with an observed outcome, and the power goal needs one in each arm.", side
+          ))
+        }
       }
     }
-    if (!is.finite(spec$power_goal) || spec$power_goal < 0.05 || spec$power_goal >= 1) {
-      note("outcome", "The power goal must be at least 0.05 and below 1.")
+    if (!is.finite(spec$power_goal) || spec$power_goal <= 0 || spec$power_goal >= 1) {
+      note("outcome", "The power goal must be above 0 and below 1, such as 0.8.")
     }
     if (!is.finite(spec$n_centers) || spec$n_centers <= 0 || !is.finite(spec$n_patients) || spec$n_patients <= 0) {
       note("outcome", "Enter the number of centers and patients per center in the next stage.")
+    } else if (spec$n_centers != round(spec$n_centers) || spec$n_patients != round(spec$n_patients)) {
+      note("outcome", "The number of centers and the patients per center in the next stage must be whole numbers.")
     }
     if (length(spec$icc)) {
       if (anyNA(spec$icc) || any(spec$icc < 0 | spec$icc >= 1)) {
@@ -1051,19 +1133,24 @@
 }
 
 # Columns that can identify the centers for the ICC: at least two centers with
-# an observed outcome in each arm.
-.app_cluster_choices <- function(data, outcome, arm_col, arm_value, exclude = character(0)) {
+# an observed outcome in each arm. For one row per patient, a column with a
+# different value on every row names the patients and not the centers. For
+# center level data a row stands for a center, and counts only with patients
+# in it.
+.app_cluster_choices <- function(data, outcome, arm_col, arm_value, exclude = character(0), center_level = FALSE) {
   if (length(outcome) != 1 || length(arm_col) != 1 || length(arm_value) != 1 ||
     !all(c(outcome, arm_col) %in% names(data))) {
     return(character(0))
   }
   treated <- as.character(data[[arm_col]]) == as.character(arm_value)
   seen <- !is.na(data[[outcome]]) & !is.na(treated)
-  candidates <- setdiff(names(data), c(outcome, arm_col, exclude))
+  size <- data$center_sample_size
+  if (center_level && is.numeric(size)) seen <- seen & !is.na(size) & size > 0
+  candidates <- setdiff(names(data), c(outcome, arm_col, exclude, if (center_level) "center_sample_size"))
   ok <- vapply(candidates, function(cc) {
     v <- data[[cc]]
     in_arm <- function(arm) length(unique(stats::na.omit(v[seen & treated == arm])))
-    in_arm(TRUE) >= 2 && in_arm(FALSE) >= 2 && length(unique(stats::na.omit(v))) < nrow(data)
+    in_arm(TRUE) >= 2 && in_arm(FALSE) >= 2 && (center_level || length(unique(stats::na.omit(v))) < nrow(data))
   }, logical(1))
   candidates[ok]
 }
@@ -1074,17 +1161,47 @@
     return("The file was read as one column. Choose the separator the file uses, such as Semicolon.")
   }
   text_cols <- names(d)[vapply(d, is.character, logical(1))]
-  looks_comma <- vapply(text_cols, function(cc) {
-    v <- stats::na.omit(d[[cc]])
-    length(v) > 0 && all(grepl("^-?[0-9]+,[0-9]+$|^-?[0-9]+$", v)) && any(grepl(",", v))
-  }, logical(1))
-  if (identical(dec, ".") && any(looks_comma)) {
-    return(sprintf(
-      "The column(s) %s look like numbers with a decimal comma. Choose Comma as the decimal mark.",
-      paste(text_cols[looks_comma], collapse = ", ")
-    ))
+  values <- lapply(d[text_cols], function(v) unique(trimws(stats::na.omit(v))))
+  esc <- function(mark) if (identical(mark, ".")) "\\." else mark
+  other <- if (identical(dec, ".")) "," else "."
+  # a whole number, and a number with the decimal mark chosen or the other one
+  whole <- "^-?[0-9]+$"
+  number <- sprintf("^-?([0-9]+(%s[0-9]*)?|%s[0-9]+)$", esc(dec), esc(dec))
+  number_other <- sprintf("^-?[0-9]*%s[0-9]+$", esc(other))
+  # the other mark between groups of three digits, as in 1,200 or 1.200,5
+  thousands <- sprintf("^-?[0-9]{1,3}(%s[0-9]{3})+(%s[0-9]+)?$", esc(other), esc(dec))
+  # every value fits one of the patterns, and some value fits the last one
+  looks <- function(patterns) {
+    vapply(values, function(v) {
+      length(v) > 0 && all(Reduce(`|`, lapply(patterns, grepl, x = v))) && any(grepl(patterns[[length(patterns)]], v))
+    }, logical(1))
   }
-  NULL
+  as_thousands <- looks(list(whole, number, thousands))
+  as_other <- looks(list(whole, number_other)) & !as_thousands
+  as_dot_na <- looks(list(number, "^\\.$")) & !as_thousands & !as_other
+  cols <- function(hit) paste(text_cols[hit], collapse = ", ")
+  hints <- c(
+    if (any(as_thousands)) {
+      example <- grep(thousands, unlist(values[as_thousands]), value = TRUE)[1]
+      sprintf(
+        "The column(s) %s look like numbers with a %s between the thousands, such as %s, which the app cannot read as numbers. Save the file without separators between the thousands and upload it again.",
+        cols(as_thousands), if (identical(other, ",")) "comma" else "point", example
+      )
+    },
+    if (any(as_other)) {
+      sprintf(
+        "The column(s) %s look like numbers with a decimal %s. Choose %s as the decimal mark.",
+        cols(as_other), if (identical(other, ",")) "comma" else "point", if (identical(other, ",")) "Comma" else "Point"
+      )
+    },
+    if (any(as_dot_na)) {
+      sprintf(
+        "The column(s) %s use a dot for a missing value, so they were read as text. Leave those cells empty or write NA in them, and upload the file again.",
+        cols(as_dot_na)
+      )
+    }
+  )
+  if (length(hints)) paste(hints, collapse = " ") else NULL
 }
 
 # Header names the reader changed to valid R names, as "old (now new)".
@@ -1321,6 +1438,22 @@
   )
 }
 
+# x to `digits` significant digits, rounded up or down so the rounded value
+# is never on the wrong side of x.
+.app_round_safe <- function(x, direction = c("up", "down"), digits = 4) {
+  direction <- match.arg(direction)
+  if (!is.finite(x) || x == 0) {
+    return(x)
+  }
+  near <- signif(x, digits)
+  if (if (direction == "up") near >= x else near <= x) {
+    return(near)
+  }
+  # one unit of the last digit kept, toward the safe side
+  unit <- 10^(floor(log10(abs(x))) - digits + 1)
+  signif(near + if (direction == "up") unit else -unit, digits)
+}
+
 .app_budget_code <- function(budget, n_grid) {
   sprintf("budget_result <- lago_budget(result, budget = %s, n_grid = %s)", deparse1(budget), deparse1(as.integer(n_grid)))
 }
@@ -1516,9 +1649,14 @@
       left <- c(left, "the weights, which are not a column of the data")
     }
   }
+  # a step the call left out is 1/20 of the component's range in the data, as
+  # the package sets it, and not of the bounds, as the app would
+  data_steps <- vapply(comps, function(cc) diff(range(d[[gsub("`", "", cc)]], na.rm = TRUE)) / 20, numeric(1), USE.NAMES = FALSE)
+  # a component with one value leaves its step to the app
+  data_steps[!(data_steps > 0)] <- NA_real_
   if (identical(a$optimization_method, "grid_search") || !is.null(a$optimization_grid_search_step_size)) {
     s$method <- "grid_search"
-    if (!is.null(a$optimization_grid_search_step_size)) s$grid_steps <- as.numeric(a$optimization_grid_search_step_size)
+    s$grid_steps <- if (is.null(a$optimization_grid_search_step_size)) data_steps else as.numeric(a$optimization_grid_search_step_size)
   }
   s$include_cs <- !isFALSE(a$include_confidence_set)
   level <- 1 - a$confidence_set_alpha
@@ -1528,7 +1666,11 @@
   } else {
     left <- c(left, sprintf("the confidence level of %s%%, as the app offers 90%%, 95%% and 99%%", format(100 * level)))
   }
-  if (!is.null(a$confidence_set_grid_step_size)) s$cs_steps <- as.numeric(a$confidence_set_grid_step_size)
+  if (!is.null(a$confidence_set_grid_step_size)) {
+    s$cs_steps <- as.numeric(a$confidence_set_grid_step_size)
+  } else if (s$include_cs) {
+    s$cs_steps <- data_steps
+  }
   if (!is.null(a$prev_recommended_interventions)) {
     s$prev_on <- TRUE
     s$prev <- as.numeric(a$prev_recommended_interventions)
