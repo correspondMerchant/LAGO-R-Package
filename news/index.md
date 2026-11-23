@@ -2,6 +2,20 @@
 
 ## LAGOtrials (development version)
 
+- [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+  is much faster in two cases. The search for the best reachable outcome
+  now stops each start after 100 iterations. Under OpenBLAS, one start
+  could run to the default 4000 iterations, which made a run with wide
+  bounds about 20 times slower than with the reference BLAS. An outcome
+  goal within round off above the best reachable outcome now aims the
+  optimizer at that outcome, which meets the goal within the round off,
+  where every start used to run to its last iteration.
+  [`lago_budget()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_budget.md)
+  meets such goals near the top of the reachable range, and on a
+  continuous outcome it now extends its goal grid one goal at a time.
+  Together, a budget search that affords the best reachable outcome on
+  `mtcars` with wide bounds went from 228 to 15 seconds under OpenBLAS.
+
 - In the cost designer of
   [`visualize_cost()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/visualize_cost.md)
   and

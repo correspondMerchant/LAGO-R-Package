@@ -184,10 +184,10 @@ sens
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear      qsec rec_int_cost est_outcome_goal status
-#> 1    30   10  6.522269     83.13361         30.00000     ok
-#> 2    35   10  9.239845     99.43907         34.99999     ok
-#> 3    40   10 11.957433    115.74460         40.00000     ok
-#> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =
+#> 1    30   10  6.522266     83.13359         29.99999     ok
+#> 2    35   10  9.239851     99.43911         35.00000     ok
+#> 3    40   10 11.957430    115.74458         39.99999     ok
+#> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =
 #> 40.
 plot(sens)
 
@@ -224,10 +224,10 @@ cost_sens
 #> 
 #> Varied cost_multiplier across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1   0.8   10 6.522267     66.50688               30     ok
-#> 2   1.0   10 6.522269     83.13361               30     ok
-#> 3   1.2   10 6.522269     99.76034               30     ok
-#> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at
+#> 1   0.8   10 6.522268     66.50689         30.00000     ok
+#> 2   1.0   10 6.522266     83.13359         29.99999     ok
+#> 3   1.2   10 6.522269     99.76034         30.00000     ok
+#> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at
 #> cost_multiplier = 1.2.
 # }
 ```
