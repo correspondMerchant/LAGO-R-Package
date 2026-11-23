@@ -12,13 +12,18 @@ test_that("a drag that the slider cannot show still reaches the cost list", {
   )
   shiny::testServer(function(id) shiny::moduleServer(id, p$server),
     args = list(id = "d"), {
-      session$setInputs(cost_type = "linear", coef_1_0 = 0, coef_1_1 = 1e-6)
+      session$setInputs(
+        cost_type = "linear", coef_1_0 = 0,
+        coef_1_1 = slider_reading(p$ui, "d-coef_1_1", 1e-6)
+      )
       expect_equal(current_cost_list(), list(c(0, 1e-6)))
-      session$setInputs(dragged_coefs_1 = list(coefs = list(0, 1.4e-6), nonce = 1))
-      expect_equal(output$coefficient_text_1, "c(0, 1.4e-06)")
-      expect_equal(current_cost_list(), list(c(0, 1.4e-6)))
+      # a drag by less than half the slider's step, which the slider cannot show
+      r <- designer_row(p$ui, "d-coef_1_1")
+      dragged <- 1e-6 + 0.4 * r$step / r$scale
+      session$setInputs(dragged_coefs_1 = list(coefs = list(0, dragged), nonce = 1))
+      expect_equal(current_cost_list(), list(c(0, dragged)))
       session$setInputs(apply = 1)
-      expect_equal(got, list(c(0, 1.4e-6)))
+      expect_equal(got, list(c(0, dragged)))
     }
   )
 })
@@ -56,10 +61,12 @@ test_that("the designer's cubic is valid on narrow bounds far from 0", {
 })
 
 test_that("slider ranges and steps scale with a small unit cost", {
+  # the range shrinks to the coefficient's own size, and the designer shows it
+  # in a unit of that size
   r <- compute_slider_range(0, 1e-6)
-  expect_equal(r$min, -1e-4)
-  expect_equal(r$max, 1e-4)
-  expect_equal(r$step, 1e-6)
+  expect_equal(r$min, -1e-6)
+  expect_equal(r$max, 1e-6)
+  expect_equal(.slider_scale(r), 1e6)
   # the linear slope 1e-6 sits on a step of its own slider
   r <- compute_slider_range(1e-6, 1e-6)
   expect_true(r$min < 1e-6 && 1e-6 < r$max)

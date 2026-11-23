@@ -379,18 +379,20 @@
   // Read a coefficient value straight from its slider's DOM, preferring the
   // ionRangeSlider result (the authoritative live value) and falling back to
   // the input's value attribute (correct before ionRangeSlider initialises).
+  // The slider shows the coefficient times its row's scale (data-lago-scale).
   function readSlider(id) {
     var el = document.getElementById(id);
     if (!el) {
       return NaN;
     }
+    var scale = +el.getAttribute("data-lago-scale") || 1;
     if ($) {
       var irs = $(el).data("ionRangeSlider");
       if (irs && irs.result && isFinite(+irs.result.from)) {
-        return readExact(id, +irs.result.from);
+        return readExact(id, +irs.result.from / scale);
       }
     }
-    return readExact(id, parseFloat(el.value));
+    return readExact(id, parseFloat(el.value) / scale);
   }
 
   // Gather a container's configuration from its data-* attributes and the

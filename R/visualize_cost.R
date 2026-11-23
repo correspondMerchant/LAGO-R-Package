@@ -216,6 +216,20 @@ visualize_cost <- function(
     })
   }), cost_types)
   n_components <- length(component_names)
+  # Each slider row shows its coefficient times a fixed power of 10, so a row
+  # whose coefficient is very small or very large still has a usable slider:
+  # a slider cannot step below about 1e-6, and steps far below a value's size
+  # move nothing. The scale comes from the cubic form's range, which has every
+  # row, and is 1 for ordinary ranges, where the slider shows the coefficient.
+  row_scales <- lapply(seq_len(n_components), function(ci) {
+    vapply(ranges_by_type$cubic[[ci]], .slider_scale, numeric(1))
+  })
+  sc <- function(ci, i) row_scales[[ci]][i]
+  # a range in true units, as the slider of row i shows it
+  disp <- function(rng, ci, i) {
+    s <- sc(ci, i)
+    list(min = rng$min * s, max = rng$max * s, step = slider_step(rng$min * s, rng$max * s))
+  }
   # coefficient count for a component under a given form
   n_coef <- function(t, ci) length(coefs_by_type[[t]][[ci]])
   # maximum slider rows to render per component (linear 2, cubic 5)
@@ -232,8 +246,8 @@ visualize_cost <- function(
       "cubic"
     }
     list(
-      value = coefs_by_type[[t]][[ci]][i0 + 1],
-      rng = ranges_by_type[[t]][[ci]][[i0 + 1]]
+      value = coefs_by_type[[t]][[ci]][i0 + 1] * sc(ci, i0 + 1),
+      rng = disp(ranges_by_type[[t]][[ci]][[i0 + 1]], ci, i0 + 1)
     )
   }
 
@@ -310,17 +324,21 @@ visualize_cost <- function(
                         width = "120px"
                       )
                     ),
-                    sliderInput(
-                      inputId = ns(paste0("coef_", component_idx, "_", i - 1)),
-                      label = paste0(
-                        component_names[component_idx], "^", i - 1,
-                        " coefficient"
+                    .scaled_slider(
+                      sliderInput(
+                        inputId = ns(paste0("coef_", component_idx, "_", i - 1)),
+                        label = paste0(
+                          component_names[component_idx], "^", i - 1,
+                          " coefficient",
+                          .scale_label(sc(component_idx, i))
+                        ),
+                        min = rng$min,
+                        max = rng$max,
+                        value = seed$value,
+                        step = rng$step,
+                        width = "100%"
                       ),
-                      min = rng$min,
-                      max = rng$max,
-                      value = seed$value,
-                      step = rng$step,
-                      width = "100%"
+                      sc(component_idx, i)
                     )
                   )
                 }
@@ -575,7 +593,9 @@ visualize_cost <- function(
     }
     coef_input <- function(component_idx, i) {
       id <- paste0("coef_", component_idx, "_", i - 1)
+      # the slider shows the coefficient times its row's scale
       v <- input[[id]]
+      if (!is.null(v)) v <- v / sc(component_idx, i)
       exact_rev()
       e <- if (exists(id, envir = exact, inherits = FALSE)) get(id, envir = exact)
       # a slider that has not reported yet, as in a dialog that just opened,
@@ -600,7 +620,8 @@ visualize_cost <- function(
         set_coef(
           paste0("coef_", component_idx, "_", i - 1),
           coefs_by_type[[default_cost_fxn_type]][[component_idx]][i],
-          ranges_by_type[[default_cost_fxn_type]][[component_idx]][[i]]$step
+          disp(ranges_by_type[[default_cost_fxn_type]][[component_idx]][[i]], component_idx, i)$step /
+            sc(component_idx, i)
         )
       }
     }
@@ -658,7 +679,7 @@ visualize_cost <- function(
         lapply(
           seq_len(n_coef(t, component_idx)),
           function(i) {
-            rng <- ranges_by_type[[t]][[component_idx]][[i]]
+            rng <- disp(ranges_by_type[[t]][[component_idx]][[i]], component_idx, i)
             updateNumericInput(
               session,
               inputId = paste0("range_min_", component_idx, "_", i - 1),
@@ -671,12 +692,12 @@ visualize_cost <- function(
             )
             set_coef(
               paste0("coef_", component_idx, "_", i - 1),
-              coefs_by_type[[t]][[component_idx]][i], rng$step
+              coefs_by_type[[t]][[component_idx]][i], rng$step / sc(component_idx, i)
             )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = coefs_by_type[[t]][[component_idx]][i],
+              value = coefs_by_type[[t]][[component_idx]][i] * sc(component_idx, i),
               min = rng$min,
               max = rng$max,
               step = rng$step
@@ -709,15 +730,19 @@ visualize_cost <- function(
               # dropped when the new range leaves it out or the user has moved
               # the slider away from it
               id <- paste0("coef_", component_idx, "_", i - 1)
+              # the range inputs are in the slider's units, the exact value in
+              # the coefficient's
+              s <- sc(component_idx, i)
               kept <- NULL
               if (exists(id, envir = exact, inherits = FALSE)) {
                 e <- get(id, envir = exact)
                 kept <- e$value
                 cur <- isolate(input[[id]])
+                if (!is.null(cur)) cur <- cur / s
                 unmoved <- is.null(cur) || abs(cur - e$value) <= e$step / 2 ||
                   isTRUE(cur == e$stale)
-                if (unmoved && kept >= rmin && kept <= rmax) {
-                  set_coef(id, kept, slider_step(rmin, rmax), stale = cur)
+                if (unmoved && kept * s >= rmin && kept * s <= rmax) {
+                  set_coef(id, kept, slider_step(rmin, rmax) / s, stale = cur)
                 } else {
                   drop_coef(id)
                   kept <- NULL
@@ -737,7 +762,7 @@ visualize_cost <- function(
                 updateSliderInput(
                   session,
                   inputId = id,
-                  value = kept,
+                  value = kept * s,
                   min = rmin,
                   max = rmax,
                   step = slider_step(rmin, rmax)
@@ -856,6 +881,8 @@ visualize_cost <- function(
           }
           lapply(seq_along(new_coefs), function(i) {
             val <- new_coefs[i]
+            # the range inputs and the slider are in the slider's units
+            s <- sc(component_idx, i)
             cur_min <- input[[paste0("range_min_", component_idx, "_", i - 1)]]
             cur_max <- input[[paste0("range_max_", component_idx, "_", i - 1)]]
             # Widen the range on the side the new value would be clamped, to
@@ -871,11 +898,11 @@ visualize_cost <- function(
             )
             new_min <- cur_min
             new_max <- cur_max
-            if (is.null(new_min) || !is.finite(new_min) || val < new_min) {
-              new_min <- wide$min
+            if (is.null(new_min) || !is.finite(new_min) || val * s < new_min) {
+              new_min <- wide$min * s
             }
-            if (is.null(new_max) || !is.finite(new_max) || val > new_max) {
-              new_max <- wide$max
+            if (is.null(new_max) || !is.finite(new_max) || val * s > new_max) {
+              new_max <- wide$max * s
             }
             if (!identical(new_min, cur_min)) {
               updateNumericInput(
@@ -893,12 +920,12 @@ visualize_cost <- function(
             }
             set_coef(
               paste0("coef_", component_idx, "_", i - 1), val,
-              slider_step(new_min, new_max)
+              slider_step(new_min, new_max) / s
             )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = val,
+              value = val * s,
               min = new_min,
               max = new_max,
               step = slider_step(new_min, new_max)
@@ -949,7 +976,7 @@ visualize_cost <- function(
         lapply(seq_len(max_ncoef[component_idx]), function(i) {
           row_id <- paste0("coef_row_", component_idx, "_", i - 1)
           if (i <= n) {
-            rng <- ranges_by_type[[t]][[component_idx]][[i]]
+            rng <- disp(ranges_by_type[[t]][[component_idx]][[i]], component_idx, i)
             updateNumericInput(
               session,
               inputId = paste0("range_min_", component_idx, "_", i - 1),
@@ -962,12 +989,12 @@ visualize_cost <- function(
             )
             set_coef(
               paste0("coef_", component_idx, "_", i - 1),
-              coefs_by_type[[t]][[component_idx]][i], rng$step
+              coefs_by_type[[t]][[component_idx]][i], rng$step / sc(component_idx, i)
             )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = coefs_by_type[[t]][[component_idx]][i],
+              value = coefs_by_type[[t]][[component_idx]][i] * sc(component_idx, i),
               min = rng$min,
               max = rng$max,
               step = rng$step
@@ -1239,8 +1266,17 @@ visualize_cost <- function(
 compute_slider_range <- function(init, unit_cost, k = 5, power = 1, lb = 0, ub = 1) {
   u <- if (unit_cost == 0) 1 else abs(unit_cost)
   far <- max(abs(lb), abs(ub))
-  # a very large swing is capped, so the range stays finite
-  floor_hw <- min(max(u, 1e-4, u * (ub - lb) / far^power), 1e300)
+  # the swing of this coefficient that moves the cost at the far bound by
+  # about the unit cost times the width of the bounds
+  natural <- u * (ub - lb) / far^power
+  # a very large swing is capped, so the range stays finite. A very small one
+  # is kept, as the designer shows such a row in a unit of its own size (see
+  # .slider_scale), and otherwise the floor keeps a range wide enough to use.
+  floor_hw <- if (is.finite(natural) && natural > 0 && natural < 1e-4) {
+    natural
+  } else {
+    min(max(u, 1e-4, natural), 1e300)
+  }
   half_width <- max(k * abs(init), floor_hw)
   # round the bounds for display: this keeps the auto-generated slider tick
   # labels and the pre-filled range inputs readable (e.g. -10.863 instead of
@@ -1347,4 +1383,30 @@ format_coef <- function(x) {
     }
     formatC(round(v, 3), format = "f", digits = 3, drop0trailing = TRUE)
   }, character(1))
+}
+
+
+# The power of 10 a slider row shows its coefficient in: 1 for an ordinary
+# range, and otherwise the one that brings the range to about -1 to 1. A slider
+# cannot step below about 1e-6, and on a range of 1e12 a step of 1e-5 moves
+# nothing, so such a coefficient is shown in a unit of its own size.
+.slider_scale <- function(rng) {
+  half <- max(abs(rng$min), abs(rng$max))
+  if (!is.finite(half) || half <= 0 || (half >= 1e-3 && half <= 1e6)) {
+    return(1)
+  }
+  10^(-round(log10(half)))
+}
+
+# The note a slider label gets when its row is shown in a unit other than 1.
+.scale_label <- function(scale) {
+  if (scale == 1) {
+    return("")
+  }
+  paste0(" (shown in units of ", format(1 / scale, digits = 1), ")")
+}
+
+# A slider with its row's scale, which the drawn curves read it through.
+.scaled_slider <- function(slider, scale) {
+  htmltools::tagQuery(slider)$find("input")$addAttrs(`data-lago-scale` = scale)$allTags()
 }

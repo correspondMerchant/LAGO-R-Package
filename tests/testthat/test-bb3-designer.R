@@ -12,16 +12,6 @@ capture_shinyjs <- function(session) {
 }
 
 # the slider and numeric input updates of a test session
-capture_updates <- function(session) {
-  msgs <- list()
-  session$sendInputMessage <- function(inputId, message) {
-    msgs[[length(msgs) + 1]] <<- list(id = inputId, msg = message)
-  }
-  function(id) {
-    hits <- Filter(function(m) identical(m$id, id), msgs)
-    if (length(hits)) lapply(hits[[length(hits)]]$msg, as.numeric)
-  }
-}
 
 test_that(".shift_coefs re-expands a cost in the scaled position on the bounds", {
   # 1 + 2x + 3x^2 at x = 1 + 2t is 6 + 16t + 12t^2
@@ -103,25 +93,29 @@ test_that("a drag widens the slider in proportion to the value", {
   on.exit(suppressWarnings(
     try(shiny::removeResourcePath("lago_cost_assets"), silent = TRUE)
   ))
+  ui <- .build_cost_parts("A", 1e-6, "linear", 0, 1)$ui
+  s0 <- designer_row(ui, "coef_1_0")$scale
+  s1 <- designer_row(ui, "coef_1_1")$scale
   shiny::testServer(app, {
     upd <- capture_updates(session)
+    # the slider and its range inputs are in the row's units
     session$setInputs(
-      cost_type = "linear", coef_1_0 = 0, coef_1_1 = 1e-6,
-      range_min_1_0 = -1e-4, range_max_1_0 = 1e-4,
-      range_min_1_1 = -9.9e-5, range_max_1_1 = 0.000101
+      cost_type = "linear", coef_1_0 = 0, coef_1_1 = 1e-6 * s1,
+      range_min_1_0 = -1e-4 * s0, range_max_1_0 = 1e-4 * s0,
+      range_min_1_1 = -9.9e-5 * s1, range_max_1_1 = 0.000101 * s1
     )
     session$setInputs(dragged_coefs_1 = list(coefs = list(0, 3e-4), nonce = 1))
     s <- upd("coef_1_1")
-    expect_equal(s$value, 3e-4)
-    expect_equal(s$min, -9.9e-5)
-    expect_true(s$max > 3e-4 && s$max < 1e-2)
-    expect_equal(s$step, 1e-6)
+    expect_equal(s$value, 3e-4 * s1)
+    expect_equal(s$min, -9.9e-5 * s1)
+    expect_true(s$max > 3e-4 * s1 && s$max < 1e-2 * s1)
+    expect_equal(s$step, slider_step(s$min, s$max))
     expect_equal(upd("range_max_1_1")$value, s$max)
     # a drag below the range widens the lower end the same way
     session$setInputs(dragged_coefs_1 = list(coefs = list(-5e-4, 1e-6), nonce = 2))
     s <- upd("coef_1_0")
-    expect_true(s$min < -5e-4 && s$min > -1e-2)
-    expect_equal(s$max, 1e-4)
+    expect_true(s$min < -5e-4 * s0 && s$min > -1e-2 * s0)
+    expect_equal(s$max, 1e-4 * s0)
   })
 })
 
