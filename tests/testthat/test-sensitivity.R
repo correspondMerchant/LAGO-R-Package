@@ -94,19 +94,24 @@ test_that("cost_multiplier sweep is argmin-invariant (cost scales by f)", {
 })
 
 test_that("a single failing run does not abort the sweep", {
-  # shrinkage_threshold must be in (0, 1); 1.5 makes exactly one run stop in
-  # validation while the others (0.1, 0.25) succeed. Capture warnings so the
-  # single sweep warning can be asserted without other warnings interfering.
+  # the data has periods 1 and 2, so period 1.5 makes exactly one run stop in
+  # validation while the others succeed. Capture warnings so the single sweep
+  # warning can be asserted without other warnings interfering.
+  mt <- mtcars
+  mt$period <- factor(rep(1:2, 16))
+  base <- mtcars_base
+  base$data <- mt
   warns <- character(0)
   sens <- withCallingHandlers(
     suppressMessages(do.call(
       lago_sensitivity,
       c(
-        mtcars_base,
+        base,
         list(
           outcome_goal = 40,
-          parameter = "shrinkage_threshold",
-          values = c(0.1, 0.25, 1.5)
+          include_time_effects = TRUE,
+          parameter = "time_effect_optimization_value",
+          values = c(1, 2, 1.5)
         )
       )
     )),
@@ -140,7 +145,7 @@ test_that("a single failing run does not abort the sweep", {
   # the error message is retained on the object
   em <- attr(sens, "error_messages")
   expect_true(!is.null(em))
-  expect_match(em[["1.5"]], "shrinkage_threshold")
+  expect_match(em[["1.5"]], "time_effect_optimization_value")
 })
 
 test_that("input validation rejects bad parameter / values", {

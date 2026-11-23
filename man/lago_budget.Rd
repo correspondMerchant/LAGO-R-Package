@@ -23,7 +23,7 @@ overridden (the confidence set is never computed during the search).}
 allowed, in the same units as the supplied \code{cost_list_of_vectors} (or
 \code{unit_costs}).}
 
-\item{n_grid}{A single integer (>= 2) giving how many outcome goals to try
+\item{n_grid}{A single whole number (>= 2) giving how many outcome goals to try
 across the outcome's range. Larger values give a finer, more precise answer
 at the cost of more optimization runs. A second refinement pass tries
 \code{n_grid} more goals strictly inside the gap at the affordability boundary,
@@ -44,9 +44,10 @@ An object of class \code{"lago_budget"}, a list with:
 \item{budget}{The supplied budget.}
 \item{feasible}{\code{TRUE} if at least one reachable intervention was
 affordable.}
-\item{binding}{\code{TRUE} if the budget constrained the choice: a strictly
-better outcome was reachable but cost more than the budget. \code{FALSE} if the
-best reachable outcome was already affordable.}
+\item{binding}{\code{TRUE} if the budget constrained the choice: an outcome at
+least as good, up to round off, was reachable with another intervention
+that cost more than the budget. \code{FALSE} if the best reachable outcome was
+already affordable.}
 \item{rec_int}{The recommended intervention (one value per component), or
 \code{NA} when not \code{feasible}.}
 \item{rec_int_cost}{Its cost (at most \code{budget}), or \code{NA}.}

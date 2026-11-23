@@ -28,7 +28,7 @@
 #' @param budget A single positive, finite numeric value. The maximum total cost
 #' allowed, in the same units as the supplied `cost_list_of_vectors` (or
 #' `unit_costs`).
-#' @param n_grid A single integer (>= 2) giving how many outcome goals to try
+#' @param n_grid A single whole number (>= 2) giving how many outcome goals to try
 #' across the outcome's range. Larger values give a finer, more precise answer
 #' at the cost of more optimization runs. A second refinement pass tries
 #' `n_grid` more goals strictly inside the gap at the affordability boundary,
@@ -76,9 +76,10 @@
 #'   \item{budget}{The supplied budget.}
 #'   \item{feasible}{`TRUE` if at least one reachable intervention was
 #'   affordable.}
-#'   \item{binding}{`TRUE` if the budget constrained the choice: a strictly
-#'   better outcome was reachable but cost more than the budget. `FALSE` if the
-#'   best reachable outcome was already affordable.}
+#'   \item{binding}{`TRUE` if the budget constrained the choice: an outcome at
+#'   least as good, up to round off, was reachable with another intervention
+#'   that cost more than the budget. `FALSE` if the best reachable outcome was
+#'   already affordable.}
 #'   \item{rec_int}{The recommended intervention (one value per component), or
 #'   `NA` when not `feasible`.}
 #'   \item{rec_int_cost}{Its cost (at most `budget`), or `NA`.}
@@ -139,21 +140,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   # `...` directly. We only need a few of them here to build the goal grid; the
   # full set is forwarded to lago_sensitivity() below.
   if (!is.null(object)) {
-    if (!inherits(object, "lago")) {
-      stop(paste(
-        "`object` must be a `lago` result from lago_optimization(). Pass the",
-        "lago_optimization() arguments directly if you do not have one."
-      ))
-    }
-    stored <- attr(object, "lago_call_args")
-    if (is.null(stored)) {
-      stop(paste(
-        "`object` does not carry its call arguments (it was created by an",
-        "older version of lago_optimization()). Refit with the current version",
-        "of the package, or pass the lago_optimization() arguments directly."
-      ))
-    }
-    base <- merge_call_args(stored, dots)
+    base <- merge_call_args(stored_call_args(object), dots)
   } else {
     base <- dots
   }
@@ -163,10 +150,15 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
     !is.finite(budget) || budget <= 0) {
     stop("`budget` must be a single positive, finite numeric value.")
   }
-  n_grid <- suppressWarnings(as.integer(n_grid))
-  if (length(n_grid) != 1L || is.na(n_grid) || n_grid < 2L) {
-    stop("`n_grid` must be a single integer >= 2.")
+  # a fraction or text is refused rather than cut down to a whole number
+  if (!is.numeric(n_grid) || length(n_grid) != 1L || !is.finite(n_grid) ||
+    n_grid != round(n_grid) || n_grid < 2 || n_grid > .Machine$integer.max) {
+    stop(paste(
+      "`n_grid` must be a single integer >= 2, a whole number and not a",
+      "fraction or text."
+    ))
   }
+  n_grid <- as.integer(n_grid)
 
   data <- base$data
   outcome_name <- base$outcome_name
@@ -488,16 +480,31 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   reachable <- fr$reached
   n_reachable <- sum(reachable)
   feasible <- !is.na(bi)
-  # the budget binds if a strictly BETTER outcome is reachable but was not
-  # affordable (better = higher for maximize, lower for minimize). Since the
-  # choice is the best affordable outcome, any reachable better outcome must be
-  # over budget, so its existence means the budget constrained the choice. This
-  # is direction-aware: for minimize, expensive high-outcome goals are worse, not
-  # better, and must not count as the budget binding.
-  chosen_out <- if (feasible) fr$est_outcome[bi] else NA_real_
-  binding <- feasible && any(reachable & (
-    if (maximize) fr$est_outcome > chosen_out + 1e-9 else
-      fr$est_outcome < chosen_out - 1e-9))
+  # The budget binds if a goal beyond the chosen one, in the improving
+  # direction, is reached with an outcome at least as good but with another
+  # intervention or a higher cost. The chosen goal is the furthest affordable
+  # one among those tied on the outcome, so such a goal is over budget. The
+  # outcomes are compared with the tie rule of best_idx(), so round off on a
+  # large outcome does not make the budget bind. The intervention and cost
+  # decide, since near the best reachable outcome of a flat curve a much costlier
+  # intervention can gain less than the round off of the outcome.
+  binding <- FALSE
+  if (feasible) {
+    chosen_out <- fr$est_outcome[bi]
+    tie <- 1e-6 * max(abs(chosen_out), 1e-12)
+    beyond <- reachable & (if (maximize) {
+      fr$outcome_goal > fr$outcome_goal[bi] & fr$est_outcome >= chosen_out - tie
+    } else {
+      fr$outcome_goal < fr$outcome_goal[bi] & fr$est_outcome <= chosen_out + tie
+    })
+    chosen_cost <- fr$rec_int_cost[bi]
+    costlier <- fr$rec_int_cost - chosen_cost > 1e-6 * max(abs(chosen_cost), 1)
+    moved <- rep(FALSE, nrow(fr))
+    for (cn in comps) {
+      moved <- moved | abs(fr[[cn]] - fr[[cn]][bi]) > 1e-6 * max(abs(fr[[cn]][bi]), 1)
+    }
+    binding <- any(beyond & (costlier | moved %in% TRUE))
+  }
 
   if (feasible) {
     rec_int <- if (length(comps)) as.numeric(fr[bi, comps]) else numeric(0)
