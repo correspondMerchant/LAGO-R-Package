@@ -294,9 +294,9 @@
 
 * `lago_report()` now refuses `output_format`, `output_options`, `output_yaml`, `run_pandoc` and `runtime`, because the report is always one self-contained HTML file. It also refuses unnamed extra arguments and a `quiet` that is not TRUE or FALSE.
 
-* A report title can now hold any control character, such as a tab, an escape or NEL. Before, most of them stopped the render with a YAML error, and NEL showed as a space.
+* A report title can now hold any control character, such as a tab, an escape or a next line character. Before, most of them stopped the render with a YAML error, and the next line character showed as a space.
 
-* `lago_report()` now says when the output folder does not exist or is a file, and its message about the file extension names both .html and .htm.
+* `lago_report()` now says when the output folder does not exist or is a file, and its message about the file extension names both `.html` and `.htm`.
 
 * `lago_app()` now gives an uploaded file the same column names as `read.csv()`, so the shown code reads the same column when two names clash.
 
@@ -340,7 +340,7 @@
 
 * On bounds below 0, the cost designer's starting cubic curve now begins at a cost of 0 instead of a negative cost.
 
-* In Python, a DataFrame column of `datetime.date` or `datetime` values, or of numpy datetimes, now reaches R as the text of each date, so it names its periods. Before, Python dates became day numbers.
+* In Python, a data frame column of `datetime.date` or `datetime` values, or of `numpy` datetimes, now reaches R as the text of each date, so it names its periods. Before, Python dates became day numbers.
 
 * In Python, a whole number column with a value too large for R's integers now reaches R as numbers instead of text.
 

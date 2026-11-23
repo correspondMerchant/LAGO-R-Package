@@ -809,7 +809,10 @@ lago_app <- function(data = NULL,
       shiny::req(d)
       # center level data has its outcome in the proportion column the app builds
       s <- spec()
-      choices <- .app_cluster_choices(.app_center_columns(s, d)$data, s$outcome, input$arm_col, input$arm_value, exclude = c(input$components, if (.app_center_level(s)) c(s$cl_value, s$cl_total)), center_level = .app_center_level(s))
+      # the outcome columns of center level data are not centers
+      center_level <- .app_center_level(s)
+      outcome_cols <- c(s$cl_value, s$cl_total)[rep(center_level, 2)]
+      choices <- .app_cluster_choices(.app_center_columns(s, d)$data, s$outcome, input$arm_col, input$arm_value, exclude = c(input$components, outcome_cols), center_level = center_level)
       kept <- intersect(shiny::isolate(input$cluster_col), choices)
       shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", choices), selected = if (length(kept)) kept else "")
     }, ignoreNULL = FALSE)
