@@ -46,7 +46,9 @@
 #' report is always an HTML file.
 #' @param title A character string. The report title. Every character shows
 #' as typed, so markdown, HTML and math are not interpreted. An empty or
-#' missing title (`""`, `NA` or `NULL`) uses the default title.
+#' missing title (`""`, `NA` or `NULL`) uses the default title. The title
+#' must be UTF-8 text, or text marked as latin1 with [Encoding()], which is
+#' converted to UTF-8.
 #' Default value without user specification: "LAGO optimization report".
 #' @param open A boolean. If `TRUE`, opens the rendered report in a browser via
 #' [utils::browseURL()]. Default value without user specification: `FALSE`.
@@ -56,8 +58,9 @@
 #' `output_dir` and `params` are refused. Use `output_file` and `title`
 #' instead. The report is always one self-contained HTML file, so
 #' `output_format`, `output_options`, `output_yaml`, `run_pandoc` and
-#' `runtime` are refused too. Every argument here must be named, and `quiet`
-#' must be `TRUE` or `FALSE`.
+#' `runtime` are refused too. Every argument here must be named with its full
+#' name (`run_p` for `run_pandoc` is refused), and `quiet` must be `TRUE` or
+#' `FALSE`.
 #'
 #' @return The path to the rendered HTML file, invisibly.
 #'
@@ -168,7 +171,22 @@ lago_report <- function(x,
   }
   # A missing or empty title would leave the page with the name of a working
   # file as its title, so the default title is used instead.
+  # Text marked as latin1 is converted to UTF-8 here, and so is unmarked text
+  # in a locale with a legacy encoding such as latin1. Other bytes that are not
+  # UTF-8 cannot be read as text, such as "\xe9" in a UTF-8 or C locale, so
+  # they get a message that names the title, not an error from deep inside the
+  # rendering.
   title <- as.character(title)
+  codeset <- toupper(l10n_info()[["codeset"]] %||% "")
+  legacy <- !isTRUE(l10n_info()[["UTF-8"]]) && !codeset %in% c("", "ANSI_X3.4-1968", "US-ASCII", "ASCII")
+  convertible <- Encoding(title) == "latin1" | (Encoding(title) == "unknown" & legacy)
+  if (any(!is.na(title) & !convertible & !validUTF8(title))) {
+    cli::cli_abort(c(
+      "{.arg title} is not valid UTF-8 text.",
+      "i" = "Give the title as UTF-8 text, or mark text in another encoding with {.fn Encoding}, such as {.code Encoding(title) <- \"latin1\"}."
+    ))
+  }
+  title <- enc2utf8(title)
   title <- title[!is.na(title) & nzchar(trimws(title))]
   if (length(title) == 0) title <- "LAGO optimization report"
   output_file <- normalizePath(output_file, mustWork = FALSE)
@@ -180,6 +198,19 @@ lago_report <- function(x,
     cli::cli_abort(c(
       "Every argument of {.fn lago_report} passed on to {.fn rmarkdown::render} must be named.",
       "i" = "For example, use {.code quiet = FALSE}."
+    ))
+  }
+  # R matches a name that is only the start of an argument name, so run_p
+  # would reach run_pandoc past the checks below. charmatch() finds such a
+  # name, also when it is the start of more than one argument name (0).
+  render_names <- names(formals(rmarkdown::render))
+  matched <- charmatch(names(dots), render_names)
+  partial <- names(dots)[!is.na(matched) & !names(dots) %in% render_names]
+  if (length(partial) > 0) {
+    cli::cli_abort(c(
+      "Write the names of the arguments of {.fn lago_report} passed on to {.fn rmarkdown::render} in full.",
+      "x" = "{.arg {partial}} {?is/are} only the start of {?an argument name/argument names}.",
+      "i" = "For example, use {.code quiet = FALSE}, not {.code qui = FALSE}."
     ))
   }
   fixed <- intersect(names(dots), c("input", "output_dir", "params"))
@@ -238,7 +269,8 @@ lago_report <- function(x,
 # of math. Every other control character (C0, DEL and C1, such as a tab, an
 # escape or NEL) and the line and paragraph separators U+2028 and U+2029 become
 # an entity too, as YAML refuses most of them as they are and reads NEL and
-# the separators as a space. The entities hold no backslash or double quote, so
+# the separators as a space. So do the Unicode noncharacters, such as U+FFFE
+# and U+FFFF, which YAML refuses too. The entities hold no backslash or double quote, so
 # only a line break needs escaping for YAML, which reads \n as one.
 .lago_report_title_yaml <- function(title) {
   title <- enc2utf8(paste(as.character(title), collapse = " "))
@@ -246,7 +278,10 @@ lago_report <- function(x,
   code <- vapply(chars, utf8ToInt, integer(1), USE.NAMES = FALSE)
   punct <- grepl("^[!-/:-@\\[-`{-~]$", chars, perl = TRUE)
   line_break <- chars %in% c("\n", "\r")
-  control <- !line_break & (code < 32L | (code >= 127L & code <= 159L) | code %in% c(8232L, 8233L))
+  # the noncharacters U+FDD0 to U+FDEF and the last two code points of every
+  # plane, such as U+FFFE and U+FFFF, which YAML refuses as they are
+  nonchar <- (code >= 64976L & code <= 65007L) | code %% 65536L >= 65534L
+  control <- !line_break & (code < 32L | (code >= 127L & code <= 159L) | code %in% c(8232L, 8233L) | nonchar)
   escape <- punct | control
   chars[escape] <- paste0("&#", code[escape], ";")
   gsub("\r?\n|\r", "\\\\n", paste(chars, collapse = ""))

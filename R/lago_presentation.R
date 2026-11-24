@@ -14,7 +14,8 @@
 # fmtValue(), fmtInterval() and fmtCost() of the report
 # (inst/js/lago-report.js):
 #   - recommendation values: .lago_fmt_value()
-#   - estimated outcome and its interval: .lago_fmt_interval()
+#   - estimated outcome, its interval and the outcome goal:
+#     .lago_fmt_interval()
 #   - recommended cost: 5 significant digits (.lago_fmt_cost())
 #   - confidence-set cost IQR: .lago_fmt_cost_range()
 #   - p-values: 4 significant digits, or "< 2.2e-16" when the p-value is below
@@ -30,8 +31,12 @@
 
 # The decimal digits of finite, nonzero numbers, as 15 significant digits
 # (all a double holds without noise), with the sign and the power of 10 of the
-# first digit. sprintf() rounds correctly and breaks an exact tie to even, as
-# jsonlite does when it writes the report data, and as the JS decDigits() does.
+# first digit. sprintf() rounds correctly, and the JS decDigits() gets the
+# same digits. It also gives the digits .lago_round_dec() rounds from, as
+# cut_digits (17 of them) with the power of 10 cut_exp: the 15 digits followed
+# by 00 when they read back as the same double, so a typed value such as
+# 2.30495 is rounded as 2.30495, and the 17 digits otherwise, so a value such
+# as 404461827.45464969 is not rounded twice.
 .lago_dec_digits <- function(v) {
   # 17 significant digits, which every platform writes the same, since they
   # are what a double needs to be read back. They are rounded to 15 here: 50 in
@@ -52,30 +57,38 @@
   carry <- kept >= 1e15
   kept[carry] <- kept[carry] / 10
   exp[carry] <- exp[carry] + 1L
+  digits <- sprintf("%015.0f", kept)
+  same <- as.numeric(paste0(digits, "e", exp - 14L)) == abs(v)
   list(
     neg = v < 0,
-    digits = sprintf("%015.0f", kept),
-    exp = exp
+    digits = digits,
+    exp = exp,
+    cut_digits = ifelse(same, paste0(digits, "00"), all_digits),
+    cut_exp = ifelse(same, exp, as.integer(sub("^.*[eE]", "", s)))
   )
 }
 
 # v rounded to n significant digits (sig = TRUE) or to n decimals
-# (sig = FALSE), from the decimal digits above, with a cut digit of 5 rounded
-# up, away from 0. A value that is not finite, or is 0, is returned as it is.
+# (sig = FALSE), at most 15 significant digits, with a cut digit of 5 rounded
+# up, away from 0. It rounds in one step from the cut_digits of
+# .lago_dec_digits(), so a value such as 404461827.45464969 gives
+# 404461827.4546 at 4 decimals. Rounding first to 15 digits would give
+# 404461827.454650 and then 404461827.4547. A value that is not finite, or is
+# 0, is returned as it is.
 .lago_round_dec <- function(v, n, sig) {
   v <- as.numeric(v)
   out <- v
   ok <- is.finite(v) & v != 0
   if (!any(ok)) return(out)
   p <- .lago_dec_digits(v[ok])
-  # the number of digits kept, at most the 15 there are
-  keep <- pmin(n + (!sig) * (p$exp + 1L), 15L)
-  next_digit <- suppressWarnings(as.integer(substr(p$digits, keep + 1L, keep + 1L)))
+  # the number of digits kept, at most 15
+  keep <- pmin(n + (!sig) * (p$cut_exp + 1L), 15L)
+  next_digit <- suppressWarnings(as.integer(substr(p$cut_digits, keep + 1L, keep + 1L)))
   next_digit[keep < 0 | is.na(next_digit)] <- 0L
-  kept <- suppressWarnings(as.numeric(substr(p$digits, 1L, pmax(keep, 0L))))
+  kept <- suppressWarnings(as.numeric(substr(p$cut_digits, 1L, pmax(keep, 0L))))
   kept[is.na(kept)] <- 0
   kept <- kept + (next_digit >= 5L)
-  res <- as.numeric(paste0(ifelse(p$neg, "-", ""), sprintf("%.0f", kept), "e", p$exp + 1L - keep))
+  res <- as.numeric(paste0(ifelse(p$neg, "-", ""), sprintf("%.0f", kept), "e", p$cut_exp + 1L - keep))
   # a value rounded to 0 is 0, not -0
   res[res == 0] <- 0
   out[ok] <- res
@@ -99,6 +112,10 @@
 # bounds. The estimate uses the same rule as its bounds, and one rule keeps the
 # order of the three values, so the estimate never shows outside its interval
 # (an estimate of 0.6789 with stored bounds 0.679 and 0.679 shows as 0.679).
+# The outcome goal uses this rule too, so an estimate that meets the goal never
+# shows below it (or above it for a goal to minimize). A goal closer to 0 than
+# 0.1, even closer than 1e-6, keeps 4 significant digits, so a nonzero goal
+# never shows as 0.
 .lago_fmt_interval <- function(v) {
   v <- as.numeric(v)
   ifelse(
@@ -303,7 +320,7 @@ lago_blocks <- function(x) {
       input_rows,
       paste0(
         "Outcome goal: ",
-        if (is.null(x[["outcome_goal"]])) "not specified" else .lago_num_text(.lago_fmt_value(x[["outcome_goal"]])),
+        if (is.null(x[["outcome_goal"]])) "not specified" else .lago_num_text(.lago_fmt_interval(x[["outcome_goal"]])),
         goal_direction
       ),
       paste0(
@@ -317,7 +334,7 @@ lago_blocks <- function(x) {
         paste0(
           "Effective outcome goal (max of outcome goal and ",
           "power-implied outcome): ",
-          .lago_num_text(.lago_fmt_value(x[["effective_outcome_goal"]]))
+          .lago_num_text(.lago_fmt_interval(x[["effective_outcome_goal"]]))
         )
       )
     }
@@ -419,7 +436,7 @@ lago_blocks <- function(x) {
   if (!is.null(x[["outcome_goal"]])) {
     outcome_rows <- c(
       outcome_rows,
-      paste0("Outcome goal: ", .lago_num_text(.lago_fmt_value(x[["outcome_goal"]])))
+      paste0("Outcome goal: ", .lago_num_text(.lago_fmt_interval(x[["outcome_goal"]])))
     )
   }
   outcome <- list(

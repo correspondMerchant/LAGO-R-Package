@@ -23,7 +23,9 @@ report is always an HTML file.}
 
 \item{title}{A character string. The report title. Every character shows
 as typed, so markdown, HTML and math are not interpreted. An empty or
-missing title (\code{""}, \code{NA} or \code{NULL}) uses the default title.
+missing title (\code{""}, \code{NA} or \code{NULL}) uses the default title. The title
+must be UTF-8 text, or text marked as latin1 with \code{\link[=Encoding]{Encoding()}}, which is
+converted to UTF-8.
 Default value without user specification: "LAGO optimization report".}
 
 \item{open}{A boolean. If \code{TRUE}, opens the rendered report in a browser via
@@ -35,8 +37,9 @@ folder and the parameters are set by \code{lago_report()}, so \code{input},
 \code{output_dir} and \code{params} are refused. Use \code{output_file} and \code{title}
 instead. The report is always one self-contained HTML file, so
 \code{output_format}, \code{output_options}, \code{output_yaml}, \code{run_pandoc} and
-\code{runtime} are refused too. Every argument here must be named, and \code{quiet}
-must be \code{TRUE} or \code{FALSE}.}
+\code{runtime} are refused too. Every argument here must be named with its full
+name (\code{run_p} for \code{run_pandoc} is refused), and \code{quiet} must be \code{TRUE} or
+\code{FALSE}.}
 }
 \value{
 The path to the rendered HTML file, invisibly.

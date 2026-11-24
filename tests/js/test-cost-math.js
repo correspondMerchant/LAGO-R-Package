@@ -288,7 +288,8 @@ check("fmtValue(1000.37) is 1000.37", m.fmtValue(1000.37) === "1000.37");
 check("fmtValue(5e6) is 5000000", m.fmtValue(5e6) === "5000000");
 [23928, 1000.37, 1000.999, 12345.6, 1e-7, 0.000123456, 5e6, -0, -2.5, 0.05,
   1e21, NaN, Infinity, 2.30495, 3487.45, 0.10005, 12.3455, 60.5405,
-  5784.9499999999998, 1e16 + 2].forEach(function (v) {
+  5784.9499999999998, 1e16 + 2, 404461827.45464969, -2555838594.7868457,
+  1.0000000000000049].forEach(function (v) {
   check("fmtValue(" + v + ") matches the report", m.fmtValue(v) === rep.fmtValue(v));
   check("fmtCost(" + v + ") matches the report", m.fmtCost(v) === rep.fmtCost(v));
 });

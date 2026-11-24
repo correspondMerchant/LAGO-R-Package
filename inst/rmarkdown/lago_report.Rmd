@@ -56,8 +56,10 @@ interactive_cost <- have_jsonlite &&
 
 # Build the single JSON payload the client-side D3 code consumes. I() forces
 # length-1 vectors (a single-component result) to stay JSON arrays under
-# auto_unbox, and digits = NA keeps full numeric precision. cs is emitted
-# row-wise as an array of point objects.
+# auto_unbox. digits = I(17) writes 17 significant digits, which read back as
+# the same double, so the JS rounds the very number the R text rounds. With
+# digits = NA jsonlite writes only 15, so a value would be rounded twice. cs is
+# emitted row-wise as an array of point objects.
 report_json <- NULL
 if (have_jsonlite) {
   report_data <- list(
@@ -84,7 +86,7 @@ if (have_jsonlite) {
     auto_unbox = TRUE,
     dataframe = "rows",
     na = "null",
-    digits = NA
+    digits = I(17)
   )
 }
 ```

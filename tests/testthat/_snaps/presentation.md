@@ -266,7 +266,7 @@
       Fixed time effects: FALSE
       Outcome goal: not specified
       Power goal: 0.8
-      Effective outcome goal (max of outcome goal and power-implied outcome): 0.2429
+      Effective outcome goal (max of outcome goal and power-implied outcome): 0.243
       Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
       8000)
       Intervention lower bounds: 1, 1
@@ -318,7 +318,7 @@
       Fixed time effects: FALSE
       Outcome goal: not specified
       Power goal: 0.8
-      Effective outcome goal (max of outcome goal and power-implied outcome): 0.2429
+      Effective outcome goal (max of outcome goal and power-implied outcome): 0.243
       Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
       8000)
       Intervention lower bounds: 1, 1
