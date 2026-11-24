@@ -150,12 +150,24 @@ validate_inputs <- function(
       "outcome_name must be \"proportion\", not \"", outcome_name, "\"."
     ))
   }
-  # a binary outcome, or the proportion of center level data, is between 0 and 1
-  if (outcome_type == "binary" && any(outcome_column < 0 | outcome_column > 1, na.rm = TRUE)) {
+  # a binary outcome, or the proportion of center level data, is between 0 and
+  # 1 on the rows the model fits. The other columns are checked later, so the
+  # rows are judged here on the model columns the data has.
+  binary_rows <- rows_model_fits(
+    data,
+    c(
+      outcome_name, intervention_components, center_characteristics,
+      additional_covariates, if (isTRUE(include_center_effects)) "center",
+      if (isTRUE(include_time_effects)) "period"
+    ),
+    if (input_data_structure == "center_level") data$center_sample_size else weights
+  )
+  binary_outcome <- outcome_column[binary_rows & !is.na(outcome_column)]
+  outside_binary <- binary_outcome[binary_outcome < 0 | binary_outcome > 1]
+  if (outcome_type == "binary" && length(outside_binary) > 0) {
     stop(paste0(
       "The outcome column '", outcome_name, "' has values outside 0 to 1, ",
-      "such as ", format(outcome_column[which(outcome_column < 0 |
-        outcome_column > 1)[1]], digits = 10), ". ",
+      "such as ", format(outside_binary[1], digits = 10), ". ",
       if (input_data_structure == "center_level") {
         "For center level data it must be the proportion of events in each row."
       } else {
@@ -865,6 +877,23 @@ validate_inputs <- function(
       paste0("'", make.names(bad_names), "'", collapse = ", "), "."
     ))
   }
+  # the confidence set has a column for each component and center
+  # characteristic, next to its own columns with these names
+  confidence_set_columns <- c("cost", "CI_lower_bound", "CI_upper_bound")
+  clashing_names <- intersect(
+    c(intervention_components, main_components, center_characteristics),
+    confidence_set_columns
+  )
+  if (length(clashing_names) > 0) {
+    stop(paste0(
+      "The column name(s) ", paste0("'", clashing_names, "'", collapse = ", "),
+      " cannot be used for an intervention component or a center ",
+      "characteristic, because the confidence set has its own columns named ",
+      paste0("'", confidence_set_columns, "'", collapse = ", "),
+      ". Rename the column(s) in the data, for example to ",
+      paste0("'", clashing_names, "_value'", collapse = ", "), "."
+    ))
+  }
 
   # A column can have one role in the model. A characteristic that is also a
   # component, for example, would be fitted once and then set twice.
@@ -914,17 +943,6 @@ validate_inputs <- function(
       ". Rename or remove the extra columns, so the model uses the one you mean."
     ))
   }
-  # glm() cannot use an infinite value, and the observed mean would be infinite
-  infinite_columns <- Filter(function(column) {
-    is.numeric(data[[column]]) && any(is.infinite(data[[column]]))
-  }, unique(c(base_columns, main_components)))
-  if (length(infinite_columns) > 0) {
-    stop(paste0(
-      "The column(s) ", paste0("'", infinite_columns, "'", collapse = ", "),
-      " hold Inf or -Inf, which the outcome model cannot use. Replace those ",
-      "values with finite numbers, or with NA to leave their rows out."
-    ))
-  }
   observed_weight <- if (is.null(fit_weights)) TRUE else !is.na(fit_weights)
   base_rows <- stats::complete.cases(data[base_columns]) & observed_weight
   # with center or time effects the fit refuses this, and says whether turning
@@ -956,6 +974,23 @@ validate_inputs <- function(
   if (!is.null(fit_weights)) fitted_rows <- fitted_rows & fit_weights > 0
   if (!any(fitted_rows)) fitted_rows <- complete_rows
 
+  # glm() cannot use an infinite value on a row it keeps, even one with weight
+  # 0, and the observed mean would be infinite. A row it leaves out does not
+  # matter.
+  infinite_columns <- Filter(function(column) {
+    is.numeric(data[[column]]) && any(is.infinite(data[[column]][complete_rows]))
+  }, unique(c(base_columns, main_components)))
+  if (length(infinite_columns) > 0) {
+    stop(paste0(
+      "The column(s) ", paste0("'", infinite_columns, "'", collapse = ", "),
+      " hold Inf or -Inf on rows the outcome model uses, which it cannot do. ",
+      "Replace those values with finite numbers, or with NA to leave their ",
+      "rows out."
+    ))
+  }
+  # the outcome values the model fits, on the rows with a positive weight
+  fitted_outcome <- outcome_column[fitted_rows & !is.na(outcome_column)]
+
   # a text, factor or logical column with one value has no effect to estimate
   single_level <- list(
     "additional covariate" = additional_covariates,
@@ -983,10 +1018,16 @@ validate_inputs <- function(
   # and the recommendation computes that product, so the two must agree.
   for (term in component_columns[grepl(":", component_columns, fixed = TRUE)]) {
     parts <- strsplit(term, ":", fixed = TRUE)[[1]]
-    product <- Reduce(`*`, lapply(parts, function(part) data[[part]]))
+    # in double precision, as a product of integer columns can overflow. The
+    # parts are main components, which are numeric.
+    product <- Reduce(`*`, lapply(parts, function(part) as.numeric(data[[part]])))
     rows <- which(fitted_rows & !is.na(product))
     difference <- abs(data[[term]][rows] - product[rows])
-    tolerance <- 1e-6 * max(abs(product[rows]), 0)
+    # a column saved with 4 significant digits, or with 3 decimals when the
+    # products are about 1 or more, still agrees. Each row is judged against
+    # the larger of its own product and the mean product, so a small product
+    # does not need more decimals than the column was saved with.
+    tolerance <- 1e-3 * pmax(abs(product[rows]), mean(abs(product[rows])))
     mismatch <- rows[difference > tolerance]
     if (length(mismatch) > 0) {
       row <- mismatch[1]
@@ -1371,46 +1412,42 @@ validate_inputs <- function(
   # lower_outcome_goal is FALSE and the intention checks are skipped.
   # the observed mean the goal is compared with, weighted as glm() weights the
   # rows, so center level data is averaged over patients rather than rows
+  # over the rows the model fits, with a positive weight
   observed_mean <- local({
-    y <- data[[outcome_name]]
-    w <- if (input_data_structure == "center_level") {
-      data$center_sample_size
-    } else if (!is.null(weights)) {
-      weights
-    } else {
-      rep(1, length(y))
-    }
-    ok <- !is.na(y) & !is.na(w)
+    y <- outcome_column
+    w <- if (is.null(fit_weights)) rep(1, length(y)) else fit_weights
+    ok <- fitted_rows & !is.na(y) & !is.na(w)
     m <- if (any(ok) && sum(w[ok]) > 0) stats::weighted.mean(y[ok], w[ok]) else NaN
     if (is.finite(m)) m else mean(y, na.rm = TRUE)
   })
   # a goal equal to the mean up to round off counts as equal, as the mean is
-  # summed in an order that differs from platform to platform
-  at_mean_tol <- if (is.null(outcome_goal)) 0 else 1e-9 * max(1, abs(observed_mean))
+  # summed in an order that differs from platform to platform. The tolerance
+  # is relative, so it suits an outcome in any unit.
+  at_mean_tol <- if (is.null(outcome_goal)) 0 else 1e-9 * abs(observed_mean)
   if (is.null(outcome_goal)) {
     lower_outcome_goal <- FALSE
   } else if (outcome_goal_intention == "minimize") {
     lower_outcome_goal <- TRUE
     # a goal at the observed mean asks for no change, in either direction
     if (outcome_goal >= observed_mean - at_mean_tol) {
-      warning(paste(
+      input_warning(paste(
         "The specified outcome goal intention is",
         "to minimize the outcome.",
         "The observed mean of the outcome is",
         observed_mean,
         "and the specified outcome goal is", outcome_goal, "."
-      ))
+      ), call = sys.call())
     }
   } else {
     lower_outcome_goal <- FALSE
     if (outcome_goal <= observed_mean + at_mean_tol) {
-      warning(paste(
+      input_warning(paste(
         "The specified outcome goal intention",
         "is to maximize the outcome.",
         "The observed mean of the outcome is",
         observed_mean,
         "and the specified outcome goal is", outcome_goal, "."
-      ))
+      ), call = sys.call())
     }
   }
 
@@ -1484,11 +1521,11 @@ validate_inputs <- function(
   }
   # a quasibinomial outcome is a proportion, and a logit link on a continuous
   # outcome needs values strictly between 0 and 1, where the logit is finite
-  observed_outcome <- outcome_column[!is.na(outcome_column)]
+  # only the rows the model fits matter, as for a binary outcome
   outside_range <- if (glm_family == "quasibinomial") {
-    observed_outcome[observed_outcome < 0 | observed_outcome > 1]
+    fitted_outcome[fitted_outcome < 0 | fitted_outcome > 1]
   } else if (glm_family == "gaussian" && link == "logit") {
-    observed_outcome[observed_outcome <= 0 | observed_outcome >= 1]
+    fitted_outcome[fitted_outcome <= 0 | fitted_outcome >= 1]
   } else {
     numeric(0)
   }
@@ -1651,6 +1688,21 @@ validate_inputs <- function(
         stop(paste0(size_name, " must be greater than 0."))
       }
     }
+    # the next stage is split evenly between the two arms
+    if (num_centers_in_next_stage < 2) {
+      stop(paste(
+        "num_centers_in_next_stage must be at least 2, because the next stage",
+        "has a control arm and a treatment arm, each with at least one center."
+      ))
+    }
+    if (num_centers_in_next_stage %% 2 == 1) {
+      input_warning(paste0(
+        "num_centers_in_next_stage is ", num_centers_in_next_stage, ", an odd ",
+        "number. The power calculation splits the next stage evenly between ",
+        "the two arms, so it plans ", num_centers_in_next_stage / 2,
+        " centers per arm. Give an even number for whole centers in each arm."
+      ))
+    }
     # a cluster id that is given must name a column, whatever the icc
     if (!is.null(power_goal_cluster_id)) {
       if (!is.character(power_goal_cluster_id) ||
@@ -1676,6 +1728,17 @@ validate_inputs <- function(
       }
       if (!all(is.finite(icc)) || any(icc < 0) || any(icc >= 1)) {
         stop("icc must be in [0, 1).")
+      }
+      # one value is shared by both arms, so a name such as "treatment" would
+      # wrongly suggest it is for that arm only
+      if (length(icc) == 1 && !is.null(names(icc)) &&
+        (is.na(names(icc)) || nzchar(names(icc)))) {
+        stop(paste0(
+          "icc has one value, which is shared by both arms, so it cannot be ",
+          "named, but it is named '", names(icc), "'. Give ",
+          "c(control = , treatment = ) for a value per arm, or remove the name ",
+          "with unname()."
+        ))
       }
       # a pair is read as c(control, treatment), and named values by name
       if (length(icc) == 2) {
@@ -1981,6 +2044,17 @@ refuse_non_unit_weight_sum <- function(center_weights_for_outcome_goal) {
   invisible(NULL)
 }
 
+# The rows the outcome model fits: those with every model column the data has
+# observed and a positive glm weight, when there are weights.
+rows_model_fits <- function(data, columns, weights) {
+  columns <- intersect(unlist(columns), names(data))
+  rows <- stats::complete.cases(data[columns])
+  if (is.numeric(weights) && length(weights) == nrow(data)) {
+    rows <- rows & !is.na(weights) & weights > 0
+  }
+  rows
+}
+
 # Signal an input note, a message about how the inputs were read. A sweep shows
 # each one once rather than once per run. See show_each_input_note_once().
 input_note <- function(text) {
@@ -1991,11 +2065,12 @@ input_note <- function(text) {
 }
 
 # Signal an input warning, a warning about how the inputs were read. A sweep
-# shows each one once rather than once per run, as it does an input note.
-input_warning <- function(text) {
+# shows each one once rather than once per run, as it does an input note. A
+# call given heads the warning, as it would head one from warning().
+input_warning <- function(text, call = NULL) {
   warning(structure(
     class = c("lago_input_warning", "warning", "condition"),
-    list(message = text, call = NULL)
+    list(message = text, call = call)
   ))
 }
 
@@ -2096,12 +2171,19 @@ drop_1d_array <- function(x) {
 }
 
 # Matches a named vector or list to the expected names, and returns it in their
-# order without names. A vector without names is kept as it is, in its order.
-# Names that are not exactly the expected ones, each once, are refused.
+# order without names. The names are read when one of them is an expected name,
+# or when there are two or more values and each has a name. Names of another
+# kind, such as the "95%" that quantile() gives one value, are ignored, and the
+# values are kept in their order, as a vector without names is. Names that are
+# read must be exactly the expected ones, each once.
 match_by_names <- function(x, expected, arg, what) {
   x_names <- names(x)
   if (is.null(x_names)) {
     return(x)
+  }
+  every_value_named <- length(x) > 1 && !anyNA(x_names) && all(nzchar(x_names))
+  if (!any(x_names %in% expected) && !every_value_named) {
+    return(unname(x))
   }
   if (anyNA(x_names) || anyDuplicated(x_names) > 0 ||
     !setequal(x_names, expected)) {
