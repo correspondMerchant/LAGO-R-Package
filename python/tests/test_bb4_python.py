@@ -149,10 +149,10 @@ def test_odd_values_convert_or_give_a_clear_error(ro):
         assert list(_bridge.py_to_r(fractions.Fraction(1, 4))) == [0.25]
         with pytest.raises(TypeError, match="a set has no order"):
             _bridge.py_to_r({1, 2})
-        with pytest.raises(TypeError, match="type Period"):
-            _bridge.py_to_r(pd.Period("2020-01"))
-        with pytest.raises(TypeError, match="type dict"):
-            _bridge.py_to_r({"a": 1})
+        with pytest.raises(TypeError, match="type object"):
+            _bridge.py_to_r(object())
+        with pytest.raises(TypeError, match="a dict with values of type str"):
+            _bridge.py_to_r({"a": "x"})
         # an rpy2 object still passes through
         assert _bridge.py_to_r(ro.NULL) is ro.NULL
 
@@ -314,7 +314,7 @@ def test_a_text_weights_column_is_named(mtcars):
     records = [dict(r, w=1.0 if i else None) for i, r in enumerate(mtcars.to_dict(orient="records"))]
     records[1]["w"] = "x"
     out = S.optimize(**_mcp_args(records, weights_column="w", include_confidence_set=False))
-    assert out["error"] == "ValueError: the weights column 'w' must hold numbers, and it holds None."
+    assert out["error"] == "ValueError: the weights column 'w' must hold numbers, and it holds 'x'."
     records = [dict(r, w=True) for r in mtcars.to_dict(orient="records")]
     out = S.optimize(**_mcp_args(records, weights_column="w", include_confidence_set=False))
     assert "error" not in out, out

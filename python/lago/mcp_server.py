@@ -38,7 +38,8 @@ JSON has no NaN or Infinity. The MCP SDK turns a NaN or an Infinity into null
 before a tool sees it, so the server cannot tell it from null. For an optional
 argument, null means the argument was not given, and the default is used. A
 null where a value is needed is an error, and its message says that a NaN or an
-Infinity would have become null, in case the client sent one.
+Infinity would have become null, in case the client sent one. So does the
+error R gives when neither goal is given, when the call sent a goal as null.
 
 Deliberately NOT exposed
 ------------------------
@@ -56,6 +57,7 @@ a subprocess and speaks JSON-RPC over stdin/stdout.
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import json
 import math
@@ -132,11 +134,52 @@ class _StrictFastMCP(FastMCP):
         else:
             from pydantic import ValidationError
 
+            refused = _refuse_booleans(arguments or {})
+            if refused:
+                return _error_result(_error(ValueError(refused)))
             try:
                 model.model_validate(_parse_json_strings(model, arguments or {}))
             except ValidationError as exc:
                 return _error_result(_error(ValueError(_validation_message(exc, name))))
-        return await super().call_tool(name, arguments)
+        # the goals sent as null, which a NaN or an Infinity becomes, so an
+        # error about missing goals can say so
+        token = _null_goals.set([g for g in ("outcome_goal", "power_goal") if g in (arguments or {}) and arguments[g] is None])
+        try:
+            return await super().call_tool(name, arguments)
+        finally:
+            _null_goals.reset(token)
+
+
+# The goals the current tool call sent as null. FastMCP runs the tool in the
+# task of call_tool(), so the tool sees the value call_tool() set.
+_null_goals: contextvars.ContextVar = contextvars.ContextVar("lago_null_goals", default=[])
+
+# The arguments that name one center or one period, where pydantic would read
+# JSON true as 1 and false as 0
+_LABEL_ARGUMENTS = ("center_effects_optimization_values", "time_effect_optimization_value")
+
+
+def _refuse_booleans(arguments):
+    """The error message for a center or a period sent as true or false, else None."""
+    for name in _LABEL_ARGUMENTS:
+        if isinstance(arguments.get(name), bool):
+            return (
+                f"`{name}` must be a label or a number, not {json.dumps(arguments[name])}. "
+                "Give the center or the period as it is written in its column."
+            )
+    return None
+
+
+def _null_goal_hint(out):
+    """Add the NaN hint to an error about missing goals when a goal was sent as null."""
+    nulls = _null_goals.get()
+    if nulls and "'outcome_goal' and 'power_goal' are NULL" in out.get("error", ""):
+        sent = " and ".join(f"`{g}`" for g in nulls)
+        out = dict(out, error=out["error"] + (
+            f" The call sent {sent} as null. If you sent NaN or Infinity, note that JSON has no NaN "
+            "or Infinity, and the server reads them as null."
+        ))
+    return out
 
 
 def _argument_model(fn):
@@ -337,11 +380,12 @@ def _model_kwargs(p, df):
     if p.get("weights_column"):
         name = p["weights_column"]
         column = _column(df, name, "weights")
-        try:
-            extra["weights"] = [float(v) for v in column]
-        except (TypeError, ValueError):
-            bad = next(v for v in column if not _is_number(v))
-            raise ValueError(f"the weights column {name!r} must hold numbers, and it holds {bad!r}.") from None
+        # a missing weight stays missing, and R leaves its row out of the fit
+        missing = [v is None or (isinstance(v, float) and v != v) for v in column]
+        bad = [v for v, m in zip(column, missing) if not m and not _is_number(v)]
+        if bad:
+            raise ValueError(f"the weights column {name!r} must hold numbers, and it holds {bad[0]!r}.")
+        extra["weights"] = [math.nan if m else float(v) for v, m in zip(column, missing)]
     return extra
 
 
@@ -429,8 +473,12 @@ MODEL_ARGS_DOC = """
     `additional_covariates`, `include_center_effects` with either
     `center_effects_optimization_values` (one center to plan for, by its
     label or number) or
-    `center_weights_for_outcome_goal` (one weight per center, in sorted order,
-    summing to 1), `include_time_effects` with
+    `center_weights_for_outcome_goal` (one weight per center, summing to 1,
+    best as an object such as {{"north": 0.6, "south": 0.4}}, which is
+    matched to the centers by name. A list is matched to the centers in the
+    order R sorts them: numbers from small to large, and text in the sort
+    order of R's locale, which can differ from a plain sort of the
+    characters), `include_time_effects` with
     `time_effect_optimization_value` (one period, by its number or its label),
     and `include_interaction_terms` with the
     products listed in `intervention_components` as "a:b" and the mains in
@@ -555,7 +603,7 @@ def optimize(
     additional_covariates: list[str] | None = None,
     include_center_effects: bool | None = None,
     center_effects_optimization_values: str | float | None = None,
-    center_weights_for_outcome_goal: list[float] | None = None,
+    center_weights_for_outcome_goal: list[float] | dict[str, float] | None = None,
     include_time_effects: bool | None = None,
     time_effect_optimization_value: float | str | None = None,
     include_interaction_terms: bool | None = None,
@@ -677,7 +725,7 @@ def sensitivity(
     additional_covariates: list[str] | None = None,
     include_center_effects: bool | None = None,
     center_effects_optimization_values: str | float | None = None,
-    center_weights_for_outcome_goal: list[float] | None = None,
+    center_weights_for_outcome_goal: list[float] | dict[str, float] | None = None,
     include_time_effects: bool | None = None,
     time_effect_optimization_value: float | str | None = None,
     include_interaction_terms: bool | None = None,
@@ -769,7 +817,7 @@ def budget(
     additional_covariates: list[str] | None = None,
     include_center_effects: bool | None = None,
     center_effects_optimization_values: str | float | None = None,
-    center_weights_for_outcome_goal: list[float] | None = None,
+    center_weights_for_outcome_goal: list[float] | dict[str, float] | None = None,
     include_time_effects: bool | None = None,
     time_effect_optimization_value: float | str | None = None,
     include_interaction_terms: bool | None = None,
@@ -986,7 +1034,7 @@ def _run_in_worker(fn):
         except (EOFError, OSError) as exc:
             out = _error(RuntimeError(f"the R worker stopped during the call ({exc!r}). Try the call again."))
         if isinstance(out, dict) and "error" in out:
-            return _error_result(out)
+            return _error_result(_null_goal_hint(out))
         return out
 
     return tool
