@@ -543,7 +543,7 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       warning(sprintf(paste(
         "The budget (%s) is below the cost of the cheapest reachable",
         "intervention (%s), so no recommendation fits it."
-      ), format(budget), format(cheapest)), call. = FALSE)
+      ), .lago_num_text(budget), .lago_num_text(cheapest)), call. = FALSE)
     }
     result <- list(
       budget = budget,
@@ -572,8 +572,9 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
 #' Print a budget-constrained LAGO result
 #'
 #' @description Prints a short header with the budget and whether it binds, then
-#' the recommended intervention, its cost and estimated outcome (or a note that
-#' no intervention fits the budget).
+#' the recommended intervention, its cost and estimated outcome. When no
+#' intervention fits the budget, it prints a note that gives the cost of the
+#' cheapest reachable intervention instead.
 #'
 #' @param x A `"lago_budget"` object from [lago_budget()].
 #' @param ... Ignored.
@@ -611,9 +612,12 @@ print.lago_budget <- function(x, ...) {
         "No outcome goal in the searched range was reachable, so no budget would help."
       )
     } else {
-      cli::cli_alert_warning(
-        "No reachable intervention fits this budget. Increase the budget."
-      )
+      # written in full, so a cost just above the budget does not read as equal
+      cheapest_txt <- .lago_num_text(min(x$frontier$rec_int_cost))
+      cli::cli_alert_warning(paste0(
+        "No reachable intervention fits this budget. The cheapest reachable ",
+        "intervention costs ", cheapest_txt, ". Increase the budget."
+      ))
     }
     return(invisible(x))
   }
