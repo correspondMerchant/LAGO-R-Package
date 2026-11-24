@@ -221,3 +221,84 @@ test_that("with opposing interactions the shrunk recommendation stays near the b
     expect_gt(r$est_outcome, best - 0.05)
   }
 })
+
+bb5_mtcars_fit <- function(d, lo, up, step = c(0.5, 0.5), ...) {
+  suppressWarnings(lago_optimization(
+    data = d, outcome_name = "mpg", outcome_type = "continuous",
+    intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = lo, intervention_upper_bounds = up,
+    quiet = TRUE, cost_list_of_vectors = list(c(0, 4), c(0, 6)),
+    confidence_set_grid_step_size = step, ...
+  ))
+}
+
+test_that("a clustered confidence set does not change when a component is shifted far from 0", {
+  set.seed(846)
+  n <- 90L
+  d <- data.frame(x = seq(-1, 1, length.out = n), z = rnorm(n))
+  d$y <- 0.5 + 0.16 * d$x + 0.04 * d$z + rnorm(n, sd = 0.055)
+  d$c1 <- rep_len(c("b", "a", "c", "d", "e"), n)
+  run <- function(s) {
+    dd <- d
+    dd$x <- dd$x + s
+    m <- glm(y ~ x + z, data = dd)
+    suppressWarnings(get_confidence_set(
+      predictors_data = dd[c("x", "z")], additional_covariates = "z",
+      intervention_components = "x", outcome_data = dd$y, fitted_model = m,
+      link = "identity", outcome_type = "continuous", outcome_goal = 0.5,
+      intervention_lower_bounds = s - 1, intervention_upper_bounds = s + 1,
+      confidence_set_grid_step_size = 0.05, cost_list_of_vectors = list(c(0, 1)),
+      rec_int = s + 0.4, cluster_id = list(dd$c1)
+    ))
+  }
+  near <- run(0)
+  far <- run(1e6)
+  expect_equal(far$rec_int_ci, near$rec_int_ci)
+  expect_equal(far$confidence_set_size_percentage, near$confidence_set_size_percentage)
+})
+
+test_that("a quasibinomial logit fit with a component near 100000 keeps its interval", {
+  near <- mtcars
+  near$mpg <- plogis((mtcars$mpg - 20) / 6)
+  far <- near
+  far$qsec <- far$qsec + 1e5
+  args <- list(glm_family = "quasibinomial", link = "logit", outcome_goal = 0.6)
+  r0 <- do.call(bb5_mtcars_fit, c(list(near, c(3, 14), c(5, 23)), args))
+  r1 <- do.call(bb5_mtcars_fit, c(list(far, c(3, 1e5 + 14), c(5, 1e5 + 23)), args))
+  expect_equal(r1$est_outcome_ci, r0$est_outcome_ci)
+  expect_equal(r1$confidence_set_size_percentage, r0$confidence_set_size_percentage)
+})
+
+test_that("an identity fit with a component near 1e7 is not called rank deficient", {
+  d <- mtcars
+  d$qsec <- mtcars$qsec + 1e7
+  r <- bb5_mtcars_fit(d, c(3, 1e7 + 14), c(5, 1e7 + 23),
+    glm_family = "gaussian", link = "identity", outcome_goal = 25
+  )
+  r0 <- bb5_mtcars_fit(mtcars, c(3, 14), c(5, 23),
+    glm_family = "gaussian", link = "identity", outcome_goal = 25
+  )
+  expect_equal(r$est_outcome_ci, r0$est_outcome_ci)
+  d$qsec <- mtcars$qsec / 10 + 1e7
+  expect_no_error(bb5_mtcars_fit(d, c(3, 1e7 + 1.4), c(5, 1e7 + 2.3),
+    glm_family = "gaussian", link = "identity", outcome_goal = 25,
+    step = c(0.5, 0.05)
+  ))
+})
+
+test_that("a default cubic cost whose total falls as evaluated is replaced by the linear cost", {
+  cases <- list(
+    c("0x1.52e3125ebd31ap+18", "0x1.52e33da4a2966p+18", "0x1.602e5f49aacedp+16", "0x1.52e33140d0b29p+18"),
+    c("0x1.3907aaebd3b99p+19", "0x1.3907c18b4f36p+19", "0x1.7977e7b9ce83ap+10", "0x1.3907c18b4f36p+19"),
+    c("0x1.1d9e653e51f0ep+4", "0x1.1d9f2c6d15397p+4", "0x1.3b76bed56931fp+13", NA)
+  )
+  for (case in cases) {
+    v <- as.numeric(case)
+    k <- suppressWarnings(LAGOtrials:::cost_fxn_calculator(v[1], v[2], v[3], "cubic", v[4])[[1]])
+    x <- seq(v[1], v[2], length.out = 2001)
+    total <- vapply(x, function(z) sum(k * z^(0:4)), numeric(1))
+    rise <- total[length(total)] - total[1]
+    expect_gt(rise, 0)
+    expect_gte(min(diff(total)), -1e-6 * rise)
+  }
+})

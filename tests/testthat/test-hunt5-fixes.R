@@ -275,11 +275,12 @@ test_that("center level data with no observed center can turn center effects off
   )
 })
 
-test_that("the default cubic cost refuses bounds too far from 0 for their width", {
-  expect_error(
-    LAGOtrials:::cost_fxn_calculator(1e6, 1e6 + 0.01, 3, "cubic"),
-    "cannot be computed for bounds this far from 0"
+test_that("the default cubic cost falls back to linear on bounds too far from 0 for their width", {
+  expect_warning(
+    k <- LAGOtrials:::cost_fxn_calculator(1e6, 1e6 + 0.01, 3, "cubic"),
+    "so the linear cost"
   )
+  expect_equal(k[[1]], c(0, 3, 0, 0, 0))
 })
 
 test_that("a sweep on other data resolves the center effects default again", {

@@ -2,6 +2,53 @@
 # clustering, as the confidence set uses it. X is the design matrix of the
 # fitted rows, with one column per coefficient.
 continuous_vcov <- function(X, model, outcome_data, link) {
+  # a family other than gaussian weights its rows by its variance function,
+  # so on the identity link its model based variance is glm()'s own
+  if (link == "identity" && !identical(model$family$family, "gaussian")) {
+    v <- tryCatch(stats::vcov(model), error = function(e) NULL)
+    idx <- if (!is.null(v)) match(gsub("`", "", colnames(X)), gsub("`", "", rownames(v)))
+    if (!is.null(v) && !anyNA(idx)) {
+      vcov_matrix <- v[idx, idx, drop = FALSE]
+      dimnames(vcov_matrix) <- list(colnames(X), colnames(X))
+      return(vcov_matrix)
+    }
+  }
+  # computed on a centered and scaled copy of X and turned back, see
+  # conditioned_design()
+  conditioned <- conditioned_design(X)
+  v <- continuous_vcov_raw(conditioned$Z, model, outcome_data, link)
+  out <- conditioned$M %*% v %*% t(conditioned$M)
+  dimnames(out) <- list(colnames(X), colnames(X))
+  out
+}
+
+# A centered and scaled copy Z = X M of a design matrix, with M. Each column
+# that is not constant is scaled to sd 1, and centered when X has an intercept
+# column. A coefficient vector b of X is M g for the coefficients g of Z, so a
+# variance V of g is M V t(M) for b. The forms of the variance below are all
+# products of X, so they are the same up to round off, which is now small: a
+# component far from 0, or in very large or small units, otherwise makes X'X
+# nearly singular.
+conditioned_design <- function(X) {
+  p <- ncol(X)
+  M <- diag(p)
+  intercept <- which(apply(X, 2, function(col) all(col == 1)))[1]
+  for (j in seq_len(p)) {
+    col <- X[, j]
+    if (!is.na(intercept) && j == intercept) next
+    center <- if (!is.na(intercept)) mean(col) else 0
+    spread <- stats::sd(col)
+    if (!is.finite(spread) || spread == 0) spread <- max(abs(col))
+    if (!is.finite(spread) || spread == 0) spread <- 1
+    M[j, j] <- 1 / spread
+    if (!is.na(intercept)) M[intercept, j] <- -center / spread
+  }
+  Z <- X %*% M
+  colnames(Z) <- colnames(X)
+  list(Z = Z, M = M)
+}
+
+continuous_vcov_raw <- function(X, model, outcome_data, link) {
   n <- nrow(X)
   n_params <- ncol(X)
   fitted_values <- model$fitted.values

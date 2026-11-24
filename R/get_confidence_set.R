@@ -1128,6 +1128,19 @@ get_confidence_set <- function(
       }
       unit_weights <- all(prior_weights == 1)
 
+      # The variance is computed on a centered and scaled copy of X and turned
+      # back at the end. A component far from 0, such as values near 100000,
+      # otherwise loses the precision of the variance to cancellation, in the
+      # clustered and logit forms as in the identity one.
+      # (continuous_vcov() does it itself for the unclustered form)
+      design_names <- colnames(X)
+      conditioned <- if (is.null(cluster_ids)) {
+        list(Z = X, M = diag(ncol(X)))
+      } else {
+        conditioned_design(X)
+      }
+      X <- conditioned$Z
+
       if (is.null(cluster_ids)) {
         # Non-clustered case, shared with the coefficient table
         vcov_matrix <- continuous_vcov(X, model, outcome_data, link)
@@ -1205,8 +1218,9 @@ get_confidence_set <- function(
         vcov_matrix <- vcov1 + vcov2 - vcov12
       }
 
-      rownames(vcov_matrix) <- colnames(X)
-      colnames(vcov_matrix) <- colnames(X)
+      vcov_matrix <- conditioned$M %*% vcov_matrix %*% t(conditioned$M)
+      rownames(vcov_matrix) <- design_names
+      colnames(vcov_matrix) <- design_names
       return(vcov_matrix)
     }
 
