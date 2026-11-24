@@ -401,9 +401,17 @@
   // A slider reports its value rounded to its step. The exact value the server
   // set is used while the slider sits within half a step of it, as the server
   // reads it, so a small high order coefficient is not drawn as 0.
+  // The server sends the stale reading with 16 significant digits, so it can
+  // differ from the slider's reading in the last digit. Two readings are the
+  // same when they agree to a relative tolerance of 1e-12.
+  function sameReading(value, stale) {
+    return stale !== undefined && (value === stale ||
+      Math.abs(value - stale) <= 1e-12 * Math.max(Math.abs(value), Math.abs(stale)));
+  }
+
   function preferExact(value, exact) {
     if (exact && isFinite(value) &&
-      (Math.abs(value - exact.value) <= exact.step / 2 || value === exact.stale)) {
+      (Math.abs(value - exact.value) <= exact.step / 2 || sameReading(value, exact.stale))) {
       return exact.value;
     }
     return value;
@@ -412,7 +420,7 @@
   // a slider reading through its exact value. The stale reading after a range
   // edit lasts until the slider reports anything else.
   function readThroughExact(value, exact) {
-    if (exact && isFinite(value) && exact.stale !== undefined && value !== exact.stale) {
+    if (exact && isFinite(value) && exact.stale !== undefined && !sameReading(value, exact.stale)) {
       exact.stale = undefined;
     }
     return preferExact(value, exact);
@@ -431,7 +439,8 @@
     fmtValue: fmtValue,
     fmtCost: fmtCost,
     preferExact: preferExact,
-    readThroughExact: readThroughExact
+    readThroughExact: readThroughExact,
+    sameReading: sameReading
   };
 
   // Export for node (unit tests). Harmless in the browser.

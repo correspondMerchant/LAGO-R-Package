@@ -201,6 +201,21 @@ check("a stale reading is kept while the slider does not move", m.readThroughExa
 check("a real move is read as moved", m.readThroughExact(5e-5, moved) === 5e-5);
 check("a move back to the old reading is read as moved", m.readThroughExact(2e-5, moved) === 2e-5);
 check("preferExact reads a real move after a range edit", m.preferExact(3e-5, edited) === 3e-5);
+// The server sends the stale reading with 16 significant digits, so a reading
+// that needs 17 differs from it in the last digit and is still not a move.
+var reading17 = 0.1 + 0.2;
+var stale16 = +reading17.toPrecision(16);
+check("the 16 digit stale reading differs from the slider's", stale16 !== reading17);
+check("preferExact keeps the exact value at a 16 digit stale reading",
+  m.preferExact(reading17, { value: 0.25, step: 1e-3, stale: stale16 }) === 0.25);
+var rounded = { value: 0.25, step: 1e-3, stale: stale16 };
+check("a 16 digit stale reading is kept while the slider does not move",
+  m.readThroughExact(reading17, rounded) === 0.25 && rounded.stale === stale16);
+check("a reading 1e-9 away from the stale one is a move",
+  m.readThroughExact(0.3 + 1e-9, rounded) === 0.3 + 1e-9 && rounded.stale === undefined);
+check("sameReading needs a stale reading", m.sameReading(0.3, undefined) === false);
+check("sameReading matches 0 with 0", m.sameReading(0, 0) === true);
+check("sameReading tells a tiny value from 0", m.sameReading(1e-300, 0) === false);
 
 // 13. a cubic drag still solves when the bounds are narrow near 0. Before, the
 // raw powers of x fell below the fixed pivot threshold and every drag failed.
