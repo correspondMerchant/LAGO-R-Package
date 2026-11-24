@@ -121,6 +121,21 @@ cost_fxn_calculator <- function(
         solve(A, b_vec)
       }
 
+      # whether the total cost sum_k c_k x^k, evaluated in x, rises across the
+      # bounds as x times the cost per unit does, and never falls by more than
+      # a small part of that rise. The cost per unit is taken from the curve
+      # solved in u, which has no cancellation.
+      total_is_accurate <- function(final_coeff, coeff) {
+        x <- seq(range_min, range_max, length.out = 2001)
+        total <- vapply(x, function(v) sum(final_coeff * v^(seq_along(final_coeff) - 1)), numeric(1))
+        rise <- range_max * f(range_max, coeff) - range_min * f(range_min, coeff)
+        steps <- diff(total)
+        # a curve that does not rise, which the checks above rule out, is not
+        # judged here
+        !isTRUE(rise > 0) || (all(is.finite(total)) && min(steps) >= -1e-6 * rise &&
+          abs((total[length(total)] - total[1]) - rise) <= 1e-3 * rise)
+      }
+
       # Function to evaluate f(x)
       f <- function(x, coeff) {
         return(coeff[1] * x^3 + coeff[2] * x^2 + coeff[3] * x + coeff[4])
@@ -159,6 +174,25 @@ cost_fxn_calculator <- function(
           # If both conditions hold, return coefficients
           rev_coeff <- rev(coeff)
           final_coeff <- c(0, rev_coeff)
+          # The total cost is evaluated as the sum of c_k x^k, so on narrow
+          # bounds far from 0 its large terms nearly cancel and round off can
+          # swamp its rise across the bounds. The curve is kept only when its
+          # total, as evaluated, rises by what its cost per unit gives and never
+          # falls by more than a small part of that rise.
+          # Otherwise the linear cost is used, as for a component held at one
+          # dose: over bounds this narrow a cubic cannot differ from it in a
+          # way the optimizer could use.
+          if (unit_cost != 0 && !total_is_accurate(final_coeff, coeff)) {
+            warning(paste0(
+              "The default cubic cost cannot be computed accurately on the ",
+              "bounds ", format(range_min, digits = 10), " to ",
+              format(range_max, digits = 10), ", which are narrow and far from ",
+              "0, so the linear cost (", format(unit_cost, digits = 10),
+              " per unit) is used there. Give the costs with ",
+              "cost_list_of_vectors to use another curve."
+            ), call. = FALSE)
+            return(c(0, unit_cost, 0, 0, 0))
+          }
           return(final_coeff)
         } else {
           # If conditions fail, reduce |delta| (make slope less steep)

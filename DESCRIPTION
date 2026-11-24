@@ -40,7 +40,7 @@ Suggests:
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Depends:
-    R (>= 2.10)
+    R (>= 4.0.0)
 Config/roxygen2/version: 8.1.1
 Language: en-US
 Roxygen: list(markdown = TRUE)

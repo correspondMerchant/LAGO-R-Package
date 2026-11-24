@@ -141,7 +141,8 @@ as a fraction of the grid. Both the count of qualifying interventions
 and the size of the grid count grid interventions only, so rec_int is
 excluded from each>,
 rec_int_ci = <named numeric c(lower, upper), each bound rounded to 3
-decimal places, or to 4 significant digits when it is below 0.1,
+decimal places, or to 4 significant digits when it is below 0.1 in
+absolute value,
 the confidence interval at rec_int. Computed whether or not it covers
 the outcome goal, so callers never have to look for rec_int inside cs.
 For a binary outcome on the logit link both bounds are confined to

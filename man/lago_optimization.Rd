@@ -64,7 +64,14 @@ outcomes.}
 
 \item{intervention_components}{A character vector. The names of the columns
 in the dataset that represent the intervention components.
-For example: c("component1", "component2").}
+For example: c("component1", "component2").
+Each column can be given only once, and a column cannot also be the outcome,
+a center characteristic or an additional covariate.
+An interaction term such as "component1:component2" must also be a column
+of the dataset with that name, and that column must hold the product of its
+components, for example
+\code{data[["component1:component2"]] <- data$component1 * data$component2}.
+A column that is not that product is refused.}
 
 \item{intervention_lower_bounds}{A numeric vector. Specifies the lower bounds
 of the intervention components.
@@ -74,7 +81,12 @@ c(0,0).}
 \item{intervention_upper_bounds}{A numeric vector. Specifies the upper bounds
 of the intervention components.
 For example: for a two-component intervention package, upper bounds could be
-c(10,20).}
+c(10,20).
+The bounds, \code{unit_costs}, \code{unit_cost_doses}, \code{cost_list_of_vectors},
+\code{prev_recommended_interventions} and the step sizes hold one value per
+intervention component, or per main component with interaction terms. An
+unnamed vector is matched to the components by position. A named one is
+matched by name, and its names must then be those components, each once.}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
 probability or mean value.
@@ -124,7 +136,8 @@ the number of patients per center in the next stage of the trial.
 Default value without user specification: NULL.}
 
 \item{icc}{A numeric value in [0, 1), or a length-2 numeric vector
-c(control, treatment). Specifies the intra-cluster correlation used to
+c(control, treatment), matched by name when it is named
+c(control = , treatment = ). Specifies the intra-cluster correlation used to
 inflate the variance of the power-calculation test statistic by a design
 effect, so that the power goal accounts for within-center clustering.
 Only used when a power_goal is provided (ignored otherwise). When NULL, the
@@ -236,7 +249,9 @@ characteristics, the recommendation is specific to a center with these
 characteristic values, i.e. the optimization answers "what is the optimal
 intervention for a center whose characteristics equal these values?". Must
 be provided when center_characteristics is used, must be numeric, and must
-have the same length and order as center_characteristics.
+have the same length and order as center_characteristics. Named values are
+matched to the characteristics by name instead, and the names must then be
+the center characteristics, each once.
 For a categorical characteristic with two levels, use 0 for the reference
 level and 1 for the other level. For a logical characteristic, these values
 select FALSE and TRUE. Categorical characteristics with more than two levels
@@ -251,7 +266,10 @@ For example: c("component1", "component2").}
 
 \item{time_effect_optimization_value}{The period used for LAGO
 optimization, as a number or as the label of a period in the 'period'
-column (for example "2024-Q1", or a Date for a Date column).}
+column (for example "2024-Q1", or a Date for a Date column). To select the
+rows with a missing period, make them an explicit level of a factor period
+column with \code{addNA()} and pass \code{NA_character_}. A value given
+while include_time_effects is FALSE is ignored with a warning.}
 
 \item{additional_covariates}{A character vector. The names of the columns in
 the dataset that represent additional covariates that need to be included
@@ -335,6 +353,13 @@ Default value without user specification: FALSE.}
 interaction terms in the intervention components. Please make sure the
 interaction terms are included in "intervention_components", and they
 follow the correct naming scheme: "component1:component3".
+The dataset must have a column with that exact name that holds the product
+of the components, for example
+\code{data[["component1:component3"]] <- data$component1 * data$component3}.
+The model is fitted on that column and the recommendation computes the
+product, so a column that is not the product, within a small relative
+tolerance on the rows the model uses, is refused. The main components must
+be numeric columns of the dataset too.
 Default value without user specification: FALSE.}
 
 \item{prev_recommended_interventions}{A numeric vector. The recommended

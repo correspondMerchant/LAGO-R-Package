@@ -127,6 +127,7 @@ SCALAR_RESULT_FIELDS = frozenset({
     # echoed scalar metadata / inputs recap
     "outcome_type",
     "outcome_goal",
+    "outcome_goal_intention",
     "power_goal",
     "effective_outcome_goal",
     "shrinking_method_used",
@@ -242,13 +243,17 @@ def _plain(value):
     (``pd.NA`` or ``NaT``) becomes None, and a float NaN stays NaN. A
     categorical value becomes its text. A date or a time becomes text, as
     :func:`_date_text` writes it. The elements of a list or tuple are turned
-    too. Anything else is returned unchanged. numpy comes with pandas, which
-    the wrapper needs.
+    too. A ``Decimal`` or a ``Fraction`` becomes a float, and a ``range``
+    a list. Anything else is returned unchanged. numpy comes with pandas,
+    which the wrapper needs.
     """
     import datetime
 
     import numpy as np
     import pandas as pd
+
+    import decimal
+    import fractions
 
     if value is None or value is pd.NA or value is pd.NaT:
         return None
@@ -258,6 +263,10 @@ def _plain(value):
         return value.item()
     if isinstance(value, datetime.date):
         return _date_text(value)
+    if isinstance(value, (decimal.Decimal, fractions.Fraction)):
+        return float(value)
+    if isinstance(value, range):
+        return list(value)
     if isinstance(value, (pd.Series, pd.Index)):
         value = value.array
     if isinstance(value, pd.Categorical):
@@ -276,16 +285,24 @@ def _plain(value):
 def py_to_r(value):
     """Convert a single Python value to the corresponding R object.
 
-    - pandas.DataFrame -> R data.frame
+    - pandas.DataFrame -> R data.frame, with date, large whole number and
+      text columns made ready first (see :func:`_frame_for_r`)
     - bool / list-of-bool -> logical vector
     - int|float / list-of-number -> numeric vector
     - str / list-of-str -> character vector
-    - list-of-lists (e.g. cost_list_of_vectors) -> R list of numeric vectors
+    - list-of-lists (e.g. cost_list_of_vectors) -> R list of vectors, each
+      converted as a list
     - None -> R NULL
-    - numpy scalars and arrays, pandas Series, Index and arrays -> as the
-      plain Python values they hold (see :func:`_plain`)
-    - None in a list -> the R NA of the type of the other elements
+    - a missing value on its own (``pd.NA``, ``NaT``) -> R's NA
+    - numpy scalars and arrays, pandas Series, Index and arrays, ``Decimal``,
+      ``Fraction`` and ``range`` -> as the plain Python values they hold (see
+      :func:`_plain`)
+    - None in a list -> the R NA of the type of the other elements, and so
+      is a float NaN in a list of text or of true and false
     - an existing rpy2 object -> passed through unchanged
+
+    Anything else, such as a set or a dict, raises a ``TypeError`` that names
+    its type.
     """
     s = _ensure()
     ro = s["ro"]
@@ -301,10 +318,19 @@ def py_to_r(value):
 
     if isinstance(value, pd.DataFrame):
         with s["localconverter"](_pandas_converter()):
-            return ro.conversion.get_conversion().py2rpy(value)
+            return ro.conversion.get_conversion().py2rpy(_frame_for_r(value))
+
+    if isinstance(value, (set, frozenset)):
+        raise TypeError(
+            "Cannot convert a set to an R vector, as a set has no order. "
+            "Give a list instead: {!r}".format(value)
+        )
 
     value = _plain(value)
 
+    # a missing value on its own, such as pd.NA or NaT, is R's NA
+    if value is None:
+        return BoolVector([ro.NA_Logical])
     # bool must be checked before int (bool is a subclass of int)
     if isinstance(value, bool):
         return BoolVector([value])
@@ -316,29 +342,86 @@ def py_to_r(value):
     if isinstance(value, (list, tuple)):
         seq = list(value)
         if len(seq) > 0 and all(isinstance(el, (list, tuple)) for el in seq):
-            # list-of-lists -> unnamed R list of numeric vectors
-            rlist = ro.r["list"]
-            return rlist(
-                *[FloatVector([float(x) for x in el]) for el in seq]
-            )
-        # None, from a missing value, becomes the NA of the vector type
-        given = [el for el in seq if el is not None]
-        if len(given) < len(seq) and not given:
+            # list-of-lists -> unnamed R list of vectors, each converted as
+            # a list of its own, so a None in one becomes NA
+            return ro.r["list"](*[py_to_r(el) for el in seq])
+        # None, from a missing value, becomes the NA of the vector type. A
+        # float NaN among text or true and false is missing too, as pandas
+        # writes a missing text value as NaN.
+        given = [el for el in seq if not _is_missing(el)]
+        if seq and all(el is None for el in seq):
             return BoolVector([ro.NA_Logical] * len(seq))
         if given and all(isinstance(el, bool) for el in given):
-            return BoolVector([ro.NA_Logical if el is None else el for el in seq])
+            return BoolVector([el if isinstance(el, bool) else ro.NA_Logical for el in seq])
         if all(isinstance(el, (int, float)) and not isinstance(el, bool)
                for el in given):
             return FloatVector([ro.NA_Real if el is None else float(el) for el in seq])
         if all(isinstance(el, str) for el in given):
-            return StrVector([ro.NA_Character if el is None else el for el in seq])
+            return StrVector([el if isinstance(el, str) else ro.NA_Character for el in seq])
         raise TypeError(
             "Cannot convert list with mixed/unsupported element types to an "
             "R vector: {!r}".format(seq)
         )
 
     # Already an rpy2 object (escape hatch) -> pass through unchanged.
-    return value
+    if type(value).__module__.split(".")[0] == "rpy2":
+        return value
+    raise TypeError(
+        "Cannot convert a value of type {} to an R object. Give a number, "
+        "text, true or false, a date, a list of them, a pandas DataFrame or "
+        "None: {!r}".format(type(value).__name__, value)
+    )
+
+
+def _is_missing(value) -> bool:
+    """True for None or a float NaN, the missing values a plain list holds."""
+    return value is None or (isinstance(value, float) and value != value)
+
+
+def _frame_for_r(df):
+    """A copy of a DataFrame with its columns in the forms rpy2 converts well.
+
+    rpy2 writes Python dates in a column as day numbers counted from year 1,
+    and a column of very large whole numbers as text. So a column of
+    ``datetime.date`` or ``datetime`` values, or of numpy datetimes, becomes
+    text, as :func:`_date_text` writes it, which is how a date names a period
+    elsewhere in the wrapper. A whole number column with a value that does
+    not fit R's integers becomes a float column, as R itself stores such
+    numbers as doubles. A column of text with missing values, written as
+    None, NaN or ``pd.NA``, becomes text with None where a value is missing.
+    The DataFrame given is not changed.
+    """
+    import datetime
+
+    import numpy as np
+    import pandas as pd
+
+    def missing(v):
+        return v is None or v is pd.NA or v is pd.NaT or (isinstance(v, (float, np.floating)) and v != v)
+
+    out = df
+    limit = 2**31 - 1  # R's NA integer is -2**31, so this is R's range
+    for i in range(df.shape[1]):
+        col = df.iloc[:, i]
+        new = None
+        if pd.api.types.is_datetime64_any_dtype(col.dtype):
+            new = pd.Series([_date_text(v) for v in col], index=col.index, dtype=object)
+        elif pd.api.types.is_integer_dtype(col.dtype) and not pd.api.types.is_bool_dtype(col.dtype):
+            given = col.dropna()
+            if len(given) and (given.max() > limit or given.min() < -limit):
+                new = pd.Series(col.to_numpy(dtype="float64", na_value=np.nan), index=col.index)
+        elif col.dtype == object:
+            values = col.tolist()
+            given = [v for v in values if not missing(v)]
+            if given and all(isinstance(v, datetime.date) for v in given):
+                new = pd.Series([None if missing(v) else _date_text(v) for v in values], index=col.index, dtype=object)
+            elif given and len(given) < len(values) and all(isinstance(v, str) for v in given):
+                new = pd.Series([None if missing(v) else v for v in values], index=col.index, dtype=object)
+        if new is not None:
+            if out is df:
+                out = df.copy()
+            out.isetitem(i, new)
+    return out
 
 
 def r_to_py(obj):
@@ -529,15 +612,24 @@ def r_sensitivity_to_df(result):
     messages = [None] * n
     errors = r_to_py(attr(result, "error_messages"))
     if isinstance(errors, dict):
-        # R names each error by its swept value, as as.character() writes it
+        # R names each error by its swept value, as as.character() writes it.
+        # A text value, such as a period label or a date, matches by its
+        # text, and a number by its value, as R writes a number with 15
+        # significant digits.
         for value, message in errors.items():
             for i, v in enumerate(out["value"]):
+                if isinstance(v, str):
+                    if v == value:
+                        messages[i] = message
+                    continue
                 try:
                     if abs(float(value) - float(v)) <= 1e-9 * max(1.0, abs(float(v))):
                         messages[i] = message
                 except (TypeError, ValueError):
                     continue
-    out["error_message"] = messages
+    # object dtype keeps None for a run that did not fail, where pandas 3
+    # would make a text column with NaN
+    out["error_message"] = pd.Series(messages, index=out.index, dtype=object)
     return out
 
 

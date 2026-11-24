@@ -45,20 +45,15 @@
   cli::cli_h3("{accent('Overall intervention-effect test')}")
   if (!is.null(blocks$test)) {
     for (row in blocks$test$rows) cli::cli_text(row)
-  } else if (!is.null(x$outcome_type) && !identical(x$outcome_type, "binary")) {
+  } else if (!is.null(x[["outcome_type"]]) && !identical(x[["outcome_type"]], "binary")) {
     cli::cli_text(
       paste0(
         "The overall test is only available for binary outcomes. This ",
-        "outcome is ", x$outcome_type, "."
+        "outcome is ", x[["outcome_type"]], "."
       )
     )
   } else {
-    cli::cli_text(
-      paste(
-        "To see the overall test results, include a 'group' column in the",
-        "data with values 'treatment' or 'control' (binary outcomes only)."
-      )
-    )
+    cli::cli_text(.lago_no_test_reason(x))
   }
 
   # --- recommended intervention: aligned component | value table.
@@ -88,6 +83,31 @@
   }
 
   invisible(x)
+}
+
+# Why a binary result has no overall test. The data the result was computed
+# from is kept in its recorded arguments, so a 'group' column there means the
+# test was skipped for its values, and the reason is the one test_processor()
+# gave in its warning. Without a 'group' column, or for an object that did not
+# record its data, the message asks for the column.
+.lago_no_test_reason <- function(x) {
+  data <- attr(x, "lago_call_args")$data
+  if (!is.data.frame(data) || !"group" %in% names(data)) {
+    return(paste(
+      "To see the overall test results, include a 'group' column in the",
+      "data with values 'treatment' or 'control' (binary outcomes only)."
+    ))
+  }
+  if (!all(data[["group"]] %in% c("treatment", "control", NA))) {
+    return(paste(
+      "The overall test was not run: the 'group' column has values other",
+      "than 'treatment' and 'control'. Please check the data."
+    ))
+  }
+  paste(
+    "The overall test was not run: each arm of the 'group' column needs at",
+    "least two patients with an observed outcome."
+  )
 }
 
 #' Print a LAGO optimization result

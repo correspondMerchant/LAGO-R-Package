@@ -13,15 +13,17 @@ carries (so the whole call need not be retyped), and any arguments in \code{...}
 override those stored values. When \code{NULL} (the default), the baseline
 arguments come from \code{...}. Passing an object that is not a \code{lago} result is
 an error, as is passing a \code{lago} result from an older version of the package
-that did not record its call arguments.}
+that did not record its call arguments. A data frame given as the first,
+unnamed argument is refused with a note to name it \code{data}.}
 
 \item{...}{The baseline \code{\link[=lago_optimization]{lago_optimization()}} arguments (the user's own
 optimization call). They are forwarded unchanged to every run. When \code{object}
 is not supplied, these are the baseline arguments and the user typically
 copies their \code{lago_optimization(...)} call in and simply adds \code{parameter} and
 \code{values}. When \code{object} is supplied, anything here overrides the arguments
-stored on the object. \code{include_confidence_set} and \code{quiet} supplied here are
-overridden (see Details).}
+stored on the object, so every argument here must then be named.
+\code{include_confidence_set} and \code{quiet} supplied here are overridden (see
+Details).}
 
 \item{parameter}{A single character string naming what to vary. Two modes:
 \enumerate{
@@ -31,9 +33,12 @@ or \code{"icc"}). Each run overrides that argument with one
 element of \code{values}. Vector-valued arguments such as
 \code{intervention_lower_bounds}, and confidence-set-only arguments such as
 \code{confidence_set_alpha} (the confidence set is not computed during a sweep),
-are rejected. So are \code{"time_effect_optimization_value"} without
-\code{include_time_effects = TRUE} and \code{"icc"} without a \code{power_goal}, since
-they would not change the recommendation.
+are rejected. So is \code{"shrinkage_threshold"}, which
+\code{\link[=lago_optimization]{lago_optimization()}} does not use. So are
+\code{"time_effect_optimization_value"} without \code{include_time_effects = TRUE},
+and \code{"icc"}, \code{"num_centers_in_next_stage"} and
+\code{"patients_per_center_in_next_stage"} without a \code{power_goal}, since they
+would not change the recommendation.
 \item The special string \code{"cost_multiplier"}: each run multiplies every
 coefficient of every vector in the baseline \code{cost_list_of_vectors} by one
 element of \code{values}, so \code{values = c(0.8, 1, 1.2)} evaluates the costs at
@@ -46,7 +51,10 @@ stored on \code{object}), and all \code{values} must be positive.
 
 \item{values}{A non-empty numeric vector, all finite. One run per element.
 For \code{parameter = "time_effect_optimization_value"} it can also be a
-character vector of period labels or a Date vector, with no \code{NA}.}
+character vector of period labels, a factor, a Date vector, or a date-time
+(\code{POSIXct}) vector, with no \code{NA}. A factor or a date-time is matched by its
+label, as in \code{\link[=lago_optimization]{lago_optimization()}}, and the \code{value} column then holds the
+labels.}
 
 \item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}}. Defaults to
 \code{TRUE} so the sweep is not noisy. Genuine warnings about the data or model
@@ -70,7 +78,8 @@ The object carries attributes \code{parameter} (the swept string),
 \code{"cost_multiplier"} or the value supplied in \code{...} for a named parameter, or
 \code{NULL} if not present), \code{effective_outcome_goal} (one value per run: the
 outcome goal the run targeted, which a power goal can raise above the
-outcome goal, or \code{NA} for a failed run), \code{shrinking_method_used} (one value
+outcome goal, or \code{NA} for a failed run and for a run without a power goal),
+\code{shrinking_method_used} (one value
 per run: \code{TRUE} when the goal was out of reach and the shrinking method gave
 the recommendation, \code{FALSE} when it was not used, or \code{NA} for a failed run),
 and, when any run failed, \code{error_messages} (the error text named by the

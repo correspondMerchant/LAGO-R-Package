@@ -164,6 +164,7 @@ outcome_model_fitting <- function(
   # A center or period whose usable rows all have zero weight has a dummy glm()
   # cannot estimate. Its rows add nothing to the fit, so they are left out as rows
   # with a missing weight are, and the center is left out of the average.
+  zero_weight_levels <- list()
   if (!is.null(weights) && !is.null(frame)) {
     for (term in effects) {
       # judged on the rows glm() keeps, as the check above is
@@ -173,6 +174,7 @@ outcome_model_fitting <- function(
       empty <- names(positive)[!positive %in% TRUE]
       if (length(empty) == 0) next
       weights[as.character(data[[term]]) %in% empty] <- NA
+      zero_weight_levels[[term]] <- empty
       warning(paste0(
         "The ", term, "(s) ", paste0("'", empty, "'", collapse = ", "),
         " have no usable row with a positive glm weight (center_sample_size for ",
@@ -238,6 +240,8 @@ outcome_model_fitting <- function(
   model$call$formula <- formula
   # Name the weights rather than print every value.
   model$call$weights <- quote(weights)
+  # the centers and periods left out above, which were already warned about
+  attr(model, "lago_zero_weight_levels") <- zero_weight_levels
   # Record the fitted coding, or none when every predictor is numeric.
   model$call$contrasts <- effect_contrasts
 
@@ -402,7 +406,11 @@ diagnose_model_fit <- function(model,
   #    coefficient is large), and a large SE-to-estimate ratio alone can occur
   #    for a legitimately near-null coefficient with an ordinary SE. Requiring
   #    both avoids flagging those healthy fits.
-  large_se <- is.finite(std_errors) & is.finite(estimates) &
+  #    Separation is a property of a binary or proportion model. For a normal
+  #    model the size of a standard error depends on the outcome's units, so
+  #    the fixed 1e3 would flag a healthy fit in dollars, and it is skipped.
+  binary_family <- isTRUE(model$family$family %in% c("binomial", "quasibinomial"))
+  large_se <- binary_family & is.finite(std_errors) & is.finite(estimates) &
     std_errors > 1e3 &
     std_errors > 100 * abs(estimates)
   if (any(large_se)) {

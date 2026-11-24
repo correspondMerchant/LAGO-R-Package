@@ -45,7 +45,8 @@ align_center_weights_to_fit <- function(center_weights,
         "missing values."
       ))
     }
-  } else {
+  } else if (!all(lost %in% attr(model, "lago_zero_weight_levels")$center)) {
+    # a center left out for its zero weights was already warned about
     warning(paste0(
       "The center(s) ", paste0("'", lost, "'", collapse = ", "), " have ", why,
       ", so the model could not fit them and they are left out of the average ",

@@ -54,7 +54,10 @@
 #' `quiet = FALSE` to see the rendering, or `envir`. The input, the output
 #' folder and the parameters are set by `lago_report()`, so `input`,
 #' `output_dir` and `params` are refused. Use `output_file` and `title`
-#' instead.
+#' instead. The report is always one self-contained HTML file, so
+#' `output_format`, `output_options`, `output_yaml`, `run_pandoc` and
+#' `runtime` are refused too. Every argument here must be named, and `quiet`
+#' must be `TRUE` or `FALSE`.
 #'
 #' @return The path to the rendered HTML file, invisibly.
 #'
@@ -138,12 +141,28 @@ lago_report <- function(x,
     cli::cli_abort("{.arg output_file} must be one path, or {.code NULL} for a temporary file.")
   }
   # a folder gets the report inside it, not a file named after it next to it
-  if (dir.exists(output_file)) output_file <- file.path(output_file, "lago_report.html")
+  if (dir.exists(output_file)) {
+    output_file <- file.path(output_file, "lago_report.html")
+  } else if (endsWith(output_file, "/") || endsWith(output_file, "\\")) {
+    cli::cli_abort(c(
+      "The folder {.file {output_file}} does not exist.",
+      "i" = "Create it first, or give a file path that ends in {.file .html}."
+    ))
+  }
+  # the folder of the report is created when it is missing, but a file in its
+  # place cannot become a folder
+  parent <- dirname(output_file)
+  if (file.exists(parent) && !dir.exists(parent)) {
+    cli::cli_abort(c(
+      "The report cannot be written in {.file {parent}}, because it is a file and not a folder.",
+      "i" = "Give a path in a folder for {.arg output_file}."
+    ))
+  }
   # The report is always HTML. Another extension would make pandoc fail (.pdf)
   # or write HTML into a file of another kind, such as a user's .Rmd file.
   if (!tolower(tools::file_ext(output_file)) %in% c("html", "htm")) {
     cli::cli_abort(c(
-      "{.arg output_file} must end in {.file .html}, not {.file {basename(output_file)}}.",
+      "{.arg output_file} must end in {.file .html} or {.file .htm}, not {.file {basename(output_file)}}.",
       "i" = "{.fn lago_report} writes an HTML file only."
     ))
   }
@@ -157,12 +176,31 @@ lago_report <- function(x,
   # quiet and envir have defaults the caller may change. The rest is how the
   # report is built, so passing it would clash with the call below.
   dots <- list(...)
+  if (length(dots) > 0 && (is.null(names(dots)) || any(!nzchar(names(dots))))) {
+    cli::cli_abort(c(
+      "Every argument of {.fn lago_report} passed on to {.fn rmarkdown::render} must be named.",
+      "i" = "For example, use {.code quiet = FALSE}."
+    ))
+  }
   fixed <- intersect(names(dots), c("input", "output_dir", "params"))
   if (length(fixed) > 0) {
     cli::cli_abort(c(
       "{.fn lago_report} sets {.arg {fixed}} itself.",
       "i" = "Choose where the report goes with {.arg output_file}, and its title with {.arg title}."
     ))
+  }
+  # The report is always one self-contained HTML file. These arguments would
+  # make another kind of output, a page that needs files next to it, or no
+  # page at all.
+  kind <- intersect(names(dots), c("output_format", "output_options", "output_yaml", "run_pandoc", "runtime"))
+  if (length(kind) > 0) {
+    cli::cli_abort(c(
+      "{.fn lago_report} does not accept {.arg {kind}}.",
+      "i" = "The report is always one self-contained HTML file."
+    ))
+  }
+  if ("quiet" %in% names(dots) && !(isTRUE(dots$quiet) || isFALSE(dots$quiet))) {
+    cli::cli_abort("{.arg quiet} must be {.code TRUE} or {.code FALSE}.")
   }
   render_args <- utils::modifyList(
     list(quiet = TRUE, envir = new.env(parent = globalenv())),
@@ -197,13 +235,20 @@ lago_report <- function(x,
 # pandoc reads an entity as the plain character, so the title shows literally
 # in the heading and in the page title: no emphasis, links, raw HTML or math.
 # A backslash escape is not enough, because pandoc reads \( and \[ as the start
-# of math. The entities hold no backslash or double quote, so only line breaks
-# need escaping for YAML.
+# of math. Every other control character (C0, DEL and C1, such as a tab, an
+# escape or NEL) and the line and paragraph separators U+2028 and U+2029 become
+# an entity too, as YAML refuses most of them as they are and reads NEL and
+# the separators as a space. The entities hold no backslash or double quote, so
+# only a line break needs escaping for YAML, which reads \n as one.
 .lago_report_title_yaml <- function(title) {
-  title <- paste(as.character(title), collapse = " ")
+  title <- enc2utf8(paste(as.character(title), collapse = " "))
   chars <- strsplit(title, "", fixed = TRUE)[[1]]
+  code <- vapply(chars, utf8ToInt, integer(1), USE.NAMES = FALSE)
   punct <- grepl("^[!-/:-@\\[-`{-~]$", chars, perl = TRUE)
-  chars[punct] <- paste0("&#", vapply(chars[punct], utf8ToInt, integer(1)), ";")
+  line_break <- chars %in% c("\n", "\r")
+  control <- !line_break & (code < 32L | (code >= 127L & code <= 159L) | code %in% c(8232L, 8233L))
+  escape <- punct | control
+  chars[escape] <- paste0("&#", code[escape], ";")
   gsub("\r?\n|\r", "\\\\n", paste(chars, collapse = ""))
 }
 

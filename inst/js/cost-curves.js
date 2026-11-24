@@ -12,7 +12,8 @@
 //
 // The file is split into two parts:
 //   1. Pure math (costAt / marginalAt / sampleCurve / shiftCoefs / validate /
-//      dragScale / anchorXs / solveVandermonde / formatSig). These have no
+//      dragScale / anchorXs / solveVandermonde / formatSig / fmtValue /
+//      fmtCost). These have no
 //      dependency on the DOM, d3, or Shiny and are exported for node so the
 //      curve math can be unit-tested independently (tests/js/test-cost-math.js).
 //   2. Browser rendering + Shiny wiring, only run when d3 and Shiny exist.
@@ -103,11 +104,15 @@
   // visualize_cost.R:
   //   - total cost must never fall below its highest value so far,
   //   - marginal cost must be non-negative,
-  //   - total cost must be non-negative.
+  //   - total cost must be non-negative,
+  //   - the round-off in the coefficients and the evaluation must be at most
+  //     0.1% of the rise of the curve (accurate). On narrow bounds far from 0
+  //     the terms of a cubic nearly cancel, and a curve fitted through dragged
+  //     points can then miss its points by more than it rises.
   // The curve is evaluated in the form of shiftCoefs(), and each check allows
   // only the round-off of that evaluation, so a fall that adds up over many
   // small steps, or a fall of a small cost, is still caught.
-  // Returns {nonDecreasing, positiveMarginal, nonNegativeTotal}. The server
+  // Returns {nonDecreasing, positiveMarginal, nonNegativeTotal, accurate}. The server
   // keeps using a 2000-point check for its authoritative text warnings; this
   // cheaper check drives the SVG colour cue only.
   function validate(coefs, lb, ub, n) {
@@ -128,6 +133,9 @@
     var positiveMarginal = true;
     var nonNegativeTotal = true;
     var highest = -Infinity;
+    var lowTotal = Infinity;
+    var highTotal = -Infinity;
+    var level = 0;
     for (var i = 0; i < n; i++) {
       var t = i === n - 1 ? 1 : i / (n - 1);
       // the rise above the value at lb (Horner in t without d[0]), and the
@@ -148,11 +156,18 @@
       if (d[0] + rise < -totalErr) {
         nonNegativeTotal = false;
       }
+      lowTotal = Math.min(lowTotal, d[0] + rise);
+      highTotal = Math.max(highTotal, d[0] + rise);
+      level = Math.max(level, Math.abs(d[0] + rise));
     }
+    // the size the round-off is measured against: the rise of the curve, or a
+    // millionth of its level for a flat curve
+    var size = Math.max(highTotal - lowTotal, 1e-6 * level);
     return {
       nonDecreasing: nonDecreasing,
       positiveMarginal: positiveMarginal,
-      nonNegativeTotal: nonNegativeTotal
+      nonNegativeTotal: nonNegativeTotal,
+      accurate: totalErr <= 1e-3 * size
     };
   }
 
@@ -291,6 +306,98 @@
     return String(+v.toPrecision(4));
   }
 
+  // The number formatters of the report, copied from lago-report.js so the
+  // designer rounds as the report and the R text do. A test checks that the
+  // two copies agree.
+  // The decimal digits of a finite, nonzero number, as 15 significant digits
+  // (all a double holds without noise), with the sign and the power of 10 of
+  // the first digit, the way R's .lago_dec_digits() gets them from sprintf().
+  // toExponential() rounds an exact tie up, while sprintf() and jsonlite, which
+  // writes the report data, round it to even, so a tie is settled to even
+  // here too. The 31 digits of toExponential(30) show whether it is a tie.
+  function decDigits(v) {
+    var a = Math.abs(v);
+    // 17 significant digits, rounded to 15 the way R's .lago_dec_digits()
+    // does: 50 in the 16th and 17th digits goes to even, more goes up
+    var s = a.toExponential(16);
+    var all = s.charAt(0) + s.slice(2, 18);
+    var exp = parseInt(s.slice(19), 10);
+    var head = all.slice(0, 15);
+    var rest = all.slice(15, 17);
+    var up = rest > "50" || (rest === "50" && +head.charAt(14) % 2 === 1);
+    var kept = +head + (up ? 1 : 0);
+    if (kept >= 1e15) {
+      kept = kept / 10;
+      exp += 1;
+    }
+    var digits = String(kept);
+    return { neg: v < 0, digits: digits, exp: exp };
+  }
+
+  // v rounded to n significant digits (sig true) or to n decimals (sig false),
+  // from the decimal digits above, with a cut digit of 5 rounded up, away from
+  // 0, as R's .lago_round_dec() does. toFixed() and toPrecision() settle a cut
+  // digit of 5 by the binary value instead, so 0.10005 and 12.3455 would round
+  // differently from the R text of the report.
+  function roundDec(v, n, sig) {
+    v = +v;
+    if (!isFinite(v) || v === 0) {
+      return v;
+    }
+    var p = decDigits(v);
+    var keep = Math.min(sig ? n : n + p.exp + 1, 15);
+    var next = keep >= 0 && keep < 15 ? +p.digits.charAt(keep) : 0;
+    var kept = keep > 0 ? +p.digits.slice(0, keep) : 0;
+    if (next >= 5) {
+      kept += 1;
+    }
+    var r = Number((p.neg ? "-" : "") + kept + "e" + (p.exp + 1 - keep));
+    // a value rounded to 0 is 0, not -0
+    return r === 0 ? 0 : r;
+  }
+
+  // Write a rounded number the way R's .lago_num_text() writes it in the
+  // report text: in full from 1e-6 up to 1e21, and in e notation such as 1e-7
+  // and 1.5e+21 outside that range, with at most 15 significant digits.
+  function numText(v) {
+    v = +v;
+    if (!isFinite(v)) {
+      return String(v);
+    }
+    if (v === 0) {
+      return "0";
+    }
+    var p = decDigits(v);
+    var d = p.digits.replace(/0+$/, "");
+    var k = d.length;
+    var e = p.exp;
+    var out;
+    if (e < -6 || e > 20) {
+      out = (k > 1 ? d.charAt(0) + "." + d.slice(1) : d) + "e" + (e >= 0 ? "+" : "-") + Math.abs(e);
+    } else if (e >= k - 1) {
+      out = d + new Array(e - k + 2).join("0");
+    } else if (e < 0) {
+      out = "0." + new Array(-e).join("0") + d;
+    } else {
+      out = d.slice(0, e + 1) + "." + d.slice(e + 1);
+    }
+    return (p.neg ? "-" : "") + out;
+  }
+
+  // A component value, rounded like R's .lago_fmt_value(): 4 decimals, or 4
+  // significant digits for values closer to 0 than 0.1 (values closer to 0
+  // than 1e-6 keep 4 decimals, so they show as 0).
+  function fmtValue(v) {
+    v = +v;
+    var a = Math.abs(v);
+    return numText(a >= 0.1 || a < 1e-6 || !isFinite(v) ? roundDec(v, 4, false) : roundDec(v, 4, true));
+  }
+
+  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures.
+  function fmtCost(v) {
+    return numText(roundDec(v, 5, true));
+  }
+
   // A slider reports its value rounded to its step. The exact value the server
   // set is used while the slider sits within half a step of it, as the server
   // reads it, so a small high order coefficient is not drawn as 0.
@@ -321,6 +428,8 @@
     anchorXs: anchorXs,
     solveVandermonde: solveVandermonde,
     formatSig: formatSig,
+    fmtValue: fmtValue,
+    fmtCost: fmtCost,
     preferExact: preferExact,
     readThroughExact: readThroughExact
   };
@@ -349,6 +458,15 @@
     return readThroughExact(value, exactCoefs[id]);
   }
   Shiny.addCustomMessageHandler("lago-exact-coef", function (m) {
+    // a new scale for the slider, as when a form switch shows the row in
+    // another unit. It is set before the slider is read again, so the slider's
+    // old reading is read in the new unit, as the server reads it.
+    if (m.scale !== null && m.scale !== undefined) {
+      var el = document.getElementById(m.id);
+      if (el) {
+        el.setAttribute("data-lago-scale", m.scale);
+      }
+    }
     if (m.value === null || m.value === undefined) {
       delete exactCoefs[m.id];
     } else {
@@ -373,8 +491,6 @@
   var COLOR_TOTAL = "#0066cc";
   var COLOR_MARGINAL = "#cc3300";
   var COLOR_INVALID = "#dc3545";
-
-  var fmt = d3.format(".4~g");
 
   // Read a coefficient value straight from its slider's DOM, preferring the
   // ionRangeSlider result (the authoritative live value) and falling back to
@@ -575,12 +691,12 @@
           .append("tspan")
           .attr("x", 6)
           .attr("dy", 0)
-          .text(opts.xlab + ": " + fmt(xv));
+          .text(opts.xlab + ": " + fmtValue(xv));
         tipText
           .append("tspan")
           .attr("x", 6)
           .attr("dy", 14)
-          .text(opts.ylab + ": " + fmt(yv));
+          .text(opts.ylab + ": " + fmtCost(yv));
         var bb = tipText.node().getBBox();
         tipRect.attr("width", bb.width + 12).attr("height", bb.height + 8);
       });
@@ -613,9 +729,9 @@
       lb: cfg.lb,
       ub: cfg.ub,
       color: COLOR_TOTAL,
-      // tint invalid when the total cost decreases OR dips below zero, so the
-      // SVG cue matches the server's plot_warning + negative_cost_warning.
-      invalid: !v.nonDecreasing || !v.nonNegativeTotal,
+      // tint invalid when the total cost decreases, dips below zero, or is not
+      // accurate, so the SVG cue matches the server's warnings.
+      invalid: !v.nonDecreasing || !v.nonNegativeTotal || !v.accurate,
       title: "Total Cost Function - " + cfg.name,
       xlab: cfg.name,
       ylab: "Total Cost",
@@ -720,13 +836,14 @@
           var pts = sampleCurve(working, cfg.lb, cfg.ub, 200, costAt);
           chart.path.datum(pts).attr("d", chart.lineGen);
           // recolor live to match the post-release cue: red when the reshape
-          // makes the total cost decrease or go negative (same condition
-          // baseChart uses for the total chart), instead of staying blue until
-          // the drag ends.
+          // makes the total cost decrease, go negative or miss its points
+          // (same condition baseChart uses for the total chart), instead of
+          // staying blue until the drag ends.
           var v = validate(working, cfg.lb, cfg.ub, 500);
           chart.path.attr(
             "stroke",
-            !v.nonDecreasing || !v.nonNegativeTotal ? COLOR_INVALID : COLOR_TOTAL
+            !v.nonDecreasing || !v.nonNegativeTotal || !v.accurate ?
+              COLOR_INVALID : COLOR_TOTAL
           );
           handle.attr("cy", yScale(ys[idx]));
         })

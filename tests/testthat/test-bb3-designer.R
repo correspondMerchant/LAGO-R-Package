@@ -22,9 +22,11 @@ test_that(".shift_coefs re-expands a cost in the scaled position on the bounds",
 })
 
 test_that("a cubic far from 0 that really falls is flagged", {
-  # the designer's own cubic still passes on narrow bounds far from 0
+  # the designer's own cubic still passes on narrow bounds far from 0 (it is
+  # flagged as not accurate there, which test-bb4-designer.R checks)
   for (b in list(c(1000, 1001), c(5000, 5010), c(1e4, 1e4 + 1))) {
     v <- .cost_validity(.designer_cubic_coefs(b[1], b[2], 1), b[1], b[2])
+    v$accurate <- NULL
     expect_true(all(unlist(v)), info = paste(b, collapse = ", "))
   }
   # the same cubic tilted down by 50 per unit falls by 49 over the bounds

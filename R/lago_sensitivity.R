@@ -57,14 +57,16 @@
 #' override those stored values. When `NULL` (the default), the baseline
 #' arguments come from `...`. Passing an object that is not a `lago` result is
 #' an error, as is passing a `lago` result from an older version of the package
-#' that did not record its call arguments.
+#' that did not record its call arguments. A data frame given as the first,
+#' unnamed argument is refused with a note to name it `data`.
 #' @param ... The baseline [lago_optimization()] arguments (the user's own
 #' optimization call). They are forwarded unchanged to every run. When `object`
 #' is not supplied, these are the baseline arguments and the user typically
 #' copies their `lago_optimization(...)` call in and simply adds `parameter` and
 #' `values`. When `object` is supplied, anything here overrides the arguments
-#' stored on the object. `include_confidence_set` and `quiet` supplied here are
-#' overridden (see Details).
+#' stored on the object, so every argument here must then be named.
+#' `include_confidence_set` and `quiet` supplied here are overridden (see
+#' Details).
 #' @param parameter A single character string naming what to vary. Two modes:
 #' \enumerate{
 #'   \item The name of a scalar numeric argument of [lago_optimization()] that
@@ -73,9 +75,12 @@
 #'   element of `values`. Vector-valued arguments such as
 #'   `intervention_lower_bounds`, and confidence-set-only arguments such as
 #'   `confidence_set_alpha` (the confidence set is not computed during a sweep),
-#'   are rejected. So are `"time_effect_optimization_value"` without
-#'   `include_time_effects = TRUE` and `"icc"` without a `power_goal`, since
-#'   they would not change the recommendation.
+#'   are rejected. So is `"shrinkage_threshold"`, which
+#'   [lago_optimization()] does not use. So are
+#'   `"time_effect_optimization_value"` without `include_time_effects = TRUE`,
+#'   and `"icc"`, `"num_centers_in_next_stage"` and
+#'   `"patients_per_center_in_next_stage"` without a `power_goal`, since they
+#'   would not change the recommendation.
 #'   \item The special string `"cost_multiplier"`: each run multiplies every
 #'   coefficient of every vector in the baseline `cost_list_of_vectors` by one
 #'   element of `values`, so `values = c(0.8, 1, 1.2)` evaluates the costs at
@@ -87,7 +92,10 @@
 #' }
 #' @param values A non-empty numeric vector, all finite. One run per element.
 #' For `parameter = "time_effect_optimization_value"` it can also be a
-#' character vector of period labels or a Date vector, with no `NA`.
+#' character vector of period labels, a factor, a Date vector, or a date-time
+#' (`POSIXct`) vector, with no `NA`. A factor or a date-time is matched by its
+#' label, as in [lago_optimization()], and the `value` column then holds the
+#' labels.
 #' @param quiet A boolean forwarded to [lago_optimization()]. Defaults to
 #' `TRUE` so the sweep is not noisy. Genuine warnings about the data or model
 #' fit are still shown. The runs share one model fit, so each distinct warning
@@ -114,7 +122,8 @@
 #' `"cost_multiplier"` or the value supplied in `...` for a named parameter, or
 #' `NULL` if not present), `effective_outcome_goal` (one value per run: the
 #' outcome goal the run targeted, which a power goal can raise above the
-#' outcome goal, or `NA` for a failed run), `shrinking_method_used` (one value
+#' outcome goal, or `NA` for a failed run and for a run without a power goal),
+#' `shrinking_method_used` (one value
 #' per run: `TRUE` when the goal was out of reach and the shrinking method gave
 #' the recommendation, `FALSE` when it was not used, or `NA` for a failed run),
 #' and, when any run failed, `error_messages` (the error text named by the
@@ -192,21 +201,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # `dots` ends up holding the baseline arguments and the sweep below is
   # identical.
   if (!is.null(object)) {
-    if (!inherits(object, "lago")) {
-      stop(paste(
-        "`object` must be a `lago` result from lago_optimization(). Pass the",
-        "lago_optimization() arguments directly if you do not have one."
-      ))
-    }
-    stored <- attr(object, "lago_call_args")
-    if (is.null(stored)) {
-      stop(paste(
-        "`object` does not carry its call arguments (it was created by an",
-        "older version of lago_optimization()). Refit with the current version",
-        "of the package, or pass the lago_optimization() arguments directly."
-      ))
-    }
-    dots <- merge_call_args(stored, list(...))
+    dots <- merge_call_args(stored_call_args(object), list(...))
   } else {
     dots <- list(...)
   }
@@ -266,11 +261,21 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
         "include_time_effects = TRUE, or sweep another parameter."
       ))
     }
-    if (identical(parameter, "icc") && is.null(dots$power_goal)) {
-      stop(paste(
-        "`parameter` \"icc\" only affects the recommendation through the",
+    if (parameter %in% c(
+      "icc", "num_centers_in_next_stage", "patients_per_center_in_next_stage"
+    ) && is.null(dots$power_goal)) {
+      stop(sprintf(paste(
+        "`parameter` \"%s\" only affects the recommendation through the",
         "power goal, so sweeping it without a power_goal would return",
         "identical rows. Set power_goal, or sweep another parameter."
+      ), parameter))
+    }
+    if (identical(parameter, "shrinkage_threshold")) {
+      stop(paste(
+        "`parameter` \"shrinkage_threshold\" is not used by",
+        "lago_optimization(), so sweeping it would return identical rows.",
+        "Sweep a parameter that affects the recommendation, such as",
+        "\"outcome_goal\" or \"power_goal\", or use \"cost_multiplier\"."
       ))
     }
   }
@@ -278,14 +283,15 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # --- validate `values` ----------------------------------------------------
   # a period can be a label, so the period sweep also takes text or dates
   period_mode <- identical(parameter, "time_effect_optimization_value")
-  labels_ok <- period_mode &&
-    (is.character(values) || inherits(values, "Date"))
+  labels_ok <- period_mode && (is.character(values) || is.factor(values) ||
+    inherits(values, c("Date", "POSIXt")))
   if (missing(values) || length(values) == 0L ||
     !(is.numeric(values) || labels_ok)) {
     stop(if (period_mode) {
       paste(
-        "`values` must be a non-empty numeric, character, or Date vector",
-        "for `parameter` \"time_effect_optimization_value\"."
+        "`values` must be a non-empty numeric, character, or Date vector, or",
+        "a factor or date-time vector, for `parameter`",
+        "\"time_effect_optimization_value\"."
       )
     } else {
       "`values` must be a non-empty numeric vector."
@@ -293,6 +299,11 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   }
   if (labels_ok && anyNA(values)) {
     stop("`values` must not contain NA.")
+  }
+  # a factor or date-time period is matched by its label, as in
+  # lago_optimization(), so the sweep runs and reports the labels
+  if (is.factor(values) || inherits(values, "POSIXt")) {
+    values <- as.character(values)
   }
   if (!labels_ok && any(!is.finite(values))) {
     stop("`values` must be all finite (no NA, NaN, or Inf).")
@@ -478,7 +489,10 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
 #'
 #' @description Prints a short header naming the varied parameter, the number
 #' of runs and how many failed, then the sensitivity `data.frame`, then a
-#' one-line summary of how `rec_int_cost` ranges over the sweep.
+#' one-line summary of how `rec_int_cost` ranges over the sweep, from the
+#' smallest to the largest value, or from the first to the last value of a
+#' sweep of period labels or dates. The summary rounds the numbers to 7
+#' significant digits, as the table does, and writes them without e notation.
 #'
 #' @param x A `"lago_sensitivity"` object from [lago_sensitivity()].
 #' @param ... Ignored.
@@ -516,20 +530,22 @@ print.lago_sensitivity <- function(x, ...) {
 
   ok <- x$status == "ok" & is.finite(x$rec_int_cost)
   if (any(ok)) {
-    # each cost is paired with its own value, in increasing order of value
-    ord <- order(x$value[ok])
-    cost <- x$rec_int_cost[ok][ord]
+    # each cost is paired with its own value, in increasing order of a numeric
+    # value. Period labels and dates keep the order of the sweep, as the plot
+    # does.
+    numeric_value <- is.numeric(x$value)
+    ord <- if (numeric_value) order(x$value[ok]) else seq_len(sum(ok))
+    # 7 significant digits, as in the table above, written out without e
+    # notation
+    cost <- .lago_num_text(signif(x$rec_int_cost[ok][ord], 7))
     vals <- x$value[ok][ord]
+    vals <- if (numeric_value) .lago_num_text(signif(vals, 7)) else as.character(vals)
     # pre-format so there are no glue braces in the interpolated string.
-    msg <- sprintf(
-      "rec_int_cost is %s at %s = %s",
-      format(cost[1]), param, format(vals[1])
-    )
+    msg <- sprintf("rec_int_cost is %s at %s = %s", cost[1], param, vals[1])
     # a single successful run has no second end to report
     if (length(cost) > 1L) {
       msg <- paste(msg, sprintf(
-        "and %s at %s = %s", format(cost[length(cost)]), param,
-        format(vals[length(vals)])
+        "and %s at %s = %s", cost[length(cost)], param, vals[length(vals)]
       ))
     }
     msg <- paste0(msg, ".")
@@ -608,7 +624,8 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
         x = .data[["value"]], y = .data[["rec_int_cost"]], group = 1
       )
     ) +
-      ggplot2::geom_line(color = "#0066cc") +
+      # a single point has no line to draw
+      (if (nrow(d) > 1L) ggplot2::geom_line(color = "#0066cc")) +
       ggplot2::geom_point(color = "#0066cc", size = 2) +
       ggplot2::labs(
         title = "LAGO sensitivity: recommended cost",
@@ -633,7 +650,8 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
     )
   }))
   keep <- rep(value_ok, length(comps)) & is.finite(long$rec_value)
-  n_drop <- sum(!keep)
+  # count the rows of the sweep that lose a point, not the points
+  n_drop <- sum(rowSums(matrix(!keep, ncol = length(comps))) > 0)
   if (n_drop > 0L) {
     message(n_drop, " row(s) with NA component value dropped from the plot.")
   }
@@ -646,7 +664,8 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
       color = .data[["component"]], group = .data[["component"]]
     )
   ) +
-    ggplot2::geom_line() +
+    # a component with a single point has no line to draw
+    (if (anyDuplicated(long$component)) ggplot2::geom_line()) +
     ggplot2::geom_point(size = 2) +
     ggplot2::labs(
       title = "LAGO sensitivity: recommended intervention",
@@ -656,6 +675,34 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   p
 }
 
+# The call arguments stored on a lago result, with a clear error for anything
+# else. A data frame here is most likely the data of a copied
+# lago_optimization() call given first and unnamed.
+stored_call_args <- function(object) {
+  if (is.data.frame(object)) {
+    stop(paste(
+      "The first argument is a data frame, but it is read as `object`, which",
+      "must be a `lago` result from lago_optimization(). Name the data, as in",
+      "data = my_data."
+    ))
+  }
+  if (!inherits(object, "lago")) {
+    stop(paste(
+      "`object` must be a `lago` result from lago_optimization(). Pass the",
+      "lago_optimization() arguments directly if you do not have one."
+    ))
+  }
+  stored <- attr(object, "lago_call_args")
+  if (is.null(stored)) {
+    stop(paste(
+      "`object` does not carry its call arguments (it was created by an",
+      "older version of lago_optimization()). Refit with the current version",
+      "of the package, or pass the lago_optimization() arguments directly."
+    ))
+  }
+  stored
+}
+
 # The stored call arguments of a result with the overrides applied. An override
 # of the unit cost settings drops a stored cost_list_of_vectors, which
 # lago_optimization() would otherwise use in their place. A result from version
@@ -663,6 +710,14 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
 # include_center_effects as its default, which center level data turned into
 # TRUE. That FALSE is read as the default, so it is resolved again for the data.
 merge_call_args <- function(stored, overrides) {
+  # an unnamed argument has no stored argument to override, so it would be lost
+  if (length(overrides) && (is.null(names(overrides)) || any(names(overrides) == ""))) {
+    stop(paste(
+      "Every argument in `...` must be named when `object` is given, such as",
+      "outcome_goal = 30, since it overrides the argument of that name stored",
+      "on `object`. An unnamed argument would be dropped."
+    ))
+  }
   merged <- stored
   older <- !"unit_cost_doses" %in% names(stored)
   if (older && identical(stored$include_center_effects, FALSE)) {

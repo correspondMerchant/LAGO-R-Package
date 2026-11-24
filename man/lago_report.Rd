@@ -33,7 +33,10 @@ Default value without user specification: "LAGO optimization report".}
 \code{quiet = FALSE} to see the rendering, or \code{envir}. The input, the output
 folder and the parameters are set by \code{lago_report()}, so \code{input},
 \code{output_dir} and \code{params} are refused. Use \code{output_file} and \code{title}
-instead.}
+instead. The report is always one self-contained HTML file, so
+\code{output_format}, \code{output_options}, \code{output_yaml}, \code{run_pandoc} and
+\code{runtime} are refused too. Every argument here must be named, and \code{quiet}
+must be \code{TRUE} or \code{FALSE}.}
 }
 \value{
 The path to the rendered HTML file, invisibly.

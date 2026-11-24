@@ -143,4 +143,51 @@ check("fmtValue(1e-5) is 0.00001", m.fmtValue(1e-5) === "0.00001");
 check("fmtCost(1e21) is 1e+21", m.fmtCost(1e21) === "1e+21");
 check("fmtCost(1e-7) is 1e-7", m.fmtCost(1e-7) === "1e-7");
 
+// 9. A cut digit of 5 rounds up, away from 0, from the decimal digits of the
+// value, as R's .lago_round_dec() does. toFixed() and toPrecision() round by
+// the binary value instead. The values and the expected strings are the same
+// as bb4_ties in tests/testthat/test-bb4-present.R, so R and JS agree.
+var ties = [
+  [2.30495, "2.305", "2.305", "2.305"],
+  [3487.45, "3487.45", "3487.5", "3487.45"],
+  [0.10005, "0.1001", "0.10005", "0.1"],
+  [12.3455, "12.3455", "12.346", "12.346"],
+  [60.5405, "60.5405", "60.541", "60.541"],
+  [5784.9499999999998, "5784.95", "5785", "5784.95"],
+  [-2.30495, "-2.305", "-2.305", "-2.305"],
+  [0.0123455, "0.01235", "0.012346", "0.01235"],
+  [1.00005, "1.0001", "1.0001", "1"],
+  [0.6789, "0.6789", "0.6789", "0.679"]
+];
+ties.forEach(function (t) {
+  check("fmtValue(" + t[0] + ") is " + t[1], m.fmtValue(t[0]) === t[1]);
+  check("fmtCost(" + t[0] + ") is " + t[2], m.fmtCost(t[0]) === t[2]);
+  check("fmtInterval(" + t[0] + ") is " + t[3], m.fmtInterval(t[0]) === t[3]);
+});
+check("fmtInterval(Infinity) is Infinity", m.fmtInterval(Infinity) === "Infinity");
+check("roundDec(0.005, 2) is 0.01", m.roundDec(0.005, 2, false) === 0.01);
+check("roundDec(0.004, 2) is 0", m.roundDec(0.004, 2, false) === 0);
+check("roundDec(0, 2) is 0", m.roundDec(0, 2, false) === 0);
+
+// 10. numText writes at most 15 significant digits, as R's .lago_num_text()
+// does, so a large number shows no floating point noise, and an exact tie in
+// the 16th digit is settled to even, as jsonlite and R's sprintf() do.
+var texts = [
+  [1e16 + 2, "10000000000000000"],
+  [123456789012.34567, "123456789012.346"],
+  [1e25, "1e+25"],
+  [1.5e-7, "1.5e-7"],
+  [0.000001, "0.000001"],
+  [-0, "0"],
+  [1.5e21, "1.5e+21"],
+  [-123456.5, "-123456.5"],
+  [100000000000000.5, "100000000000000"],
+  [100000000000001.5, "100000000000002"],
+  [999999999999999.5, "1000000000000000"],
+  [NaN, "NaN"]
+];
+texts.forEach(function (t) {
+  check("numText(" + t[0] + ") is " + t[1], m.numText(t[0]) === t[1]);
+});
+
 console.log("\nAll " + passed + " JS report-math assertions passed.");

@@ -198,6 +198,172 @@
 
 * The MCP docs now list every column of a `sensitivity` run and say that `effective_outcome_goal` of `optimize` comes only with a power goal. They also say that a NaN or Infinity in JSON reaches a tool as null, which means "not given" for an optional argument.
 
+* `lago_optimization()` caps every start of its cost search. A start that landed on a saddle point of an interaction model, which cannot reach the goal, used to run 4000 iterations, so a run could take 30 to 40 seconds. Such a run now takes about 2 seconds, with the same recommendation.
+
+* With interaction terms, the shrinking method now holds the other components at the corner of their bounds with the highest outcome, and reads each component's slope there, its own coefficient plus its interaction coefficients times the other components. A goal just out of reach used to send the recommendation back to the stage 1 intervention. It now stays near the best corner. Without interaction terms the result is unchanged.
+
+* The confidence set of a continuous outcome no longer fails with "system is computationally singular" when a component sits far from 0, such as values near 100000. The variance is now computed from a QR decomposition, as `glm()` fits the model.
+
+* The default cubic cost now falls back to the linear cost, with a warning, on bounds so narrow and far from 0 that round off would swamp the cubic. Its total used to rise and fall at random there, and the recommended cost could be below the cost at either bound.
+
+* A grid search is now about twice as fast.
+
+* `get_confidence_set()` called directly refuses center weights whose length is not the number of centers of `fitted_model`, with a message that says so, and reads a number column for the center or the period as the model's factor, as `lago_optimization()` does.
+
+* An explicit `NA` period level, made with `addNA()`, can now be chosen with `time_effect_optimization_value = NA_character_`.
+
+* The warning about very large standard errors, a sign of separation, is now given for binary and proportion models only. For a normal model it depended on the outcome's units.
+
+* A center whose rows all have weight 0 is now warned about once.
+
+* The package now declares that it needs R 4.0.0 or later, which `lago_app()` already needed.
+
+* A warning from the input checks of `lago_optimization()` is now headed "In validate_inputs(...)" instead of by the whole function.
+
+* `time_effect_optimization_value = NA_character_` now selects an explicit NA period level made with `addNA()`.
+
+* Named bounds, unit costs, unit cost doses, cost lists, step sizes, previous recommended interventions and center characteristic values are now matched to the components by name. Names that are not exactly those components, each once, are refused. Unnamed vectors are matched by position as before.
+
+* A named `icc` pair is now matched to the arms by name, as `c(control = , treatment = )`.
+
+* An intervention component, main component, center characteristic or additional covariate given twice is now refused. So is a column used in two roles, such as the outcome as a covariate or a characteristic that is also a component. A characteristic that was also a component used to be counted twice, which gave a recommendation that missed the goal.
+
+* `lago_optimization()` now refuses an interaction column that is not the product of its components on the rows the model uses. The documentation now says that a column named like "a:b" holding the product must exist, and the error for a missing one shows how to create it. Main components must be numeric columns of the data.
+
+* Bounds that are NA, NaN or infinite are now refused clearly, and a one dimensional array, as from `tapply()`, is accepted as a vector.
+
+* Data with no row where every model variable and its weight are observed is now refused clearly before the fit.
+
+* Inf or -Inf in the outcome, a component, a characteristic or a covariate is now refused clearly.
+
+* A quasibinomial outcome must be from 0 to 1, and a continuous outcome with a logit link strictly between 0 and 1. Other values are refused clearly.
+
+* A text, factor or logical covariate or center characteristic with only one value on the usable rows is now refused clearly.
+
+* String arguments such as `outcome_name`, `link` and `default_cost_fxn_type` must be one string, and `quiet` and `include_interaction_terms` must be TRUE or FALSE. Other values are refused with a clear message.
+
+* Column names that are reserved in R, such as `..1`, and data with two columns of the same name used by the model are now refused.
+
+* Values for effects that are turned off are now ignored with a warning: `center_effects_optimization_values` without center effects, `time_effect_optimization_value` without time effects, and `center_characteristics_optimization_values` without center characteristics. `unit_cost_doses` are also ignored with a warning when a cost list or a linear cost is used.
+
+* Empty cost vectors and NA or infinite cost coefficients in `cost_list_of_vectors` are now refused.
+
+* A date-time `time_effect_optimization_value` in another time zone now names the same period.
+
+* The warnings that a bound lies inside the data now use only the rows the model is fitted on. The warning that the goal is at or past the observed mean now also fires for a minimize goal equal to the mean.
+
+* The grid search note about more than 3 components counts the main components rather than interaction terms. The message for a wrong length of `prev_recommended_interventions` names the main components.
+
+* `lago_sensitivity()` now refuses a sweep of `shrinkage_threshold`, which `lago_optimization()` does not use. It also refuses sweeps of `num_centers_in_next_stage` and `patients_per_center_in_next_stage` without a `power_goal`. These sweeps used to return identical rows.
+
+* `lago_sensitivity()` and `lago_budget()` now refuse an unnamed argument in `...` when `object` is given. Before, such an argument was silently dropped.
+
+* `lago_sensitivity()` and `lago_budget()` now explain that the data must be named as `data =` when a data frame is given as the first argument.
+
+* `lago_sensitivity()` now accepts factor and date-time (`POSIXct`) values for a `time_effect_optimization_value` sweep and matches them by label, as `lago_optimization()` does.
+
+* The printed summary of a `lago_sensitivity()` result now keeps the sweep order for period labels and dates, as the plot does. It also writes numbers without e notation.
+
+* `plot()` of a `lago_sensitivity()` result no longer draws a line, or shows a ggplot2 note, for a single point. The components plot now counts the rows it drops, not the points.
+
+* The documentation of the `effective_outcome_goal` attribute of a `lago_sensitivity()` result now says it is `NA` for a run without a power goal.
+
+* `lago_budget()` now refuses an `n_grid` that is a fraction or text, which it used to cut down to a whole number.
+
+* `lago_budget()` now decides whether the budget binds from the cost and intervention of the better goals it reached. A large outcome no longer reports a binding budget because of round off. A flat outcome near its maximum now reports a binding budget when a costlier intervention exists.
+
+* The console output and the report text now round a number in the same way as the hover read-outs of the report. A cut digit of 5 rounds up, so for example 0.10005 shows as 0.1001 everywhere.
+
+* Large numbers no longer show made up digits at the end, such as 10000000000000002 for 1e16.
+
+* The estimated outcome is now rounded like the bounds of its confidence interval, so it never shows outside the printed interval.
+
+* P-values are written in full, such as 0.00001 instead of 1e-05. A missing p-value or test statistic now shows as "not available".
+
+* A confidence set of 0.005% of the grid now shows as 0.01% and not 0%, and a set just short of the whole grid shows as "> 99.99%" and not 100%.
+
+* When the data has a 'group' column but the overall test could not be run, `print()` and `summary()` now give the reason, instead of asking for a 'group' column.
+
+* The inputs recap now shows an interaction component such as x1:x2 without backticks.
+
+* `print()` and `lago_report()` no longer fail on a result whose `outcome_goal` field was removed.
+
+* The confidence label of a `confidence_set_alpha` close to 1, such as 0.99999, now shows as 0.001% and not 0%.
+
+* A very large or very small cost coefficient now shows in e notation, such as 1e+25, and no longer with made up digits.
+
+* `lago_report()` now refuses `output_format`, `output_options`, `output_yaml`, `run_pandoc` and `runtime`, because the report is always one self-contained HTML file. It also refuses unnamed extra arguments and a `quiet` that is not TRUE or FALSE.
+
+* A report title can now hold any control character, such as a tab, an escape or a next line character. Before, most of them stopped the render with a YAML error, and the next line character showed as a space.
+
+* `lago_report()` now says when the output folder does not exist or is a file, and its message about the file extension names both `.html` and `.htm`.
+
+* `lago_app()` now gives an uploaded file the same column names as `read.csv()`, so the shown code reads the same column when two names clash.
+
+* `lago_app()` turns uploaded column names that are not ASCII, such as names with accents, into ASCII names and lists them in step 1, so the model and the shown code work in any locale.
+
+* `lago_app()` now says when an uploaded file uses separators between the thousands, a decimal point while Comma is chosen, or a dot for a missing value.
+
+* `lago_app()` now gives a clear message for an empty file, a file with only a header row, and UTF-16 text without a byte order mark.
+
+* In `lago_app()`, "Use this outcome as the goal" now rounds the goal toward the outcome the budget reaches, so the new run reaches it.
+
+* In `lago_app()`, the budget now starts at the cost of the recommendation rounded up, so it always buys the recommendation.
+
+* In `lago_app()`, Done no longer returns a sweep or a budget search after a later run of that tab failed.
+
+* In `lago_app()`, switching to an upload with no file, or one that cannot be read, now clears the last result.
+
+* Load settings in `lago_app()` now keeps the cost coefficients. They used to be lost, so a loaded cost list became a cost of 1 per unit.
+
+* `lago_app()` now refuses a center, period, treatment arm or total column whose name is one the app builds before it reads that column.
+
+* `lago_app()` started from a result now uses the grid and confidence set steps the package used for that result, so a new run gives the same result.
+
+* `lago_app()` now checks that the next stage sizes are whole numbers, that time effects have at least two usable periods, and that each arm has an observed outcome for a power goal.
+
+* `lago_app()` started from a result or from settings now keeps the center weights exactly.
+
+* `lago_app()` now offers the ICC center column for data with one row per center, and counts only centers with patients for center level data.
+
+* `lago_app()` now accepts any power goal above 0 and below 1, the same as `lago_optimization()`.
+
+* The cost designer's linear sliders work again on narrow bounds far from 0, such as [1000, 1001]. Each cost form now has its own slider units, and switching forms keeps the readings in the right units.
+
+* The cost designer's slider ranges now follow how much each term changes the cost over the bounds, so one step of a cubic slider no longer changes the cost by far more than the whole curve spans.
+
+* The cost designer now warns when a curve is not accurate on its bounds, as happens for the cubic form on narrow bounds far from 0, and suggests the linear form. A curve that misses its dragged points is drawn in red instead of looking valid.
+
+* The cost designer's tooltips now round numbers like the report does, so ordinary costs no longer show in e notation.
+
+* A cost designer link with more than 10 components now shows a note saying why it opened the example.
+
+* On bounds below 0, the cost designer's starting cubic curve now begins at a cost of 0 instead of a negative cost.
+
+* In Python, a data frame column of `datetime.date` or `datetime` values, or of `numpy` datetimes, now reaches R as the text of each date, so it names its periods. Before, Python dates became day numbers.
+
+* In Python, a whole number column with a value too large for R's integers now reaches R as numbers instead of text.
+
+* In Python, a NaN among text or true and false values, such as a missing value from pandas, is now R's `NA` instead of an error.
+
+* In Python, a None inside a nested list now becomes `NA`. A missing value on its own (`pd.NA`, `NaT`) is R's `NA`, and `range`, `Decimal` and `Fraction` values convert to numbers. A set, a dict or another value that cannot be converted gives a clear error that names its type.
+
+* `lago.sensitivity()` now keeps the error message of each failed run when it sweeps period labels or dates.
+
+* `lago.optimize()` now returns `outcome_goal_intention` as a string instead of a list of one string.
+
+* `lago.get_confidence_set()` now says when `cost_list` or `rec_int` is missing, and its docs say that both are required.
+
+* The docs of `lago.sensitivity()` and of the MCP `sensitivity` tool now say that a cost multiplier works with `unit_costs` as well as with a cost list. The Python docs say that the `object` argument of `lago_sensitivity()` and `lago_budget()` is not supported.
+
+* The MCP tools now take a period label, such as "2024-Q2", for `time_effect_optimization_value`, and a number for `center_effects_optimization_values`.
+
+* The MCP `optimize` tool now reports `confidence_level` without float noise, so an alpha of 0.07 gives 0.93.
+
+* The MCP tools now name the weights column when it holds a value that is not a number.
+
+* The MCP server now answers a call to a tool it does not have with its usual JSON error result. The hint about NaN and Infinity in its null errors now says it applies only if the client sent one.
+
 # LAGOtrials 1.2.0
 
 * New `lago_app()` runs the whole LAGO optimization in a point and click Shiny app on your own computer, with no R code to write (#37). It covers the data (your own data frame, the bundled examples or a CSV file), the outcome and goal with the power goal, the intervention components with their bounds and costs, interaction terms, center characteristics, fixed center and time effects, and additional covariates. Each step says what is missing before a run, every setting has a short explanation, and the result shows the recommendation, the confidence set and the package's warnings. The app shows the R code that reproduces the run, and returns the last result to R when you click Done. It is reachable only from your own computer.

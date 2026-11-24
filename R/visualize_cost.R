@@ -10,9 +10,12 @@
 #' linear (2 coefficients) and cubic (a degree-4 total cost, 5 coefficients)
 #' forms, resetting each to that form's initial coefficients.
 #' The user can adjust the coefficients using sliders and reset them to their
-#' initial values. Each slider has a default range scaled to its coefficient's
-#' magnitude (derived from the unit costs and bounds), and the user can set a
-#' custom range for any slider using its "Range min" / "Range max" inputs.
+#' initial values. Each slider has a default range scaled to how much its term
+#' changes the cost over the bounds (derived from the unit costs and bounds),
+#' and the user can set a custom range for any slider using its "Range min" /
+#' "Range max" inputs. On narrow bounds far from 0 the terms of the cubic form
+#' nearly cancel, so its curve cannot be drawn or shaped accurately there. The
+#' app then shows a warning, and the linear form is the better choice.
 #' The total cost curve can also be reshaped directly: it carries a draggable
 #' handle at each of several points along the curve, and dragging one refits the
 #' cost function through the new set of points and updates the sliders.
@@ -153,7 +156,8 @@ visualize_cost <- function(
 # stand alone app has, and `on_apply(cost_list, form)` is called when the user
 # applies the costs. `initial_coefs` starts the designer on given coefficients,
 # one vector per component of the starting form's length, instead of the
-# defaults. The server works both as a plain server and in moduleServer(),
+# defaults. `notice` is a note shown above the designer, such as why a link was
+# refused. The server works both as a plain server and in moduleServer(),
 # since it reads its namespace from the session.
 .build_cost_parts <- function(
     component_names,
@@ -164,7 +168,8 @@ visualize_cost <- function(
     ns = shiny::NS(NULL),
     embedded = FALSE,
     initial_coefs = NULL,
-    on_apply = NULL) {
+    on_apply = NULL,
+    notice = NULL) {
   # Precompute the initial coefficients and per-coefficient slider ranges for
   # BOTH cost-function forms, so the app can switch between them at runtime with
   # a Linear/Cubic toggle. A linear total cost has 2 coefficients, a cubic
@@ -217,21 +222,35 @@ visualize_cost <- function(
   }), cost_types)
   n_components <- length(component_names)
   # Each slider row shows its coefficient times a fixed power of 10, so a row
-  # whose coefficient is very small or very large still has a usable slider:
-  # a slider cannot step below about 1e-6, and steps far below a value's size
-  # move nothing. The scale comes from the cubic form's range, which has every
-  # row, and is 1 for ordinary ranges, where the slider shows the coefficient.
-  row_scales <- lapply(seq_len(n_components), function(ci) {
-    vapply(ranges_by_type$cubic[[ci]], .slider_scale, numeric(1))
-  })
-  sc <- function(ci, i) row_scales[[ci]][i]
-  # a range in true units, as the slider of row i shows it
-  disp <- function(rng, ci, i) {
-    s <- sc(ci, i)
-    list(min = rng$min * s, max = rng$max * s, step = slider_step(rng$min * s, rng$max * s))
-  }
+  # whose range is very narrow or very wide still has a usable slider: a slider
+  # cannot step below about 1e-6, and steps far below a value's size move
+  # nothing. Each form has its own scale for each row, from that form's range,
+  # since the two forms give a row very different ranges. The scale is 1 for
+  # ordinary ranges, where the slider shows the coefficient.
+  scales_by_type <- stats::setNames(lapply(cost_types, function(t) {
+    lapply(ranges_by_type[[t]], function(rs) vapply(rs, .slider_scale, numeric(1)))
+  }), cost_types)
   # coefficient count for a component under a given form
   n_coef <- function(t, ci) length(coefs_by_type[[t]][[ci]])
+  # The scale slider row i of component ci has while form t is selected. The
+  # rows the form uses have its scale, and the higher order rows, which only
+  # the cubic form shows, keep the cubic scale.
+  sc <- function(t, ci, i) {
+    if (i > n_coef(t, ci)) t <- "cubic"
+    scales_by_type[[t]][[ci]][i]
+  }
+  # a range in true units, as the slider of row i shows it under form t
+  disp <- function(rng, t, ci, i) {
+    s <- sc(t, ci, i)
+    list(min = rng$min * s, max = rng$max * s, step = slider_step(rng$min * s, rng$max * s))
+  }
+  # the label of slider row i, with the unit it is shown in
+  row_label <- function(t, ci, i) {
+    paste0(
+      component_names[ci], "^", i - 1, " coefficient",
+      .scale_label(sc(t, ci, i))
+    )
+  }
   # maximum slider rows to render per component (linear 2, cubic 5)
   max_ncoef <- vapply(seq_len(n_components), function(ci) {
     max(vapply(cost_types, function(t) n_coef(t, ci), integer(1)))
@@ -246,8 +265,10 @@ visualize_cost <- function(
       "cubic"
     }
     list(
-      value = coefs_by_type[[t]][[ci]][i0 + 1] * sc(ci, i0 + 1),
-      rng = disp(ranges_by_type[[t]][[ci]][[i0 + 1]], ci, i0 + 1)
+      value = coefs_by_type[[t]][[ci]][i0 + 1] * sc(t, ci, i0 + 1),
+      rng = disp(ranges_by_type[[t]][[ci]][[i0 + 1]], t, ci, i0 + 1),
+      scale = sc(t, ci, i0 + 1),
+      label = row_label(t, ci, i0 + 1)
     )
   }
 
@@ -267,6 +288,14 @@ visualize_cost <- function(
       "padding: 10px 16px; background-color: #f8f9fa;",
       "border-bottom: 1px solid #dee2e6;"
     ),
+    if (!is.null(notice)) {
+      div(
+        id = ns("designer_notice"),
+        class = "alert alert-warning",
+        role = "alert",
+        notice
+      )
+    },
     radioButtons(
       inputId = ns("cost_type"),
       label = "Cost function form",
@@ -327,18 +356,14 @@ visualize_cost <- function(
                     .scaled_slider(
                       sliderInput(
                         inputId = ns(paste0("coef_", component_idx, "_", i - 1)),
-                        label = paste0(
-                          component_names[component_idx], "^", i - 1,
-                          " coefficient",
-                          .scale_label(sc(component_idx, i))
-                        ),
+                        label = seed$label,
                         min = rng$min,
                         max = rng$max,
                         value = seed$value,
                         step = rng$step,
                         width = "100%"
                       ),
-                      sc(component_idx, i)
+                      seed$scale
                     )
                   )
                 }
@@ -382,6 +407,16 @@ visualize_cost <- function(
                 id = ns(paste0("negative_total_warning_", component_idx)),
                 style = "color: red; margin-bottom: 10px; display: none;",
                 "Warning: Total cost should never be negative!"
+              ),
+              div(
+                id = ns(paste0("inaccurate_warning_", component_idx)),
+                style = "color: red; margin-bottom: 10px; display: none;",
+                paste(
+                  "Warning: On these bounds the terms of this cost function",
+                  "nearly cancel, so the curve is not accurate. The cubic form",
+                  "is not accurate on narrow bounds far from 0. Use the linear",
+                  "form instead."
+                )
               ),
               # Client-side D3 (v7) target. cost-curves.js reads the coefs
               # straight from this component's sliders and the bounds / unit
@@ -581,10 +616,15 @@ visualize_cost <- function(
     # cost-curves.js
     # stale is the slider's reading when only its range changed: while the
     # slider still reads that, it has not been moved and the exact value holds
-    set_coef <- function(id, value, step, stale = NULL) {
+    # scale, when given, is the slider's new scale, which the browser sets on
+    # the slider before it reads the slider again
+    set_coef <- function(id, value, step, stale = NULL, scale = NULL) {
       assign(id, list(value = value, step = step, stale = stale), envir = exact)
       bump_exact()
-      session$sendCustomMessage("lago-exact-coef", list(id = session$ns(id), value = value, step = step, stale = stale))
+      session$sendCustomMessage("lago-exact-coef", list(
+        id = session$ns(id), value = value, step = step, stale = stale,
+        scale = scale
+      ))
     }
     drop_coef <- function(id) {
       if (exists(id, envir = exact, inherits = FALSE)) rm(list = id, envir = exact)
@@ -595,7 +635,7 @@ visualize_cost <- function(
       id <- paste0("coef_", component_idx, "_", i - 1)
       # the slider shows the coefficient times its row's scale
       v <- input[[id]]
-      if (!is.null(v)) v <- v / sc(component_idx, i)
+      if (!is.null(v)) v <- v / sc(cur_type(), component_idx, i)
       exact_rev()
       e <- if (exists(id, envir = exact, inherits = FALSE)) get(id, envir = exact)
       # a slider that has not reported yet, as in a dialog that just opened,
@@ -620,8 +660,10 @@ visualize_cost <- function(
         set_coef(
           paste0("coef_", component_idx, "_", i - 1),
           coefs_by_type[[default_cost_fxn_type]][[component_idx]][i],
-          disp(ranges_by_type[[default_cost_fxn_type]][[component_idx]][[i]], component_idx, i)$step /
-            sc(component_idx, i)
+          disp(
+            ranges_by_type[[default_cost_fxn_type]][[component_idx]][[i]],
+            default_cost_fxn_type, component_idx, i
+          )$step / sc(default_cost_fxn_type, component_idx, i)
         )
       }
     }
@@ -679,7 +721,7 @@ visualize_cost <- function(
         lapply(
           seq_len(n_coef(t, component_idx)),
           function(i) {
-            rng <- disp(ranges_by_type[[t]][[component_idx]][[i]], component_idx, i)
+            rng <- disp(ranges_by_type[[t]][[component_idx]][[i]], t, component_idx, i)
             updateNumericInput(
               session,
               inputId = paste0("range_min_", component_idx, "_", i - 1),
@@ -692,12 +734,12 @@ visualize_cost <- function(
             )
             set_coef(
               paste0("coef_", component_idx, "_", i - 1),
-              coefs_by_type[[t]][[component_idx]][i], rng$step / sc(component_idx, i)
+              coefs_by_type[[t]][[component_idx]][i], rng$step / sc(t, component_idx, i)
             )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = coefs_by_type[[t]][[component_idx]][i] * sc(component_idx, i),
+              value = coefs_by_type[[t]][[component_idx]][i] * sc(t, component_idx, i),
               min = rng$min,
               max = rng$max,
               step = rng$step
@@ -732,7 +774,7 @@ visualize_cost <- function(
               id <- paste0("coef_", component_idx, "_", i - 1)
               # the range inputs are in the slider's units, the exact value in
               # the coefficient's
-              s <- sc(component_idx, i)
+              s <- sc(cur_type(), component_idx, i)
               kept <- NULL
               if (exists(id, envir = exact, inherits = FALSE)) {
                 e <- get(id, envir = exact)
@@ -806,6 +848,7 @@ visualize_cost <- function(
         is_non_decreasing_valid <- validity$non_decreasing
         is_positive_valid <- validity$positive_marginal
         is_non_negative_valid <- validity$non_negative_total
+        is_accurate <- !identical(validity$accurate, FALSE)
 
         # Update warnings based on validation results
         if (!is_non_decreasing_valid) {
@@ -830,13 +873,19 @@ visualize_cost <- function(
           shinyjs::hide(paste0("negative_total_warning_", component_idx))
         }
 
+        if (!is_accurate) {
+          shinyjs::show(paste0("inaccurate_warning_", component_idx))
+        } else {
+          shinyjs::hide(paste0("inaccurate_warning_", component_idx))
+        }
+
         # Briefly outline this component's visualization card in red when a
         # coefficient choice is invalid. This replaces a full-page background
         # flash, which fired the whole body on every reactive tick while
         # dragging through an invalid region and was jarring; the per-card
         # outline plus the inline warnings convey the problem without it.
         if (!is_non_decreasing_valid || !is_positive_valid ||
-          !is_non_negative_valid) {
+          !is_non_negative_valid || !is_accurate) {
           runjs(sprintf(
             'var w = document.getElementById("%1$s");
              var card = w ? w.closest(".card") : null;
@@ -882,7 +931,7 @@ visualize_cost <- function(
           lapply(seq_along(new_coefs), function(i) {
             val <- new_coefs[i]
             # the range inputs and the slider are in the slider's units
-            s <- sc(component_idx, i)
+            s <- sc(cur_type(), component_idx, i)
             cur_min <- input[[paste0("range_min_", component_idx, "_", i - 1)]]
             cur_max <- input[[paste0("range_max_", component_idx, "_", i - 1)]]
             # Widen the range on the side the new value would be clamped, to
@@ -969,14 +1018,20 @@ visualize_cost <- function(
     # client how many coefficients each curve should now read (data-ncoef), and
     # redraw. ignoreInit skips the initial value so the app opens in the form it
     # was launched with without a needless rebuild.
+    # the form the sliders show now, whose scales their readings are in
+    shown_type <- default_cost_fxn_type
     observeEvent(input$cost_type, {
       t <- input$cost_type
+      was <- shown_type
+      shown_type <<- t
       lapply(seq_len(n_components), function(component_idx) {
         n <- n_coef(t, component_idx)
         lapply(seq_len(max_ncoef[component_idx]), function(i) {
           row_id <- paste0("coef_row_", component_idx, "_", i - 1)
           if (i <= n) {
-            rng <- disp(ranges_by_type[[t]][[component_idx]][[i]], component_idx, i)
+            id <- paste0("coef_", component_idx, "_", i - 1)
+            s <- sc(t, component_idx, i)
+            rng <- disp(ranges_by_type[[t]][[component_idx]][[i]], t, component_idx, i)
             updateNumericInput(
               session,
               inputId = paste0("range_min_", component_idx, "_", i - 1),
@@ -987,14 +1042,23 @@ visualize_cost <- function(
               inputId = paste0("range_max_", component_idx, "_", i - 1),
               value = rng$max
             )
+            # The new form can show this row in another unit. Until the
+            # slider reports its new value, it then still shows the old
+            # form's reading, which is stale and reads as the new exact value.
+            # The browser gets the new scale with the exact value, before the
+            # slider update.
+            old <- isolate(input[[id]])
+            rescaled <- !is.null(old) && s != sc(was, component_idx, i)
             set_coef(
-              paste0("coef_", component_idx, "_", i - 1),
-              coefs_by_type[[t]][[component_idx]][i], rng$step / sc(component_idx, i)
+              id, coefs_by_type[[t]][[component_idx]][i], rng$step / s,
+              stale = if (rescaled) old / s,
+              scale = s
             )
             updateSliderInput(
               session,
-              inputId = paste0("coef_", component_idx, "_", i - 1),
-              value = coefs_by_type[[t]][[component_idx]][i] * sc(component_idx, i),
+              inputId = id,
+              label = row_label(t, component_idx, i),
+              value = coefs_by_type[[t]][[component_idx]][i] * s,
               min = rng$min,
               max = rng$max,
               step = rng$step
@@ -1186,7 +1250,9 @@ visualize_cost <- function(
 # `upper` and `costs` (comma-separated numbers, one per component) and an
 # optional `form` ("linear"/"cubic"). Everything must agree in length and be
 # finite with lower < upper, or the defaults are used, so a malformed link
-# degrades to the standard example rather than erroring.
+# degrades to the standard example rather than erroring. A link with more than
+# 10 components is refused with a note, returned as `notice`, which the designer
+# shows above the example.
 .parse_cost_query <- function(query_string, defaults) {
   if (is.null(query_string) || !nzchar(query_string)) {
     return(defaults)
@@ -1210,8 +1276,13 @@ visualize_cost <- function(
   upper <- as_num(q[["upper"]])
   costs <- as_num(q[["costs"]])
   n <- length(comp_names)
-  valid <- n >= 1 && n <= 10 &&
-    length(lower) == n && length(upper) == n && length(costs) == n &&
+  if (n > 10) {
+    return(c(defaults, list(notice = paste0(
+      "The link asks for ", n, " components, but the cost designer takes at ",
+      "most 10. It shows the example instead."
+    ))))
+  }
+  valid <- length(lower) == n && length(upper) == n && length(costs) == n &&
     all(is.finite(lower)) && all(is.finite(upper)) && all(is.finite(costs)) &&
     all(costs >= 0) && all(lower < upper)
   if (!valid) {
@@ -1232,19 +1303,22 @@ visualize_cost <- function(
 
 # A visibly curved starting cost for the cubic form of the designer, returned as
 # the 5 ascending-power coefficients (x^0..x^4) of the total cost. It is the
-# convex increasing cost C(x) = unit_cost*lb + (unit_cost/2)(x-lb) +
-# a4*(x-lb)^4, with a4 = unit_cost/(2*(ub-lb)^3). By construction it starts at
-# C(lb) = unit_cost*lb and reaches C(ub) = unit_cost*ub (the same endpoints as
-# the linear cost), stays non-negative and non-decreasing on [lb, ub], and puts
+# convex increasing cost C(x) = base + (unit_cost/2)(x-lb) + a4*(x-lb)^4, with
+# a4 = unit_cost/(2*(ub-lb)^3) and base = unit_cost*max(lb, 0). By construction
+# it starts at C(lb) = base and rises by unit_cost*(ub-lb), so for lb >= 0 it has
+# the same endpoints as the linear cost. On bounds below 0 it starts at a cost
+# of 0 rather than a negative cost. It stays non-negative and non-decreasing on
+# [lb, ub], and puts
 # half of its rise into the quartic term so the curve is clearly bent rather than
 # within ~1% of a line. Used only as the designer's cubic starting point (the
 # user reshapes it); it does not change the cost model used by lago_optimization.
 .designer_cubic_coefs <- function(lower_bound, upper_bound, unit_cost) {
   span <- upper_bound - lower_bound
   a4 <- unit_cost / (2 * span^3)
-  # Expand unit_cost*lb + (unit_cost/2)(x-lb) + a4*(x-lb)^4 into powers of x.
+  base <- unit_cost * max(lower_bound, 0)
+  # Expand base + (unit_cost/2)(x-lb) + a4*(x-lb)^4 into powers of x.
   c(
-    a4 * lower_bound^4 + (unit_cost / 2) * lower_bound,
+    a4 * lower_bound^4 - (unit_cost / 2) * lower_bound + base,
     -4 * a4 * lower_bound^3 + unit_cost / 2,
     6 * a4 * lower_bound^2,
     -4 * a4 * lower_bound,
@@ -1254,30 +1328,24 @@ visualize_cost <- function(
 
 # Compute a default slider range for a single cost-function coefficient, the
 # coefficient of x^power. The coefficients span very different scales, so a
-# single fixed slider range is not usable for all of them. This helper returns a
-# range centered on the coefficient's initial value, with a half width of k
-# times its magnitude. The half width is at least the unit cost (1 when the unit
-# cost is 0), so a zero-valued coefficient is still adjustable, and at least
-# 1e-4, since the slider cannot show a step below 1e-6 (see slider_step()). It is
-# also at least the swing that changes the total cost at the bound farthest
-# from 0 by the cost range unit_cost * (ub - lb), so a high order coefficient on
-# bounds near 0, such as [0, 0.001], can still bend the curve. Returns a
-# list(min, max, step).
+# single fixed slider range is not usable for all of them. The range is centered
+# on the coefficient's initial value, and its half width comes from the size of
+# the term's effect on the curve, not from the size of the coefficient: a full
+# swing of the slider changes the rise of the cost across the bounds by about the
+# cost range unit_cost * (ub - lb) (the width of the bounds when the unit cost is
+# 0). The half width is k times the coefficient's size when that is smaller than
+# k times this swing, so an ordinary coefficient keeps some room. On narrow
+# bounds far from 0 the coefficients of a cubic are huge and nearly cancel, and
+# a range from their size would change the cost by far more than the curve
+# spans at each step. The half width is at least 1e-10 times the coefficient's
+# size, so the slider still has steps. Returns a list(min, max, step).
 compute_slider_range <- function(init, unit_cost, k = 5, power = 1, lb = 0, ub = 1) {
   u <- if (unit_cost == 0) 1 else abs(unit_cost)
-  far <- max(abs(lb), abs(ub))
-  # the swing of this coefficient that moves the cost at the far bound by
-  # about the unit cost times the width of the bounds
-  natural <- u * (ub - lb) / far^power
-  # a very large swing is capped, so the range stays finite. A very small one
-  # is kept, as the designer shows such a row in a unit of its own size (see
-  # .slider_scale), and otherwise the floor keeps a range wide enough to use.
-  floor_hw <- if (is.finite(natural) && natural > 0 && natural < 1e-4) {
-    natural
-  } else {
-    min(max(u, 1e-4, natural), 1e300)
-  }
-  half_width <- max(k * abs(init), floor_hw)
+  # the swing of this coefficient that changes the rise of the cost across the
+  # bounds by the cost range, kept finite and above 0
+  natural <- u * (ub - lb) / .power_variation(power, lb, ub)
+  natural <- min(max(natural, 1e-300), 1e300)
+  half_width <- max(min(k * abs(init), k * natural), natural, 1e-10 * abs(init))
   # round the bounds for display: this keeps the auto-generated slider tick
   # labels and the pre-filled range inputs readable (e.g. -10.863 instead of
   # -10.8629818181818). Round outward so the initial value stays within range.
@@ -1288,6 +1356,23 @@ compute_slider_range <- function(init, unit_cost, k = 5, power = 1, lb = 0, ub =
   lower <- round(floor(round((init - half_width) / unit, 6)) * unit, digits)
   upper <- round(ceiling(round((init + half_width) / unit, 6)) * unit, digits)
   list(min = lower, max = upper, step = slider_step(lower, upper))
+}
+
+# How much x^power rises and falls over [lb, ub]: its largest value there minus
+# its smallest, and 1 for power 0, whose term moves the whole curve. When the
+# bounds do not hold 0 it is computed as (ub - lb) times a sum of terms of one
+# sign, so narrow bounds far from 0 do not lose its digits to cancellation.
+.power_variation <- function(power, lb, ub) {
+  if (power == 0) {
+    return(1)
+  }
+  a <- abs(lb)
+  b <- abs(ub)
+  if (lb >= 0 || ub <= 0) {
+    j <- 0:(power - 1)
+    return((ub - lb) * sum(b^j * a^(power - 1 - j)))
+  }
+  if (power %% 2 == 1) a^power + b^power else max(a, b)^power
 }
 
 # Re-expand a cost function sum_k c_k x^k on [lb, ub] in t = (x - lb) / (ub -
@@ -1316,10 +1401,14 @@ compute_slider_range <- function(init, unit_cost, k = 5, power = 1, lb = 0, ub =
   list(d = d, err = err)
 }
 
-# Check a cost function on [lb, ub] at n points. Returns a list of three flags:
+# Check a cost function on [lb, ub] at n points. Returns a list of four flags:
 # non_decreasing (the total cost never falls below its highest value so far),
-# positive_marginal (the derivative is never negative) and non_negative_total
-# (the total cost is never negative). The curve is evaluated in the form of
+# positive_marginal (the derivative is never negative), non_negative_total
+# (the total cost is never negative) and accurate (the round-off in the
+# coefficients and the evaluation is at most 0.1% of the rise of the curve, so
+# the curve drawn is the curve the coefficients mean). On narrow bounds far from
+# 0 the terms of a cubic nearly cancel, and a curve fitted through dragged points
+# can then miss its points by more than it rises. The curve is evaluated in the form of
 # .shift_coefs(), and each check allows only the round-off of that evaluation,
 # so a fall that adds up over many small steps, or a fall of a small cost, is
 # still caught. The browser runs the same checks, see validate() in
@@ -1343,10 +1432,14 @@ compute_slider_range <- function(init, unit_cost, k = 5, power = 1, lb = 0, ub =
   dd <- (d * j)[-1]
   marg <- drop(pw[, seq_along(dd), drop = FALSE] %*% dd)
   marg_err <- sum((sh$err * j)[-1]) + gam * sum(abs(dd))
+  # the size the round-off is measured against: the rise of the curve, or a
+  # millionth of its level for a flat curve
+  size <- max(max(total) - min(total), 1e-6 * max(abs(total)))
   list(
     non_decreasing = all(rise >= cummax(rise) - (coef_err + 2 * eval_err)),
     positive_marginal = all(marg >= -marg_err),
-    non_negative_total = all(total >= -total_err)
+    non_negative_total = all(total >= -total_err),
+    accurate = total_err <= 1e-3 * size
   )
 }
 
@@ -1387,11 +1480,13 @@ format_coef <- function(x) {
 
 
 # The power of 10 a slider row shows its coefficient in: 1 for an ordinary
-# range, and otherwise the one that brings the range to about -1 to 1. A slider
-# cannot step below about 1e-6, and on a range of 1e12 a step of 1e-5 moves
-# nothing, so such a coefficient is shown in a unit of its own size.
+# range, and otherwise the one that brings the half width of the range to about
+# 1. A slider cannot step below about 1e-6, and on a range of 1e12 a step of
+# 1e-5 moves nothing, so such a coefficient is shown in a unit of its own size.
+# The width sets the scale, not the values, since a range can be narrow around
+# a large value.
 .slider_scale <- function(rng) {
-  half <- max(abs(rng$min), abs(rng$max))
+  half <- (rng$max - rng$min) / 2
   if (!is.finite(half) || half <= 0 || (half >= 1e-3 && half <= 1e6)) {
     return(1)
   }

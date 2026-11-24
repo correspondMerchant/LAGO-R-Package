@@ -241,7 +241,7 @@ test_that("the app sweeps, searches a budget, and returns both with their code",
     expect_s3_class(r, "lago")
     expect_identical(current_result(), r)
     expect_null(output$sweep_gate$html)
-    expect_equal(budget_prefill(), signif(r$rec_int_cost, 4))
+    expect_equal(budget_prefill(), .app_round_safe(r$rec_int_cost, "up"))
     results_html <- as.character(output$results$html)
     expect_match(results_html, "Report and next steps")
     # the confidence set is off, so the report is not said to have it

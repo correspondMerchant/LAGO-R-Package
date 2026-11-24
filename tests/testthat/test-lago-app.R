@@ -161,7 +161,7 @@ test_that("each problem names the step and says what to change", {
   check(list(cost_type = "cubic", doses = c(50, 1)), "intervention", "within its bounds")
   check(list(goal = NA_real_), "outcome", "Enter the outcome goal")
   check(list(outcome = ""), "outcome", "Choose the outcome column")
-  check(list(goal_mode = "power", arm_col = "pre_post", arm_value = "1", power_goal = 1), "outcome", "at least 0.05")
+  check(list(goal_mode = "power", arm_col = "pre_post", arm_value = "1", power_goal = 1), "outcome", "above 0 and below 1")
   check(list(goal_mode = "power", arm_col = "pre_post", arm_value = "1", n_centers = 0), "outcome", "centers and patients")
   check(list(goal_mode = "power", arm_col = "pre_post", arm_value = "1", icc = c(0.1, 1.2)), "outcome", "each at least 0")
   check(list(goal_mode = "power", arm_col = "pre_post", arm_value = "9"), "outcome", "both treated and control")

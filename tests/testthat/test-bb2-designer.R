@@ -78,9 +78,10 @@ test_that("slider ranges and steps scale with a small unit cost", {
   # a zero unit cost still falls back to a range of 1
   r <- compute_slider_range(0, 0)
   expect_equal(c(r$min, r$max), c(-1, 1))
-  # the usual ranges are unchanged
+  # a coefficient gets at most 5 times the swing that changes the cost by the
+  # cost range, here 2
   r <- compute_slider_range(2.716, 2)
-  expect_equal(c(r$min, r$max, r$step), c(-10.864, 16.296, 1e-5))
+  expect_equal(c(r$min, r$max, r$step), c(-7.284, 12.716, 1e-5))
 })
 
 test_that("visualize_cost refuses infinite bounds and negative unit costs", {

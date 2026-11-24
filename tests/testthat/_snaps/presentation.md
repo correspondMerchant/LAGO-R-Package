@@ -291,7 +291,7 @@
       coaching_updt: 1
       launch_duration: 1
       Cost: 9700
-      Estimated outcome: 0.4782
+      Estimated outcome: 0.478
       95% CI for the estimated outcome: not available (set include_confidence_set =
       TRUE)
       
@@ -343,7 +343,7 @@
       coaching_updt: 1
       launch_duration: 1
       Cost: 9700
-      Estimated outcome: 0.4782
+      Estimated outcome: 0.478
       95% CI for the estimated outcome: not available (set include_confidence_set =
       TRUE)
       

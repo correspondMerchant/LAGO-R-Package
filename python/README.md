@@ -114,6 +114,8 @@ cs["rec_int_ci"]                      # {"lower": .., "upper": ..} or None
 cs["cs"]                              # pandas.DataFrame or None
 ```
 
+`cost_list` (or `cost_list_of_vectors`) and `rec_int` are required.
+
 ### HTML report
 
 ```python
@@ -143,6 +145,11 @@ sweep  # pandas.DataFrame: value, one column per component, rec_int_cost,
        # est_outcome_goal, status, shrinking_method_used, effective_outcome_goal,
        # error_message
 ```
+
+With `parameter="cost_multiplier"`, each run multiplies every coefficient of
+`cost_list` by one of the `values`, or, when the costs are given as
+`unit_costs`, multiplies the unit costs, which scales the cost built from them
+in the same way. The values must be above 0.
 
 ### Budget
 
@@ -183,8 +190,24 @@ Series, Index or array (such as the result of `Series.unique()`, or an `Int64`
 array) becomes a list. A missing value (`None`, `pd.NA` or `NaT`) in a list
 becomes the R `NA` of the type of the other elements. A categorical value
 becomes its text, and a date or a time becomes the text R gives for it, such as
-`"2020-01-01"`, so it names the same period as a date column of the data. In a
-data frame that comes back from R, a missing text value is `None`.
+`"2020-01-01"`, so it names the same period as a date column of the data. A
+float NaN in a list of text, or of true and false, is a missing value too. A
+missing value on its own becomes R's `NA`, and a `Decimal` becomes a number. A
+value that cannot be converted, such as a set or a dict, raises a `TypeError`
+that names its type. In a data frame that comes back from R, a missing text
+value is `None`.
+
+Each data frame passed to R is prepared first, without changing your copy. A
+column of dates or times (`datetime.date`, `datetime.datetime` or numpy
+datetimes) becomes the same text, so a date names its period. A whole number
+column with a value too large for R's integers becomes a float column, as R
+stores such numbers as doubles. A text column with missing values, written as
+`None`, NaN or `pd.NA`, becomes text with R's `NA`.
+
+The `object` argument of R's `lago_sensitivity()` and `lago_budget()`, which
+reuses the arguments of an earlier `lago_optimization()` result, is not
+supported. Pass the optimization arguments to `lago.sensitivity()` and
+`lago.budget()` directly.
 
 Every function works from any thread or asyncio task. rpy2 keeps its conversion
 rules per context, so each function sets them for its own call, and a lock lets
@@ -275,13 +298,21 @@ result marked as an error (`isError` true), so a client can tell it from a
 result. Its `warnings` holds the warnings R gave before the error. An argument
 that does not fit the tool gives the same kind of error result: one of the
 wrong type, a missing required one, or one the tool does not take (the schema
-of each tool says `additionalProperties: false`).
+of each tool says `additionalProperties: false`). So does a call to a tool the
+server does not have.
+
+`time_effect_optimization_value` names one period by its number or by its
+label, such as `"2024-Q2"`, and `center_effects_optimization_values` names one
+center by its label or by its number, which the server passes on as text, as
+R writes it. `confidence_level` is `1 - confidence_set_alpha`, rounded to 12
+significant digits, so an alpha of 0.07 gives 0.93.
 
 JSON has no NaN or Infinity. The MCP SDK turns a NaN or an Infinity into null
 before a tool sees it, so the server cannot tell it from null. For an optional
 argument, such as `confidence_set_alpha`, null means the argument was not
 given, and the default is used. For a required number, or a number in a list,
-null is an error.
+null is an error, and its message says that a NaN or an Infinity would have
+become null, in case the client sent one.
 
 The server also sends the agent short instructions on how to use the tools.
 They say to describe the data first, to report every warning, and to read an

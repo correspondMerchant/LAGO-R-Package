@@ -73,7 +73,13 @@
 #' **Save settings** downloads every setting as an `.rds` file, without the
 #' data, and **Load settings** puts them back on the same data. Started from a
 #' `lago` result, the app opens on the settings of its call and lists any it
-#' cannot show.
+#' cannot show. A grid step that the call left to the package is put in as
+#' the step the package used, so a new run gives the same result.
+#'
+#' A column name of an uploaded file that R cannot use is changed to one it
+#' can, and a name with letters that are not ASCII, such as an accent, is
+#' changed to ASCII, so the shown code runs in any locale. Step 1 lists the
+#' names that changed.
 #'
 #' @param data A data.frame to start with, a `lago` result of
 #'   [lago_optimization()] to start from its data and settings, or `NULL` to
@@ -289,7 +295,7 @@ lago_app <- function(data = NULL,
               shiny::selectInput("arm_value", .app_help("Value that means treatment", "The value of the treatment arm column for patients who got the intervention."), choices = NULL)
             ),
             bslib::layout_columns(
-              shiny::numericInput("power_goal", .app_help("Power goal", "The statistical power the next stage should have, such as 0.8."), value = 0.8, min = 0.05, max = 0.99, step = 0.05),
+              shiny::numericInput("power_goal", .app_help("Power goal", "The statistical power the next stage should have, such as 0.8."), value = 0.8, min = 0, max = 1, step = 0.05),
               shiny::numericInput("n_centers", .app_help("Centers in the next stage", "How many centers the next stage of the trial will have."), value = 10, min = 1, step = 1),
               shiny::numericInput("n_patients", .app_help("Patients per center", "How many patients each center of the next stage will enroll."), value = 30, min = 1, step = 1)
             ),
@@ -539,6 +545,10 @@ lago_app <- function(data = NULL,
             d <- tryCatch(.app_read_csv(f$datapath, input$sep, input$dec, encoding), error = function(e) e)
             if (identical(encoding, "UTF-16")) {
               list(error = "The file is saved as UTF-16 text, which the app cannot read. Save it as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again.")
+            } else if (!isTRUE(file.size(f$datapath) > 0)) {
+              list(error = "The file is empty. Choose the CSV file that holds the data.")
+            } else if (is.data.frame(d) && !nrow(d)) {
+              list(error = "The file has a header row but no rows of data. Add the data and upload the file again.")
             } else if (inherits(d, "error")) {
               list(error = sprintf(
                 "The file could not be read with these settings (%s). Check that the separator and the decimal mark match the file.",
@@ -619,7 +629,15 @@ lago_app <- function(data = NULL,
       upload_error(got$error)
       if (!is.null(got$error)) got <- NULL
       loaded(got)
-      if (!is.null(got)) start_from(got, clear_result = !first_load())
+      if (!is.null(got)) {
+        start_from(got, clear_result = !first_load())
+      } else if (!first_load()) {
+        # no data, so Done returns no result, and the tabs show none
+        shared$result <- list(result = NULL, sensitivity = NULL, budget = NULL, code = NULL, arguments = NULL)
+        run_state(NULL)
+        sweep_state(NULL)
+        budget_state(NULL)
+      }
       first_load(FALSE)
     })
     shiny::observeEvent(input$reset, {
@@ -672,7 +690,12 @@ lago_app <- function(data = NULL,
         shiny::showNotification("Load the data first, then the settings.", type = "error", duration = NULL)
         return()
       }
-      spec <- utils::modifyList(.app_empty_spec(), x$spec)
+      # each saved field replaces its default whole, so a list such as the
+      # cost coefficients is kept as it was saved
+      spec <- .app_empty_spec()
+      for (nm in names(x$spec)) {
+        if (!is.null(x$spec[[nm]])) spec[[nm]] <- x$spec[[nm]]
+      }
       missing <- setdiff(.app_spec_columns(spec), names(got$data))
       if (length(missing)) {
         saved_for <- if (is.character(x$data_label) && length(x$data_label) == 1 && !is.na(x$data_label)) x$data_label else "the data they were saved with"
@@ -786,7 +809,10 @@ lago_app <- function(data = NULL,
       shiny::req(d)
       # center level data has its outcome in the proportion column the app builds
       s <- spec()
-      choices <- .app_cluster_choices(.app_center_columns(s, d)$data, s$outcome, input$arm_col, input$arm_value, exclude = input$components)
+      # the outcome columns of center level data are not centers
+      center_level <- .app_center_level(s)
+      outcome_cols <- c(s$cl_value, s$cl_total)[rep(center_level, 2)]
+      choices <- .app_cluster_choices(.app_center_columns(s, d)$data, s$outcome, input$arm_col, input$arm_value, exclude = c(input$components, outcome_cols), center_level = center_level)
       kept <- intersect(shiny::isolate(input$cluster_col), choices)
       shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", choices), selected = if (length(kept)) kept else "")
     }, ignoreNULL = FALSE)
@@ -980,7 +1006,9 @@ lago_app <- function(data = NULL,
       inputs <- lapply(seq_along(centers), function(k) {
         id <- cw_id(key, k)
         v <- shiny::isolate(input[[id]])
-        shiny::numericInput(id, centers[k], value = if (is.null(v)) signif(start[k], 4) else v, min = 0, max = 1, step = 0.01)
+        # weights from the settings stay exact, so the run matches them
+        first <- if (from_settings) start[k] else signif(start[k], 4)
+        shiny::numericInput(id, centers[k], value = if (is.null(v)) first else v, min = 0, max = 1, step = 0.01)
       })
       htmltools::tagList(
         htmltools::p(class = "text-muted", if (from_settings) "Each center starts at its weight in the settings it was opened with." else "Each center starts at its share of the patients."),
@@ -1554,10 +1582,9 @@ lago_app <- function(data = NULL,
         shiny::setProgress(1)
       })
       sweep_state(list(run = res, run_id = run_id(), labels = v$labels, code = .app_sweep_code(param, v$values, s)))
-      if (is.null(res$error)) {
-        shared$result$sensitivity <- res$value
-        shared$result$code <- code_lines()
-      }
+      # a failed sweep leaves the code, so Done returns no sweep either
+      shared$result["sensitivity"] <- list(res$value)
+      shared$result$code <- code_lines()
     })
     output$sweep_results <- shiny::renderUI({
       st <- sweep_state()
@@ -1617,7 +1644,8 @@ lago_app <- function(data = NULL,
       shiny::req(r, is.finite(r$rec_int_cost), r$rec_int_cost > 0)
       typed <- input$budget
       if (is.null(typed) || is.na(typed) || identical(typed, budget_prefill())) {
-        budget_prefill(signif(r$rec_int_cost, 4))
+        # rounded up, so the budget still buys the recommendation
+        budget_prefill(.app_round_safe(r$rec_int_cost, "up"))
         shiny::updateNumericInput(session, "budget", value = budget_prefill())
       }
     })
@@ -1652,10 +1680,9 @@ lago_app <- function(data = NULL,
         shiny::setProgress(1)
       })
       budget_state(list(run = res, run_id = run_id(), code = .app_budget_code(budget, n_grid)))
-      if (is.null(res$error)) {
-        shared$result$budget <- res$value
-        shared$result$code <- code_lines()
-      }
+      # a failed search leaves the code, so Done returns no budget either
+      shared$result["budget"] <- list(res$value)
+      shared$result$code <- code_lines()
     })
     output$budget_results <- shiny::renderUI({
       st <- budget_state()
@@ -1736,7 +1763,9 @@ lago_app <- function(data = NULL,
     shiny::observeEvent(input$use_budget_goal, {
       b <- budget_state()$run$value
       shiny::req(b, isTRUE(b$feasible))
-      shiny::updateNumericInput(session, "goal", value = signif(b$est_outcome, 4))
+      # rounded toward the outcome the budget reaches, so the goal stays in reach
+      toward <- if (identical(b$intention, "minimize")) "up" else "down"
+      shiny::updateNumericInput(session, "goal", value = .app_round_safe(b$est_outcome, toward))
       bslib::nav_select("steps", "outcome")
       shiny::showNotification("The outcome goal is now the outcome this budget buys. Press Find recommendation to run it.", type = "message")
     })
