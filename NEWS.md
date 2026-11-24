@@ -50,7 +50,7 @@
 
 * `lago_report()` now writes the data of the interactive plots with 17 significant digits, so the hover read-outs round the same number as the report text.
 
-* `lago_report()` now accepts a title with Unicode noncharacters such as U+FFFE and U+FFFF, which used to make the rendering fail.
+* `lago_report()` now accepts a title with the Unicode code points that are never assigned to a character, such as `U+FFFE` and `U+FFFF`, which used to make the rendering fail.
 
 * `lago_report()` now converts a title marked as latin1 to UTF-8, and stops with a clear message that names `title` when the title is not valid UTF-8 text.
 

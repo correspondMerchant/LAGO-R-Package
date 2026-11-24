@@ -378,3 +378,22 @@ test_that("a binary fit on the identity link that glm() cannot start explains wh
     "With the identity link, glm\\(\\) needs fitted probabilities between 0 and 1"
   )
 })
+
+test_that("conditioning a design scales a constant column and leaves a zero column", {
+  X <- cbind("(Intercept)" = 1, a = c(1, 2, 3, 4) + 1e6, b = 5, z = 0)
+  cd <- LAGOtrials:::conditioned_design(X)
+  expect_equal(cd$Z %*% solve(cd$M), X, ignore_attr = TRUE)
+  expect_equal(diag(cd$M)[3:4], c(1 / 5, 1))
+  expect_equal(unname(cd$Z[, "a"]), as.numeric(scale(X[, "a"])))
+})
+
+test_that("shrinking with interactions keeps the stage 1 intervention when the best point is no better", {
+  shrunk <- LAGOtrials:::shrinking_method(
+    lo = c(0, 0), up = c(1, 1), beta = c(0, 1, 1, -3), outcome_goal = 2,
+    include_interaction_terms = TRUE, intervention_components = c("x1", "x2", "x1:x2"),
+    main_components = c("x1", "x2"), all_center_lvl_effects = 0,
+    center_weights_for_outcome_goal = 1, center_cha_coeff_vec = 0, center_cha = 0,
+    link = "identity", stage_1_intervention = c(0.5, 0.2), best_point = c(0, 0)
+  )
+  expect_equal(shrunk, c(0.5, 0.2))
+})

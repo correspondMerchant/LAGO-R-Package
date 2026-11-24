@@ -168,6 +168,8 @@ test_that("the thousands hint needs a first group that is not 0 and says when th
   expect_false(grepl("thousands", h))
   h <- hint("1,250", "2,500")
   expect_match(h, "decimal comma.*If the comma is between the thousands instead")
+  h <- .app_csv_hint(data.frame(dose = c("1.250", "2.500"), y = 1, stringsAsFactors = FALSE), ";", ",")
+  expect_match(h, "decimal point.*If the point is between the thousands instead")
   expect_match(hint("1,250,000", "2,500"), "comma between the thousands, such as 1,250,000")
   expect_match(hint("1,250.5", "2"), "comma between the thousands")
   expect_match(.app_csv_hint(data.frame(dose = c("0.125", "0.25"), y = 1), ";", ","), "decimal point. Choose Point as the decimal mark.$")
