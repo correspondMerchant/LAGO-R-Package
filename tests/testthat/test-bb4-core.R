@@ -194,3 +194,30 @@ test_that("lago_optimization() runs at an explicit NA period level", {
   b <- stats::coef(r$model)
   expect_equal(r$est_outcome, b[["(Intercept)"]] + b[["periodNA"]] + sum(b[c("wt", "qsec")] * r$rec_int), tolerance = 1e-6)
 })
+
+bb5_interaction <- function(goal, f = function(x1, x2) x1 + x2 - 3 * x1 * x2, ...) {
+  set.seed(5)
+  d <- data.frame(x1 = stats::runif(400), x2 = stats::runif(400))
+  d$y <- f(d$x1, d$x2) + stats::rnorm(400, sd = 0.05)
+  d[["x1:x2"]] <- d$x1 * d$x2
+  bb4_quiet(lago_optimization(
+    data = d, outcome_name = "y", outcome_type = "continuous",
+    intervention_components = c("x1", "x2", "x1:x2"), main_components = c("x1", "x2"),
+    include_interaction_terms = TRUE, intervention_lower_bounds = c(0, 0),
+    intervention_upper_bounds = c(1, 1), cost_list_of_vectors = list(c(0, 1), c(0, 2)),
+    outcome_goal = goal, include_confidence_set = FALSE, quiet = TRUE, ...
+  ))
+}
+
+test_that("with opposing interactions the shrunk recommendation stays near the best point", {
+  top <- bb5_interaction(0.5)
+  b <- stats::coef(top$model)
+  best <- max(b[[1]] + b[[2]], b[[1]] + b[[3]])
+  for (method in c("numerical", "grid_search")) {
+    r <- bb5_interaction(best + 0.002, optimization_method = method,
+      optimization_grid_search_step_size = if (method == "grid_search") c(0.05, 0.05))
+    expect_true(r$shrinking_method_used)
+    # the estimate stays close to the best outcome, not at the worst corner
+    expect_gt(r$est_outcome, best - 0.05)
+  }
+})

@@ -718,7 +718,8 @@ get_recommended_interventions <- function(
           center_cha_coeff_vec = center_cha_coeff_vec,
           center_cha = center_cha,
           link = link,
-          stage_1_intervention = shrink_to_int_values
+          stage_1_intervention = shrink_to_int_values,
+          best_point = as.numeric(full_grid[which.max(all_outcomes), ])
         )
 
         shrinking_method_used <- TRUE
@@ -1153,7 +1154,8 @@ get_recommended_interventions <- function(
           center_cha_coeff_vec = center_cha_coeff_vec,
           center_cha = center_cha,
           link = link,
-          stage_1_intervention = shrink_to_int_values
+          stage_1_intervention = shrink_to_int_values,
+          best_point = max_point
         )
         shrinking_method_used <- TRUE
         # a power goal no outcome can meet needs an unbounded coefficient, so it
