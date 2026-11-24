@@ -131,7 +131,14 @@ After a run, these tabs start from its result.
 **Save settings** downloads every setting as an `.rds` file, without the
 data, and **Load settings** puts them back on the same data. Started
 from a `lago` result, the app opens on the settings of its call and
-lists any it cannot show.
+lists any it cannot show. A grid step that the call left to the package
+is put in as the step the package used, so a new run gives the same
+result.
+
+A column name of an uploaded file that R cannot use is changed to one it
+can, and a name with letters that are not ASCII, such as an accent, is
+changed to ASCII, so the shown code runs in any locale. Step 1 lists the
+names that changed.
 
 ## See also
 

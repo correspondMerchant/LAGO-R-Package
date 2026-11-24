@@ -119,7 +119,7 @@ allowed, in the same units as the supplied <code>cost_list_of_vectors</code> (or
 
 
 <dt id="arg-n-grid">n_grid<a class="anchor" aria-label="anchor" href="#arg-n-grid"></a></dt>
-<dd><p>A single integer (&gt;= 2) giving how many outcome goals to try
+<dd><p>A single whole number (&gt;= 2) giving how many outcome goals to try
 across the outcome's range. Larger values give a finer, more precise answer
 at the cost of more optimization runs. A second refinement pass tries
 <code>n_grid</code> more goals strictly inside the gap at the affordability boundary,
@@ -147,9 +147,10 @@ Default 25.</p></dd>
 affordable.</p></dd>
 
 <dt>binding</dt>
-<dd><p><code>TRUE</code> if the budget constrained the choice: a strictly
-better outcome was reachable but cost more than the budget. <code>FALSE</code> if the
-best reachable outcome was already affordable.</p></dd>
+<dd><p><code>TRUE</code> if the budget constrained the choice: an outcome at
+least as good, up to round off, was reachable with another intervention
+that cost more than the budget. <code>FALSE</code> if the best reachable outcome was
+already affordable.</p></dd>
 
 <dt>rec_int</dt>
 <dd><p>The recommended intervention (one value per component), or

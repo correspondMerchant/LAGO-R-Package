@@ -10,15 +10,19 @@ function form" toggle at the top switches all components between the
 linear (2 coefficients) and cubic (a degree-4 total cost, 5
 coefficients) forms, resetting each to that form's initial coefficients.
 The user can adjust the coefficients using sliders and reset them to
-their initial values. Each slider has a default range scaled to its
-coefficient's magnitude (derived from the unit costs and bounds), and
-the user can set a custom range for any slider using its "Range min" /
-"Range max" inputs. The total cost curve can also be reshaped directly:
-it carries a draggable handle at each of several points along the curve,
-and dragging one refits the cost function through the new set of points
-and updates the sliders. The app also displays the current coefficient
-vector for each component. The user can copy the final coefficient list
-for use in the optimization function lago_optimization().
+their initial values. Each slider has a default range scaled to how much
+its term changes the cost over the bounds (derived from the unit costs
+and bounds), and the user can set a custom range for any slider using
+its "Range min" / "Range max" inputs. On narrow bounds far from 0 the
+terms of the cubic form nearly cancel, so its curve cannot be drawn or
+shaped accurately there. The app then shows a warning, and the linear
+form is the better choice. The total cost curve can also be reshaped
+directly: it carries a draggable handle at each of several points along
+the curve, and dragging one refits the cost function through the new set
+of points and updates the sliders. The app also displays the current
+coefficient vector for each component. The user can copy the final
+coefficient list for use in the optimization function
+lago_optimization().
 
 ## Usage
 

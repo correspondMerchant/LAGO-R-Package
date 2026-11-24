@@ -103,7 +103,8 @@ carries (so the whole call need not be retyped), and any arguments in <code>...<
 override those stored values. When <code>NULL</code> (the default), the baseline
 arguments come from <code>...</code>. Passing an object that is not a <code>lago</code> result is
 an error, as is passing a <code>lago</code> result from an older version of the package
-that did not record its call arguments.</p></dd>
+that did not record its call arguments. A data frame given as the first,
+unnamed argument is refused with a note to name it <code>data</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -112,8 +113,9 @@ optimization call). They are forwarded unchanged to every run. When <code>object
 is not supplied, these are the baseline arguments and the user typically
 copies their <code>lago_optimization(...)</code> call in and simply adds <code>parameter</code> and
 <code>values</code>. When <code>object</code> is supplied, anything here overrides the arguments
-stored on the object. <code>include_confidence_set</code> and <code>quiet</code> supplied here are
-overridden (see Details).</p></dd>
+stored on the object, so every argument here must then be named.
+<code>include_confidence_set</code> and <code>quiet</code> supplied here are overridden (see
+Details).</p></dd>
 
 
 <dt id="arg-parameter">parameter<a class="anchor" aria-label="anchor" href="#arg-parameter"></a></dt>
@@ -123,9 +125,12 @@ or <code>"icc"</code>). Each run overrides that argument with one
 element of <code>values</code>. Vector-valued arguments such as
 <code>intervention_lower_bounds</code>, and confidence-set-only arguments such as
 <code>confidence_set_alpha</code> (the confidence set is not computed during a sweep),
-are rejected. So are <code>"time_effect_optimization_value"</code> without
-<code>include_time_effects = TRUE</code> and <code>"icc"</code> without a <code>power_goal</code>, since
-they would not change the recommendation.</p></li>
+are rejected. So is <code>"shrinkage_threshold"</code>, which
+<code><a href="lago_optimization.html">lago_optimization()</a></code> does not use. So are
+<code>"time_effect_optimization_value"</code> without <code>include_time_effects = TRUE</code>,
+and <code>"icc"</code>, <code>"num_centers_in_next_stage"</code> and
+<code>"patients_per_center_in_next_stage"</code> without a <code>power_goal</code>, since they
+would not change the recommendation.</p></li>
 <li><p>The special string <code>"cost_multiplier"</code>: each run multiplies every
 coefficient of every vector in the baseline <code>cost_list_of_vectors</code> by one
 element of <code>values</code>, so <code>values = c(0.8, 1, 1.2)</code> evaluates the costs at
@@ -140,7 +145,10 @@ stored on <code>object</code>), and all <code>values</code> must be positive.</p
 <dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
 <dd><p>A non-empty numeric vector, all finite. One run per element.
 For <code>parameter = "time_effect_optimization_value"</code> it can also be a
-character vector of period labels or a Date vector, with no <code>NA</code>.</p></dd>
+character vector of period labels, a factor, a Date vector, or a date-time
+(<code>POSIXct</code>) vector, with no <code>NA</code>. A factor or a date-time is matched by its
+label, as in <code><a href="lago_optimization.html">lago_optimization()</a></code>, and the <code>value</code> column then holds the
+labels.</p></dd>
 
 
 <dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
@@ -176,7 +184,8 @@ the component, holding its recommended value for that run.</p></dd>
 <code>"cost_multiplier"</code> or the value supplied in <code>...</code> for a named parameter, or
 <code>NULL</code> if not present), <code>effective_outcome_goal</code> (one value per run: the
 outcome goal the run targeted, which a power goal can raise above the
-outcome goal, or <code>NA</code> for a failed run), <code>shrinking_method_used</code> (one value
+outcome goal, or <code>NA</code> for a failed run and for a run without a power goal),
+<code>shrinking_method_used</code> (one value
 per run: <code>TRUE</code> when the goal was out of reach and the shrinking method gave
 the recommendation, <code>FALSE</code> when it was not used, or <code>NA</code> for a failed run),
 and, when any run failed, <code>error_messages</code> (the error text named by the
@@ -234,10 +243,10 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">outcome_goal</span> across 3 runs; 0 failed.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   value gear      qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10  6.522266     83.13359         29.99999     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10  9.239851     99.43911         35.00000     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.957430    115.74458         39.99999     ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10  6.522269     83.13361         30.00000     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10  9.239845     99.43907         34.99999     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.957433    115.74460         40.00000     ok</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 40.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sens</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="lago_sensitivity-1.png" alt="" width="700" height="433"></span>
@@ -274,10 +283,10 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">cost_multiplier</span> across 3 runs; 0 failed.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   value gear     qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   0.8   10 6.522268     66.50689         30.00000     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2   1.0   10 6.522266     83.13359         29.99999     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3   1.2   10 6.522269     99.76034         30.00000     ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   0.8   10 6.522267     66.50688               30     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   1.0   10 6.522269     83.13361               30     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   1.2   10 6.522269     99.76034               30     ok</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> cost_multiplier = 1.2.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>

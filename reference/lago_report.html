@@ -131,7 +131,10 @@ Default value without user specification: "LAGO optimization report".</p></dd>
 <code>quiet = FALSE</code> to see the rendering, or <code>envir</code>. The input, the output
 folder and the parameters are set by <code>lago_report()</code>, so <code>input</code>,
 <code>output_dir</code> and <code>params</code> are refused. Use <code>output_file</code> and <code>title</code>
-instead.</p></dd>
+instead. The report is always one self-contained HTML file, so
+<code>output_format</code>, <code>output_options</code>, <code>output_yaml</code>, <code>run_pandoc</code> and
+<code>runtime</code> are refused too. Every argument here must be named, and <code>quiet</code>
+must be <code>TRUE</code> or <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

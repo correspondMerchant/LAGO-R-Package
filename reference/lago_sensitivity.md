@@ -37,7 +37,8 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
   default), the baseline arguments come from `...`. Passing an object
   that is not a `lago` result is an error, as is passing a `lago` result
   from an older version of the package that did not record its call
-  arguments.
+  arguments. A data frame given as the first, unnamed argument is
+  refused with a note to name it `data`.
 
 - ...:
 
@@ -48,8 +49,9 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
   baseline arguments and the user typically copies their
   `lago_optimization(...)` call in and simply adds `parameter` and
   `values`. When `object` is supplied, anything here overrides the
-  arguments stored on the object. `include_confidence_set` and `quiet`
-  supplied here are overridden (see Details).
+  arguments stored on the object, so every argument here must then be
+  named. `include_confidence_set` and `quiet` supplied here are
+  overridden (see Details).
 
 - parameter:
 
@@ -62,9 +64,13 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
       one element of `values`. Vector-valued arguments such as
       `intervention_lower_bounds`, and confidence-set-only arguments
       such as `confidence_set_alpha` (the confidence set is not computed
-      during a sweep), are rejected. So are
-      `"time_effect_optimization_value"` without
-      `include_time_effects = TRUE` and `"icc"` without a `power_goal`,
+      during a sweep), are rejected. So is `"shrinkage_threshold"`,
+      which
+      [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
+      does not use. So are `"time_effect_optimization_value"` without
+      `include_time_effects = TRUE`, and `"icc"`,
+      `"num_centers_in_next_stage"` and
+      `"patients_per_center_in_next_stage"` without a `power_goal`,
       since they would not change the recommendation.
 
   2.  The special string `"cost_multiplier"`: each run multiplies every
@@ -80,7 +86,11 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
 
   A non-empty numeric vector, all finite. One run per element. For
   `parameter = "time_effect_optimization_value"` it can also be a
-  character vector of period labels or a Date vector, with no `NA`.
+  character vector of period labels, a factor, a Date vector, or a
+  date-time (`POSIXct`) vector, with no `NA`. A factor or a date-time is
+  matched by its label, as in
+  [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
+  and the `value` column then holds the labels.
 
 - quiet:
 
@@ -123,11 +133,11 @@ result at the baseline value, i.e. multiplier 1 for `"cost_multiplier"`
 or the value supplied in `...` for a named parameter, or `NULL` if not
 present), `effective_outcome_goal` (one value per run: the outcome goal
 the run targeted, which a power goal can raise above the outcome goal,
-or `NA` for a failed run), `shrinking_method_used` (one value per run:
-`TRUE` when the goal was out of reach and the shrinking method gave the
-recommendation, `FALSE` when it was not used, or `NA` for a failed run),
-and, when any run failed, `error_messages` (the error text named by the
-failed values).
+or `NA` for a failed run and for a run without a power goal),
+`shrinking_method_used` (one value per run: `TRUE` when the goal was out
+of reach and the shrinking method gave the recommendation, `FALSE` when
+it was not used, or `NA` for a failed run), and, when any run failed,
+`error_messages` (the error text named by the failed values).
 
 ## Details
 
@@ -184,10 +194,10 @@ sens
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear      qsec rec_int_cost est_outcome_goal status
-#> 1    30   10  6.522266     83.13359         29.99999     ok
-#> 2    35   10  9.239851     99.43911         35.00000     ok
-#> 3    40   10 11.957430    115.74458         39.99999     ok
-#> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =
+#> 1    30   10  6.522269     83.13361         30.00000     ok
+#> 2    35   10  9.239845     99.43907         34.99999     ok
+#> 3    40   10 11.957433    115.74460         40.00000     ok
+#> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =
 #> 40.
 plot(sens)
 
@@ -224,10 +234,10 @@ cost_sens
 #> 
 #> Varied cost_multiplier across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1   0.8   10 6.522268     66.50689         30.00000     ok
-#> 2   1.0   10 6.522266     83.13359         29.99999     ok
-#> 3   1.2   10 6.522269     99.76034         30.00000     ok
-#> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at
+#> 1   0.8   10 6.522267     66.50688               30     ok
+#> 2   1.0   10 6.522269     83.13361               30     ok
+#> 3   1.2   10 6.522269     99.76034               30     ok
+#> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at
 #> cost_multiplier = 1.2.
 # }
 ```

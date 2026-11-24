@@ -69,7 +69,10 @@ lago_report(
   such as `quiet = FALSE` to see the rendering, or `envir`. The input,
   the output folder and the parameters are set by `lago_report()`, so
   `input`, `output_dir` and `params` are refused. Use `output_file` and
-  `title` instead.
+  `title` instead. The report is always one self-contained HTML file, so
+  `output_format`, `output_options`, `output_yaml`, `run_pandoc` and
+  `runtime` are refused too. Every argument here must be named, and
+  `quiet` must be `TRUE` or `FALSE`.
 
 ## Value
 
