@@ -162,8 +162,9 @@ visualize_cost <- function(
 # with one vector per component, as in
 # list(linear = list(c(0, 2)), cubic = list(c(0, 1, 0, 0, 0.1))). A vector is
 # used only when it has its form's length and finite values. `notice` is a
-# note shown above the designer, such as why a link was refused. The server works both as a plain server and in moduleServer(),
-# since it reads its namespace from the session.
+# note shown above the designer, such as why a link was refused. The server
+# works both as a plain server and in moduleServer(), since it reads its
+# namespace from the session.
 .build_cost_parts <- function(
     component_names,
     unit_costs,

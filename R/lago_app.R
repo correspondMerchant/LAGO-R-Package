@@ -91,8 +91,8 @@
 #' @return Invisibly, when you click **Done** or close the browser tab, a list
 #'   with the last `result` of [lago_optimization()] for the settings in the
 #'   app (or `NULL` if nothing was run since a reset, a new dataset or loaded
-#'   settings), the last `sensitivity` of [lago_sensitivity()] and `budget` of
-#'   [lago_budget()] run from it (or `NULL`), the R `code` of all of them as a
+#'   settings, or the last run failed), the last `sensitivity` of
+#'   [lago_sensitivity()] and `budget` of [lago_budget()] run from it (or `NULL`), the R `code` of all of them as a
 #'   character vector, and the `arguments` of the optimization. The same list
 #'   is stored in the `lago_app_result` option.
 #'
@@ -543,9 +543,9 @@ lago_app <- function(data = NULL,
           } else {
             encoding <- .app_file_encoding(f$datapath)
             d <- tryCatch(.app_read_csv(f$datapath, input$sep, input$dec, encoding), error = function(e) e)
-            if (identical(encoding, "UTF-16")) {
-              list(error = "The file is saved as UTF-16 text, which the app cannot read. Save it as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again.")
-            } else if (!isTRUE(file.size(f$datapath) > 0)) {
+            if (encoding %in% c("UTF-16", "UTF-32")) {
+              list(error = sprintf("The file is saved as %s text, which the app cannot read. Save it as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again.", encoding))
+            } else if (.app_csv_blank(f$datapath, encoding)) {
               list(error = "The file is empty. Choose the CSV file that holds the data.")
             } else if (is.data.frame(d) && !nrow(d)) {
               list(error = "The file has a header row but no rows of data. Add the data and upload the file again.")
@@ -1218,7 +1218,7 @@ lago_app <- function(data = NULL,
         intervention_upper_bounds = s$upper,
         ns = shiny::NS(id),
         embedded = TRUE,
-        initial_coefs = start$coefs,
+        initial_coefs = start$by_form,
         on_apply = function(cost_list, form) {
           designer_costs(stats::setNames(cost_list, comps))
           shiny::updateRadioButtons(session, "cost_mode", selected = "coef")
@@ -1284,8 +1284,12 @@ lago_app <- function(data = NULL,
       res$error <- .app_explain_error(res$error, b$args$link)
       run_id(run_id() + 1L)
       run_state(list(run = res, build = b, id = run_id()))
-      if (is.null(res$error)) {
-        shared$result <- list(result = res$value, sensitivity = NULL, budget = NULL, code = b$code, arguments = b$args)
+      # a failed run leaves no result, so Done returns none either, as after a
+      # failed sweep or budget search
+      shared$result <- if (is.null(res$error)) {
+        list(result = res$value, sensitivity = NULL, budget = NULL, code = b$code, arguments = b$args)
+      } else {
+        list(result = NULL, sensitivity = NULL, budget = NULL, code = NULL, arguments = NULL)
       }
       bslib::nav_select("steps", "results")
     }
@@ -1530,13 +1534,16 @@ lago_app <- function(data = NULL,
         return()
       }
       new_param <- !identical(param, shown_basis[[1]])
+      # a new dataset starts the values again, as a typed list was for other data
+      new_data <- !identical(basis[[2]], shown_basis[[2]])
       shown_basis <<- basis
       start <- .app_sweep_defaults(param, shiny::isolate(spec()), current_data())
       if (!is.null(start$periods)) {
         shiny::updateSelectizeInput(session, "sweep_periods", choices = start$periods, selected = start$periods)
       } else {
         # a list the user typed is kept when only the settings change
-        if (new_param) shiny::updateRadioButtons(session, "sweep_how", selected = "steps")
+        if (new_param || new_data) shiny::updateRadioButtons(session, "sweep_how", selected = "steps")
+        if (new_data) shiny::updateTextInput(session, "sweep_typed", value = "")
         shiny::updateNumericInput(session, "sweep_from", value = start$from)
         shiny::updateNumericInput(session, "sweep_to", value = start$to)
         shiny::updateNumericInput(session, "sweep_steps", value = start$steps)
@@ -1636,16 +1643,21 @@ lago_app <- function(data = NULL,
       }
     )
 
-    # the budget starts at the cost of each new recommendation, unless the user
-    # typed their own
+    # The budget starts at the cost of each new recommendation, unless the user
+    # typed their own. A new dataset, a reset or loaded settings start it again
+    # from the next result, so a budget typed for other data is not kept.
     budget_prefill <- shiny::reactiveVal(NULL)
+    budget_generation <- NULL
     shiny::observeEvent(run_id(), {
       r <- run_state()$run$value
-      shiny::req(r, is.finite(r$rec_int_cost), r$rec_int_cost > 0)
+      shiny::req(r)
       typed <- input$budget
-      if (is.null(typed) || is.na(typed) || identical(typed, budget_prefill())) {
-        # rounded up, so the budget still buys the recommendation
-        budget_prefill(.app_round_safe(r$rec_int_cost, "up"))
+      fresh <- !identical(budget_generation, generation())
+      if (fresh || is.null(typed) || is.na(typed) || identical(typed, budget_prefill())) {
+        budget_generation <<- generation()
+        # rounded up, so the budget still buys the recommendation, and empty
+        # for a recommendation that costs nothing, as no budget follows from it
+        budget_prefill(if (is.finite(r$rec_int_cost) && r$rec_int_cost > 0) .app_round_safe(r$rec_int_cost, "up") else NA_real_)
         shiny::updateNumericInput(session, "budget", value = budget_prefill())
       }
     })

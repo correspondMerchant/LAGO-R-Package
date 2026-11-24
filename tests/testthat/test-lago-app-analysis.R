@@ -130,7 +130,7 @@ test_that("a recommendation that costs nothing says why the budget is empty", {
   shiny::testServer(.build_lago_app(), {
     analysis_setup(session, col_id)
     session$setInputs(run = 1)
-    expect_null(budget_prefill())
+    expect_identical(budget_prefill(), NA_real_)
     session$setInputs(budget = NA, budget_grid = 25)
     expect_match(budget_problem(), "costs nothing")
   })
