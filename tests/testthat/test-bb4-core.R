@@ -385,6 +385,9 @@ test_that("conditioning a design scales a constant column and leaves a zero colu
   expect_equal(cd$Z %*% solve(cd$M), X, ignore_attr = TRUE)
   expect_equal(diag(cd$M)[3:4], c(1 / 5, 1))
   expect_equal(unname(cd$Z[, "a"]), as.numeric(scale(X[, "a"])))
+  # without an intercept column the columns are scaled but not centered
+  cd <- LAGOtrials:::conditioned_design(X[, c("a", "b")])
+  expect_equal(unname(cd$Z[, "a"]), unname(X[, "a"] / sd(X[, "a"])))
 })
 
 test_that("shrinking with interactions keeps the stage 1 intervention when the best point is no better", {
