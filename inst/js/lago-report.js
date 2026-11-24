@@ -88,15 +88,20 @@
   // here too. The 31 digits of toExponential(30) show whether it is a tie.
   function decDigits(v) {
     var a = Math.abs(v);
-    var s = a.toExponential(14);
-    var digits = s.charAt(0) + s.slice(2, 16);
-    var exp = parseInt(s.slice(17), 10);
-    var l = a.toExponential(30);
-    var ld = l.charAt(0) + l.slice(2, 32);
-    if (ld.slice(15) === "5000000000000000" && +ld.charAt(14) % 2 === 0) {
-      digits = ld.slice(0, 15);
-      exp = parseInt(l.slice(33), 10);
+    // 17 significant digits, rounded to 15 the way R's .lago_dec_digits()
+    // does: 50 in the 16th and 17th digits goes to even, more goes up
+    var s = a.toExponential(16);
+    var all = s.charAt(0) + s.slice(2, 18);
+    var exp = parseInt(s.slice(19), 10);
+    var head = all.slice(0, 15);
+    var rest = all.slice(15, 17);
+    var up = rest > "50" || (rest === "50" && +head.charAt(14) % 2 === 1);
+    var kept = +head + (up ? 1 : 0);
+    if (kept >= 1e15) {
+      kept = kept / 10;
+      exp += 1;
     }
+    var digits = String(kept);
     return { neg: v < 0, digits: digits, exp: exp };
   }
 
