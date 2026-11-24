@@ -329,6 +329,12 @@ get_confidence_set <- function(
       }
     }
   }
+  if (identical(outcome_type, "continuous") && is.data.frame(predictors_data)) {
+    refuse_continuous_na_level(predictors_data, names(predictors_data),
+      include_center_effects, include_time_effects,
+      way_out = "skip the confidence set"
+    )
+  }
   # Called directly, it checks the center characteristic values against the
   # rows the given model was fitted on, as lago_optimization() does for its
   # own fit. lago_optimization() calls the implementation below, so it warns
@@ -1905,10 +1911,14 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
     }
   }
   if (length(period_levels) > 0 && !wanted %in% period_levels) {
+    # an explicit NA level is shown apart from a period labeled with the text NA
+    shown <- ifelse(is.na(period_levels),
+      "NA (an explicit NA level, chosen with NA_character_)", period_levels
+    )
     stop(paste0(
       "'time_effect_optimization_value' (", wanted, ") is not one of the ",
       "periods the outcome model was fitted on, which are ",
-      paste(period_levels, collapse = ", "),
+      paste(shown, collapse = ", "),
       ". It must be a period with a row the outcome model could use (one with ",
       "every model variable observed and a positive glm weight). Pick another ",
       "period, or fill in the missing values."

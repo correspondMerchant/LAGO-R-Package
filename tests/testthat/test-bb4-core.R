@@ -302,3 +302,66 @@ test_that("a default cubic cost whose total falls as evaluated is replaced by th
     expect_gte(min(diff(total)), -1e-6 * rise)
   }
 })
+
+bb5_na_period_data <- function() {
+  set.seed(7)
+  n <- 400
+  d <- data.frame(
+    period = addNA(factor(sample(c(1:3, NA), n, TRUE))),
+    x1 = runif(n, 0, 10), x2 = runif(n, 0, 5)
+  )
+  d$y <- rbinom(n, 1, plogis(-1 + 0.1 * d$x1 + 0.2 * d$x2))
+  d$yc <- -1 + 0.1 * d$x1 + 0.2 * d$x2 + rnorm(n)
+  d
+}
+
+test_that("a direct continuous confidence set refuses an explicit NA level clearly", {
+  d <- bb5_na_period_data()
+  m <- glm(yc ~ x1 + x2 + period, data = d)
+  expect_error(
+    get_confidence_set(
+      predictors_data = d[, c("period", "x1", "x2")], include_time_effects = TRUE,
+      time_effect_optimization_value = 2, intervention_components = c("x1", "x2"),
+      outcome_data = d$yc, fitted_model = m, link = "identity", outcome_goal = 0.6,
+      outcome_type = "continuous", intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 5), confidence_set_grid_step_size = c(5, 2.5),
+      cost_list_of_vectors = list(c(0, 1), c(0, 2)), rec_int = c(5, 2)
+    ),
+    "cannot use an explicit NA level .* in the column\\(s\\) 'period'"
+  )
+})
+
+test_that("the text NA for an explicit NA period level points to NA_character_", {
+  d <- bb5_na_period_data()
+  expect_error(
+    suppressWarnings(lago_optimization(
+      data = d, outcome_name = "y", outcome_type = "binary", glm_family = "binomial",
+      intervention_components = c("x1", "x2"), include_time_effects = TRUE,
+      time_effect_optimization_value = "NA", intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 5), cost_list_of_vectors = list(c(0, 1), c(0, 2)),
+      outcome_goal = 0.6, quiet = TRUE
+    )),
+    "NA \\(an explicit NA level, chosen with NA_character_\\)"
+  )
+})
+
+test_that("a goal far smaller than the outcomes still gives the cheapest intervention", {
+  run <- function(goal) {
+    suppressWarnings(LAGOtrials:::get_recommended_interventions(
+      data = NULL, intervention_components_coeff = c(-50, 60, 40),
+      include_interaction_terms = FALSE, main_components = c("x1", "x2"),
+      intervention_components = c("x1", "x2"), all_center_lvl_effects = 0,
+      center_weights_for_outcome_goal = 1,
+      cost_list_of_vectors = list(c(0, 1, 0, 2), c(0, 3, 0, 1)),
+      intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(1, 1),
+      outcome_goal = goal, optimization_method = "numerical",
+      optimization_grid_search_step_size = NULL, center_cha_coeff_vec = 0,
+      center_characteristics_optimization_values = 0, link = "identity",
+      lower_outcome_goal = FALSE, prev_recommended_interventions = c(0.1, 0.1),
+      shrinkage_threshold = 0.25, power_goal = NULL,
+      power_goal_approach = "unconditional", num_centers_in_next_stage = NULL,
+      patients_per_center_in_next_stage = NULL, outcome_name = "y"
+    ))
+  }
+  expect_equal(run(1e-200)$rec_int_cost, run(1e-9)$rec_int_cost, tolerance = 1e-6)
+})
