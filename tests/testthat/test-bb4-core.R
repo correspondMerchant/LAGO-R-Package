@@ -278,7 +278,9 @@ test_that("an identity fit with a component near 1e7 is not called rank deficien
   r0 <- bb5_mtcars_fit(mtcars, c(3, 14), c(5, 23),
     glm_family = "gaussian", link = "identity", outcome_goal = 25
   )
-  expect_equal(r$est_outcome_ci, r0$est_outcome_ci)
+  # glm() itself loses some digits this far from 0, and how many depends on
+  # the platform, so the interval only has to be close
+  expect_equal(r$est_outcome_ci, r0$est_outcome_ci, tolerance = 1e-3)
   d$qsec <- mtcars$qsec / 10 + 1e7
   expect_no_error(bb5_mtcars_fit(d, c(3, 1e7 + 1.4), c(5, 1e7 + 2.3),
     glm_family = "gaussian", link = "identity", outcome_goal = 25,
