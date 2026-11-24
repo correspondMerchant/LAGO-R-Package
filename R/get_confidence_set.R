@@ -329,6 +329,12 @@ get_confidence_set <- function(
       }
     }
   }
+  if (identical(outcome_type, "continuous") && is.data.frame(predictors_data)) {
+    refuse_continuous_na_level(predictors_data, names(predictors_data),
+      include_center_effects, include_time_effects,
+      way_out = "skip the confidence set"
+    )
+  }
   # Called directly, it checks the center characteristic values against the
   # rows the given model was fitted on, as lago_optimization() does for its
   # own fit. lago_optimization() calls the implementation below, so it warns
@@ -1128,6 +1134,19 @@ get_confidence_set <- function(
       }
       unit_weights <- all(prior_weights == 1)
 
+      # The variance is computed on a centered and scaled copy of X and turned
+      # back at the end. A component far from 0, such as values near 100000,
+      # otherwise loses the precision of the variance to cancellation, in the
+      # clustered and logit forms as in the identity one.
+      # (continuous_vcov() does it itself for the unclustered form)
+      design_names <- colnames(X)
+      conditioned <- if (is.null(cluster_ids)) {
+        list(Z = X, M = diag(ncol(X)))
+      } else {
+        conditioned_design(X)
+      }
+      X <- conditioned$Z
+
       if (is.null(cluster_ids)) {
         # Non-clustered case, shared with the coefficient table
         vcov_matrix <- continuous_vcov(X, model, outcome_data, link)
@@ -1205,8 +1224,9 @@ get_confidence_set <- function(
         vcov_matrix <- vcov1 + vcov2 - vcov12
       }
 
-      rownames(vcov_matrix) <- colnames(X)
-      colnames(vcov_matrix) <- colnames(X)
+      vcov_matrix <- conditioned$M %*% vcov_matrix %*% t(conditioned$M)
+      rownames(vcov_matrix) <- design_names
+      colnames(vcov_matrix) <- design_names
       return(vcov_matrix)
     }
 
@@ -1891,10 +1911,14 @@ time_effect_indicator <- function(model, time_effect_names, period_value) {
     }
   }
   if (length(period_levels) > 0 && !wanted %in% period_levels) {
+    # an explicit NA level is shown apart from a period labeled with the text NA
+    shown <- ifelse(is.na(period_levels),
+      "NA (an explicit NA level, chosen with NA_character_)", period_levels
+    )
     stop(paste0(
       "'time_effect_optimization_value' (", wanted, ") is not one of the ",
       "periods the outcome model was fitted on, which are ",
-      paste(period_levels, collapse = ", "),
+      paste(shown, collapse = ", "),
       ". It must be a period with a row the outcome model could use (one with ",
       "every model variable observed and a positive glm weight). Pick another ",
       "period, or fill in the missing values."

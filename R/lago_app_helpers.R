@@ -210,8 +210,21 @@
       return(out)
     }
   }
-  make.names(.app_ascii_fold(x), unique = TRUE)
+  .app_unique_names(make.names(.app_ascii_fold(x)), x)
 }
+
+# Names made unique as make.names(unique = TRUE) makes them, where a name that
+# is the same as its header keeps it and the changed names get a number.
+.app_unique_names <- function(made, header) {
+  o <- order(made != header)
+  made[o] <- make.unique(made[o])
+  made
+}
+
+# Whether a name has no letter or digit, apart from a number that makes it
+# unique, such as ".", "..1" or "...". R reserves some of them, and the others
+# do not say which column they are.
+.app_unreadable_name <- function(x) grepl("^[.]*([.][0-9]+)?$", x)
 
 # Letters with accents and other Latin letters as their plain ASCII letters,
 # and any other character that is not ASCII as a dot.
@@ -240,16 +253,28 @@
 .app_csv_names <- function(header) {
   header <- enc2utf8(as.character(header))
   made <- .app_make_names(header)
-  wide <- vapply(made, function(s) any(utf8ToInt(s) > 127), logical(1), USE.NAMES = FALSE)
-  if (!any(wide)) {
+  wide <- .app_has_wide(made)
+  if (!any(wide) && !any(.app_has_wide(header))) {
     return(made)
   }
   made[wide] <- make.names(.app_ascii_fold(made[wide]))
+  # a name of letters with no ASCII form, such as Chinese or Greek, is
+  # transliterated where the system can, or else named by its column
+  folded <- .app_has_wide(header) & .app_unreadable_name(made)
+  made[folded] <- vapply(which(folded), function(k) {
+    tr <- .app_translit(header[k])
+    if (isTRUE(grepl("[A-Za-z0-9]", tr) && !grepl("?", tr, fixed = TRUE))) make.names(tr) else paste0("X", k)
+  }, character(1))
   # as make.names() does, a name that did not change keeps its name
-  o <- order(made != header)
-  made[o] <- make.unique(made[o])
-  made
+  .app_unique_names(made, header)
 }
+
+# Whether each text has a character that is not ASCII.
+.app_has_wide <- function(x) vapply(x, function(s) any(utf8ToInt(s) > 127), logical(1), USE.NAMES = FALSE)
+
+# A text in ASCII where the system can transliterate it, with "?" for each
+# character it cannot.
+.app_translit <- function(x) suppressWarnings(iconv(x, "UTF-8", "ASCII//TRANSLIT", sub = "?"))
 
 # Parse the ICC box: empty, one value, or a control and a treatment value.
 .app_parse_icc <- function(text) {
@@ -285,7 +310,7 @@
     center_col = center_col,
     centers = if (nzchar(center_col)) sort(unique(as.character(stats::na.omit(data[[center_col]])))) else character(0),
     period_col = period_col,
-    periods = periods, period = if (spec$period_value %in% periods) spec$period_value else .app_default_period(spec, data, period_col),
+    periods = periods, period = if (.app_period_in(spec$period_value, periods)) .app_period_label(spec$period_value, periods) else .app_default_period(spec, data, period_col),
     covariates = setdiff(cols, c(spec$outcome, spec$components, if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total))),
     weights = setdiff(numeric_cols, c(spec$outcome, spec$components)),
     counts = numeric_cols
@@ -318,12 +343,23 @@
 }
 
 # The encoding of a file: "UTF-8-BOM" for ASCII text, which may start with a
-# byte order mark, "UTF-8" for other UTF-8 text, "UTF-16" for UTF-16 text,
-# with or without a byte order mark, and otherwise Windows-1252, which has
+# byte order mark, "UTF-8" for other UTF-8 text, "UTF-16" or "UTF-32" for
+# UTF-16 or UTF-32 text, with or without a byte order mark, and otherwise Windows-1252, which has
 # every printable Latin-1 character. A file with a byte that Windows-1252
 # leaves out is read as Latin-1.
 .app_file_encoding <- function(path) {
   bytes <- readBin(path, "raw", n = file.size(path))
+  # UTF-32 text starts with a byte order mark of four bytes, or has three zero
+  # bytes in each group of four, as each ASCII character takes four bytes
+  if (length(bytes) >= 4 && (identical(bytes[1:4], as.raw(c(0xFF, 0xFE, 0, 0))) || identical(bytes[1:4], as.raw(c(0, 0, 0xFE, 0xFF))))) {
+    return("UTF-32")
+  }
+  if (length(bytes) >= 8) {
+    zero4 <- vapply(1:4, function(k) mean(bytes[seq(k, length(bytes), by = 4)] == as.raw(0)), numeric(1))
+    if (sum(zero4 > 0.5) >= 3) {
+      return("UTF-32")
+    }
+  }
   if (length(bytes) >= 2 && (identical(bytes[1:2], as.raw(c(0xFF, 0xFE))) || identical(bytes[1:2], as.raw(c(0xFE, 0xFF))))) {
     return("UTF-16")
   }
@@ -350,6 +386,11 @@
     return(iconv(readLines(path, warn = FALSE), encoding, "UTF-8"))
   }
   sub("^\ufeff", "", readLines(path, warn = FALSE, encoding = "UTF-8"))
+}
+
+# Whether a file has no text but spaces, empty lines and a byte order mark.
+.app_csv_blank <- function(path, encoding = .app_file_encoding(path)) {
+  !isTRUE(file.size(path) > 0) || (!encoding %in% c("UTF-16", "UTF-32") && !any(nzchar(trimws(.app_csv_lines(path, encoding)))))
 }
 
 # The column names in the header of a file, as they were written.
@@ -389,8 +430,8 @@
 # The text is turned into UTF-8 before it is parsed, so that no locale, such as
 # C, stops the read at an accented letter.
 .app_read_csv <- function(path, sep = ",", dec = ".", encoding = .app_file_encoding(path)) {
-  if (identical(encoding, "UTF-16")) {
-    stop("The file is UTF-16 text. Save it as UTF-8 and read it again.", call. = FALSE)
+  if (encoding %in% c("UTF-16", "UTF-32")) {
+    stop(sprintf("The file is %s text. Save it as UTF-8 and read it again.", encoding), call. = FALSE)
   }
   d <- utils::read.csv(
     text = .app_csv_lines(path, encoding),
@@ -542,7 +583,7 @@
       }
     } else {
       # text labels become 1, 2, ... in time order
-      period_value <- match(spec$period_value, periods$labels)
+      period_value <- match(.app_period_label(spec$period_value, periods$labels), periods$labels)
       add(
         sprintf(
           "data$period <- factor(match(as.character(data[[%s]]), %s))",
@@ -781,13 +822,18 @@
       ))
     }
   }
-  # the package puts these columns in the model formula, which needs valid R names
+  # the package puts these columns in the model formula, which needs valid R
+  # names other than the ones R reserves, such as ..1 and ..., and a formula
+  # reads a column named . as all the other columns
   formula_cols <- c(if (!.app_center_level(spec)) spec$outcome, spec$components, spec$covariates, spec$center_chars)
-  bad_names <- unique(formula_cols[nzchar(formula_cols) & formula_cols != make.names(formula_cols)])
+  reserved <- formula_cols == "." | grepl("^[.][.]([.]|[0-9]+)$", formula_cols)
+  bad_names <- unique(formula_cols[nzchar(formula_cols) & (formula_cols != make.names(formula_cols) | reserved)])
   if (length(bad_names)) {
+    better <- .app_csv_names(bad_names)
+    better[.app_unreadable_name(better)] <- paste0("X", better[.app_unreadable_name(better)])
     note("data", sprintf(
-      "The column name(s) %s are not valid R names here, so the model cannot use them. Rename them in R to names of ASCII letters, digits, dots and underscores, such as %s.",
-      paste0("'", bad_names, "'", collapse = ", "), paste0("'", .app_csv_names(bad_names), "'", collapse = ", ")
+      "The column name(s) %s are not valid R names here, or are names R reserves, so the model cannot use them. Rename them in R to names of ASCII letters, digits, dots and underscores, such as %s.",
+      paste0("'", bad_names, "'", collapse = ", "), paste0("'", better, "'", collapse = ", ")
     ))
   }
 
@@ -969,7 +1015,7 @@
         "Fixed time effects need at least two periods with a row the model can use, where every model column is observed and any weight is above 0, and %s has fewer. Turn off the time effects, or choose another period column.",
         spec$period_col
       ))
-    } else if (spec$period_col %in% names(data) && !spec$period_value %in% .app_usable_periods(spec, data, spec$period_col)) {
+    } else if (spec$period_col %in% names(data) && !.app_period_in(spec$period_value, .app_usable_periods(spec, data, spec$period_col))) {
       note("centers", sprintf(
         "The period %s has no row the model can use, where every model column is observed and any weight is above 0, so it cannot be optimized for. Choose another period.",
         spec$period_value
@@ -1168,15 +1214,21 @@
   whole <- "^-?[0-9]+$"
   number <- sprintf("^-?([0-9]+(%s[0-9]*)?|%s[0-9]+)$", esc(dec), esc(dec))
   number_other <- sprintf("^-?[0-9]*%s[0-9]+$", esc(other))
-  # the other mark between groups of three digits, as in 1,200 or 1.200,5
-  thousands <- sprintf("^-?[0-9]{1,3}(%s[0-9]{3})+(%s[0-9]+)?$", esc(other), esc(dec))
+  # the other mark between groups of three digits, as in 1,200 or 1.200,5,
+  # where the first group is not 0, as 0,125 is no number of thousands
+  thousands <- sprintf("^-?[1-9][0-9]{0,2}(%s[0-9]{3})+(%s[0-9]+)?$", esc(other), esc(dec))
+  # a whole number or one with three decimals after the other mark, such as
+  # 1,250, which may be a decimal number as well as a number of thousands
+  three_decimals <- sprintf("^-?[0-9]+(%s[0-9]{3})?$", esc(other))
   # every value fits one of the patterns, and some value fits the last one
   looks <- function(patterns) {
     vapply(values, function(v) {
       length(v) > 0 && all(Reduce(`|`, lapply(patterns, grepl, x = v))) && any(grepl(patterns[[length(patterns)]], v))
     }, logical(1))
   }
-  as_thousands <- looks(list(whole, number, thousands))
+  ambiguous <- vapply(values, function(v) all(grepl(three_decimals, v)), logical(1))
+  thousands_like <- looks(list(whole, number, thousands))
+  as_thousands <- thousands_like & !ambiguous
   as_other <- looks(list(whole, number_other)) & !as_thousands
   as_dot_na <- looks(list(number, "^\\.$")) & !as_thousands & !as_other
   cols <- function(hit) paste(text_cols[hit], collapse = ", ")
@@ -1190,8 +1242,13 @@
     },
     if (any(as_other)) {
       sprintf(
-        "The column(s) %s look like numbers with a decimal %s. Choose %s as the decimal mark.",
-        cols(as_other), if (identical(other, ",")) "comma" else "point", if (identical(other, ",")) "Comma" else "Point"
+        "The column(s) %s look like numbers with a decimal %s. Choose %s as the decimal mark.%s",
+        cols(as_other), if (identical(other, ",")) "comma" else "point", if (identical(other, ",")) "Comma" else "Point",
+        if (any(as_other & ambiguous & thousands_like)) {
+          sprintf(" If the %s is between the thousands instead, save the file without separators between the thousands and upload it again.", if (identical(other, ",")) "comma" else "point")
+        } else {
+          ""
+        }
       )
     },
     if (any(as_dot_na)) {
@@ -1260,7 +1317,10 @@
 # them, where a linear cost of 2 is the same curve padded with zeros, and in
 # the linear form otherwise. A component whose coefficients fit neither form
 # opens on the designer's own curve, and is named in `unfit`. Unit costs open
-# on the curve the package computes from them.
+# on the curve the package computes from them. `by_form` has the costs in use
+# for each form where they fit it, so a switch of the form keeps them: a
+# linear cost is a cubic one padded with zeros, and a cubic cost of degree 1
+# is a linear one.
 .app_designer_start <- function(spec) {
   comps <- spec$components
   if (identical(spec$cost_mode, "coef")) {
@@ -1294,7 +1354,14 @@
     )
     unfit <- character(0)
   }
-  list(form = form, unit_costs = unit_costs, coefs = coefs, unfit = unfit)
+  in_use <- if (identical(spec$cost_mode, "coef")) spec$coefs else coefs
+  by_form <- list(
+    linear = lapply(in_use, function(v) {
+      if (length(v) == 2L) v else if (length(v) == 5L && isTRUE(all(v[3:5] == 0))) v[1:2]
+    }),
+    cubic = lapply(in_use, function(v) if (length(v) == 5L) v else if (length(v) == 2L) c(v, 0, 0, 0))
+  )
+  list(form = form, unit_costs = unit_costs, coefs = coefs, unfit = unfit, by_form = by_form)
 }
 
 # The inputs a sensitivity sweep can vary for these settings, as label =
@@ -1439,8 +1506,9 @@
 }
 
 # x to `digits` significant digits, rounded up or down so the rounded value
-# is never on the wrong side of x.
-.app_round_safe <- function(x, direction = c("up", "down"), digits = 4) {
+# is never on the wrong side of x. Ten digits keep the value close at any
+# scale, such as a cost of 10,027.04 or an outcome of 1,030.44.
+.app_round_safe <- function(x, direction = c("up", "down"), digits = 10) {
   direction <- match.arg(direction)
   if (!is.finite(x) || x == 0) {
     return(x)
@@ -1555,6 +1623,35 @@
   out
 }
 
+# A per component input of a call in the order of `expected`. The package
+# matches named values to the components by name, so values whose names are
+# the expected ones, each once, are put in that order. Other values keep their
+# order, as the package reads them by position.
+.app_by_name <- function(x, expected) {
+  if (is.array(x) && length(dim(x)) == 1) x <- stats::setNames(as.vector(x), names(x))
+  nms <- names(x)
+  if (!is.null(nms) && !anyNA(nms) && !anyDuplicated(nms) && length(nms) == length(expected) && setequal(nms, expected)) {
+    x <- x[match(expected, nms)]
+  }
+  unname(x)
+}
+
+# The label of a period that a value stands for. A value that is a number
+# also names the period whose label is that number, such as 2 for "02", as
+# the package reads it, when exactly one label is.
+.app_period_label <- function(value, labels) {
+  value <- as.character(value)
+  if (length(value) != 1 || is.na(value) || value %in% labels) {
+    return(value)
+  }
+  number <- suppressWarnings(as.numeric(value))
+  same <- which(suppressWarnings(as.numeric(labels)) == number)
+  if (is.finite(number) && length(same) == 1) labels[same] else value
+}
+
+# Whether a value names one of the periods.
+.app_period_in <- function(value, labels) .app_period_label(value, labels) %in% labels
+
 # The spec of a lago_optimization() call, from the arguments a result stores,
 # and the settings the app cannot show, in plain words. The data is the one
 # the call used, which already has the center, period and group columns the
@@ -1577,7 +1674,8 @@
     s$n_centers <- a$num_centers_in_next_stage
     s$n_patients <- a$patients_per_center_in_next_stage
     s$approach <- a$power_goal_approach
-    if (!is.null(a$icc)) s$icc <- a$icc
+    # a pair is shown as control, treatment, which named values give by name
+    if (!is.null(a$icc)) s$icc <- if (length(a$icc) == 2) as.numeric(.app_by_name(a$icc, c("control", "treatment"))) else as.numeric(a$icc)
     if (!is.null(a$power_goal_cluster_id)) s$cluster_col <- a$power_goal_cluster_id
     s$arm_col <- "group"
     s$arm_value <- "treatment"
@@ -1598,23 +1696,25 @@
       left <- c(left, sprintf("the interaction term %s, which is not the product of two components", term))
     }
   }
-  s$lower <- as.numeric(a$intervention_lower_bounds)
-  s$upper <- as.numeric(a$intervention_upper_bounds)
+  # the app reads each per component input in the order of the components
+  by_comp <- function(x) as.numeric(.app_by_name(x, comps))
+  s$lower <- by_comp(a$intervention_lower_bounds)
+  s$upper <- by_comp(a$intervention_upper_bounds)
   if (!is.null(a$cost_list_of_vectors)) {
     s$cost_mode <- "coef"
-    s$coefs <- lapply(a$cost_list_of_vectors, as.numeric)
+    s$coefs <- lapply(.app_by_name(a$cost_list_of_vectors, comps), as.numeric)
     s$unit_costs <- rep(1, length(comps))
   } else {
-    s$unit_costs <- as.numeric(a$unit_costs)
+    s$unit_costs <- by_comp(a$unit_costs)
     s$cost_type <- a$default_cost_fxn_type
-    s$doses <- if (is.null(a$unit_cost_doses)) rep(NA_real_, length(comps)) else as.numeric(a$unit_cost_doses)
+    s$doses <- if (is.null(a$unit_cost_doses)) rep(NA_real_, length(comps)) else by_comp(a$unit_cost_doses)
     s$coefs <- rep(list(c(0, 1)), length(comps))
   }
 
   if (!is.null(a$center_characteristics)) {
     s$center_mode <- "chars"
     s$center_chars <- a$center_characteristics
-    s$center_char_values <- as.numeric(a$center_characteristics_optimization_values)
+    s$center_char_values <- as.numeric(.app_by_name(a$center_characteristics_optimization_values, a$center_characteristics))
   }
   effects <- if (is.null(a$include_center_effects)) identical(s$structure, "center") else isTRUE(a$include_center_effects)
   if (effects) {
@@ -1635,7 +1735,8 @@
   if (isTRUE(a$include_time_effects)) {
     s$time_on <- TRUE
     s$period_col <- "period"
-    s$period_value <- as.character(a$time_effect_optimization_value)
+    v <- a$time_effect_optimization_value
+    s$period_value <- if (is.numeric(v) && "period" %in% names(d)) .app_period_label(v, .app_periods(d$period)$labels) else as.character(v)
   }
   if (!is.null(a$additional_covariates)) s$covariates <- a$additional_covariates
 
@@ -1656,7 +1757,7 @@
   data_steps[!(data_steps > 0)] <- NA_real_
   if (identical(a$optimization_method, "grid_search") || !is.null(a$optimization_grid_search_step_size)) {
     s$method <- "grid_search"
-    s$grid_steps <- if (is.null(a$optimization_grid_search_step_size)) data_steps else as.numeric(a$optimization_grid_search_step_size)
+    s$grid_steps <- if (is.null(a$optimization_grid_search_step_size)) data_steps else by_comp(a$optimization_grid_search_step_size)
   }
   s$include_cs <- !isFALSE(a$include_confidence_set)
   level <- 1 - a$confidence_set_alpha
@@ -1667,13 +1768,13 @@
     left <- c(left, sprintf("the confidence level of %s%%, as the app offers 90%%, 95%% and 99%%", format(100 * level)))
   }
   if (!is.null(a$confidence_set_grid_step_size)) {
-    s$cs_steps <- as.numeric(a$confidence_set_grid_step_size)
+    s$cs_steps <- by_comp(a$confidence_set_grid_step_size)
   } else if (s$include_cs) {
     s$cs_steps <- data_steps
   }
   if (!is.null(a$prev_recommended_interventions)) {
     s$prev_on <- TRUE
-    s$prev <- as.numeric(a$prev_recommended_interventions)
+    s$prev <- by_comp(a$prev_recommended_interventions)
   }
   list(spec = s, left = left)
 }
@@ -1710,7 +1811,7 @@
   }
   if (isTRUE(spec$time_on) && isTRUE(spec$period_col %in% names(data))) {
     periods <- .app_periods(data[[spec$period_col]])$labels
-    if (!spec$period_value %in% periods) {
+    if (!.app_period_in(spec$period_value, periods)) {
       out <- c(out, sprintf("the period %s, which this data does not have, so the last period is used", spec$period_value))
     }
   }

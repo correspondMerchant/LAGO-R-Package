@@ -44,7 +44,8 @@ test_that("a highest outcome restart far outside the bounds does not make an unr
   off <- case$run()
   expect_true(off$shrinking_method_used)
   expect_equal(off$rec_int, clean$rec_int, tolerance = 1e-8)
-  expect_equal(off$rec_int[2], mean(case$data$b), tolerance = 1e-8)
+  # and the shrunk recommendation stays inside the bounds
+  expect_true(all(off$rec_int >= 0 & off$rec_int <= 4))
 })
 
 test_that("a cost restart outside the bounds does not hide a cheaper one inside them", {

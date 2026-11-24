@@ -114,7 +114,11 @@ test_that("the CSV hint knows thousands separators, a decimal point, and a dot f
   read <- function(text, sep, dec) .app_read_csv(bb4_text(text), sep, dec)
   d <- read("y;cost;z\n1;1,200;3\n0;12,500;5\n1;2,000;3\n", ";", ".")
   hint <- .app_csv_hint(d, ";", ".")
-  expect_match(hint, "comma between the thousands, such as 1,200")
+  # each value may also be a number with three decimals, so both are said
+  expect_match(hint, "decimal comma.*If the comma is between the thousands instead")
+  d <- read("y;cost;z\n1;1,200,000;3\n0;12,500;5\n1;2,000;3\n", ";", ".")
+  hint <- .app_csv_hint(d, ";", ".")
+  expect_match(hint, "comma between the thousands, such as 1,200,000")
   expect_false(grepl("decimal comma", hint))
   d <- read("y;cost;z\n1;1.200,5;3\n0;12.500,2;5\n1;2,5;3\n", ";", ",")
   expect_match(.app_csv_hint(d, ";", ","), "point between the thousands, such as 1.200,5")
@@ -156,15 +160,15 @@ test_that("an empty file, a file with only a header, and UTF-16 without a byte o
 })
 
 test_that("rounding to four digits stays on the safe side", {
-  expect_identical(.app_round_safe(12.3449, "up"), 12.35)
-  expect_identical(.app_round_safe(12.3451, "up"), 12.35)
-  expect_identical(.app_round_safe(12.3451, "down"), 12.34)
-  expect_identical(.app_round_safe(12.3449, "down"), 12.34)
-  expect_identical(.app_round_safe(-0.123456, "down"), -0.1235)
-  expect_identical(.app_round_safe(0.99996, "down"), 0.9999)
-  expect_identical(.app_round_safe(0.7, "down"), 0.7)
-  expect_identical(.app_round_safe(0, "up"), 0)
-  expect_identical(.app_round_safe(NA_real_, "up"), NA_real_)
+  expect_identical(.app_round_safe(12.3449, "up", digits = 4), 12.35)
+  expect_identical(.app_round_safe(12.3451, "up", digits = 4), 12.35)
+  expect_identical(.app_round_safe(12.3451, "down", digits = 4), 12.34)
+  expect_identical(.app_round_safe(12.3449, "down", digits = 4), 12.34)
+  expect_identical(.app_round_safe(-0.123456, "down", digits = 4), -0.1235)
+  expect_identical(.app_round_safe(0.99996, "down", digits = 4), 0.9999)
+  expect_identical(.app_round_safe(0.7, "down", digits = 4), 0.7)
+  expect_identical(.app_round_safe(0, "up", digits = 4), 0)
+  expect_identical(.app_round_safe(NA_real_, "up", digits = 4), NA_real_)
 })
 
 test_that("the budget starts at or above the cost of the recommendation", {
@@ -192,9 +196,9 @@ test_that("Use this outcome as the goal rounds toward the outcome the budget rea
     },
     .package = "shiny"
   )
-  for (case in list(list(intention = "maximize", goal = 20, want = 20.12), list(intention = "minimize", goal = 15, want = 20.13))) {
+  for (case in list(list(intention = "maximize", goal = 20, want = 20.12345678), list(intention = "minimize", goal = 15, want = 20.12345679))) {
     local_mocked_bindings(lago_budget = function(...) {
-      structure(list(feasible = TRUE, est_outcome = 20.1234567, intention = case$intention, budget = 30), class = "lago_budget")
+      structure(list(feasible = TRUE, est_outcome = 20.123456789012, intention = case$intention, budget = 30), class = "lago_budget")
     })
     shiny::testServer(.build_lago_app(), {
       bb4_mtcars(session, col_id, goal = case$goal, intention = case$intention)

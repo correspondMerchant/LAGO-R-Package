@@ -93,9 +93,11 @@
 #' @param values A non-empty numeric vector, all finite. One run per element.
 #' For `parameter = "time_effect_optimization_value"` it can also be a
 #' character vector of period labels, a factor, a Date vector, or a date-time
-#' (`POSIXct`) vector, with no `NA`. A factor or a date-time is matched by its
-#' label, as in [lago_optimization()], and the `value` column then holds the
-#' labels.
+#' (`POSIXct`) vector. It can hold `NA` only when the `period` column is a
+#' factor with an explicit `NA` level, made with [addNA()], and `NA` then selects
+#' that level. A factor or a date-time is matched by its label, as in
+#' [lago_optimization()], and the `value` column then holds the labels. A
+#' date-time is labeled in the time zone of a date-time `period` column.
 #' @param quiet A boolean forwarded to [lago_optimization()]. Defaults to
 #' `TRUE` so the sweep is not noisy. Genuine warnings about the data or model
 #' fit are still shown. The runs share one model fit, so each distinct warning
@@ -253,7 +255,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
     # these only change the recommendation together with another input, so
     # without it every row would be the same
     if (identical(parameter, "time_effect_optimization_value") &&
-      !isTRUE(dots$include_time_effects)) {
+      !isTRUE(dots[["include_time_effects"]])) {
       stop(paste(
         "`parameter` \"time_effect_optimization_value\" only affects the",
         "recommendation when include_time_effects = TRUE, so sweeping it",
@@ -263,7 +265,7 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
     }
     if (parameter %in% c(
       "icc", "num_centers_in_next_stage", "patients_per_center_in_next_stage"
-    ) && is.null(dots$power_goal)) {
+    ) && is.null(dots[["power_goal"]])) {
       stop(sprintf(paste(
         "`parameter` \"%s\" only affects the recommendation through the",
         "power goal, so sweeping it without a power_goal would return",
@@ -283,23 +285,42 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # --- validate `values` ----------------------------------------------------
   # a period can be a label, so the period sweep also takes text or dates
   period_mode <- identical(parameter, "time_effect_optimization_value")
+  values_message <- if (period_mode) {
+    paste(
+      "`values` must be a non-empty numeric, character, or Date vector, or",
+      "a factor or date-time vector, for `parameter`",
+      "\"time_effect_optimization_value\"."
+    )
+  } else {
+    "`values` must be a non-empty numeric vector."
+  }
+  if (missing(values)) stop(values_message)
   labels_ok <- period_mode && (is.character(values) || is.factor(values) ||
     inherits(values, c("Date", "POSIXt")))
-  if (missing(values) || length(values) == 0L ||
-    !(is.numeric(values) || labels_ok)) {
-    stop(if (period_mode) {
-      paste(
-        "`values` must be a non-empty numeric, character, or Date vector, or",
-        "a factor or date-time vector, for `parameter`",
-        "\"time_effect_optimization_value\"."
-      )
-    } else {
-      "`values` must be a non-empty numeric vector."
-    })
+  if (length(values) == 0L || !(is.numeric(values) || labels_ok)) {
+    stop(values_message)
   }
-  if (labels_ok && anyNA(values)) {
-    stop("`values` must not contain NA.")
+  # the period column of the data, or NULL when there is none
+  period_col <- as.list(dots[["data"]])[["period"]]
+  # an explicit NA level, as from addNA(), is a period that NA selects
+  na_period <- is.factor(period_col) && anyNA(levels(period_col))
+  if (labels_ok && anyNA(values) && !na_period) {
+    stop(paste(
+      "`values` must not contain NA, unless the 'period' column is a factor",
+      "with an explicit NA level, made with addNA()."
+    ))
   }
+  # a date-time is labeled in the time zone of the period column, as in
+  # lago_optimization(), so the same instant in another time zone is the same
+  # period
+  in_period_zone <- function(v) {
+    if (inherits(v, "POSIXt") && inherits(period_col, "POSIXt")) {
+      v <- as.POSIXct(v)
+      attr(v, "tzone") <- attr(period_col, "tzone")
+    }
+    v
+  }
+  values <- in_period_zone(values)
   # a factor or date-time period is matched by its label, as in
   # lago_optimization(), so the sweep runs and reports the labels
   if (is.factor(values) || inherits(values, "POSIXt")) {
@@ -314,9 +335,9 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # otherwise builds the costs from unit_costs. Both the linear and the cubic
   # cost built from unit_costs scale with them, so scaling unit_costs scales
   # the whole cost function.
-  scale_unit_costs <- cost_mode && is.null(dots$cost_list_of_vectors)
+  scale_unit_costs <- cost_mode && is.null(dots[["cost_list_of_vectors"]])
   if (cost_mode) {
-    if (scale_unit_costs && is.null(dots$unit_costs)) {
+    if (scale_unit_costs && is.null(dots[["unit_costs"]])) {
       stop(paste(
         "`parameter = \"cost_multiplier\"` requires `cost_list_of_vectors` or",
         "`unit_costs`, in `...` or stored on `object` (the baseline costs to",
@@ -334,11 +355,11 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # component names to fall back on if every run fails (so the columns are
   # still meaningful). rec_int / display_components hold main effects only, so
   # main_components is preferred when interaction terms are used.
-  guess_components <- if (isTRUE(dots$include_interaction_terms) &&
-    !is.null(dots$main_components)) {
-    dots$main_components
+  guess_components <- if (isTRUE(dots[["include_interaction_terms"]]) &&
+    !is.null(dots[["main_components"]])) {
+    dots[["main_components"]]
   } else {
-    dots$intervention_components
+    dots[["intervention_components"]]
   }
   # each component gets a column of the result, next to these fixed ones
   reserved <- c("value", "rec_int_cost", "est_outcome_goal", "status")
@@ -362,11 +383,14 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   for (i in seq_len(n)) {
     args <- dots
     if (scale_unit_costs) {
-      args$unit_costs <- dots$unit_costs * values[i]
+      args$unit_costs <- dots[["unit_costs"]] * values[i]
     } else if (cost_mode) {
       args$cost_list_of_vectors <- lapply(
-        dots$cost_list_of_vectors, function(v) v * values[i]
+        dots[["cost_list_of_vectors"]], function(v) v * values[i]
       )
+    } else if (period_mode && is.na(values[i])) {
+      # NA selects the explicit NA level of the period column
+      args[[parameter]] <- NA_character_
     } else {
       args[[parameter]] <- values[i]
     }
@@ -443,8 +467,9 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   baseline <- NULL
   baseline_value <- if (cost_mode) 1 else dots[[parameter]]
   if (labels_ok && length(baseline_value) == 1L) {
-    # a period label matches only exactly
-    idx <- which(as.character(values) == as.character(baseline_value) & ok)
+    # a period label matches only exactly, and NA matches NA
+    baseline_label <- as.character(in_period_zone(baseline_value))
+    idx <- which(as.character(values) %in% baseline_label & ok)
     if (length(idx) >= 1L) baseline <- runs[[idx[1]]]
   } else if (!is.null(baseline_value) && is.numeric(baseline_value) &&
     length(baseline_value) == 1L) {
@@ -491,8 +516,9 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
 #' of runs and how many failed, then the sensitivity `data.frame`, then a
 #' one-line summary of how `rec_int_cost` ranges over the sweep, from the
 #' smallest to the largest value, or from the first to the last value of a
-#' sweep of period labels or dates. The summary rounds the numbers to 7
-#' significant digits, as the table does, and writes them without e notation.
+#' sweep of period labels or dates. The table and the summary round the numbers
+#' to 7 significant digits and write them out without e notation, except a
+#' number below 1e-6 or of 1e21 or more in size.
 #'
 #' @param x A `"lago_sensitivity"` object from [lago_sensitivity()].
 #' @param ... Ignored.
@@ -525,8 +551,18 @@ print.lago_sensitivity <- function(x, ...) {
     "Varied {.field {param}} across {n} run{?s}; {n_fail} failed."
   )
 
-  # print the plain data.frame body (not this method, to avoid recursion).
-  print.data.frame(x)
+  # print the plain data.frame body (not this method, to avoid recursion),
+  # with each number rounded to 7 significant digits and written out without e
+  # notation
+  tab <- x
+  class(tab) <- "data.frame"
+  num <- vapply(tab, is.numeric, logical(1))
+  tab[num] <- lapply(tab[num], function(v) {
+    out <- .lago_num_text(signif(v, 7))
+    out[is.na(out)] <- "NA"
+    out
+  })
+  print.data.frame(tab)
 
   ok <- x$status == "ok" & is.finite(x$rec_int_cost)
   if (any(ok)) {
@@ -601,13 +637,15 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   # period labels or dates have no numeric scale, so they go on a discrete
   # axis in the order of the sweep, and the line joins them in that order
   discrete <- !is.numeric(x$value)
-  value_ok <- if (discrete) !is.na(x$value) else is.finite(x$value)
+  # a period sweep can hold NA, which selects the explicit NA level of the
+  # period column, so a run is kept by its status and not by its value
+  value_ok <- if (discrete) x$status == "ok" else is.finite(x$value)
   as_axis <- function(v) {
     if (!discrete) {
       return(v)
     }
     labels <- as.character(v)
-    factor(labels, levels = unique(as.character(x$value)))
+    factor(labels, levels = unique(as.character(x$value)), exclude = NULL)
   }
 
   if (identical(show, "cost")) {

@@ -1,5 +1,111 @@
 # LAGOtrials (development version)
 
+* With interaction terms, the shrinking method now moves the recommendation from the stage 1 intervention towards the best point found, by the share of the goal that the best point reaches. Before, each component was moved towards its own best corner, so opposing interactions could combine into a point worse than the stage 1 intervention, and a component with no term of its own stayed at its stage 1 value.
+
+* The variance of the outcome model is now computed on a centered and scaled copy of the design in its clustered and logit forms too. Before, a component far from 0 (such as values near 1e5 or 1e6) could change a clustered interval, make a quasibinomial logit fit stop as singular, or make an identity fit near 1e7 be called rank deficient.
+
+* The default cubic cost now checks its total against the rise taken from the well conditioned curve, so a total that falls across the bounds is replaced by the linear cost with a warning. Bounds so far from 0 that no cubic can be found also fall back to the linear cost with that warning, where they stopped before.
+
+* A direct call of `get_confidence_set()` for a continuous outcome now refuses an explicit `NA` level (as from `addNA()`) with the same message as `lago_optimization()`. Before, it stopped with a low level error from `qr()`.
+
+* When `time_effect_optimization_value` is not a period of the model, the message now shows an explicit `NA` period level as such and says it is chosen with `NA_character_`. Before, it listed that level as NA, so the text "NA" looked like a valid choice.
+
+* `lago_optimization()` no longer returns the costliest intervention for a goal far smaller than the outcomes, such as 1e-200.
+
+* When `glm()` cannot start a binary fit on the identity or log link, the error now says why and suggests the logit link.
+
+* `icc` with one value, which is shared by both arms, is now refused when it has a name such as `c(treatment = 0.1)`. Give `c(control = , treatment = )` for a value per arm.
+
+* An odd `num_centers_in_next_stage` now gives a warning that the next stage is split evenly between the arms, so each arm is planned with half the centers, such as 2.5 for 5. A value of 1 is now refused, as each arm needs at least one center.
+
+* An intervention component, main component or center characteristic named "cost", "CI_lower_bound" or "CI_upper_bound" is now refused, because the confidence set has its own columns with those names. These used to collide in the confidence set and the report.
+
+* An interaction column saved with rounding, for example to 4 significant digits or to 3 decimals, is now accepted as the product of its components. Each row is compared with its own product, so a clearly wrong column is still refused.
+
+* The interaction column check now multiplies integer columns in double precision, so large integer components no longer overflow to NA and skip the check.
+
+* The warning that the outcome goal is at or past the observed mean now appears once in a `lago_sensitivity()` or `lago_budget()` sweep, rather than once per run.
+
+* The check of whether the outcome goal equals the observed mean now uses a tolerance relative to the size of the mean, so an outcome in very small units no longer warns about a goal far from the mean.
+
+* The observed mean, the outcome range checks and the check for infinite values now look only at the rows the outcome model uses. A row the model leaves out, such as one with a missing component or, for the mean and range checks, a weight of 0, no longer causes an error or changes the mean. Inf is still refused on a row with weight 0, as `glm()` cannot fit it.
+
+* `lago_sensitivity()` now labels a date-time sweep of `time_effect_optimization_value` in the time zone of a date-time `period` column, as `lago_optimization()` does. Before, the same instants given in another time zone made every run fail.
+
+* `lago_sensitivity()` no longer reads `power_goal_approach` as `power_goal`. Before, an `icc` or next-stage size sweep with only `power_goal_approach` set ran and returned identical rows, and now it stops with the message that asks for a power goal.
+
+* `lago_sensitivity()` now accepts `NA` in a sweep of `time_effect_optimization_value` when the `period` column is a factor with an explicit `NA` level made with `addNA()`. `NA` then selects that level and can match the baseline. `plot()` keeps the successful `NA` row.
+
+* `lago_sensitivity()` without `values` now gives its message about `values` for a sweep of `time_effect_optimization_value`, in place of an R error about a missing argument.
+
+* `print()` of a `lago_sensitivity()` result now writes the numbers in its table in full, rounded to 7 significant digits, as its summary line does. Only numbers below 1e-6 or of 1e21 or more stay in e notation.
+
+* The `lago_budget()` warning for a budget below the cheapest reachable cost now writes both numbers in full, so a budget just below that cost no longer reads as equal to it. `print()` of such a result now gives the cost of the cheapest reachable intervention.
+
+* `print()`, `summary()` and the report now round the outcome goal and the effective outcome goal like the estimated outcome, so an estimate that meets its goal never looks like it misses it, and a nonzero goal closer to 0 than 1e-6 no longer shows as 0.
+
+* Printed and report numbers are now rounded in one step from the digits of the value, so a value such as 404461827.45464969 shows as 404461827.4546 at 4 decimals instead of 404461827.4547. R and the JS of the report still give the same text.
+
+* `lago_report()` now refuses a shortened name of an `rmarkdown::render()` argument, such as `run_p = FALSE`, which could get past the checks on the arguments it does not accept.
+
+* `lago_report()` now writes the data of the interactive plots with 17 significant digits, so the hover read-outs round the same number as the report text.
+
+* `lago_report()` now accepts a title with the Unicode code points that are never assigned to a character, such as `U+FFFE` and `U+FFFF`, which used to make the rendering fail.
+
+* `lago_report()` now converts a title marked as latin1 to UTF-8, and stops with a clear message that names `title` when the title is not valid UTF-8 text.
+
+* In `visualize_cost()` and the app's cost designer, the linear form now starts at a total cost of 0 at a lower bound below 0, like the cubic form. Before, it started at a negative total cost on such bounds.
+
+* The cost designer can now start each form on its own coefficients, so switching between the linear and cubic forms can keep the costs in use for both forms.
+
+* In the cost designer, a slider whose range changed is no longer read as moved because of a rounding difference in its last digit. Before, the curve could briefly be drawn from the rounded slider value.
+
+* `lago_app()` started from a `lago` result now reads named per component inputs by name, as the package does. These are the bounds, unit costs, doses, cost coefficients, grid steps, previous interventions and center characteristic values. Before, it read them by position, so named values in another order were given to the wrong components.
+
+* `lago_app()` started from a result with a named `icc` pair now shows the pair in control, treatment order. Before, the arms could be swapped.
+
+* `lago_app()` now reads a numeric period of a result, such as 2, as the period whose label is that number, such as "02", as the package does. Before, it changed the period, and it said wrongly that the period was missing.
+
+* Uploaded column names in letters with no ASCII form, such as Chinese, now get a transliterated name or a name such as X1, instead of ".", "..1" or "...". The app now refuses columns named ".", "..1" or "..." before the run.
+
+* The upload hint about thousands separators no longer fires for values such as 0,125. When each value could also be a number with three decimals, such as 1,250, it now suggests the decimal mark and also mentions the thousands.
+
+* An uploaded file with only blank lines or a byte order mark is now called empty, and a UTF-32 file is now named as UTF-32 instead of UTF-16.
+
+* Without a UTF-8 locale, an uploaded header that does not need a change now keeps its name, as in a UTF-8 locale.
+
+* After a failed run, Done in `lago_app()` now returns no result, instead of the result of an earlier run.
+
+* The budget prefill and "Use this outcome as the goal" in `lago_app()` now round to 10 significant digits instead of 4, still on the safe side.
+
+* In `lago_app()`, a new dataset now starts the budget and the sweep values again, and a recommendation that costs nothing now empties the budget.
+
+* The cost designer in `lago_app()` now keeps the costs in use when you switch between the linear and the cubic form.
+
+* In Python, a data frame column of true and false values with missing values, as `pd.read_csv()` gives it, now reaches R with `NA` where a value is missing. Before, a missing value became `TRUE`.
+
+* In Python, a data frame column of `Decimal` or `Fraction` numbers, or a sparse column, now reaches R as numbers. A column of time spans (`timedelta`) becomes the number of days, so 36 hours is 1.5. Before, these columns became text.
+
+* `lago.budget()` in Python now refuses an `n_grid` that is not a whole number, such as 2.5 or the text "30", with a clear error. Before, it cut a fraction to a whole number and read text as a number.
+
+* In Python, a pandas `Period` value or column now becomes its label, such as "2020Q1". Before, a `Period` value was refused.
+
+* In Python, a date and time with a fraction of a second now keeps the fraction in its text, as R writes it, such as "2020-01-01 10:30:00.5". Before, the fraction was dropped, so periods a fraction of a second apart became one period.
+
+* In Python, a named R vector or list with an empty, `NA` or repeated name now comes back as a list of `(name, value)` pairs. Before, elements were lost.
+
+* In Python, a pandas Series of numbers now keeps its index as names, unless the index is a `RangeIndex`, so bounds or center weights given as a Series are matched by name. A dict of numbers is now accepted as a named vector.
+
+* In Python, the error for a list that cannot be converted to an R vector now names the types of its elements.
+
+* The MCP tools now take `center_weights_for_outcome_goal` as an object of one weight per center, matched to the centers by name. The docs say that a list is matched in the order R sorts the centers.
+
+* The MCP tools now refuse `true` or `false` for `center_effects_optimization_values` and `time_effect_optimization_value`. Before, `true` was read as 1.
+
+* The MCP error for a weights column with a value that is not a number now names that value instead of a missing one.
+
+* When an MCP call sends `outcome_goal` or `power_goal` as null and R then reports that both goals are missing, the error now says which goals were null and that a NaN or an Infinity in JSON becomes null.
+
 * `lago_optimization()` is much faster in two cases. The search for the best reachable outcome now stops each start after 100 iterations. Under OpenBLAS, one start could run to the default 4000 iterations, which made a run with wide bounds about 20 times slower than with the reference BLAS. An outcome goal within round off above the best reachable outcome now aims the optimizer at that outcome, which meets the goal within the round off, where every start used to run to its last iteration. `lago_budget()` meets such goals near the top of the reachable range, and on a continuous outcome it now extends its goal grid one goal at a time. Together, a budget search that affords the best reachable outcome on `mtcars` with wide bounds went from 228 to 15 seconds under OpenBLAS.
 
 * In the cost designer of `visualize_cost()` and `lago_app()`, a coefficient whose slider range is very small or very large is now shown in a unit of its own size, and its label names the unit, for example "A^4 coefficient (shown in units of 1e-18)". Its range then shrinks to the size of the coefficient. On wide bounds such as 0 to 1000000, the sliders of the higher order coefficients can now bend the curve, where one step used to change the cost by far more than the whole curve. Ordinary sliders are unchanged.
@@ -210,7 +316,7 @@
 
 * `get_confidence_set()` called directly refuses center weights whose length is not the number of centers of `fitted_model`, with a message that says so, and reads a number column for the center or the period as the model's factor, as `lago_optimization()` does.
 
-* An explicit `NA` period level, made with `addNA()`, can now be chosen with `time_effect_optimization_value = NA_character_`.
+* An explicit `NA` period level, made with `addNA()`, can now be chosen with `time_effect_optimization_value = NA_character_`. The confidence set of a continuous outcome still cannot use such a level, and says so.
 
 * The warning about very large standard errors, a sign of separation, is now given for binary and proportion models only. For a normal model it depended on the outcome's units.
 
@@ -218,11 +324,9 @@
 
 * The package now declares that it needs R 4.0.0 or later, which `lago_app()` already needed.
 
-* A warning from the input checks of `lago_optimization()` is now headed "In validate_inputs(...)" instead of by the whole function.
+* The warnings that the outcome goal is at or past the observed mean are now headed "In validate_inputs(...)" instead of by the whole call of `lago_optimization()`.
 
-* `time_effect_optimization_value = NA_character_` now selects an explicit NA period level made with `addNA()`.
-
-* Named bounds, unit costs, unit cost doses, cost lists, step sizes, previous recommended interventions and center characteristic values are now matched to the components by name. Names that are not exactly those components, each once, are refused. Unnamed vectors are matched by position as before.
+* Named bounds, unit costs, unit cost doses, cost lists, step sizes, previous recommended interventions and center characteristic values are now matched to the components by name. They are read by name only when a name is one of the components, or when there are two or more values that all have names. Other names, such as the "95%" that `quantile()` gives one value, are ignored, and the values are matched by position. Names that do refer to the components must be exactly those components, each once. Unnamed vectors are matched by position as before.
 
 * A named `icc` pair is now matched to the arms by name, as `c(control = , treatment = )`.
 
@@ -296,7 +400,7 @@
 
 * A report title can now hold any control character, such as a tab, an escape or a next line character. Before, most of them stopped the render with a YAML error, and the next line character showed as a space.
 
-* `lago_report()` now says when the output folder does not exist or is a file, and its message about the file extension names both `.html` and `.htm`.
+* `lago_report()` now says when an `output_file` that ends in a slash names a folder that does not exist, or when the folder of the report is a file. A missing folder for a file path is created, as before. Its message about the file extension names both `.html` and `.htm`.
 
 * `lago_app()` now gives an uploaded file the same column names as `read.csv()`, so the shown code reads the same column when two names clash.
 

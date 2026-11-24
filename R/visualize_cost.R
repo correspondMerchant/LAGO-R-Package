@@ -154,11 +154,17 @@ visualize_cost <- function(
 # The same parts also run inside lago_app(), as a module: `ns` namespaces every
 # id, `embedded = TRUE` leaves out the page frame and the buttons that only the
 # stand alone app has, and `on_apply(cost_list, form)` is called when the user
-# applies the costs. `initial_coefs` starts the designer on given coefficients,
-# one vector per component of the starting form's length, instead of the
-# defaults. `notice` is a note shown above the designer, such as why a link was
-# refused. The server works both as a plain server and in moduleServer(),
-# since it reads its namespace from the session.
+# applies the costs. `initial_coefs` starts the designer on given coefficients
+# instead of the defaults. It takes one of two forms. The first is a list with
+# one vector per component, which applies to the starting form only, as in
+# list(c(0, 2), c(5, 1)). The second gives coefficients for each form, as a
+# list with elements `linear` and `cubic` (either may be left out), each a list
+# with one vector per component, as in
+# list(linear = list(c(0, 2)), cubic = list(c(0, 1, 0, 0, 0.1))). A vector is
+# used only when it has its form's length and finite values. `notice` is a
+# note shown above the designer, such as why a link was refused. The server
+# works both as a plain server and in moduleServer(), since it reads its
+# namespace from the session.
 .build_cost_parts <- function(
     component_names,
     unit_costs,
@@ -182,12 +188,12 @@ visualize_cost <- function(
   # length.
   cost_types <- c("linear", "cubic")
   coefs_by_type <- list(
-    linear = cost_fxn_calculator(
-      intervention_lower_bounds = intervention_lower_bounds,
-      intervention_upper_bounds = intervention_upper_bounds,
-      unit_costs = unit_costs,
-      default_cost_fxn_type = "linear"
-    ),
+    # The linear form starts at a total cost of 0 at a lower bound below 0,
+    # like the cubic, so the cost is never negative on the bounds.
+    linear = lapply(seq_along(unit_costs), function(ci) {
+      lb <- intervention_lower_bounds[ci]
+      c(if (lb < 0) -unit_costs[ci] * lb else 0, unit_costs[ci])
+    }),
     # The designer opens the cubic form on its own visibly curved but still valid
     # (non-negative, non-decreasing) demo cost, which the user then shapes,
     # rather than on cost_fxn_calculator's cubic; see .designer_cubic_coefs.
@@ -199,12 +205,23 @@ visualize_cost <- function(
       )
     })
   )
-  # the starting form opens on the given coefficients where they fit it
-  if (!is.null(initial_coefs)) {
-    for (ci in seq_along(initial_coefs)) {
-      v <- initial_coefs[[ci]]
-      if (length(v) == length(coefs_by_type[[default_cost_fxn_type]][[ci]]) && all(is.finite(v))) {
-        coefs_by_type[[default_cost_fxn_type]][[ci]] <- as.numeric(v)
+  # Each form opens on the given coefficients where they fit it. A list of
+  # lists named by form gives coefficients for each form. Any other list gives
+  # them for the starting form only.
+  per_form <- is.list(initial_coefs) && length(initial_coefs) > 0 &&
+    !is.null(names(initial_coefs)) && all(names(initial_coefs) %in% cost_types) &&
+    all(vapply(initial_coefs, is.list, logical(1)))
+  given <- if (per_form) {
+    initial_coefs
+  } else {
+    stats::setNames(list(initial_coefs), default_cost_fxn_type)
+  }
+  for (t in names(given)) {
+    for (ci in seq_along(given[[t]])) {
+      v <- given[[t]][[ci]]
+      if (ci <= length(coefs_by_type[[t]]) &&
+        length(v) == length(coefs_by_type[[t]][[ci]]) && all(is.finite(v))) {
+        coefs_by_type[[t]][[ci]] <- as.numeric(v)
       }
     }
   }

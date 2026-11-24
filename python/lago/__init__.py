@@ -262,7 +262,9 @@ def budget(
         The most the intervention may cost, in the units of the costs.
     n_grid : int, default 25
         How many outcome goals the first pass tries. A second pass tries as
-        many again near the budget.
+        many again near the budget. It must be a whole number, such as 25 or
+        25.0. A fraction, text or true and false raises a ``TypeError``, and R
+        refuses a number below 2.
     cost_list : list[list[float]], optional
         The cost-function coefficients per component. Maps to R's
         ``cost_list_of_vectors``.
@@ -294,7 +296,7 @@ def budget(
         call_kwargs["cost_list_of_vectors"] = cost_list
     call_kwargs.update(kwargs)
     call_kwargs["budget"] = budget
-    call_kwargs["n_grid"] = int(n_grid)
+    call_kwargs["n_grid"] = _whole_number(n_grid, "n_grid")
     result = _bridge.call_lago("lago_budget", call_kwargs)
     out = _bridge.scalarize_dict(_bridge.r_to_py(result))
     if isinstance(out.get("rec_int"), dict):
@@ -303,6 +305,19 @@ def budget(
     # no run_error at all
     out.setdefault("run_error", None)
     return out
+
+
+def _whole_number(value, name):
+    """``value`` as an int, or a ``TypeError`` when it is not a whole number.
+
+    ``int()`` would cut 2.9 to 2 and read the text "30", so a fraction or
+    text would run a search the caller did not ask for.
+    """
+    import numbers
+
+    if isinstance(value, numbers.Real) and not isinstance(value, bool) and float(value).is_integer():
+        return int(value)
+    raise TypeError(f"`{name}` must be a whole number, such as 25, and not {value!r}.")
 
 
 @_bridge.in_r_context

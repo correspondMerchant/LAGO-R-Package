@@ -190,4 +190,33 @@ texts.forEach(function (t) {
   check("numText(" + t[0] + ") is " + t[1], m.numText(t[0]) === t[1]);
 });
 
+// 11. roundDec rounds in one step from the 17 digits of a value, as R's
+// .lago_round_dec() does, so a value is not rounded first to 15 digits and
+// then again. A value whose 15 digits read back as the same double still
+// rounds a cut digit of 5 up, as it is typed. The expected strings are the
+// same as in tests/testthat/test-bb5-present.R.
+check("fmtValue(404461827.45464969) is 404461827.4546",
+  m.fmtValue(404461827.45464969) === "404461827.4546");
+check("fmtValue(-2555838594.7868457) is -2555838594.7868",
+  m.fmtValue(-2555838594.7868457) === "-2555838594.7868");
+check("fmtInterval(404461827.45464969) is 404461827.455",
+  m.fmtInterval(404461827.45464969) === "404461827.455");
+check("roundDec(1.0000000000000049, 15) is 1", m.roundDec(1.0000000000000049, 15, true) === 1);
+check("roundDec(0.12345678901234567, 20) keeps 15 digits",
+  m.roundDec(0.12345678901234567, 20, true) === 0.123456789012346);
+var dd = m.decDigits(2.30495);
+check("decDigits(2.30495) cuts from its 15 digits", dd.cutDigits === "23049500000000000" && dd.cutExp === 0);
+dd = m.decDigits(404461827.45464969);
+check("decDigits(404461827.45464969) cuts from its 17 digits", dd.cutDigits === "40446182745464969" && dd.cutExp === 8);
+
+// 12. A swept outcome goal and the estimated outcome are rounded like the
+// estimate in R's print(), so a met goal does not look missed and a small
+// goal does not show as 0. Other swept values keep fmtValue.
+var tl = m.sensTooltipLines(["a"], "outcome_goal", { value: 5e-7, cost: 10, est: 0.850491, comps: { a: 0.85049 } });
+check("a swept goal of 5e-7 shows as 5e-7", tl[0] === "outcome_goal: 5e-7");
+check("the estimated outcome uses fmtInterval", tl[2] === "est. outcome: 0.85");
+check("a component value uses fmtValue", tl[3] === "a: 0.8505");
+tl = m.sensTooltipLines([], "cost_multiplier", { value: 5e-7, cost: 10, est: null });
+check("another swept value keeps fmtValue", tl[0] === "cost_multiplier: 0" && tl.length === 2);
+
 console.log("\nAll " + passed + " JS report-math assertions passed.");

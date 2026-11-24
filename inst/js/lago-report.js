@@ -83,9 +83,11 @@
   // The decimal digits of a finite, nonzero number, as 15 significant digits
   // (all a double holds without noise), with the sign and the power of 10 of
   // the first digit, the way R's .lago_dec_digits() gets them from sprintf().
-  // toExponential() rounds an exact tie up, while sprintf() and jsonlite, which
-  // writes the report data, round it to even, so a tie is settled to even
-  // here too. The 31 digits of toExponential(30) show whether it is a tie.
+  // It also gives the digits roundDec() rounds from, as cutDigits (17 of
+  // them) with the power of 10 cutExp: the 15 digits followed by 00 when they
+  // read back as the same double, so a typed value such as 2.30495 is rounded
+  // as 2.30495, and the 17 digits otherwise, so a value such as
+  // 404461827.45464969 is not rounded twice.
   function decDigits(v) {
     var a = Math.abs(v);
     // 17 significant digits, rounded to 15 the way R's .lago_dec_digits()
@@ -102,27 +104,36 @@
       exp += 1;
     }
     var digits = String(kept);
-    return { neg: v < 0, digits: digits, exp: exp };
+    var same = Number(digits + "e" + (exp - 14)) === a;
+    return {
+      neg: v < 0,
+      digits: digits,
+      exp: exp,
+      cutDigits: same ? digits + "00" : all,
+      cutExp: same ? exp : parseInt(s.slice(19), 10)
+    };
   }
 
   // v rounded to n significant digits (sig true) or to n decimals (sig false),
-  // from the decimal digits above, with a cut digit of 5 rounded up, away from
-  // 0, as R's .lago_round_dec() does. toFixed() and toPrecision() settle a cut
-  // digit of 5 by the binary value instead, so 0.10005 and 12.3455 would round
-  // differently from the R text of the report.
+  // at most 15 significant digits, with a cut digit of 5 rounded up, away from
+  // 0, as R's .lago_round_dec() does. It rounds in one step from the
+  // cutDigits of decDigits(), so 404461827.45464969 gives
+  // 404461827.4546 at 4 decimals, not 404461827.4547. toFixed() and
+  // toPrecision() settle a cut digit of 5 by the binary value instead, so
+  // 0.10005 and 12.3455 would round differently from the R text of the report.
   function roundDec(v, n, sig) {
     v = +v;
     if (!isFinite(v) || v === 0) {
       return v;
     }
     var p = decDigits(v);
-    var keep = Math.min(sig ? n : n + p.exp + 1, 15);
-    var next = keep >= 0 && keep < 15 ? +p.digits.charAt(keep) : 0;
-    var kept = keep > 0 ? +p.digits.slice(0, keep) : 0;
+    var keep = Math.min(sig ? n : n + p.cutExp + 1, 15);
+    var next = keep >= 0 ? +p.cutDigits.charAt(keep) : 0;
+    var kept = keep > 0 ? +p.cutDigits.slice(0, keep) : 0;
     if (next >= 5) {
       kept += 1;
     }
-    var r = Number((p.neg ? "-" : "") + kept + "e" + (p.exp + 1 - keep));
+    var r = Number((p.neg ? "-" : "") + kept + "e" + (p.cutExp + 1 - keep));
     // a value rounded to 0 is 0, not -0
     return r === 0 ? 0 : r;
   }
@@ -187,7 +198,8 @@
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
     sensFinitePoints: sensFinitePoints,
-    budgetFinitePoints: budgetFinitePoints
+    budgetFinitePoints: budgetFinitePoints,
+    sensTooltipLines: sensTooltipLines
   };
 
   // Export for node (unit tests). Harmless in the browser.
@@ -769,11 +781,15 @@
   }
 
   // Tooltip lines for one sensitivity point: the swept value, the cost, the
-  // estimated outcome, then each component's recommended value.
+  // estimated outcome, then each component's recommended value. An outcome
+  // goal and the estimated outcome are rounded with fmtInterval(), as R's
+  // print() rounds them, so an estimate that meets its goal never shows
+  // below it and a goal closer to 0 than 1e-6 does not show as 0.
   function sensTooltipLines(comps, param, p) {
-    var lines = [param + ": " + fmtValue(p.value), "cost: " + fmtCost(p.cost)];
+    var fmtParam = param === "outcome_goal" ? fmtInterval : fmtValue;
+    var lines = [param + ": " + fmtParam(p.value), "cost: " + fmtCost(p.cost)];
     if (p.est != null && isFinite(+p.est)) {
-      lines.push("est. outcome: " + fmtValue(p.est));
+      lines.push("est. outcome: " + fmtInterval(p.est));
     }
     (comps || []).forEach(function (c) {
       if (p.comps && p.comps[c] != null && isFinite(+p.comps[c])) {

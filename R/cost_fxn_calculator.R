@@ -123,17 +123,32 @@ cost_fxn_calculator <- function(
 
       # whether the total cost sum_k c_k x^k, evaluated in x, rises across the
       # bounds as x times the cost per unit does, and never falls by more than
-      # a small part of that rise. The cost per unit is taken from the curve
-      # solved in u, which has no cancellation.
-      total_is_accurate <- function(final_coeff, coeff) {
+      # a small part of that rise. The rise is taken from the curve solved in
+      # u, which has no cancellation: with p(u) the cost per unit,
+      # hi p(1) - lo p(0) = lo (p(1) - p(0)) + width p(1).
+      total_is_accurate <- function(final_coeff, delta) {
         x <- seq(range_min, range_max, length.out = 2001)
         total <- vapply(x, function(v) sum(final_coeff * v^(seq_along(final_coeff) - 1)), numeric(1))
-        rise <- range_max * f(range_max, coeff) - range_min * f(range_min, coeff)
+        scaled <- solve_in(range_min, range_max - range_min, delta)
+        rise <- range_min * sum(scaled[1:3]) + (range_max - range_min) * sum(scaled)
         steps <- diff(total)
-        # a curve that does not rise, which the checks above rule out, is not
-        # judged here
-        !isTRUE(rise > 0) || (all(is.finite(total)) && min(steps) >= -1e-6 * rise &&
-          abs((total[length(total)] - total[1]) - rise) <= 1e-3 * rise)
+        # a positive cost per unit gives a total that rises, so a curve whose
+        # rise is not positive is not accurate either
+        isTRUE(rise > 0) && all(is.finite(total)) && min(steps) >= -1e-6 * rise &&
+          abs((total[length(total)] - total[1]) - rise) <= 1e-3 * rise
+      }
+
+      # the linear cost, with a warning that the cubic could not be used
+      linear_instead <- function() {
+        warning(paste0(
+          "The default cubic cost cannot be computed accurately on the ",
+          "bounds ", format(range_min, digits = 10), " to ",
+          format(range_max, digits = 10), ", which are narrow and far from ",
+          "0, so the linear cost (", format(unit_cost, digits = 10),
+          " per unit) is used there. Give the costs with ",
+          "cost_list_of_vectors to use another curve."
+        ), call. = FALSE)
+        c(0, unit_cost, 0, 0, 0)
       }
 
       # Function to evaluate f(x)
@@ -153,11 +168,7 @@ cost_fxn_calculator <- function(
         if (is.null(coeff)) {
           # a flatter curve has smaller coefficients, so it may be accurate
           if (abs(delta) < 1e-8 * abs(first_delta)) {
-            stop(paste(
-              "The default cubic cost cannot be computed for bounds this far",
-              "from 0 compared with their width. Give the costs with",
-              "cost_list_of_vectors, or use default_cost_fxn_type = \"linear\"."
-            ), call. = FALSE)
+            return(linear_instead())
           }
           delta <- delta * 0.9
           next
@@ -182,16 +193,8 @@ cost_fxn_calculator <- function(
           # Otherwise the linear cost is used, as for a component held at one
           # dose: over bounds this narrow a cubic cannot differ from it in a
           # way the optimizer could use.
-          if (unit_cost != 0 && !total_is_accurate(final_coeff, coeff)) {
-            warning(paste0(
-              "The default cubic cost cannot be computed accurately on the ",
-              "bounds ", format(range_min, digits = 10), " to ",
-              format(range_max, digits = 10), ", which are narrow and far from ",
-              "0, so the linear cost (", format(unit_cost, digits = 10),
-              " per unit) is used there. Give the costs with ",
-              "cost_list_of_vectors to use another curve."
-            ), call. = FALSE)
-            return(c(0, unit_cost, 0, 0, 0))
+          if (unit_cost != 0 && !total_is_accurate(final_coeff, delta)) {
+            return(linear_instead())
           }
           return(final_coeff)
         } else {

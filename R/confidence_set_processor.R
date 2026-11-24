@@ -47,23 +47,8 @@ confidence_set_processor <- function(
   )
   predictors_list <- gsub("`", "", predictors_list)
 
-  # an explicit NA level of a fixed effect, or a non-reference one elsewhere, is refused
-  cluster_cols <- c(
-    if (include_center_effects) "center",
-    if (include_time_effects) "period"
-  )
-  na_level <- Filter(function(col) {
-    if (!is.factor(data[[col]])) return(FALSE)
-    lv <- levels(droplevels(data[[col]]))
-    if (col %in% cluster_cols) anyNA(lv) else anyNA(lv[-1])
-  }, predictors_list)
-  if (outcome_type == "continuous" && length(na_level) > 0) {
-    stop(paste0(
-      "The confidence set of a continuous outcome cannot use an explicit NA ",
-      "level (as from addNA()) in the column(s) ",
-      paste0("'", na_level, "'", collapse = ", "), ". Give that level a ",
-      "name, or set include_confidence_set = FALSE."
-    ))
+  if (outcome_type == "continuous") {
+    refuse_continuous_na_level(data, predictors_list, include_center_effects, include_time_effects)
   }
 
   # convert columns of the fixed effects to factor type
@@ -112,4 +97,30 @@ confidence_set_processor <- function(
   list(
     cs = cs
   )
+}
+
+# The continuous confidence set has no column for an explicit NA level (as
+# from addNA()), so one is refused with a clear message: on a center or period
+# column, or on another factor unless it is that factor's reference level.
+refuse_continuous_na_level <- function(data, columns, include_center_effects,
+                                       include_time_effects,
+                                       way_out = "set include_confidence_set = FALSE") {
+  cluster_cols <- c(
+    if (include_center_effects) "center",
+    if (include_time_effects) "period"
+  )
+  na_level <- Filter(function(col) {
+    if (!is.factor(data[[col]])) return(FALSE)
+    lv <- levels(droplevels(data[[col]]))
+    if (col %in% cluster_cols) anyNA(lv) else anyNA(lv[-1])
+  }, intersect(columns, names(data)))
+  if (length(na_level) > 0) {
+    stop(paste0(
+      "The confidence set of a continuous outcome cannot use an explicit NA ",
+      "level (as from addNA()) in the column(s) ",
+      paste0("'", na_level, "'", collapse = ", "), ". Give that level a ",
+      "name, or ", way_out, "."
+    ), call. = FALSE)
+  }
+  invisible(NULL)
 }

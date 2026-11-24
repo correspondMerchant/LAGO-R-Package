@@ -249,7 +249,7 @@ def test_none_in_a_list_becomes_the_r_na_of_its_type(ro):
             assert cls(vec)[0] == kind, value
             assert list(is_na(vec))[1] is True, value
         assert list(_bridge.py_to_r([]) ) == []
-        with pytest.raises(TypeError, match="mixed/unsupported"):
+        with pytest.raises(TypeError, match="elements of type int and str"):
             _bridge.py_to_r([1, "a", None])
 
 

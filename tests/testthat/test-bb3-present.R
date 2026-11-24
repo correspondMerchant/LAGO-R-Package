@@ -138,8 +138,8 @@ test_that("the outcome goal is rounded like the estimate and shows its direction
   r <- bb3_fit(outcome_goal = 70 / 3)
   expect_identical(r$outcome_goal_intention, "maximize")
   b <- lago_blocks(r)
-  expect_true("Outcome goal: 23.3333 (maximize: at least this value)" %in% b$inputs$rows)
-  expect_true("Outcome goal: 23.3333" %in% b$outcome$rows)
+  expect_true("Outcome goal: 23.333 (maximize: at least this value)" %in% b$inputs$rows)
+  expect_true("Outcome goal: 23.333" %in% b$outcome$rows)
 
   r <- bb3_fit(outcome_goal = 18, outcome_goal_intention = "minimize")
   expect_true("Outcome goal: 18 (minimize: at most this value)" %in% lago_blocks(r)$inputs$rows)

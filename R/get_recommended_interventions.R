@@ -718,7 +718,8 @@ get_recommended_interventions <- function(
           center_cha_coeff_vec = center_cha_coeff_vec,
           center_cha = center_cha,
           link = link,
-          stage_1_intervention = shrink_to_int_values
+          stage_1_intervention = shrink_to_int_values,
+          best_point = as.numeric(full_grid[which.max(all_outcomes), ])
         )
 
         shrinking_method_used <- TRUE
@@ -957,7 +958,10 @@ get_recommended_interventions <- function(
         # otherwise stop it at a costlier point.
         # the goal's own size, so the tolerance is never looser than the one
         # lago_budget() counts a goal as reached within
-        outcome_scale <- abs(new_outcome_goal)
+        # A goal tiny next to the outcomes, such as 1e-200, would make the
+        # scaled constraint overflow, so the scale is at least 1e-10 of the
+        # best outcome, as the reach check above counts round off.
+        outcome_scale <- max(abs(new_outcome_goal), 1e-10 * abs(max_achievable_outcome))
         if (!is.finite(outcome_scale) || outcome_scale <= 0) {
           outcome_scale <- 1
         }
@@ -1153,7 +1157,8 @@ get_recommended_interventions <- function(
           center_cha_coeff_vec = center_cha_coeff_vec,
           center_cha = center_cha,
           link = link,
-          stage_1_intervention = shrink_to_int_values
+          stage_1_intervention = shrink_to_int_values,
+          best_point = max_point
         )
         shrinking_method_used <- TRUE
         # a power goal no outcome can meet needs an unbounded coefficient, so it

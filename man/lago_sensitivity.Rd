@@ -52,9 +52,11 @@ stored on \code{object}), and all \code{values} must be positive.
 \item{values}{A non-empty numeric vector, all finite. One run per element.
 For \code{parameter = "time_effect_optimization_value"} it can also be a
 character vector of period labels, a factor, a Date vector, or a date-time
-(\code{POSIXct}) vector, with no \code{NA}. A factor or a date-time is matched by its
-label, as in \code{\link[=lago_optimization]{lago_optimization()}}, and the \code{value} column then holds the
-labels.}
+(\code{POSIXct}) vector. It can hold \code{NA} only when the \code{period} column is a
+factor with an explicit \code{NA} level, made with \code{\link[=addNA]{addNA()}}, and \code{NA} then selects
+that level. A factor or a date-time is matched by its label, as in
+\code{\link[=lago_optimization]{lago_optimization()}}, and the \code{value} column then holds the labels. A
+date-time is labeled in the time zone of a date-time \code{period} column.}
 
 \item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}}. Defaults to
 \code{TRUE} so the sweep is not noisy. Genuine warnings about the data or model

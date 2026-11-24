@@ -19,8 +19,9 @@ Prints a short header naming the varied parameter, the number
 of runs and how many failed, then the sensitivity \code{data.frame}, then a
 one-line summary of how \code{rec_int_cost} ranges over the sweep, from the
 smallest to the largest value, or from the first to the last value of a
-sweep of period labels or dates. The summary rounds the numbers to 7
-significant digits, as the table does, and writes them without e notation.
+sweep of period labels or dates. The table and the summary round the numbers
+to 7 significant digits and write them out without e notation, except a
+number below 1e-6 or of 1e21 or more in size.
 }
 \examples{
 \donttest{

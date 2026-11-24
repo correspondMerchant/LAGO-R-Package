@@ -310,7 +310,7 @@ test_that("the coefficient search stops when its bracket can no longer shrink", 
   expect_equal(LAGOtrials:::find_needed_coefficient(function(b) b, 12.5), 12.5, tolerance = 1e-6)
 })
 
-test_that("shrinking keeps the stage-1 value of a component with no term of its own", {
+test_that("shrinking moves a component with no term of its own towards the best point", {
   set.seed(2)
   d <- data.frame(a = stats::runif(200, 0, 4), b = stats::runif(200, 0, 4))
   d$y <- 1 + 0.8 * d$a + 0.2 * d$a * d$b + stats::rnorm(200, 0, 0.5)
@@ -324,8 +324,14 @@ test_that("shrinking keeps the stage-1 value of a component with no term of its 
     outcome_goal = 20, outcome_goal_intention = "maximize",
     include_confidence_set = FALSE, quiet = TRUE
   ))
-  expect_equal(res$rec_int[2], mean(d$b), tolerance = 1e-8)
-  expect_true(res$rec_int[1] >= 0 && res$rec_int[1] <= 4)
+  # with interaction terms the recommendation moves from the stage 1 means
+  # towards the best reachable point, the corner (4, 4), by the share of the
+  # way to the goal that point covers
+  b <- stats::coef(res$model)
+  at <- function(x) b[[1]] + b[[2]] * x[1] + b[[3]] * x[1] * x[2]
+  s1 <- colMeans(d[, c("a", "b")])
+  share <- (at(c(4, 4)) - at(s1)) / (20 - at(s1))
+  expect_equal(unname(res$rec_int), unname(s1 + share * (c(4, 4) - s1)), tolerance = 1e-5)
 })
 
 test_that("the shrunk recommendation does not depend on the order of the terms", {
@@ -348,19 +354,14 @@ test_that("the shrunk recommendation does not depend on the order of the terms",
     ))
     stats::setNames(res$rec_int, mains)[c("a", "b")]
   }
-  # Nevo's shrinking formula by hand. With an interaction a component's slope
-  # at the corner is its own coefficient plus the interaction coefficient
-  # times the other component there, which is 4
+  # with interaction terms the recommendation moves from the stage 1 means
+  # towards the best reachable point, the corner (4, 4), by the share of the
+  # way to the goal that point covers
   b <- stats::coef(stats::glm(y ~ a + b + a:b, data = d))
+  at <- function(x) b[[1]] + b[[2]] * x[1] + b[[3]] * x[2] + b[[4]] * x[1] * x[2]
   s1 <- colMeans(d[, c("a", "b")])
-  oracle <- vapply(1:2, function(k) {
-    other <- 3 - k
-    rest <- b[[1]] + b[[1 + other]] * 4 + b[[4]] * 16
-    beta_max <- (9 - rest) / 4 + b[[4]] * 4
-    beta_min <- beta_max / 2
-    slope <- b[[1 + k]] + b[[4]] * 4
-    s1[[k]] + (4 - s1[[k]]) * (slope - beta_min) / (beta_max - beta_min)
-  }, numeric(1))
+  share <- (at(c(4, 4)) - at(s1)) / (9 - at(s1))
+  oracle <- unname(s1 + share * (c(4, 4) - s1))
   expect_equal(unname(run(c("a", "b", "a:b"), c("a", "b"))), oracle, tolerance = 1e-5)
   expect_equal(unname(run(c("a:b", "a", "b"), c("a", "b"))), oracle, tolerance = 1e-5)
   expect_equal(unname(run(c("a", "b", "a:b"), c("b", "a"))), oracle, tolerance = 1e-5)

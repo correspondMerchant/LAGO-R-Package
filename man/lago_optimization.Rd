@@ -71,7 +71,10 @@ An interaction term such as "component1:component2" must also be a column
 of the dataset with that name, and that column must hold the product of its
 components, for example
 \code{data[["component1:component2"]] <- data$component1 * data$component2}.
-A column that is not that product is refused.}
+A column that is not that product is refused. A column saved with 4
+significant digits still counts as that product.
+A component cannot be named "cost", "CI_lower_bound" or "CI_upper_bound",
+the names of the other columns of the confidence set.}
 
 \item{intervention_lower_bounds}{A numeric vector. Specifies the lower bounds
 of the intervention components.
@@ -86,7 +89,11 @@ The bounds, \code{unit_costs}, \code{unit_cost_doses}, \code{cost_list_of_vector
 \code{prev_recommended_interventions} and the step sizes hold one value per
 intervention component, or per main component with interaction terms. An
 unnamed vector is matched to the components by position. A named one is
-matched by name, and its names must then be those components, each once.}
+matched by name when a name is one of the components, or when it has two
+or more values that all have names. Its names must then be those
+components, each once. Other names, such as the "95\%" that
+\code{quantile()} gives one value, are ignored and the values are matched
+by position.}
 
 \item{outcome_goal}{A numeric value. Specifies the outcome goal, a desired
 probability or mean value.
@@ -129,6 +136,9 @@ Default value without user specification: "unconditional".}
 
 \item{num_centers_in_next_stage}{A numeric value. Specifies the number of
 total centers (treatment + control) in the next stage of the trial.
+The power calculation splits them evenly between the two arms, so it must
+be at least 2. An odd number gives a warning, and each arm is planned with
+half the centers, such as 2.5 for 5.
 Default value without user specification: NULL.}
 
 \item{patients_per_center_in_next_stage}{A numeric value. Specifies
@@ -137,7 +147,8 @@ Default value without user specification: NULL.}
 
 \item{icc}{A numeric value in [0, 1), or a length-2 numeric vector
 c(control, treatment), matched by name when it is named
-c(control = , treatment = ). Specifies the intra-cluster correlation used to
+c(control = , treatment = ). One value is shared by both arms, so it
+cannot be named. Specifies the intra-cluster correlation used to
 inflate the variance of the power-calculation test statistic by a design
 effect, so that the power goal accounts for within-center clustering.
 Only used when a power_goal is provided (ignored otherwise). When NULL, the
@@ -240,7 +251,9 @@ center_sample_size.}
 the dataset that represent the center characteristics.
 Note, include_center_effects and center_characteristics cannot be used
 together at the same time.
-For example: c("characteristic1")}
+For example: c("characteristic1")
+A center characteristic cannot be named "cost", "CI_lower_bound" or
+"CI_upper_bound", the names of the other columns of the confidence set.}
 
 \item{center_characteristics_optimization_values}{A numeric vector. The
 fixed values of the center characteristics at which the recommended
@@ -250,8 +263,8 @@ characteristic values, i.e. the optimization answers "what is the optimal
 intervention for a center whose characteristics equal these values?". Must
 be provided when center_characteristics is used, must be numeric, and must
 have the same length and order as center_characteristics. Named values are
-matched to the characteristics by name instead, and the names must then be
-the center characteristics, each once.
+matched to the characteristics by name instead, under the same rule as the
+bounds, and the names must then be the center characteristics, each once.
 For a categorical characteristic with two levels, use 0 for the reference
 level and 1 for the other level. For a logical characteristic, these values
 select FALSE and TRUE. Categorical characteristics with more than two levels
@@ -262,7 +275,9 @@ recommended intervention for a center with birth_volume_100 = 1.75.}
 
 \item{main_components}{A character vector. Specifies the main intervention
 components in the presence of interaction terms.
-For example: c("component1", "component2").}
+For example: c("component1", "component2").
+The names "cost", "CI_lower_bound" and "CI_upper_bound" are refused, as
+they are for intervention components.}
 
 \item{time_effect_optimization_value}{The period used for LAGO
 optimization, as a number or as the label of a period in the 'period'

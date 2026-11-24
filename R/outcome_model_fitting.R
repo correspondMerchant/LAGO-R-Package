@@ -210,7 +210,19 @@ outcome_model_fitting <- function(
         fit_glm(formula, contrasts = effect_contrasts)
       },
       error = function(e) {
-        stop(paste("Error occurred during model fitting step:\n", e))
+        # an identity or log link on a binomial family needs a start with
+        # every fitted probability inside 0 to 1, which glm() may not find
+        hint <- if (grepl("no valid set of coefficients", conditionMessage(e)) &&
+          family_object$family %in% c("binomial", "quasibinomial") &&
+          family_object$link %in% c("identity", "log")) {
+          paste0(
+            "\nWith the ", family_object$link, " link, glm() needs fitted ",
+            "probabilities between 0 and 1 at every row, and it found no start ",
+            "that gives them on these data. Use the logit link, or narrow the ",
+            "data to rows where the model stays inside 0 to 1."
+          )
+        }
+        stop(paste0("Error occurred during model fitting step:\n ", e, hint))
       }
     ),
     warning = function(w) {
