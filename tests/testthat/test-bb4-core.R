@@ -365,3 +365,16 @@ test_that("a goal far smaller than the outcomes still gives the cheapest interve
   }
   expect_equal(run(1e-200)$rec_int_cost, run(1e-9)$rec_int_cost, tolerance = 1e-6)
 })
+
+test_that("a binary fit on the identity link that glm() cannot start explains why", {
+  expect_error(
+    suppressWarnings(lago_optimization(
+      data = BB_data, outcome_name = "pp3_oxytocin_mother", outcome_type = "binary",
+      link = "identity", intervention_components = c("coaching_updt", "launch_duration"),
+      intervention_lower_bounds = c(0, 0), intervention_upper_bounds = c(40, 5),
+      cost_list_of_vectors = list(c(0, 1700), c(0, 8000)), outcome_goal = 0.99,
+      include_confidence_set = FALSE, quiet = TRUE
+    )),
+    "With the identity link, glm\\(\\) needs fitted probabilities between 0 and 1"
+  )
+})
