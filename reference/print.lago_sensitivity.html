@@ -3,13 +3,15 @@
 of runs and how many failed, then the sensitivity data.frame, then a
 one-line summary of how rec_int_cost ranges over the sweep, from the
 smallest to the largest value, or from the first to the last value of a
-sweep of period labels or dates. The summary rounds the numbers to 7
-significant digits, as the table does, and writes them without e notation."><meta property="og:description" content="Prints a short header naming the varied parameter, the number
+sweep of period labels or dates. The table and the summary round the numbers
+to 7 significant digits and write them out without e notation, except a
+number below 1e-6 or of 1e21 or more in size."><meta property="og:description" content="Prints a short header naming the varied parameter, the number
 of runs and how many failed, then the sensitivity data.frame, then a
 one-line summary of how rec_int_cost ranges over the sweep, from the
 smallest to the largest value, or from the first to the last value of a
-sweep of period labels or dates. The summary rounds the numbers to 7
-significant digits, as the table does, and writes them without e notation."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
+sweep of period labels or dates. The table and the summary round the numbers
+to 7 significant digits and write them out without e notation, except a
+number below 1e-6 or of 1e21 or more in size."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -62,8 +64,9 @@ significant digits, as the table does, and writes them without e notation."><met
 of runs and how many failed, then the sensitivity <code>data.frame</code>, then a
 one-line summary of how <code>rec_int_cost</code> ranges over the sweep, from the
 smallest to the largest value, or from the first to the last value of a
-sweep of period labels or dates. The summary rounds the numbers to 7
-significant digits, as the table does, and writes them without e notation.</p>
+sweep of period labels or dates. The table and the summary round the numbers
+to 7 significant digits and write them out without e notation, except a
+number below 1e-6 or of 1e21 or more in size.</p>
     </div>
 
     <div class="section level2">
@@ -107,11 +110,11 @@ significant digits, as the table does, and writes them without e notation.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">LAGO sensitivity analysis</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">outcome_goal</span> across 3 runs; 0 failed.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   value gear      qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10  6.522269     83.13361         30.00000     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10  9.239845     99.43907         34.99999     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.957433    115.74460         40.00000     ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   value gear     qsec rec_int_cost est_outcome_goal status</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10 6.522266     83.13359         29.99999     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10 9.239851     99.43911               35     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.95743     115.7446         39.99999     ok</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 40.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>

@@ -1,8 +1,9 @@
 # Print a budget-constrained LAGO result
 
 Prints a short header with the budget and whether it binds, then the
-recommended intervention, its cost and estimated outcome (or a note that
-no intervention fits the budget).
+recommended intervention, its cost and estimated outcome. When no
+intervention fits the budget, it prints a note that gives the cost of
+the cheapest reachable intervention instead.
 
 ## Usage
 

@@ -53,8 +53,11 @@ lago_report(
 
   A character string. The report title. Every character shows as typed,
   so markdown, HTML and math are not interpreted. An empty or missing
-  title (`""`, `NA` or `NULL`) uses the default title. Default value
-  without user specification: "LAGO optimization report".
+  title (`""`, `NA` or `NULL`) uses the default title. The title must be
+  UTF-8 text, or text marked as latin1 with
+  [`Encoding()`](https://rdrr.io/r/base/Encoding.html), which is
+  converted to UTF-8. Default value without user specification: "LAGO
+  optimization report".
 
 - open:
 
@@ -71,8 +74,9 @@ lago_report(
   `input`, `output_dir` and `params` are refused. Use `output_file` and
   `title` instead. The report is always one self-contained HTML file, so
   `output_format`, `output_options`, `output_yaml`, `run_pandoc` and
-  `runtime` are refused too. Every argument here must be named, and
-  `quiet` must be `TRUE` or `FALSE`.
+  `runtime` are refused too. Every argument here must be named with its
+  full name (`run_p` for `run_pandoc` is refused), and `quiet` must be
+  `TRUE` or `FALSE`.
 
 ## Value
 

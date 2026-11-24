@@ -146,9 +146,11 @@ stored on <code>object</code>), and all <code>values</code> must be positive.</p
 <dd><p>A non-empty numeric vector, all finite. One run per element.
 For <code>parameter = "time_effect_optimization_value"</code> it can also be a
 character vector of period labels, a factor, a Date vector, or a date-time
-(<code>POSIXct</code>) vector, with no <code>NA</code>. A factor or a date-time is matched by its
-label, as in <code><a href="lago_optimization.html">lago_optimization()</a></code>, and the <code>value</code> column then holds the
-labels.</p></dd>
+(<code>POSIXct</code>) vector. It can hold <code>NA</code> only when the <code>period</code> column is a
+factor with an explicit <code>NA</code> level, made with <code><a href="https://rdrr.io/r/base/factor.html" class="external-link">addNA()</a></code>, and <code>NA</code> then selects
+that level. A factor or a date-time is matched by its label, as in
+<code><a href="lago_optimization.html">lago_optimization()</a></code>, and the <code>value</code> column then holds the labels. A
+date-time is labeled in the time zone of a date-time <code>period</code> column.</p></dd>
 
 
 <dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
@@ -242,11 +244,11 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">LAGO sensitivity analysis</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">outcome_goal</span> across 3 runs; 0 failed.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   value gear      qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10  6.522269     83.13361         30.00000     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10  9.239845     99.43907         34.99999     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.957433    115.74460         40.00000     ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   value gear     qsec rec_int_cost est_outcome_goal status</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    30   10 6.522266     83.13359         29.99999     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2    35   10 9.239851     99.43911               35     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3    40   10 11.95743     115.7446         39.99999     ok</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 40.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sens</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="lago_sensitivity-1.png" alt="" width="700" height="433"></span>
@@ -283,10 +285,10 @@ row of <code>NA</code> outputs with a non-<code>"ok"</code> status instead of st
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Varied <span style="color: #00BB00;">cost_multiplier</span> across 3 runs; 0 failed.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   value gear     qsec rec_int_cost est_outcome_goal status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   0.8   10 6.522267     66.50688               30     ok</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2   1.0   10 6.522269     83.13361               30     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   0.8   10 6.522268     66.50689               30     ok</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2     1   10 6.522266     83.13359         29.99999     ok</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3   1.2   10 6.522269     99.76034               30     ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> cost_multiplier = 1.2.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>

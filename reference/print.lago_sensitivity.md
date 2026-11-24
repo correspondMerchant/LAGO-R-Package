@@ -4,8 +4,9 @@ Prints a short header naming the varied parameter, the number of runs
 and how many failed, then the sensitivity `data.frame`, then a one-line
 summary of how `rec_int_cost` ranges over the sweep, from the smallest
 to the largest value, or from the first to the last value of a sweep of
-period labels or dates. The summary rounds the numbers to 7 significant
-digits, as the table does, and writes them without e notation.
+period labels or dates. The table and the summary round the numbers to 7
+significant digits and write them out without e notation, except a
+number below 1e-6 or of 1e21 or more in size.
 
 ## Usage
 
@@ -48,11 +49,11 @@ print(sens)
 #> ── LAGO sensitivity analysis ──
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
-#>   value gear      qsec rec_int_cost est_outcome_goal status
-#> 1    30   10  6.522269     83.13361         30.00000     ok
-#> 2    35   10  9.239845     99.43907         34.99999     ok
-#> 3    40   10 11.957433    115.74460         40.00000     ok
-#> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =
+#>   value gear     qsec rec_int_cost est_outcome_goal status
+#> 1    30   10 6.522266     83.13359         29.99999     ok
+#> 2    35   10 9.239851     99.43911               35     ok
+#> 3    40   10 11.95743     115.7446         39.99999     ok
+#> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =
 #> 40.
 # }
 ```

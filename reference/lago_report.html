@@ -117,7 +117,9 @@ report is always an HTML file.</p></dd>
 <dt id="arg-title">title<a class="anchor" aria-label="anchor" href="#arg-title"></a></dt>
 <dd><p>A character string. The report title. Every character shows
 as typed, so markdown, HTML and math are not interpreted. An empty or
-missing title (<code>""</code>, <code>NA</code> or <code>NULL</code>) uses the default title.
+missing title (<code>""</code>, <code>NA</code> or <code>NULL</code>) uses the default title. The title
+must be UTF-8 text, or text marked as latin1 with <code><a href="https://rdrr.io/r/base/Encoding.html" class="external-link">Encoding()</a></code>, which is
+converted to UTF-8.
 Default value without user specification: "LAGO optimization report".</p></dd>
 
 
@@ -133,8 +135,9 @@ folder and the parameters are set by <code>lago_report()</code>, so <code>input<
 <code>output_dir</code> and <code>params</code> are refused. Use <code>output_file</code> and <code>title</code>
 instead. The report is always one self-contained HTML file, so
 <code>output_format</code>, <code>output_options</code>, <code>output_yaml</code>, <code>run_pandoc</code> and
-<code>runtime</code> are refused too. Every argument here must be named, and <code>quiet</code>
-must be <code>TRUE</code> or <code>FALSE</code>.</p></dd>
+<code>runtime</code> are refused too. Every argument here must be named with its full
+name (<code>run_p</code> for <code>run_pandoc</code> is refused), and <code>quiet</code> must be <code>TRUE</code> or
+<code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

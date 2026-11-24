@@ -87,10 +87,13 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
   A non-empty numeric vector, all finite. One run per element. For
   `parameter = "time_effect_optimization_value"` it can also be a
   character vector of period labels, a factor, a Date vector, or a
-  date-time (`POSIXct`) vector, with no `NA`. A factor or a date-time is
-  matched by its label, as in
+  date-time (`POSIXct`) vector. It can hold `NA` only when the `period`
+  column is a factor with an explicit `NA` level, made with
+  [`addNA()`](https://rdrr.io/r/base/factor.html), and `NA` then selects
+  that level. A factor or a date-time is matched by its label, as in
   [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
-  and the `value` column then holds the labels.
+  and the `value` column then holds the labels. A date-time is labeled
+  in the time zone of a date-time `period` column.
 
 - quiet:
 
@@ -193,11 +196,11 @@ sens
 #> ── LAGO sensitivity analysis ──
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
-#>   value gear      qsec rec_int_cost est_outcome_goal status
-#> 1    30   10  6.522269     83.13361         30.00000     ok
-#> 2    35   10  9.239845     99.43907         34.99999     ok
-#> 3    40   10 11.957433    115.74460         40.00000     ok
-#> rec_int_cost is 83.13361 at outcome_goal = 30 and 115.7446 at outcome_goal =
+#>   value gear     qsec rec_int_cost est_outcome_goal status
+#> 1    30   10 6.522266     83.13359         29.99999     ok
+#> 2    35   10 9.239851     99.43911               35     ok
+#> 3    40   10 11.95743     115.7446         39.99999     ok
+#> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =
 #> 40.
 plot(sens)
 
@@ -234,10 +237,10 @@ cost_sens
 #> 
 #> Varied cost_multiplier across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1   0.8   10 6.522267     66.50688               30     ok
-#> 2   1.0   10 6.522269     83.13361               30     ok
+#> 1   0.8   10 6.522268     66.50689               30     ok
+#> 2     1   10 6.522266     83.13359         29.99999     ok
 #> 3   1.2   10 6.522269     99.76034               30     ok
-#> rec_int_cost is 66.50688 at cost_multiplier = 0.8 and 99.76034 at
+#> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at
 #> cost_multiplier = 1.2.
 # }
 ```
