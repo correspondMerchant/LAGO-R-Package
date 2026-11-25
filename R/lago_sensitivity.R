@@ -579,6 +579,13 @@ print.lago_sensitivity <- function(x, ...) {
     out[is.na(out)] <- "NA"
     out
   })
+  # the cost is rounded as print.lago() rounds it, so a large fixed cost does
+  # not hide the part that changes
+  if (is.numeric(x$rec_int_cost)) {
+    cost_txt <- .lago_num_text(.lago_fmt_cost(x$rec_int_cost))
+    cost_txt[is.na(cost_txt)] <- "NA"
+    tab$rec_int_cost <- cost_txt
+  }
   # a run that reached its goal shows its estimated outcome rounded as
   # print.lago() shows it, so a goal of 0.75 met by 0.7499995 shows as 0.75
   shrunk <- .lago_sens_shrunk(x)
@@ -612,9 +619,8 @@ print.lago_sensitivity <- function(x, ...) {
     # does.
     numeric_value <- is.numeric(x$value)
     ord <- if (numeric_value) order(x$value[ok]) else seq_len(sum(ok))
-    # 7 significant digits, as in the table above, written out without e
-    # notation
-    cost <- .lago_num_text(signif(x$rec_int_cost[ok][ord], 7))
+    # rounded as in the table above, written out without e notation
+    cost <- .lago_num_text(.lago_fmt_cost(x$rec_int_cost[ok][ord]))
     vals <- value_text(x$value[ok][ord])
     # pre-format so there are no glue braces in the interpolated string.
     msg <- sprintf("rec_int_cost is %s at %s = %s", cost[1], param, vals[1])

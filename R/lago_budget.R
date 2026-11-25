@@ -671,13 +671,9 @@ print.lago_budget <- function(x, ...) {
     "(none)"
   }
   # rounded as print.lago() rounds them
-  cost_txt <- .lago_fmt_cost(x$rec_int_cost)
-  # a cost just under the budget can round up past it, so it is then rounded
-  # down to the same digits, which keeps the printed cost within the budget
-  if (is.finite(x$rec_int_cost) && x$rec_int_cost > 0 && cost_txt > x$budget) {
-    k <- 4 - floor(log10(x$rec_int_cost))
-    cost_txt <- floor(x$rec_int_cost * 10^k) / 10^k
-  }
+  # a cost just under the budget can round up past it, so it is then shown
+  # one unit of its last digit lower, which keeps it within the budget
+  cost_txt <- .lago_fmt_cost_within(x$rec_int_cost, x$budget)
   # written in full, as print.lago() writes numbers
   cost_txt <- .lago_num_text(cost_txt)
   # rounded as print.lago() rounds the estimated outcome

@@ -118,3 +118,18 @@ test_that("bounds a few round off units apart get the linear cost", {
   )
   expect_equal(k[[1]], c(0, 3, 0, 0, 0))
 })
+
+test_that("a sweep shows costs with a large fixed term as print() does", {
+  r <- suppressWarnings(lago_optimization(
+    data = mtcars, outcome_name = "mpg", outcome_type = "continuous",
+    glm_family = "gaussian", link = "identity", intervention_components = c("gear", "qsec"),
+    intervention_lower_bounds = c(3, 14), intervention_upper_bounds = c(5, 23),
+    cost_list_of_vectors = list(c(1e7, 4), c(0, 6)), outcome_goal = 25,
+    include_confidence_set = FALSE, quiet = TRUE
+  ))
+  s <- suppressWarnings(lago_sensitivity(r, parameter = "outcome_goal", values = c(24, 25)))
+  out <- paste(capture.output(print(s)), collapse = "\n")
+  expect_match(out, .lago_num_text(.lago_fmt_cost(s$rec_int_cost[1])), fixed = TRUE)
+  expect_match(out, .lago_num_text(.lago_fmt_cost(s$rec_int_cost[2])), fixed = TRUE)
+  expect_false(identical(.lago_fmt_cost(s$rec_int_cost[1]), .lago_fmt_cost(s$rec_int_cost[2])))
+})
