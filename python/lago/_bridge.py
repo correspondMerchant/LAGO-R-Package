@@ -242,12 +242,11 @@ def _r_labels(values):
     """The labels as text, written the way R writes the levels of a column.
 
     A label names a center or a period, as a name of a Series or a dict, or
-    as a category. R makes the levels of a column with ``as.character()``,
-    which writes a whole number column as 1 and 2 and a float column with up
-    to 15 significant digits, so 1.0 is "1" and 100000.0 is "1e+05". A float
-    label is written by R's ``as.character()`` here too, and an int label as
-    Python writes it, as R does for a whole number column. A date or a time
-    is written by :func:`_date_text`, and anything else by ``str()``.
+    as a category. The package labels a numeric center with up to 15
+    significant digits and no e notation, so 1.0 is "1" and 100000.0 is
+    "100000". A float label is written by R the same way here, and an int
+    label as Python writes it, as R does for a whole number column. A date or
+    a time is written by :func:`_date_text`, and anything else by ``str()``.
     """
     plain = [_plain(v) for v in values]
     # a whole number too large for R's integers is a double in R
@@ -256,7 +255,10 @@ def _r_labels(values):
     if floats:
         from rpy2.robjects.vectors import FloatVector
 
-        as_text = iter(_ensure()["ro"].baseenv["as.character"](FloatVector(floats)))
+        label = _ensure()["ro"].r(
+            "function(x) vapply(x, format, '', scientific = FALSE, trim = TRUE, digits = 15)"
+        )
+        as_text = iter(label(FloatVector(floats)))
     return [next(as_text) if isinstance(v, float) else str(v) for v in plain]
 
 

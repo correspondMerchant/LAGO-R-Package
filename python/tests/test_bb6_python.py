@@ -126,7 +126,7 @@ def test_unsigned_columns_reach_r_as_numbers(ro, trial):
 # --------------------------------------------------------------------------
 def test_numeric_names_are_written_as_r_writes_levels(ro, trial):
     assert _in_r(ro, pd.Series([0.5, 0.5], index=[1.0, 2.5])) == "c(`1` = 0.5, `2.5` = 0.5)"
-    assert _in_r(ro, {100000.0: 0.5, 2: 0.5}) == "c(`1e+05` = 0.5, `2` = 0.5)"
+    assert _in_r(ro, {100000.0: 0.5, 2: 0.5}) == "c(`100000` = 0.5, `2` = 0.5)"
     # a whole number too large for R's integers is a double, as its column is
     assert _in_r(ro, {3_000_000_000: 1.0}) == "c(`3e+09` = 1)"
     assert _in_r(ro, {np.int64(7): 1.0}) == "c(`7` = 1)"
