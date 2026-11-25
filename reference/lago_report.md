@@ -11,10 +11,10 @@ methods
 [`summary.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.md)),
 but the report orders them differently and adds plots. It shows the
 inputs recap, the recommended intervention, its cost, the estimated
-outcome (with its confidence interval, 95\\ present), the confidence set
-(size, cost IQR, and first rows, or the reason there is no set), the
-overall intervention-effect test (when present), and the fitted
-outcome-model coefficient table. A
+outcome (with its confidence interval, 95% by default) and goal, the
+power goal (when present), the confidence set (size, cost IQR, and first
+rows, or the reason there is no set), the overall intervention-effect
+test (when present), and the fitted outcome-model coefficient table. A
 [`sessionInfo()`](https://rdrr.io/r/utils/sessionInfo.html) footer
 records the environment the report was produced in.
 
@@ -52,9 +52,10 @@ lago_report(
 - title:
 
   A character string. The report title. Every character shows as typed,
-  so markdown, HTML and math are not interpreted. An empty or missing
-  title (`""`, `NA` or `NULL`) uses the default title. The title must be
-  UTF-8 text, or text marked as latin1 with
+  so markdown, HTML and math are not interpreted. A line break becomes
+  one space, and spaces at the start and end are dropped. An empty or
+  missing title (`""`, `NA` or `NULL`) uses the default title. The title
+  must be UTF-8 text, or text marked as latin1 with
   [`Encoding()`](https://rdrr.io/r/base/Encoding.html), which is
   converted to UTF-8. Default value without user specification: "LAGO
   optimization report".

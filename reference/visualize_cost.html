@@ -165,7 +165,13 @@ copied from within the app.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>When the app is closed with the "Return list to R &amp; close" button,
+    <p>The unit costs and the bounds are matched to the components as in
+<code><a href="lago_optimization.html">lago_optimization()</a></code>. An unnamed vector is matched by position. A
+named one is matched by name when a name is one of the components, or when
+it has two or more values that all have names. Its names must then be the
+component names, each once. Other names are ignored and the values are
+matched by position.</p>
+<p>When the app is closed with the "Return list to R &amp; close" button,
 the coefficient list is also stored in the <code>lago_cost_list</code> option
 (overwriting any existing value) and a message reports this, so the list is
 available even when the app was launched with a bare

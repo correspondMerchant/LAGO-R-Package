@@ -76,9 +76,10 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
   2.  The special string `"cost_multiplier"`: each run multiplies every
       coefficient of every vector in the baseline `cost_list_of_vectors`
       by one element of `values`, so `values = c(0.8, 1, 1.2)` evaluates
-      the costs at 80\\ `cost_list_of_vectors`, each run multiplies
-      `unit_costs` by the value, which scales the linear or cubic cost
-      built from them in the same way. This mode requires
+      the costs at 80%, 100%, and 120%. When the baseline gives
+      `unit_costs` instead of `cost_list_of_vectors`, each run
+      multiplies `unit_costs` by the value, which scales the linear or
+      cubic cost built from them in the same way. This mode requires
       `cost_list_of_vectors` or `unit_costs` (in `...` or stored on
       `object`), and all `values` must be positive.
 
@@ -87,10 +88,11 @@ lago_sensitivity(object = NULL, ..., parameter, values, quiet = TRUE)
   A non-empty numeric vector, all finite. One run per element. For
   `parameter = "time_effect_optimization_value"` it can also be a
   character vector of period labels, a factor, a Date vector, or a
-  date-time (`POSIXct`) vector. It can hold `NA` only when the `period`
-  column is a factor with an explicit `NA` level, made with
-  [`addNA()`](https://rdrr.io/r/base/factor.html), and `NA` then selects
-  that level. A factor or a date-time is matched by its label, as in
+  date-time (`POSIXct`) vector. It can hold `NA`, or be a lone `NA`,
+  only when the `period` column is a factor with an explicit `NA` level,
+  made with [`addNA()`](https://rdrr.io/r/base/factor.html), and `NA`
+  then selects that level. The other values must then be finite. A
+  factor or a date-time is matched by its label, as in
   [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md),
   and the `value` column then holds the labels. A date-time is labeled
   in the time zone of a date-time `period` column.
@@ -134,9 +136,11 @@ The object carries attributes `parameter` (the swept string),
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 result at the baseline value, i.e. multiplier 1 for `"cost_multiplier"`
 or the value supplied in `...` for a named parameter, or `NULL` if not
-present), `effective_outcome_goal` (one value per run: the outcome goal
-the run targeted, which a power goal can raise above the outcome goal,
-or `NA` for a failed run and for a run without a power goal),
+present; for a numeric value, the closest run within a tolerance of
+about 1.5e-8 times the baseline, and only an exact match for a baseline
+of 0), `effective_outcome_goal` (one value per run: the outcome goal the
+run targeted, which a power goal can raise above the outcome goal, or
+`NA` for a failed run and for a run without a power goal),
 `shrinking_method_used` (one value per run: `TRUE` when the goal was out
 of reach and the shrinking method gave the recommendation, `FALSE` when
 it was not used, or `NA` for a failed run), and, when any run failed,
@@ -197,11 +201,10 @@ sens
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1    30   10 6.522266     83.13359         29.99999     ok
-#> 2    35   10 9.239851     99.43911               35     ok
-#> 3    40   10 11.95743     115.7446         39.99999     ok
-#> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =
-#> 40.
+#> 1    30   10 6.522269       83.134               30     ok
+#> 2    35   10 9.239845       99.439               35     ok
+#> 3    40   10 11.95743       115.74               40     ok
+#> rec_int_cost is 83.134 at outcome_goal = 30 and 115.74 at outcome_goal = 40.
 plot(sens)
 
 
@@ -237,10 +240,10 @@ cost_sens
 #> 
 #> Varied cost_multiplier across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1   0.8   10 6.522268     66.50689               30     ok
-#> 2     1   10 6.522266     83.13359         29.99999     ok
-#> 3   1.2   10 6.522269     99.76034               30     ok
-#> rec_int_cost is 66.50689 at cost_multiplier = 0.8 and 99.76034 at
-#> cost_multiplier = 1.2.
+#> 1   0.8   10 6.522267       66.507               30     ok
+#> 2     1   10 6.522269       83.134               30     ok
+#> 3   1.2   10 6.522269        99.76               30     ok
+#> rec_int_cost is 66.507 at cost_multiplier = 0.8 and 99.76 at cost_multiplier =
+#> 1.2.
 # }
 ```

@@ -6,7 +6,13 @@ summary of how `rec_int_cost` ranges over the sweep, from the smallest
 to the largest value, or from the first to the last value of a sweep of
 period labels or dates. The table and the summary round the numbers to 7
 significant digits and write them out without e notation, except a
-number below 1e-6 or of 1e21 or more in size.
+number below 1e-6 or of 1e21 or more in size. The estimated outcome of a
+run that reached its goal is rounded as
+[`print.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago.md)
+rounds it, so a goal of 0.75 met by an estimate of 0.7499995 shows as
+0.75. When the goal of some runs could not be reached, so the shrinking
+method gave their recommendation, a line after the table lists their
+values.
 
 ## Usage
 
@@ -50,10 +56,9 @@ print(sens)
 #> 
 #> Varied outcome_goal across 3 runs; 0 failed.
 #>   value gear     qsec rec_int_cost est_outcome_goal status
-#> 1    30   10 6.522266     83.13359         29.99999     ok
-#> 2    35   10 9.239851     99.43911               35     ok
-#> 3    40   10 11.95743     115.7446         39.99999     ok
-#> rec_int_cost is 83.13359 at outcome_goal = 30 and 115.7446 at outcome_goal =
-#> 40.
+#> 1    30   10 6.522269       83.134               30     ok
+#> 2    35   10 9.239845       99.439               35     ok
+#> 3    40   10 11.95743       115.74               40     ok
+#> rec_int_cost is 83.134 at outcome_goal = 30 and 115.74 at outcome_goal = 40.
 # }
 ```

@@ -5,11 +5,13 @@ Full console display of the object returned by
 rendered with boxed, colour-accented
 [cli](https://cli.r-lib.org/reference/cli.html) sections: an inputs
 recap (data dimensions, outcome, intervention components, model
-family/link and fixed effects, goals, costs and bounds), the fitted
+family/link and fixed effects, goals, the power goal approach, next
+stage size and icc of a power goal, costs and bounds), the fitted
 outcome-model coefficient table, the overall intervention-effect test,
 the recommended intervention with its cost and the estimated outcome
-(and its confidence interval, 95\\ IQR, and first rows). Everything is
-shown on the console so results can be read without further calls.
+(and its confidence interval, 95% by default), and the confidence set
+(size, cost IQR, and first rows). Everything is shown on the console so
+results can be read without further calls.
 [`summary.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/summary.lago.md)
 renders the same output.
 
@@ -97,7 +99,7 @@ print(result)
 #> ── Recommended intervention 
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23928
+#> Cost: 23927.77
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85

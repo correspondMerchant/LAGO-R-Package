@@ -5,7 +5,7 @@ Markdown template. Its text sections use the same labels and the same
 formatted lines as the console methods (print.lago() / summary.lago()),
 but the report orders them differently and adds plots. It shows the inputs
 recap, the recommended intervention, its cost, the estimated outcome (with
-its confidence interval, 95\
+its confidence interval, 95% by default) and goal, the power goal (when
 present), the confidence set (size, cost IQR, and first rows, or the reason
 there is no set), the overall intervention-effect test (when present), and
 the fitted outcome-model coefficient table. A sessionInfo() footer records
@@ -17,7 +17,7 @@ Markdown template. Its text sections use the same labels and the same
 formatted lines as the console methods (print.lago() / summary.lago()),
 but the report orders them differently and adds plots. It shows the inputs
 recap, the recommended intervention, its cost, the estimated outcome (with
-its confidence interval, 95\
+its confidence interval, 95% by default) and goal, the power goal (when
 present), the confidence set (size, cost IQR, and first rows, or the reason
 there is no set), the overall intervention-effect test (when present), and
 the fitted outcome-model coefficient table. A sessionInfo() footer records
@@ -78,7 +78,7 @@ Markdown template. Its text sections use the same labels and the same
 formatted lines as the console methods (<code><a href="print.lago.html">print.lago()</a></code> / <code><a href="summary.lago.html">summary.lago()</a></code>),
 but the report orders them differently and adds plots. It shows the inputs
 recap, the recommended intervention, its cost, the estimated outcome (with
-its confidence interval, 95\<!-- % by default) and goal, the power goal (when -->
+its confidence interval, 95% by default) and goal, the power goal (when
 present), the confidence set (size, cost IQR, and first rows, or the reason
 there is no set), the overall intervention-effect test (when present), and
 the fitted outcome-model coefficient table. A <code><a href="https://rdrr.io/r/utils/sessionInfo.html" class="external-link">sessionInfo()</a></code> footer records
@@ -116,7 +116,8 @@ report is always an HTML file.</p></dd>
 
 <dt id="arg-title">title<a class="anchor" aria-label="anchor" href="#arg-title"></a></dt>
 <dd><p>A character string. The report title. Every character shows
-as typed, so markdown, HTML and math are not interpreted. An empty or
+as typed, so markdown, HTML and math are not interpreted. A line break
+becomes one space, and spaces at the start and end are dropped. An empty or
 missing title (<code>""</code>, <code>NA</code> or <code>NULL</code>) uses the default title. The title
 must be UTF-8 text, or text marked as latin1 with <code><a href="https://rdrr.io/r/base/Encoding.html" class="external-link">Encoding()</a></code>, which is
 converted to UTF-8.

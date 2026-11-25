@@ -164,7 +164,9 @@ of the dataset with that name, and that column must hold the product of its
 components, for example
 <code>data[["component1:component2"]] &lt;- data$component1 * data$component2</code>.
 A column that is not that product is refused. A column saved with 4
-significant digits still counts as that product.
+significant digits still counts as that product. So does a column saved
+with 3 decimals, on the rows where the product, or the median product of
+the column, is 0.5 or more.
 A component cannot be named "cost", "CI_lower_bound" or "CI_upper_bound",
 the names of the other columns of the confidence set.</p></dd>
 
@@ -478,7 +480,9 @@ effect, and at least two centers need a row the outcome model can use.
 Note, include_center_effects and center_characteristics cannot be used
 together at the same time.
 Default value without user specification (NULL): FALSE for individual level
-data, TRUE for center level data.</p></dd>
+data, TRUE for center level data. For center level data with
+center_characteristics the default is FALSE, so the characteristics are
+used.</p></dd>
 
 
 <dt id="arg-center-effects-optimization-values">center_effects_optimization_values<a class="anchor" aria-label="anchor" href="#arg-center-effects-optimization-values"></a></dt>
@@ -532,9 +536,19 @@ Supplementary material of Nevo et al. (2021) for details).</p></dd>
 <dt id="arg-shrinkage-threshold">shrinkage_threshold<a class="anchor" aria-label="anchor" href="#arg-shrinkage-threshold"></a></dt>
 <dd><p>A numeric value between 0 and 1. Not used, and
 kept so that existing calls still run. When the outcome goal is not
-estimated to be reachable within the bounds, the shrinkage method from
-Section 5.1 of the Supplementary Materials of Nevo et al. (2021) is always
-applied, whatever this value is.
+estimated to be reachable within the bounds, the shrinking method is always
+applied, whatever this value is. Without interaction terms it is the method
+of Section 5.1 of the Supplementary Materials of Nevo et al. (2021). That
+method solves for the coefficient each component would need at its upper
+bound, so its recommendation depends on where the component's 0 is: a
+component recorded with an offset, such as a dose with a floor, gets a
+different shrunk recommendation than the same component measured from 0.
+With
+interaction terms, where that method reads one component at a time, the
+package moves from the stage 1 intervention towards the best reachable
+point instead, and recommends the first point on that line that reaches an
+outcome between the stage 1 outcome and the best one. The closer the goal
+is to the best outcome, the closer that outcome is to the best one.
 Default value without user specification: 0.25.</p></dd>
 
 
@@ -731,7 +745,7 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 2.7785</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 23928</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 23927.77</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.85</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: 0.802 - 0.898</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome goal: 0.85</span>
@@ -816,7 +830,8 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-out co"><span class="r-pr">#&gt;</span> coaching_updt     0.03442   0.002362</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> launch_duration   0.16568   0.026895</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> birth_volume_100 -0.20238   0.003643</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Standard errors are robust (sandwich, HC0), as the confidence set uses them.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Standard errors are robust (a Gauss-Newton sandwich, HC0, as for a least</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> squares fit of the logit curve), as the confidence set uses them.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Overall intervention-effect test</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> The overall test is only available for binary outcomes. This outcome is</span>
@@ -825,7 +840,7 @@ to <code><a href="lago_sensitivity.html">lago_sensitivity()</a></code> to sweep 
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="color: #0087D7;">Recommended intervention</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> coaching_updt: 38.9881</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> launch_duration: 4.7929</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 104620</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Cost: 104623.25</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Estimated outcome: 0.838</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> 95% CI for the estimated outcome: not available (the goal could not be reached,</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> so the shrinking method was used and no confidence set is computed)</span>

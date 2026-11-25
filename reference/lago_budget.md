@@ -61,12 +61,14 @@ lago_budget(object = NULL, ..., budget, n_grid = 25L, quiet = TRUE)
   answer at the cost of more optimization runs. A second refinement pass
   tries `n_grid` more goals strictly inside the gap at the affordability
   boundary, and that gap is then halved one run at a time until it is
-  narrower than 1/10000 of the goal range and the cost at the boundary
-  is known to within 1/10000 of the budget, so the answer does not
-  depend much on `n_grid`. Near the best reachable outcome, where the
-  cost is not known until the goal gets very close to that outcome, the
-  halving goes on until the gap is narrower than 1e-9 of the goal range.
-  Default 25.
+  narrower than 1/10000 of the range of the reached estimated outcomes
+  and the cost at the boundary is known to within 1/10000 of the spread
+  of the reached costs, so the answer does not depend much on `n_grid`.
+  These tolerances are never looser than 1/10000 of the goal range and
+  of the budget. Near the best reachable outcome, where the cost is not
+  known until the goal gets very close to that outcome, the halving goes
+  on until the gap is narrower than 1e-9 of that range of reached
+  outcomes. Default 25.
 
 - quiet:
 
@@ -132,6 +134,12 @@ An object of class `"lago_budget"`, a list with:
   The error of the first failed run when every run of a sweep failed,
   otherwise `NULL`.
 
+The object carries the attribute `power_goal_used`, `TRUE` when the
+search had a power goal. Every run then has to reach the outcome the
+power goal implies, so the cheapest intervention named when no
+recommendation fits the budget is the cheapest one that reaches that
+outcome.
+
 ## Details
 
 The candidate outcome goals span the outcome's range: `(0, 1)` for a
@@ -162,9 +170,9 @@ the budget does not bind (`binding = FALSE`) and the maximum reachable
 outcome is returned. If
 [`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md)
 fails for every goal of a sweep, for example because the outcome model
-cannot be fitted, the result has `feasible = FALSE`, the warning and the
-printed result give the error of the first failed run, and `run_error`
-holds it.
+cannot be fitted or the outcome has no finite value, the result has
+`feasible = FALSE`, the warning and the printed result give the error of
+the first failed run, and `run_error` holds it.
 
 ## See also
 

@@ -70,6 +70,13 @@ copied from within the app.
 
 ## Details
 
+The unit costs and the bounds are matched to the components as in
+[`lago_optimization()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/lago_optimization.md).
+An unnamed vector is matched by position. A named one is matched by name
+when a name is one of the components, or when it has two or more values
+that all have names. Its names must then be the component names, each
+once. Other names are ignored and the values are matched by position.
+
 When the app is closed with the "Return list to R & close" button, the
 coefficient list is also stored in the `lago_cost_list` option
 (overwriting any existing value) and a message reports this, so the list

@@ -3,7 +3,11 @@
 Prints a short header with the budget and whether it binds, then the
 recommended intervention, its cost and estimated outcome. When no
 intervention fits the budget, it prints a note that gives the cost of
-the cheapest reachable intervention instead.
+the cheapest reachable intervention instead, or with a power goal the
+cost of the cheapest intervention that reaches the outcome the power
+goal implies. The estimated outcome is rounded as
+[`print.lago()`](https://correspondmerchant.github.io/LAGO-R-Package/reference/print.lago.md)
+rounds it.
 
 ## Usage
 

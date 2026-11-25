@@ -120,7 +120,7 @@ result
 #> ── Recommended intervention
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23928
+#> Cost: 23927.77
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
@@ -186,7 +186,7 @@ summary(result)
 #> ── Recommended intervention
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23928
+#> Cost: 23927.77
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
@@ -311,7 +311,7 @@ sens
 #> 
 #> Varied outcome_goal across 4 runs; 0 failed.
 #>   value coaching_updt launch_duration rec_int_cost est_outcome_goal status
-#> 1  0.75             1        2.157674     18961.39        0.7499999     ok
+#> 1  0.75             1        2.157674     18961.39             0.75     ok
 #> 2   0.8             1        2.438484     21207.88              0.8     ok
 #> 3  0.85             1        2.778472     23927.77             0.85     ok
 #> 4   0.9             1        3.230045     27540.36              0.9     ok

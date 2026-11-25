@@ -94,9 +94,11 @@ lago_optimization(
   hold the product of its components, for example
   `data[["component1:component2"]] <- data$component1 * data$component2`.
   A column that is not that product is refused. A column saved with 4
-  significant digits still counts as that product. A component cannot be
-  named "cost", "CI_lower_bound" or "CI_upper_bound", the names of the
-  other columns of the confidence set.
+  significant digits still counts as that product. So does a column
+  saved with 3 decimals, on the rows where the product, or the median
+  product of the column, is 0.5 or more. A component cannot be named
+  "cost", "CI_lower_bound" or "CI_upper_bound", the names of the other
+  columns of the confidence set.
 
 - intervention_lower_bounds:
 
@@ -414,6 +416,8 @@ lago_optimization(
   include_center_effects and center_characteristics cannot be used
   together at the same time. Default value without user specification
   (NULL): FALSE for individual level data, TRUE for center level data.
+  For center level data with center_characteristics the default is
+  FALSE, so the characteristics are used.
 
 - center_effects_optimization_values:
 
@@ -466,10 +470,20 @@ lago_optimization(
 
   A numeric value between 0 and 1. Not used, and kept so that existing
   calls still run. When the outcome goal is not estimated to be
-  reachable within the bounds, the shrinkage method from Section 5.1 of
-  the Supplementary Materials of Nevo et al. (2021) is always applied,
-  whatever this value is. Default value without user specification:
-  0.25.
+  reachable within the bounds, the shrinking method is always applied,
+  whatever this value is. Without interaction terms it is the method of
+  Section 5.1 of the Supplementary Materials of Nevo et al. (2021). That
+  method solves for the coefficient each component would need at its
+  upper bound, so its recommendation depends on where the component's 0
+  is: a component recorded with an offset, such as a dose with a floor,
+  gets a different shrunk recommendation than the same component
+  measured from 0. With interaction terms, where that method reads one
+  component at a time, the package moves from the stage 1 intervention
+  towards the best reachable point instead, and recommends the first
+  point on that line that reaches an outcome between the stage 1 outcome
+  and the best one. The closer the goal is to the best outcome, the
+  closer that outcome is to the best one. Default value without user
+  specification: 0.25.
 
 - quiet:
 
@@ -665,7 +679,7 @@ lago_optimization(
 #> ── Recommended intervention 
 #> coaching_updt: 1
 #> launch_duration: 2.7785
-#> Cost: 23928
+#> Cost: 23927.77
 #> Estimated outcome: 0.85
 #> 95% CI for the estimated outcome: 0.802 - 0.898
 #> Outcome goal: 0.85
@@ -750,7 +764,8 @@ lago_optimization(
 #> coaching_updt     0.03442   0.002362
 #> launch_duration   0.16568   0.026895
 #> birth_volume_100 -0.20238   0.003643
-#> Standard errors are robust (sandwich, HC0), as the confidence set uses them.
+#> Standard errors are robust (a Gauss-Newton sandwich, HC0, as for a least
+#> squares fit of the logit curve), as the confidence set uses them.
 #> 
 #> ── Overall intervention-effect test 
 #> The overall test is only available for binary outcomes. This outcome is
@@ -759,7 +774,7 @@ lago_optimization(
 #> ── Recommended intervention 
 #> coaching_updt: 38.9881
 #> launch_duration: 4.7929
-#> Cost: 104620
+#> Cost: 104623.25
 #> Estimated outcome: 0.838
 #> 95% CI for the estimated outcome: not available (the goal could not be reached,
 #> so the shrinking method was used and no confidence set is computed)

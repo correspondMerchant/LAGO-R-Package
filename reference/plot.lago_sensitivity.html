@@ -5,7 +5,9 @@ value as a line with points: for an &quot;outcome_goal&quot; sweep this is the
 cost-of-stringency curve, and for a &quot;cost_multiplier&quot; sweep it is a
 straight line. With show = &quot;components&quot; it instead plots the recommended
 value of each intervention component against the swept value, one coloured
-line per component. Rows with NA outputs are dropped with a message. A
+line per component. Rows with NA outputs are dropped with a message. The
+runs whose goal could not be reached, so the shrinking method gave their
+recommendation, are drawn as triangles, and a caption says so. A
 sweep of period labels or dates is drawn on a discrete axis, in the order of
 values."><meta property="og:description" content="Draws the sensitivity curve with ggplot2.
 By default (show = &quot;cost&quot;) it plots the recommended cost against the swept
@@ -13,7 +15,9 @@ value as a line with points: for an &quot;outcome_goal&quot; sweep this is the
 cost-of-stringency curve, and for a &quot;cost_multiplier&quot; sweep it is a
 straight line. With show = &quot;components&quot; it instead plots the recommended
 value of each intervention component against the swept value, one coloured
-line per component. Rows with NA outputs are dropped with a message. A
+line per component. Rows with NA outputs are dropped with a message. The
+runs whose goal could not be reached, so the shrinking method gave their
+recommendation, are drawn as triangles, and a caption says so. A
 sweep of period labels or dates is drawn on a discrete axis, in the order of
 values."><meta property="og:image" content="https://correspondmerchant.github.io/LAGO-R-Package/logo.svg"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -70,7 +74,9 @@ value as a line with points: for an <code>"outcome_goal"</code> sweep this is th
 cost-of-stringency curve, and for a <code>"cost_multiplier"</code> sweep it is a
 straight line. With <code>show = "components"</code> it instead plots the recommended
 value of each intervention component against the swept value, one coloured
-line per component. Rows with <code>NA</code> outputs are dropped with a message. A
+line per component. Rows with <code>NA</code> outputs are dropped with a message. The
+runs whose goal could not be reached, so the shrinking method gave their
+recommendation, are drawn as triangles, and a caption says so. A
 sweep of period labels or dates is drawn on a discrete axis, in the order of
 <code>values</code>.</p>
     </div>
