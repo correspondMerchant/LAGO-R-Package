@@ -315,9 +315,10 @@ def test_a_text_weights_column_is_named(mtcars):
     records[1]["w"] = "x"
     out = S.optimize(**_mcp_args(records, weights_column="w", include_confidence_set=False))
     assert out["error"] == "ValueError: the weights column 'w' must hold numbers, and it holds 'x'."
+    # true and false are refused as weights since bug bash 6
     records = [dict(r, w=True) for r in mtcars.to_dict(orient="records")]
     out = S.optimize(**_mcp_args(records, weights_column="w", include_confidence_set=False))
-    assert "error" not in out, out
+    assert out["error"] == "ValueError: the weights column 'w' must hold numbers, and it holds True."
 
 
 # --------------------------------------------------------------------------

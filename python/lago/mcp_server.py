@@ -39,7 +39,8 @@ before a tool sees it, so the server cannot tell it from null. For an optional
 argument, null means the argument was not given, and the default is used. A
 null where a value is needed is an error, and its message says that a NaN or an
 Infinity would have become null, in case the client sent one. So does the
-error R gives when neither goal is given, when the call sent a goal as null.
+error R gives when neither goal is given, when the call sent a goal as null,
+and so does the message of each sensitivity run that failed for that reason.
 
 Deliberately NOT exposed
 ------------------------
@@ -160,25 +161,57 @@ _LABEL_ARGUMENTS = ("center_effects_optimization_values", "time_effect_optimizat
 
 
 def _refuse_booleans(arguments):
-    """The error message for a center or a period sent as true or false, else None."""
+    """The error message for a center, a period or a weight sent as true or false, else None."""
     for name in _LABEL_ARGUMENTS:
         if isinstance(arguments.get(name), bool):
             return (
                 f"`{name}` must be a label or a number, not {json.dumps(arguments[name])}. "
                 "Give the center or the period as it is written in its column."
             )
+    # pydantic would read true as the weight 1 and false as 0
+    weights = arguments.get("center_weights_for_outcome_goal")
+    given = weights.values() if isinstance(weights, dict) else weights if isinstance(weights, list) else []
+    flag = next((w for w in given if isinstance(w, bool)), None)
+    if flag is not None:
+        return (
+            f"`center_weights_for_outcome_goal` must hold numbers, not {json.dumps(flag)}. "
+            "Give one weight per center, such as 0.25."
+        )
     return None
+
+
+def _null_goal_text(message):
+    """The message with the NaN hint added, when it is about missing goals and a goal was sent as null."""
+    nulls = _null_goals.get()
+    if nulls and isinstance(message, str) and "'outcome_goal' and 'power_goal' are NULL" in message:
+        sent = " and ".join(f"`{g}`" for g in nulls)
+        message += (
+            f" The call sent {sent} as null. If you sent NaN or Infinity, note that JSON has no NaN "
+            "or Infinity, and the server reads them as null."
+        )
+    return message
 
 
 def _null_goal_hint(out):
     """Add the NaN hint to an error about missing goals when a goal was sent as null."""
-    nulls = _null_goals.get()
-    if nulls and "'outcome_goal' and 'power_goal' are NULL" in out.get("error", ""):
-        sent = " and ".join(f"`{g}`" for g in nulls)
-        out = dict(out, error=out["error"] + (
-            f" The call sent {sent} as null. If you sent NaN or Infinity, note that JSON has no NaN "
-            "or Infinity, and the server reads them as null."
-        ))
+    return dict(out, error=_null_goal_text(out["error"]))
+
+
+def _sweep_result(out):
+    """A sensitivity result with the NaN hint in the messages of its failed runs.
+
+    When every run failed, the sweep has no result to report, so it is an
+    error payload that gives the message of the first run and keeps the runs.
+    """
+    runs = [dict(r, error_message=_null_goal_text(r.get("error_message"))) for r in out["runs"]]
+    out = dict(out, runs=runs)
+    if runs and all(r.get("status") == "error" for r in runs):
+        return {
+            "error": "RuntimeError: every run of the sweep failed. The first run failed with: "
+            + str(runs[0].get("error_message")),
+            "warnings": out.get("warnings", []),
+            "runs": runs,
+        }
     return out
 
 
@@ -350,6 +383,8 @@ def _model_kwargs(p, df):
     An argument left at None keeps the package default. Exactly one of the cost
     list and the unit costs must be given.
     """
+    import numpy as np
+
     if (p.get("cost_list_of_vectors") is None) == (p.get("unit_costs") is None):
         raise ValueError("give exactly one of `cost_list_of_vectors` or `unit_costs`.")
     # a JSON NaN or Infinity would otherwise reach R as an unclear error
@@ -382,10 +417,12 @@ def _model_kwargs(p, df):
         column = _column(df, name, "weights")
         # a missing weight stays missing, and R leaves its row out of the fit
         missing = [v is None or (isinstance(v, float) and v != v) for v in column]
-        bad = [v for v, m in zip(column, missing) if not m and not _is_number(v)]
+        # true and false are not weights, though float() reads them as 1 and 0
+        bad = [v for v, m in zip(column, missing) if not m and (isinstance(v, (bool, np.bool_)) or not _is_number(v))]
         if bad:
             raise ValueError(f"the weights column {name!r} must hold numbers, and it holds {bad[0]!r}.")
-        extra["weights"] = [math.nan if m else float(v) for v, m in zip(column, missing)]
+        # None reaches R as NA, where NaN would stay NaN
+        extra["weights"] = [None if m else float(v) for v, m in zip(column, missing)]
     return extra
 
 
@@ -758,7 +795,9 @@ def sensitivity(
     did not fail). A failed run has null for `shrinking_method_used` and
     `effective_outcome_goal`. `warnings` lists
     the warnings of the R package, each once. On a bad input or setup error it
-    returns `{{"error": "...", "warnings": [...]}}` as an error result.
+    returns `{{"error": "...", "warnings": [...]}}` as an error result. When
+    every run failed, it returns an error result too, which also has the
+    `runs`.
     """
     p = dict(locals())
     try:
@@ -1033,6 +1072,8 @@ def _run_in_worker(fn):
             raise
         except (EOFError, OSError) as exc:
             out = _error(RuntimeError(f"the R worker stopped during the call ({exc!r}). Try the call again."))
+        if isinstance(out, dict) and isinstance(out.get("runs"), list):
+            out = _sweep_result(out)
         if isinstance(out, dict) and "error" in out:
             return _error_result(_null_goal_hint(out))
         return out
