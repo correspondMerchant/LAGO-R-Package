@@ -113,13 +113,10 @@ shrinking_method <- function(
     along <- function(t) stage_1_intervention + t * (best_point - stage_1_intervention)
     reaches <- function(t) isTRUE(outcome_at(along(t)) >= target)
     # the first of 200 steps that reaches the target, then bisection inside
-    # that step; the best point itself reaches it
+    # that step. The best point itself reaches it, and the stage 1
+    # intervention does not, since the target is above its outcome.
     ts <- seq(0, 1, length.out = 201)
-    hit <- which(vapply(ts, reaches, logical(1)))[1]
-    if (is.na(hit)) hit <- length(ts)
-    if (hit == 1) {
-      return(stage_1_intervention)
-    }
+    hit <- max(2, min(c(which(vapply(ts, reaches, logical(1))), length(ts))))
     lo_t <- ts[hit - 1]
     hi_t <- ts[hit]
     for (i in seq_len(50)) {
