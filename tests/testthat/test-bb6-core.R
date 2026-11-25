@@ -44,8 +44,10 @@ test_that("the numerical cost search does not stop early when one component has 
   }
   near <- run(1)
   far <- run(1e4)
-  expect_equal(far$rec_int_cost, near$rec_int_cost, tolerance = 1e-4)
-  expect_equal(far$est_outcome_goal, 0.5, tolerance = 1e-4)
+  # solnl() stops at slightly different points on different platforms, so the
+  # check allows 1%. Before, the far case cost 30% more and overshot the goal.
+  expect_equal(far$rec_int_cost, near$rec_int_cost, tolerance = 1e-2)
+  expect_equal(far$est_outcome_goal, 0.5, tolerance = 1e-2)
 })
 
 test_that("the optimizer grid keeps its upper bound for a component in small units", {

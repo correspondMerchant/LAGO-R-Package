@@ -1081,11 +1081,15 @@ get_recommended_interventions <- function(
         # the best point adds to it: cost(upper bound) can be far larger than
         # the cost of the answer, when one component has a wide range, and
         # solnl() then reads the cost as flat and stops at once.
-        if (is.finite(best_cost)) {
-          span <- ifelse(up > lo, up - lo, 1)
-          to_x <- function(t) lo + t * span
+        # It is repeated while it gives a cheaper point, up to three times, as
+        # solnl() can again stop a little short of the cheapest point.
+        span <- ifelse(up > lo, up - lo, 1)
+        to_x <- function(t) lo + t * span
+        base_cost <- cost_obj_fun(lo)
+        for (polish_round in 1:3) {
+          if (!is.finite(best_cost)) break
+          improved <- FALSE
           best_point <- results_int_components[, which(cost_results == best_cost)[1]]
-          base_cost <- cost_obj_fun(lo)
           local_scale <- abs(best_cost - base_cost)
           if (!is.finite(local_scale) || local_scale <= 0) local_scale <- abs(best_cost)
           if (!is.finite(local_scale) || local_scale <= 0) local_scale <- 1
@@ -1107,8 +1111,10 @@ get_recommended_interventions <- function(
               results_int_components <- cbind(results_int_components, x)
               cost_results <- c(cost_results, cost)
               best_cost <- cost
+              improved <- TRUE
             }
           }
+          if (!improved) break
         }
         if (!is.finite(best_cost)) {
           results_int_components <- cbind(results_int_components, max_point)
