@@ -25,3 +25,25 @@ test_that("shrinking with interactions never recommends a point worse than the s
     }
   }
 })
+
+test_that("the numerical cost search does not stop early when one component has a wide range", {
+  set.seed(7)
+  n <- 600
+  d <- data.frame(x1 = stats::runif(n, 0, 10), x2 = stats::runif(n, 0, 10))
+  d$y <- stats::rbinom(n, 1, stats::plogis(-2 + 0.5 * d$x1 + 0.3 * d$x2))
+  run <- function(s) {
+    dd <- d
+    dd$x2 <- d$x2 * s
+    suppressWarnings(lago_optimization(
+      data = dd, outcome_name = "y", outcome_type = "binary",
+      intervention_components = c("x1", "x2"), intervention_lower_bounds = c(0, 0),
+      intervention_upper_bounds = c(10, 10 * s), outcome_goal = 0.5,
+      cost_list_of_vectors = list(c(0, 1), c(0, 1e5 / s)),
+      include_confidence_set = FALSE, quiet = TRUE
+    ))
+  }
+  near <- run(1)
+  far <- run(1e4)
+  expect_equal(far$rec_int_cost, near$rec_int_cost, tolerance = 1e-4)
+  expect_equal(far$est_outcome_goal, 0.5, tolerance = 1e-4)
+})

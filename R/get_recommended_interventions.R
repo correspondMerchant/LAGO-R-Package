@@ -1075,15 +1075,23 @@ get_recommended_interventions <- function(
         }
         # solnl()'s tolerances are absolute in x, so a component in large units
         # can stop early. A last start from the best point, solved in each
-        # component's share of its range, is kept by the same rules.
+        # component's share of its range, is kept by the same rules. Its cost
+        # is measured from the cost at the lower bounds, in units of the cost
+        # the best point adds to it: cost(upper bound) can be far larger than
+        # the cost of the answer, when one component has a wide range, and
+        # solnl() then reads the cost as flat and stops at once.
         if (is.finite(best_cost)) {
           span <- ifelse(up > lo, up - lo, 1)
           to_x <- function(t) lo + t * span
           best_point <- results_int_components[, which(cost_results == best_cost)[1]]
+          base_cost <- cost_obj_fun(lo)
+          local_scale <- abs(best_cost - base_cost)
+          if (!is.finite(local_scale) || local_scale <= 0) local_scale <- abs(best_cost)
+          if (!is.finite(local_scale) || local_scale <= 0) local_scale <- 1
           scaled <- tryCatch(
             NlcOptim::solnl(
               X = (best_point - lo) / span,
-              objfun = function(t) cost_obj_fun_scaled(to_x(t)),
+              objfun = function(t) (cost_obj_fun(to_x(t)) - base_cost) / local_scale,
               confun = function(t) constraint_fun(to_x(t)),
               lb = rep(0, length(lo)), ub = (up - lo) / span, maxIter = 200
             ),
