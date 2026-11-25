@@ -21,7 +21,11 @@ one-line summary of how \code{rec_int_cost} ranges over the sweep, from the
 smallest to the largest value, or from the first to the last value of a
 sweep of period labels or dates. The table and the summary round the numbers
 to 7 significant digits and write them out without e notation, except a
-number below 1e-6 or of 1e21 or more in size.
+number below 1e-6 or of 1e21 or more in size. The estimated outcome of a run
+that reached its goal is rounded as \code{\link[=print.lago]{print.lago()}} rounds it, so a goal of
+0.75 met by an estimate of 0.7499995 shows as 0.75. When the goal of some
+runs could not be reached, so the shrinking method gave their
+recommendation, a line after the table lists their values.
 }
 \examples{
 \donttest{

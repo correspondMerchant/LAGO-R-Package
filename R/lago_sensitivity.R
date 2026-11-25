@@ -93,9 +93,10 @@
 #' @param values A non-empty numeric vector, all finite. One run per element.
 #' For `parameter = "time_effect_optimization_value"` it can also be a
 #' character vector of period labels, a factor, a Date vector, or a date-time
-#' (`POSIXct`) vector. It can hold `NA` only when the `period` column is a
-#' factor with an explicit `NA` level, made with [addNA()], and `NA` then selects
-#' that level. A factor or a date-time is matched by its label, as in
+#' (`POSIXct`) vector. It can hold `NA`, or be a lone `NA`, only when the
+#' `period` column is a factor with an explicit `NA` level, made with
+#' [addNA()], and `NA` then selects that level. The other values must then be
+#' finite. A factor or a date-time is matched by its label, as in
 #' [lago_optimization()], and the `value` column then holds the labels. A
 #' date-time is labeled in the time zone of a date-time `period` column.
 #' @param quiet A boolean forwarded to [lago_optimization()]. Defaults to
@@ -122,7 +123,9 @@
 #' `component_names` (the component column names), `baseline` (the full
 #' [lago_optimization()] result at the baseline value, i.e. multiplier 1 for
 #' `"cost_multiplier"` or the value supplied in `...` for a named parameter, or
-#' `NULL` if not present), `effective_outcome_goal` (one value per run: the
+#' `NULL` if not present; for a numeric value, the closest run within a
+#' tolerance of about 1.5e-8 times the baseline, and only an exact match for a
+#' baseline of 0), `effective_outcome_goal` (one value per run: the
 #' outcome goal the run targeted, which a power goal can raise above the
 #' outcome goal, or `NA` for a failed run and for a run without a power goal),
 #' `shrinking_method_used` (one value
@@ -295,6 +298,10 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
     "`values` must be a non-empty numeric vector."
   }
   if (missing(values)) stop(values_message)
+  # a lone NA is logical, so a period sweep reads NA alone as a numeric NA
+  if (period_mode && is.logical(values) && length(values) > 0L && all(is.na(values))) {
+    values <- as.numeric(values)
+  }
   labels_ok <- period_mode && (is.character(values) || is.factor(values) ||
     inherits(values, c("Date", "POSIXt")))
   if (length(values) == 0L || !(is.numeric(values) || labels_ok)) {
@@ -304,7 +311,9 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   period_col <- as.list(dots[["data"]])[["period"]]
   # an explicit NA level, as from addNA(), is a period that NA selects
   na_period <- is.factor(period_col) && anyNA(levels(period_col))
-  if (labels_ok && anyNA(values) && !na_period) {
+  # NaN is not NA here, so it is still refused as not finite
+  na_value <- if (is.numeric(values)) is.na(values) & !is.nan(values) else is.na(values)
+  if (period_mode && any(na_value) && !na_period) {
     stop(paste(
       "`values` must not contain NA, unless the 'period' column is a factor",
       "with an explicit NA level, made with addNA()."
@@ -326,7 +335,8 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   if (is.factor(values) || inherits(values, "POSIXt")) {
     values <- as.character(values)
   }
-  if (!labels_ok && any(!is.finite(values))) {
+  # an NA that selects the NA level of the period column is not checked
+  if (!labels_ok && any(!is.finite(values[!(na_value & na_period)]))) {
     stop("`values` must be all finite (no NA, NaN, or Inf).")
   }
 
@@ -466,17 +476,20 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
   # --- baseline run (multiplier 1, or the value supplied in `...`) ----------
   baseline <- NULL
   baseline_value <- if (cost_mode) 1 else dots[[parameter]]
-  if (labels_ok && length(baseline_value) == 1L) {
+  if ((labels_ok || (period_mode && is.atomic(baseline_value) &&
+    isTRUE(is.na(baseline_value)))) && length(baseline_value) == 1L) {
     # a period label matches only exactly, and NA matches NA
     baseline_label <- as.character(in_period_zone(baseline_value))
     idx <- which(as.character(values) %in% baseline_label & ok)
     if (length(idx) >= 1L) baseline <- runs[[idx[1]]]
   } else if (!is.null(baseline_value) && is.numeric(baseline_value) &&
     length(baseline_value) == 1L) {
-    # within rounding, so a value built with seq() still matches
-    idx <- which(abs(values - baseline_value) <= sqrt(.Machine$double.eps) *
-      max(1, abs(baseline_value)) & ok)
-    if (length(idx) >= 1L) baseline <- runs[[idx[1]]]
+    # within rounding relative to the baseline, so a value built with seq()
+    # still matches, and a baseline of 0 matches only 0. Of the values within
+    # that tolerance, the closest one is the baseline.
+    gap <- abs(values - baseline_value)
+    idx <- which(gap <= sqrt(.Machine$double.eps) * abs(baseline_value) & ok)
+    if (length(idx) >= 1L) baseline <- runs[[idx[which.min(gap[idx])]]]
   }
 
   attr(df, "parameter") <- parameter
@@ -518,7 +531,11 @@ lago_sensitivity <- function(object = NULL, ..., parameter, values,
 #' smallest to the largest value, or from the first to the last value of a
 #' sweep of period labels or dates. The table and the summary round the numbers
 #' to 7 significant digits and write them out without e notation, except a
-#' number below 1e-6 or of 1e21 or more in size.
+#' number below 1e-6 or of 1e21 or more in size. The estimated outcome of a run
+#' that reached its goal is rounded as [print.lago()] rounds it, so a goal of
+#' 0.75 met by an estimate of 0.7499995 shows as 0.75. When the goal of some
+#' runs could not be reached, so the shrinking method gave their
+#' recommendation, a line after the table lists their values.
 #'
 #' @param x A `"lago_sensitivity"` object from [lago_sensitivity()].
 #' @param ... Ignored.
@@ -562,7 +579,31 @@ print.lago_sensitivity <- function(x, ...) {
     out[is.na(out)] <- "NA"
     out
   })
+  # a run that reached its goal shows its estimated outcome rounded as
+  # print.lago() shows it, so a goal of 0.75 met by 0.7499995 shows as 0.75
+  shrunk <- .lago_sens_shrunk(x)
+  reached <- x$status == "ok" & !shrunk & is.finite(x$est_outcome_goal)
+  if (any(reached)) {
+    tab$est_outcome_goal[reached] <- .lago_num_text(
+      .lago_fmt_interval(x$est_outcome_goal[reached])
+    )
+  }
   print.data.frame(tab)
+
+  # the runs whose goal was out of reach, where the shrinking method gave the
+  # recommendation, written as the table writes the values
+  value_text <- function(v) {
+    if (is.numeric(v)) .lago_num_text(signif(v, 7)) else as.character(v)
+  }
+  if (any(shrunk)) {
+    cli::cli_text(sprintf(
+      paste(
+        "The goal could not be reached at %s = %s, so the shrinking method",
+        "gave the recommendation there."
+      ),
+      param, paste(value_text(x$value[shrunk]), collapse = ", ")
+    ))
+  }
 
   ok <- x$status == "ok" & is.finite(x$rec_int_cost)
   if (any(ok)) {
@@ -574,8 +615,7 @@ print.lago_sensitivity <- function(x, ...) {
     # 7 significant digits, as in the table above, written out without e
     # notation
     cost <- .lago_num_text(signif(x$rec_int_cost[ok][ord], 7))
-    vals <- x$value[ok][ord]
-    vals <- if (numeric_value) .lago_num_text(signif(vals, 7)) else as.character(vals)
+    vals <- value_text(x$value[ok][ord])
     # pre-format so there are no glue braces in the interpolated string.
     msg <- sprintf("rec_int_cost is %s at %s = %s", cost[1], param, vals[1])
     # a single successful run has no second end to report
@@ -599,7 +639,9 @@ print.lago_sensitivity <- function(x, ...) {
 #' cost-of-stringency curve, and for a `"cost_multiplier"` sweep it is a
 #' straight line. With `show = "components"` it instead plots the recommended
 #' value of each intervention component against the swept value, one coloured
-#' line per component. Rows with `NA` outputs are dropped with a message. A
+#' line per component. Rows with `NA` outputs are dropped with a message. The
+#' runs whose goal could not be reached, so the shrinking method gave their
+#' recommendation, are drawn as triangles, and a caption says so. A
 #' sweep of period labels or dates is drawn on a discrete axis, in the order of
 #' `values`.
 #'
@@ -640,6 +682,23 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   # a period sweep can hold NA, which selects the explicit NA level of the
   # period column, so a run is kept by its status and not by its value
   value_ok <- if (discrete) x$status == "ok" else is.finite(x$value)
+  # the runs whose goal was out of reach are drawn as triangles, with a note
+  shrunk <- .lago_sens_shrunk(x)
+  point_kind <- ifelse(shrunk, "goal out of reach", "goal reached")
+  shrunk_marks <- function(kept) {
+    if (!any(shrunk[kept])) {
+      return(NULL)
+    }
+    list(
+      ggplot2::scale_shape_manual(
+        values = c(`goal reached` = 16, `goal out of reach` = 17), name = NULL
+      ),
+      ggplot2::labs(caption = paste(
+        "Triangles mark runs whose goal could not be reached, so the",
+        "shrinking method gave the recommendation."
+      ))
+    )
+  }
   as_axis <- function(v) {
     if (!discrete) {
       return(v)
@@ -655,8 +714,10 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
       message(n_drop, " row(s) with NA cost dropped from the plot.")
     }
     d <- data.frame(
-      value = as_axis(x$value[keep]), rec_int_cost = x$rec_int_cost[keep]
+      value = as_axis(x$value[keep]), rec_int_cost = x$rec_int_cost[keep],
+      kind = point_kind[keep]
     )
+    marks <- shrunk_marks(keep)
     p <- ggplot2::ggplot(
       d, ggplot2::aes(
         x = .data[["value"]], y = .data[["rec_int_cost"]], group = 1
@@ -664,11 +725,16 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
     ) +
       # a single point has no line to draw
       (if (nrow(d) > 1L) ggplot2::geom_line(color = "#0066cc")) +
-      ggplot2::geom_point(color = "#0066cc", size = 2) +
+      (if (is.null(marks)) {
+        ggplot2::geom_point(color = "#0066cc", size = 2)
+      } else {
+        ggplot2::geom_point(ggplot2::aes(shape = .data[["kind"]]), color = "#0066cc", size = 2)
+      }) +
       ggplot2::labs(
         title = "LAGO sensitivity: recommended cost",
         x = param, y = "recommended cost"
       ) +
+      marks +
       ggplot2::theme_minimal(base_size = 14)
     return(p)
   }
@@ -684,10 +750,13 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
       value = as_axis(x$value),
       component = cn,
       rec_value = x[[cn]],
+      kind = point_kind,
       stringsAsFactors = FALSE
     )
   }))
   keep <- rep(value_ok, length(comps)) & is.finite(long$rec_value)
+  # the rows of the sweep that keep a point
+  marks <- shrunk_marks(rowSums(matrix(keep, ncol = length(comps))) > 0)
   # count the rows of the sweep that lose a point, not the points
   n_drop <- sum(rowSums(matrix(!keep, ncol = length(comps))) > 0)
   if (n_drop > 0L) {
@@ -704,13 +773,28 @@ plot.lago_sensitivity <- function(x, show = c("cost", "components"), ...) {
   ) +
     # a component with a single point has no line to draw
     (if (anyDuplicated(long$component)) ggplot2::geom_line()) +
-    ggplot2::geom_point(size = 2) +
+    (if (is.null(marks)) {
+      ggplot2::geom_point(size = 2)
+    } else {
+      ggplot2::geom_point(ggplot2::aes(shape = .data[["kind"]]), size = 2)
+    }) +
     ggplot2::labs(
       title = "LAGO sensitivity: recommended intervention",
       x = param, y = "recommended value", color = "component"
     ) +
+    marks +
     ggplot2::theme_minimal(base_size = 14)
   p
+}
+
+# Whether each run of a sensitivity result used the shrinking method, FALSE for
+# a failed run and for a result that does not record it.
+.lago_sens_shrunk <- function(x) {
+  shrunk <- attr(x, "shrinking_method_used")
+  if (length(shrunk) != nrow(x)) {
+    return(rep(FALSE, nrow(x)))
+  }
+  shrunk %in% TRUE
 }
 
 # The call arguments stored on a lago result, with a clear error for anything

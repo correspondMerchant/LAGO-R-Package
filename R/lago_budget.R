@@ -33,11 +33,13 @@
 #' at the cost of more optimization runs. A second refinement pass tries
 #' `n_grid` more goals strictly inside the gap at the affordability boundary,
 #' and that gap is then halved one run at a time until it is narrower than
-#' 1/10000 of the goal range and the cost at the boundary is known to within
-#' 1/10000 of the budget, so the answer does not depend much on `n_grid`. Near
-#' the best reachable outcome, where the cost is not known until the goal gets
-#' very close to that outcome, the halving goes on until the gap is narrower
-#' than 1e-9 of the goal range.
+#' 1/10000 of the range of the reached estimated outcomes and the cost at the
+#' boundary is known to within 1/10000 of the spread of the reached costs, so
+#' the answer does not depend much on `n_grid`. These tolerances are never
+#' looser than 1/10000 of the goal range and of the budget. Near the best
+#' reachable outcome, where the cost is not known until the goal gets very
+#' close to that outcome, the halving goes on until the gap is narrower than
+#' 1e-9 of that range of reached outcomes.
 #' Default 25.
 #' @param quiet A boolean forwarded to [lago_optimization()] via
 #' [lago_sensitivity()]. Defaults to `TRUE` so the search is not noisy.
@@ -67,7 +69,8 @@
 #' recommendation fields. If every reachable goal is affordable, the budget does
 #' not bind (`binding = FALSE`) and the maximum reachable outcome is returned.
 #' If [lago_optimization()] fails for every goal of a sweep, for example because
-#' the outcome model cannot be fitted, the result has `feasible = FALSE`, the
+#' the outcome model cannot be fitted or the outcome has no finite value, the
+#' result has `feasible = FALSE`, the
 #' warning and the printed result give the error of the first failed run, and
 #' `run_error` holds it.
 #'
@@ -94,6 +97,10 @@
 #'   \item{run_error}{The error of the first failed run when every run of a
 #'   sweep failed, otherwise `NULL`.}
 #' }
+#' The object carries the attribute `power_goal_used`, `TRUE` when the search
+#' had a power goal. Every run then has to reach the outcome the power goal
+#' implies, so the cheapest intervention named when no recommendation fits the
+#' budget is the cheapest one that reaches that outcome.
 #'
 #' @examples
 #' \donttest{
@@ -200,7 +207,11 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       seq(0.02, 0.98, length.out = n)
     } else {
       y <- suppressWarnings(as.numeric(data[[outcome_name]]))
-      rng <- range(y[is.finite(y)])
+      y <- y[is.finite(y)]
+      # with no finite outcome every run fails, and the sweep then reports the
+      # error of lago_optimization() in run_error
+      if (!length(y)) y <- 0
+      rng <- range(y)
       span <- diff(rng)
       if (!is.finite(span) || span <= 0) span <- abs(rng[1]) + 1
       seq(rng[1] - span / 2, rng[2] + span / 2, length.out = n)
@@ -451,14 +462,26 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       return(FALSE)
     }
     !isTRUE(df$reached[beyond]) ||
-      df$rec_int_cost[beyond] - df$rec_int_cost[within] <= cost_tol
+      df$rec_int_cost[beyond] - df$rec_int_cost[within] <= cost_tol(df)
   }
+  # The tolerances are parts of the frontier found so far: the range of the
+  # reached estimated outcomes and the spread of the reached costs. A narrow
+  # reachable range then is still searched closely. They are never looser
+  # than parts of the goal range and of the budget, and those stand in while
+  # the frontier has no spread.
   goal_range <- diff(range(goal_grid(n_grid)))
-  goal_tol <- 1e-4 * goal_range
+  # the halving runs only with a reached goal, whose cost and estimate are
+  # finite
+  spread <- function(v, fallback) {
+    s <- diff(range(v))
+    if (s > 0) min(s, fallback) else fallback
+  }
+  goal_scale <- function(df) spread(df$est_outcome[df$reached], goal_range)
+  goal_tol <- function(df) 1e-4 * goal_scale(df)
   # the finest goal gap the halving goes down to, where the cost of a goal this
   # close to the best reachable outcome is that outcome's cost up to round off
-  goal_tol_fine <- 1e-9 * goal_range
-  cost_tol <- 1e-4 * budget
+  goal_tol_fine <- function(df) 1e-9 * goal_scale(df)
+  cost_tol <- function(df) 1e-4 * spread(df$rec_int_cost[df$reached], budget)
   br <- bracket(fr)
   if (!is.null(br)) {
     fr <- rbind(fr, sweep(seq(br[1], br[2], length.out = n_grid + 2L)[-c(1L, n_grid + 2L)]))
@@ -467,7 +490,8 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   }
   halvings <- 0L
   while (!is.null(br <- bracket(fr)) && halvings < 60L &&
-    (diff(br) > goal_tol || (diff(br) > goal_tol_fine && !cost_settled(fr, br)))) {
+    (diff(br) > goal_tol(fr) ||
+      (diff(br) > goal_tol_fine(fr) && !cost_settled(fr, br)))) {
     fr <- rbind(fr, sweep(mean(br)))
     fr <- fr[order(fr$outcome_goal), , drop = FALSE]
     rownames(fr) <- NULL
@@ -541,9 +565,10 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
       ), call. = FALSE)
     } else {
       warning(sprintf(paste(
-        "The budget (%s) is below the cost of the cheapest reachable",
-        "intervention (%s), so no recommendation fits it."
-      ), .lago_num_text(budget), .lago_num_text(cheapest)), call. = FALSE)
+        "The budget (%s) is below the cost of the %s (%s), so no",
+        "recommendation fits it."
+      ), .lago_num_text(budget), .lago_cheapest_text(!is.null(base$power_goal)),
+      .lago_num_text(cheapest)), call. = FALSE)
     }
     result <- list(
       budget = budget,
@@ -566,7 +591,20 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
   result$intention <- intention
   result$run_error <- run_error
   class(result) <- "lago_budget"
+  # whether the search had a power goal, for print()
+  attr(result, "power_goal_used") <- !is.null(base$power_goal)
   result
+}
+
+# What the cheapest intervention of a budget search reaches: any reachable
+# outcome, or with a power goal the outcome that goal implies, since every run
+# then has to reach it.
+.lago_cheapest_text <- function(power_goal_used) {
+  if (isTRUE(power_goal_used)) {
+    "cheapest intervention that reaches the outcome the power goal implies"
+  } else {
+    "cheapest reachable intervention"
+  }
 }
 
 #' Print a budget-constrained LAGO result
@@ -574,7 +612,9 @@ lago_budget <- function(object = NULL, ..., budget, n_grid = 25L,
 #' @description Prints a short header with the budget and whether it binds, then
 #' the recommended intervention, its cost and estimated outcome. When no
 #' intervention fits the budget, it prints a note that gives the cost of the
-#' cheapest reachable intervention instead.
+#' cheapest reachable intervention instead, or with a power goal the cost of
+#' the cheapest intervention that reaches the outcome the power goal implies.
+#' The estimated outcome is rounded as [print.lago()] rounds it.
 #'
 #' @param x A `"lago_budget"` object from [lago_budget()].
 #' @param ... Ignored.
@@ -615,8 +655,9 @@ print.lago_budget <- function(x, ...) {
       # written in full, so a cost just above the budget does not read as equal
       cheapest_txt <- .lago_num_text(min(x$frontier$rec_int_cost))
       cli::cli_alert_warning(paste0(
-        "No reachable intervention fits this budget. The cheapest reachable ",
-        "intervention costs ", cheapest_txt, ". Increase the budget."
+        "No reachable intervention fits this budget. The ",
+        .lago_cheapest_text(attr(x, "power_goal_used")), " costs ", cheapest_txt,
+        ". Increase the budget."
       ))
     }
     return(invisible(x))
@@ -639,7 +680,8 @@ print.lago_budget <- function(x, ...) {
   }
   # written in full, as print.lago() writes numbers
   cost_txt <- .lago_num_text(cost_txt)
-  est_txt <- .lago_num_text(.lago_fmt_value(x$est_outcome))
+  # rounded as print.lago() rounds the estimated outcome
+  est_txt <- .lago_num_text(.lago_fmt_interval(x$est_outcome))
   budget_txt <- .lago_num_text(x$budget)
   cli::cli_text("Recommended intervention: {rec_txt}")
   cli::cli_text("Cost: {cost_txt} (of {budget_txt}).")
