@@ -67,3 +67,28 @@ test_that("the optimizer grid keeps its upper bound for a component in small uni
   expect_false(r$shrinking_method_used)
   expect_equal(r$rec_int_cost, run(1)$rec_int_cost)
 })
+
+test_that("rows of weight 0 far from the fitted rows do not change the logit variance", {
+  set.seed(6)
+  n <- 120
+  d <- data.frame(a = stats::runif(n, 0, 10), u = stats::runif(n))
+  d$y <- stats::plogis(-1 + 0.1 * d$a + 1.5 * d$u + stats::rnorm(n, 0, 0.3))
+  w <- rep(1, n)
+  w[1:30] <- 0
+  run <- function(dd) {
+    suppressWarnings(lago_optimization(
+      data = dd, outcome_name = "y", outcome_type = "continuous",
+      glm_family = "gaussian", link = "logit", weights = w,
+      intervention_components = c("a", "b"), intervention_lower_bounds = c(0, 1e5),
+      intervention_upper_bounds = c(10, 1e5 + 0.01),
+      cost_list_of_vectors = list(c(0, 1), c(0, 1000)), outcome_goal = 0.6,
+      confidence_set_grid_step_size = c(1, 0.002), quiet = TRUE
+    ))
+  }
+  same <- d
+  same$b <- 1e5 + 0.01 * d$u
+  apart <- same
+  apart$b[w == 0] <- 0
+  expect_equal(lago_coef_table(run(apart))["b", 2], lago_coef_table(run(same))["b", 2], tolerance = 1e-6)
+  expect_equal(nrow(run(apart)$cs), nrow(run(same)$cs))
+})

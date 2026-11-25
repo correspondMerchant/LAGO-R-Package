@@ -1143,7 +1143,7 @@ get_confidence_set <- function(
       conditioned <- if (is.null(cluster_ids)) {
         list(Z = X, M = diag(ncol(X)))
       } else {
-        conditioned_design(X)
+        conditioned_design(X, prior_weights)
       }
       X <- conditioned$Z
 
