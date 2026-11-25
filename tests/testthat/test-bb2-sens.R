@@ -134,6 +134,6 @@ test_that("print.lago_sensitivity with one successful run names it once", {
     class = c("lago_sensitivity", "data.frame")
   )
   out <- paste(cli::cli_fmt(print(s)), collapse = " ")
-  expect_match(out, "rec_int_cost is 83.1336 at outcome_goal = 30.", fixed = TRUE)
+  expect_match(out, "rec_int_cost is 83.134 at outcome_goal = 30.", fixed = TRUE)
   expect_no_match(out, " and ")
 })
