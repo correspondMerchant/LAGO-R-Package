@@ -68,24 +68,31 @@
 
 .app_is_binary <- function(x) {
   x <- x[!is.na(x)]
-  is.numeric(x) && length(x) > 0 && all(x %in% c(0, 1))
+  (is.numeric(x) || is.logical(x)) && length(x) > 0 && all(x %in% c(0, 1))
+}
+
+# The columns that can be the outcome: the numeric ones, and the logical ones
+# with a value, which the package reads as a binary outcome.
+.app_outcome_cols <- function(data) {
+  names(data)[vapply(data, function(v) is.numeric(v) || (is.logical(v) && !all(is.na(v))), logical(1))]
 }
 
 # A starting spec for a dataset: its preset when it has one, otherwise the
-# first 0/1 column as the outcome and the next two numeric columns as the
+# first 0/1 or TRUE/FALSE column as the outcome and the next two numeric columns as the
 # components.
 .app_defaults <- function(data, data_name = "data") {
   spec <- .app_empty_spec()
   spec$data_name <- data_name
   numeric_cols <- .app_numeric_cols(data)
+  outcome_cols <- .app_outcome_cols(data)
   preset <- .app_presets()[[data_name]]
   if (!is.null(preset) && all(c(preset$outcome, preset$components) %in% names(data))) {
     spec$outcome <- preset$outcome
     spec$outcome_type <- preset$outcome_type
     spec$components <- preset$components
-  } else if (length(numeric_cols)) {
-    binary <- numeric_cols[vapply(data[numeric_cols], .app_is_binary, logical(1))]
-    spec$outcome <- if (length(binary)) binary[1] else numeric_cols[1]
+  } else if (length(outcome_cols)) {
+    binary <- outcome_cols[vapply(data[outcome_cols], .app_is_binary, logical(1))]
+    spec$outcome <- if (length(binary)) binary[1] else outcome_cols[1]
     spec$outcome_type <- if (.app_is_binary(data[[spec$outcome]])) "binary" else "continuous"
     spec$components <- utils::head(setdiff(numeric_cols, spec$outcome), 2)
   }
@@ -301,7 +308,7 @@
   period_col <- if (spec$period_col %in% others) spec$period_col else if ("period" %in% others) "period" else ""
   periods <- if (nzchar(period_col)) .app_periods(data[[period_col]])$labels else character(0)
   list(
-    outcomes = numeric_cols,
+    outcomes = .app_outcome_cols(data),
     components = setdiff(numeric_cols, spec$outcome),
     arms = arms, arm = arm, arm_values = arm_values, arm_value = arm_value,
     clusters = if (length(arm)) .app_cluster_choices(.app_center_columns(spec, data)$data, .app_resolve(spec)$outcome, arm, arm_value, exclude = c(spec$components, if (.app_center_level(spec)) c(spec$cl_value, spec$cl_total)), center_level = .app_center_level(spec)) else character(0),
@@ -318,8 +325,12 @@
 }
 
 # The period labels of a column in time order, and whether they are numbers.
-# A factor keeps its level order. Text labels are ordered by the first number
-# in them, so Q2 comes before Q10, and then by their text.
+# A factor keeps its level order. Text labels with a month name, such as Jan
+# 2021 or March, are ordered by year and month, and dates such as 2021-01-15
+# or 15/01/2021 by date, when every label reads as a date in only one order.
+# Other text labels are ordered by the numbers in them, so Q2 comes before
+# Q10, and then by their text. Labels with no number, such as baseline, come
+# first, in the order of their text.
 .app_periods <- function(x) {
   labels <- if (is.factor(x)) levels(droplevels(x)) else unique(as.character(stats::na.omit(x)))
   as_num <- suppressWarnings(as.numeric(labels))
@@ -329,17 +340,53 @@
   if (is.factor(x)) {
     return(list(labels = labels, numeric = FALSE))
   }
-  # month names, such as Jan or January, in calendar order
-  months <- match(tolower(substr(labels, 1, 3)), tolower(month.abb))
-  if (!anyNA(months) && all(tolower(labels) %in% tolower(c(month.abb, month.name)))) {
-    return(list(labels = labels[order(months)], numeric = FALSE))
+  numbers <- lapply(regmatches(labels, gregexpr("[0-9]+(\\.[0-9]+)?", labels)), as.numeric)
+  has_number <- lengths(numbers) > 0
+  # a month name anywhere in each label, such as Jan 2021, Mar-21 or March,
+  # in calendar order within each year, which is the last number of a label
+  month_names <- tolower(c(month.name, month.abb))
+  found <- regmatches(labels, regexpr(sprintf("(?i)(?<![a-z])(%s)(?![a-z])", paste(month_names, collapse = "|")), labels, perl = TRUE))
+  if (length(found) == length(labels) && (all(has_number) || !any(has_number))) {
+    months <- (match(tolower(found), month_names) - 1) %% 12 + 1
+    year <- vapply(numbers, function(v) if (length(v)) v[length(v)] else 0, numeric(1))
+    day <- vapply(numbers, function(v) if (length(v)) v[1] else 0, numeric(1))
+    return(list(labels = labels[order(year, months, day, labels)], numeric = FALSE))
+  }
+  dates <- .app_label_dates(labels)
+  if (!is.null(dates)) {
+    return(list(labels = labels[order(dates, labels)], numeric = FALSE))
   }
   # otherwise by the numbers in each label, the largest first, so a year
   # comes before the quarter in labels such as Q1 2021
-  numbers <- lapply(regmatches(labels, gregexpr("[0-9]+(\\.[0-9]+)?", labels)), as.numeric)
   largest <- vapply(numbers, function(x) if (length(x)) max(x) else NA_real_, numeric(1))
   first <- vapply(numbers, function(x) if (length(x)) x[1] else NA_real_, numeric(1))
-  list(labels = labels[order(largest, first, labels, na.last = TRUE)], numeric = FALSE)
+  # a label with no number, such as baseline, comes first
+  list(labels = labels[order(has_number, largest, first, labels)], numeric = FALSE)
+}
+
+# The dates of labels such as 2021-01-15, 15/01/2021 or 01/15/2021, or NULL
+# when a label is no such date or the labels read as dates in more than one
+# order, such as 01/02/2021 and 02/01/2021, which may be days or months.
+.app_label_dates <- function(labels) {
+  shape <- "^([0-9]{1,4})([-/.])([0-9]{1,2})\\2([0-9]{1,4})$"
+  if (!length(labels) || !all(grepl(shape, labels))) {
+    return(NULL)
+  }
+  parts <- lapply(c(1, 3, 4), function(k) sub(shape, sprintf("\\%d", k), labels))
+  # the places of the year, the month and the day in each order
+  orders <- list(ymd = c(1, 2, 3), dmy = c(3, 2, 1), mdy = c(3, 1, 2))
+  read <- lapply(orders, function(o) {
+    year <- parts[[o[1]]]
+    if (!all(nchar(year) == 4)) {
+      return(NULL)
+    }
+    iso <- sprintf("%s-%02d-%02d", year, as.integer(parts[[o[2]]]), as.integer(parts[[o[3]]]))
+    d <- as.Date(iso, format = "%Y-%m-%d", optional = TRUE)
+    if (anyNA(d) || !identical(format(d, "%Y-%m-%d"), iso)) NULL else d
+  })
+  read <- read[!vapply(read, is.null, logical(1))]
+  ranks <- unique(lapply(read, function(d) order(d, labels)))
+  if (length(ranks) == 1) read[[1]] else NULL
 }
 
 # The encoding of a file: "UTF-8-BOM" for ASCII text, which may start with a
@@ -426,12 +473,27 @@
   utils::tail(if (length(usable)) usable else periods, 1)
 }
 
+# Whether a file has a NUL byte, a byte of 0, which text in UTF-8 or
+# Windows-1252 never has.
+.app_has_nul <- function(path) {
+  any(readBin(path, "raw", n = file.size(path)) == as.raw(0))
+}
+
+# The message for a file with a NUL byte, which the app refuses, as R stops a
+# line at the byte, or runs the values on both sides of it together.
+.app_nul_message <- function() {
+  "The file has a NUL byte, a character of code 0 that text files do not have, so some of its values would be lost or run together. Save the file again as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again."
+}
+
 # Read an uploaded CSV with the separator and decimal mark the user chose.
 # The text is turned into UTF-8 before it is parsed, so that no locale, such as
-# C, stops the read at an accented letter.
+# C, stops the read at an accented letter. A file with a NUL byte is refused.
 .app_read_csv <- function(path, sep = ",", dec = ".", encoding = .app_file_encoding(path)) {
   if (encoding %in% c("UTF-16", "UTF-32")) {
     stop(sprintf("The file is %s text. Save it as UTF-8 and read it again.", encoding), call. = FALSE)
+  }
+  if (.app_has_nul(path)) {
+    stop(.app_nul_message(), call. = FALSE)
   }
   d <- utils::read.csv(
     text = .app_csv_lines(path, encoding),
@@ -632,7 +694,7 @@
     if (nzchar(spec$center_for)) {
       args$center_effects_optimization_values <- spec$center_for
     } else if (isTRUE(spec$cw_on)) {
-      args$center_weights_for_outcome_goal <- spec$cw
+      args$center_weights_for_outcome_goal <- as.numeric(spec$cw)
     }
   }
   if (length(spec$covariates)) args$additional_covariates <- spec$covariates
@@ -740,7 +802,7 @@
     return(do.call(rbind, out))
   }
   numeric_cols <- .app_numeric_cols(data)
-  if (length(numeric_cols) < 2) {
+  if (length(.app_outcome_cols(data)) < 2 || !length(numeric_cols)) {
     note("data", "The data needs at least two numeric columns: one outcome and one intervention component.")
   }
   if (.app_center_level(spec)) {
@@ -965,6 +1027,14 @@
       note("centers", sprintf("The covariate %s has only one value, so the model cannot adjust for it. Remove it.", cv))
     }
   }
+  center_roles <- c(
+    if (identical(spec$center_mode, "effects")) spec$center_col,
+    if (identical(spec$center_mode, "chars")) spec$center_chars
+  )
+  both <- intersect(spec$covariates, center_roles)
+  if (length(both)) {
+    note("centers", sprintf("The covariate(s) %s cannot also be the center column or a center characteristic. Remove them from the covariates.", paste(both, collapse = ", ")))
+  }
   if (identical(spec$center_mode, "chars")) {
     if (!length(spec$center_chars)) note("centers", "Choose at least one center characteristic, or choose None.")
     bad <- spec$center_chars[!is.finite(spec$center_char_values)]
@@ -1006,8 +1076,18 @@
     }
   }
   if (isTRUE(spec$time_on)) {
+    other_roles <- c(
+      spec$outcome, spec$components, spec$covariates,
+      if (identical(spec$center_mode, "chars")) spec$center_chars,
+      if (identical(spec$center_mode, "effects")) spec$center_col
+    )
     if (!nzchar(spec$period_col)) {
       note("centers", "Choose the column that holds the time period.")
+    } else if (spec$period_col %in% other_roles) {
+      note("centers", sprintf(
+        "The period column %s cannot also be the outcome, a component, a covariate, a center characteristic or the center column. Choose another column.",
+        spec$period_col
+      ))
     } else if (!nzchar(spec$period_value)) {
       note("centers", "Choose the period to optimize for.")
     } else if (spec$period_col %in% names(data) && length(.app_usable_periods(spec, data, spec$period_col)) < 2) {
@@ -1211,9 +1291,11 @@
   esc <- function(mark) if (identical(mark, ".")) "\\." else mark
   other <- if (identical(dec, ".")) "," else "."
   # a whole number, and a number with the decimal mark chosen or the other one
-  whole <- "^-?[0-9]+$"
-  number <- sprintf("^-?([0-9]+(%s[0-9]*)?|%s[0-9]+)$", esc(dec), esc(dec))
-  number_other <- sprintf("^-?[0-9]*%s[0-9]+$", esc(other))
+  # each may end in a power of ten, as in 2,5e-3
+  power <- "([eE][-+]?[0-9]+)?"
+  whole <- sprintf("^-?[0-9]+%s$", power)
+  number <- sprintf("^-?([0-9]+(%s[0-9]*)?|%s[0-9]+)%s$", esc(dec), esc(dec), power)
+  number_other <- sprintf("^-?[0-9]*%s[0-9]+%s$", esc(other), power)
   # the other mark between groups of three digits, as in 1,200 or 1.200,5,
   # where the first group is not 0, as 0,125 is no number of thousands
   thousands <- sprintf("^-?[1-9][0-9]{0,2}(%s[0-9]{3})+(%s[0-9]+)?$", esc(other), esc(dec))
@@ -1313,23 +1395,28 @@
 }
 
 # Where the cost designer starts: the costs now in use, in the form that holds
-# them. Cost coefficients open in the cubic form when any component has 5 of
-# them, where a linear cost of 2 is the same curve padded with zeros, and in
-# the linear form otherwise. A component whose coefficients fit neither form
-# opens on the designer's own curve, and is named in `unfit`. Unit costs open
-# on the curve the package computes from them. `by_form` has the costs in use
-# for each form where they fit it, so a switch of the form keeps them: a
-# linear cost is a cubic one padded with zeros, and a cubic cost of degree 1
-# is a linear one.
+# them. The package reads up to 5 cost coefficients, so a component with
+# fewer is the same curve padded with zeros. Cost coefficients open in the
+# cubic form when any component has more than 2 of them, and in the linear
+# form otherwise. A component with no coefficients or more than 5 fits
+# neither form, opens on the designer's own curve, and is named in `unfit`.
+# Unit costs open on the curve the package computes from them. `by_form` has
+# the costs in use for each form where they fit it, so a switch of the form
+# keeps them: a linear cost is a cubic one padded with zeros, and a cubic
+# cost of degree 1 is a linear one.
 .app_designer_start <- function(spec) {
   comps <- spec$components
+  # coefficients padded with zeros to the 5 of the cubic form
+  pad <- function(v) if (length(v) >= 1L && length(v) <= 5L) c(v, rep(0, 5L - length(v)))
+  # the linear cost of coefficients whose terms above degree 1 are 0
+  linear <- function(v) {
+    p <- pad(v)
+    if (!is.null(p) && isTRUE(all(p[3:5] == 0))) p[1:2]
+  }
   if (identical(spec$cost_mode, "coef")) {
     lens <- vapply(spec$coefs, length, integer(1))
-    form <- if (any(lens == 5L)) "cubic" else "linear"
-    want <- if (form == "cubic") 5L else 2L
-    coefs <- lapply(spec$coefs, function(v) {
-      if (length(v) == want) v else if (want == 5L && length(v) == 2L) c(v, 0, 0, 0) else NULL
-    })
+    form <- if (any(lens > 2L)) "cubic" else "linear"
+    coefs <- lapply(spec$coefs, if (form == "cubic") pad else linear)
     fits <- !vapply(coefs, is.null, logical(1))
     # the average cost per unit over the bounds, for the designer's ranges
     unit_costs <- vapply(seq_along(comps), function(k) {
@@ -1355,12 +1442,7 @@
     unfit <- character(0)
   }
   in_use <- if (identical(spec$cost_mode, "coef")) spec$coefs else coefs
-  by_form <- list(
-    linear = lapply(in_use, function(v) {
-      if (length(v) == 2L) v else if (length(v) == 5L && isTRUE(all(v[3:5] == 0))) v[1:2]
-    }),
-    cubic = lapply(in_use, function(v) if (length(v) == 5L) v else if (length(v) == 2L) c(v, 0, 0, 0))
-  )
+  by_form <- list(linear = lapply(in_use, linear), cubic = lapply(in_use, pad))
   list(form = form, unit_costs = unit_costs, coefs = coefs, unfit = unfit, by_form = by_form)
 }
 
@@ -1480,24 +1562,18 @@
   if (!is.null(msg)) bad(msg) else list(values = values, error = NULL)
 }
 
-# The arguments a sweep adds to the stored call of the result. A cost
-# multiplier scales the cost coefficients, which the result holds even when it
-# was run with unit costs. An ICC above 0 needs the center column.
+# The arguments a sweep adds to the stored call of the result. An ICC above 0
+# needs the center column. A cost multiplier needs nothing more, as the
+# package scales the unit costs of the call.
 .app_sweep_extra <- function(param, spec, result) {
   extra <- list()
-  if (identical(param, "cost_multiplier") && identical(spec$cost_mode, "unit")) {
-    extra$cost_list_of_vectors <- result$cost_list_of_vectors
-  }
   if (identical(param, "icc")) extra$power_goal_cluster_id <- spec$cluster_col
   extra
 }
 
 # The R code of a sweep and a budget search, run on `result` from the code above.
 .app_sweep_code <- function(param, values, spec) {
-  extra <- c(
-    if (identical(param, "cost_multiplier") && identical(spec$cost_mode, "unit")) "  cost_list_of_vectors = result$cost_list_of_vectors",
-    if (identical(param, "icc")) sprintf("  power_goal_cluster_id = %s", deparse1(spec$cluster_col))
-  )
+  extra <- if (identical(param, "icc")) sprintf("  power_goal_cluster_id = %s", deparse1(spec$cluster_col))
   c(
     "sensitivity <- lago_sensitivity(",
     paste0(c("  result", sprintf("  parameter = %s", deparse1(param)), sprintf("  values = %s", paste(deparse(values, width.cutoff = 500L), collapse = " ")), extra), collapse = ",\n"),
@@ -1727,7 +1803,8 @@
       w <- a$center_weights_for_outcome_goal
       centers <- .app_center_levels(d, "center")
       if (!is.null(names(w)) && length(centers) && setequal(names(w), centers)) w <- w[centers]
-      s$cw <- as.numeric(w)
+      # the weights are kept named by their centers, as saved settings are
+      s$cw <- if (length(w) == length(centers)) stats::setNames(as.numeric(w), centers) else as.numeric(w)
     } else if (!is.null(a$center_effects_optimization_values)) {
       s$center_for <- as.character(a$center_effects_optimization_values)
     }
@@ -1736,18 +1813,25 @@
     s$time_on <- TRUE
     s$period_col <- "period"
     v <- a$time_effect_optimization_value
+    # a time in another time zone is the same time in the zone of the column,
+    # whose labels are written in that zone
+    if (inherits(v, "POSIXct") && inherits(d$period, "POSIXct")) attr(v, "tzone") <- attr(d$period, "tzone") %||% ""
     s$period_value <- if (is.numeric(v) && "period" %in% names(d)) .app_period_label(v, .app_periods(d$period)$labels) else as.character(v)
   }
   if (!is.null(a$additional_covariates)) s$covariates <- a$additional_covariates
 
   if (identical(a$glm_family, "quasibinomial")) s$glm_family <- "quasibinomial"
   if (a$link %in% c("logit", "identity")) s$link <- a$link
-  if (!is.null(a$weights)) {
+  # the package does not use weights with center level data, so the app
+  # leaves them out there
+  if (!is.null(a$weights) && !identical(s$structure, "center")) {
     same <- names(d)[vapply(d, function(v) is.numeric(v) && length(v) == length(a$weights) && isTRUE(all.equal(as.numeric(v), as.numeric(a$weights))), logical(1))]
+    # the app offers as weights only a column that has no other role
+    same <- setdiff(same, c(s$outcome, gsub("`", "", comps)))
     if (length(same)) {
       s$weights_col <- same[1]
     } else {
-      left <- c(left, "the weights, which are not a column of the data")
+      left <- c(left, "the weights, which are not a column of the data that the app offers as weights")
     }
   }
   # a step the call left out is 1/20 of the component's range in the data, as
@@ -1776,7 +1860,10 @@
     s$prev_on <- TRUE
     s$prev <- by_comp(a$prev_recommended_interventions)
   }
-  list(spec = s, left = left)
+  # values the app cannot match in the data, such as a period, are left out
+  misfits <- .app_spec_misfits(s, d)
+  if (any(grepl("^the center .* to optimize for", misfits))) s$center_for <- ""
+  list(spec = s, left = c(left, misfits))
 }
 
 # The columns of the data that a spec names, which a dataset must have before
@@ -1802,6 +1889,9 @@
     centers <- .app_center_levels(data, spec$center_col)
     if (nzchar(spec$center_for) && !spec$center_for %in% centers) {
       out <- c(out, sprintf("the center %s to optimize for, which this data does not have, so the weighted average center is used", spec$center_for))
+    } else if (!nzchar(spec$center_for) && isTRUE(spec$cw_on) && !is.null(names(spec$cw)) && !setequal(names(spec$cw), centers)) {
+      # named weights, as the app saves them, are matched to the centers by name
+      out <- c(out, "the center weights, which are for other centers than this data has, so each center starts at its share of the patients")
     } else if (!nzchar(spec$center_for) && isTRUE(spec$cw_on) && length(spec$cw) != length(centers)) {
       out <- c(out, sprintf(
         "the center weights, which are for %d centers while this data has %d, so each center starts at its share of the patients",
@@ -1812,7 +1902,7 @@
   if (isTRUE(spec$time_on) && isTRUE(spec$period_col %in% names(data))) {
     periods <- .app_periods(data[[spec$period_col]])$labels
     if (!.app_period_in(spec$period_value, periods)) {
-      out <- c(out, sprintf("the period %s, which this data does not have, so the last period is used", spec$period_value))
+      out <- c(out, sprintf("the period %s, which this data does not have, so the latest period with rows the model can use is used", spec$period_value))
     }
   }
   if (.app_power_on(spec) && isTRUE(spec$arm_col %in% names(data))) {

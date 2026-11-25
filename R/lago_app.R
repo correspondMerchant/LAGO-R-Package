@@ -545,6 +545,8 @@ lago_app <- function(data = NULL,
             d <- tryCatch(.app_read_csv(f$datapath, input$sep, input$dec, encoding), error = function(e) e)
             if (encoding %in% c("UTF-16", "UTF-32")) {
               list(error = sprintf("The file is saved as %s text, which the app cannot read. Save it as CSV UTF-8, for example with Save As and the type CSV UTF-8 in Excel, and upload it again.", encoding))
+            } else if (.app_has_nul(f$datapath)) {
+              list(error = .app_nul_message())
             } else if (.app_csv_blank(f$datapath, encoding)) {
               list(error = "The file is empty. Choose the CSV file that holds the data.")
             } else if (is.data.frame(d) && !nrow(d)) {
@@ -602,7 +604,7 @@ lago_app <- function(data = NULL,
       shiny::updateNumericInput(session, "n_centers", value = spec$n_centers)
       shiny::updateNumericInput(session, "n_patients", value = spec$n_patients)
       shiny::updateRadioButtons(session, "approach", selected = spec$approach)
-      shiny::updateTextInput(session, "icc", value = paste(format(spec$icc, trim = TRUE), collapse = ", "))
+      shiny::updateTextInput(session, "icc", value = paste(format(spec$icc, digits = 15, trim = TRUE), collapse = ", "))
       shiny::updateSelectInput(session, "cluster_col", choices = c("Choose a column" = "", ch$clusters), selected = intersect(spec$cluster_col, ch$clusters))
       shiny::updateRadioButtons(session, "center_mode", selected = spec$center_mode)
       shiny::updateSelectizeInput(session, "center_chars", choices = ch$center_chars, selected = intersect(spec$center_chars, ch$center_chars))
@@ -1001,8 +1003,12 @@ lago_app <- function(data = NULL,
       start <- .app_center_weights_default(utils::modifyList(shiny::isolate(spec()), key), d)
       # loaded settings bring their own weights, for the same centers
       s0 <- shiny::isolate(start_spec())
-      from_settings <- !is.null(s0) && isTRUE(s0$cw_on) && identical(s0$center_col, key$center_col) && length(s0$cw) == length(centers)
-      if (from_settings) start <- s0$cw
+      # named weights are matched to the centers by name, and weights without
+      # names, as older settings have, by their order
+      named <- !is.null(s0) && !is.null(names(s0$cw))
+      fits <- if (named) setequal(names(s0$cw), centers) else length(s0$cw) == length(centers)
+      from_settings <- !is.null(s0) && isTRUE(s0$cw_on) && identical(s0$center_col, key$center_col) && fits
+      if (from_settings) start <- if (named) as.numeric(s0$cw[centers]) else s0$cw
       inputs <- lapply(seq_along(centers), function(k) {
         id <- cw_id(key, k)
         v <- shiny::isolate(input[[id]])
@@ -1141,7 +1147,10 @@ lago_app <- function(data = NULL,
       s$cl_value <- chr(input$cl_value)
       s$cl_total <- chr(input$cl_total)
       s$cw_on <- isTRUE(input$cw_on)
-      s$cw <- vapply(seq_along(.app_center_levels(d, s$center_col)), function(k) num(input[[cw_id(s, k)]]), numeric(1))
+      # the weights are named by their centers, so saved settings match them
+      # to the centers of the data they are loaded for by name
+      centers <- .app_center_levels(d, s$center_col)
+      s$cw <- stats::setNames(vapply(seq_along(centers), function(k) num(input[[cw_id(s, k)]]), numeric(1)), centers)
       .app_resolve(s)
     })
 

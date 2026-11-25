@@ -117,9 +117,9 @@ test_that("a numeric period of a result names the period whose label is that num
   d$when <- ifelse(d$pilot_phase == 4, "late", sprintf("%02d", d$pilot_phase))
   s$period_col <- "when"
   s$period_value <- "late"
-  expect_identical(.app_build(s, d)$args$time_effect_optimization_value, 3L)
+  expect_identical(.app_build(s, d)$args$time_effect_optimization_value, 1L)
   s$period_value <- "2"
-  expect_identical(.app_build(s, d)$args$time_effect_optimization_value, 2L)
+  expect_identical(.app_build(s, d)$args$time_effect_optimization_value, 3L)
   # a value not stored as a number is kept as its text
   a$time_effect_optimization_value <- "04"
   expect_identical(.app_spec_from_args(a)$spec$period_value, "04")
@@ -310,7 +310,7 @@ test_that("the cost designer keeps the costs in use when its form is switched", 
   spec$coefs <- list(c(0, 1, 0, 0, 0.5), c(0, 1, 1), c(0, 1, NA, 0, 0))
   st <- .app_designer_start(spec)
   expect_identical(st$by_form$linear, list(NULL, NULL, NULL))
-  expect_identical(st$by_form$cubic, list(c(0, 1, 0, 0, 0.5), NULL, c(0, 1, NA, 0, 0)))
+  expect_identical(st$by_form$cubic, list(c(0, 1, 0, 0, 0.5), c(0, 1, 1, 0, 0), c(0, 1, NA, 0, 0)))
   skip_on_cran()
   shiny::testServer(.build_lago_app(), {
     bb5_mtcars(session, col_id)

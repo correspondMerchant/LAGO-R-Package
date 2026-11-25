@@ -163,7 +163,7 @@ test_that("the server reads center level data and the center weights", {
     w <- unname(.app_center_weights_default(s, d))
     do.call(session$setInputs, stats::setNames(as.list(signif(w, 4)), vapply(seq_along(w), function(k) cw_id(spec(), k), character(1))))
     expect_match(as.character(output$cw_sum$html), "The weights add up to 1.")
-    expect_equal(spec()$cw, signif(w, 4))
+    expect_equal(unname(spec()$cw), signif(w, 4))
   })
 })
 

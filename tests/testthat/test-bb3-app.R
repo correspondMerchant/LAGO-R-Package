@@ -117,9 +117,9 @@ test_that("starting from a result keeps named center weights with their centers"
     unit_costs = 1, default_cost_fxn_type = "linear", include_center_effects = TRUE,
     link = "default", confidence_set_alpha = 0.05, center_weights_for_outcome_goal = rev(w)
   )
-  expect_equal(.app_spec_from_args(a)$spec$cw, unname(w))
+  expect_equal(.app_spec_from_args(a)$spec$cw, w)
   a$center_weights_for_outcome_goal <- unname(w)
-  expect_equal(.app_spec_from_args(a)$spec$cw, unname(w))
+  expect_equal(.app_spec_from_args(a)$spec$cw, w)
 })
 
 test_that("a cluster column named like a column the app builds is refused", {
