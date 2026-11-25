@@ -1086,8 +1086,8 @@ get_recommended_interventions <- function(
         span <- ifelse(up > lo, up - lo, 1)
         to_x <- function(t) lo + t * span
         base_cost <- cost_obj_fun(lo)
-        for (polish_round in 1:3) {
-          if (!is.finite(best_cost)) break
+        # no rounds when no restart reached the goal
+        for (polish_round in seq_len(3 * is.finite(best_cost))) {
           improved <- FALSE
           best_point <- results_int_components[, which(cost_results == best_cost)[1]]
           local_scale <- abs(best_cost - base_cost)
