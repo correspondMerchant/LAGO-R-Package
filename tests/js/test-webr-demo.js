@@ -107,4 +107,22 @@ check(
     /correspondmerchant\.github\.io\/LAGO-R-Package\//.test(costApp)
 );
 
+// The playground feeds the report renderers the payload lago_report() builds.
+// With digits = NA jsonlite writes 15 significant digits, so a hover would
+// round a value that was rounded once already. Each call that a renderer reads
+// writes 17 digits, as the report does.
+var playground = fs.readFileSync(path.join(root, "pkgdown/assets/playground.html"), "utf8");
+var renderPayloads = playground.split("jsonlite::toJSON(list(").slice(1).filter(function (chunk) {
+  var call = chunk.slice(0, chunk.indexOf("}`);"));
+  return /dataframe = "rows"|points = lapply/.test(call);
+});
+check("playground has the three renderer payloads", renderPayloads.length === 3);
+renderPayloads.forEach(function (chunk, i) {
+  var call = chunk.slice(0, chunk.indexOf("}`);"));
+  check("playground renderer payload " + (i + 1) + " writes 17 digits",
+    call.indexOf("digits = I(17)") !== -1 && call.indexOf("digits = NA") === -1);
+});
+check("playground sends whether each sweep run was shrunk",
+  playground.indexOf('shrunk = isTRUE(attr(sens, "shrinking_method_used")[i])') !== -1);
+
 console.log("\nAll " + passed + " webR demo wiring assertions passed.");

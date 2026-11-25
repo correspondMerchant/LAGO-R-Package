@@ -84,7 +84,7 @@
 #'   \item The special string `"cost_multiplier"`: each run multiplies every
 #'   coefficient of every vector in the baseline `cost_list_of_vectors` by one
 #'   element of `values`, so `values = c(0.8, 1, 1.2)` evaluates the costs at
-#'   80\%, 100\%, and 120\%. When the baseline gives `unit_costs` instead of
+#'   80%, 100%, and 120%. When the baseline gives `unit_costs` instead of
 #'   `cost_list_of_vectors`, each run multiplies `unit_costs` by the value,
 #'   which scales the linear or cubic cost built from them in the same way.
 #'   This mode requires `cost_list_of_vectors` or `unit_costs` (in `...` or

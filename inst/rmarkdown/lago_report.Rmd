@@ -109,13 +109,15 @@ cat("<script>\nvar LAGO_REPORT_DATA = ", report_json, ";\n</script>\n", sep = ""
 
 ```{r inputs, results='asis', eval=!is.null(blocks$inputs)}
 cat("## ", blocks$inputs$title, "\n\n", sep = "")
-cat(paste0("- ", blocks$inputs$rows), sep = "\n")
+cat(paste0("- ", LAGOtrials:::.lago_md_escape(blocks$inputs$rows)), sep = "\n")
 ```
 
 ## `r blocks$recommendation$title`
 
 ```{r recommendation}
-rec_rows <- blocks$recommendation$rows
+# Text from the data, such as component names, is escaped so it shows as
+# typed and is not read as markdown, HTML or math.
+rec_rows <- LAGOtrials:::.lago_md_escape_df(blocks$recommendation$rows)
 if (!is.null(rec_rows$component)) {
   knitr::kable(
     rec_rows,
@@ -134,36 +136,36 @@ if (!is.null(rec_rows$component)) {
 ## `r blocks$cost$title`
 
 ```{r cost, results='asis'}
-cat(paste0("- ", blocks$cost$rows), sep = "\n")
+cat(paste0("- ", LAGOtrials:::.lago_md_escape(blocks$cost$rows)), sep = "\n")
 ```
 
 ## `r blocks$outcome$title`
 
 ```{r outcome, results='asis'}
-cat(paste0("- ", blocks$outcome$rows), sep = "\n")
+cat(paste0("- ", LAGOtrials:::.lago_md_escape(blocks$outcome$rows)), sep = "\n")
 ```
 
 ```{r power, results='asis', eval=!is.null(blocks$power)}
 cat("## ", blocks$power$title, "\n\n", sep = "")
-cat(paste0("- ", blocks$power$rows), sep = "\n")
+cat(paste0("- ", LAGOtrials:::.lago_md_escape(blocks$power$rows)), sep = "\n")
 ```
 
 ```{r confidence-set-text, results='asis'}
 # Always shown. When there is no set, the rows say why, as print() does.
 cat("## ", blocks$confidence_set$title, "\n\n", sep = "")
-cat(paste0("- ", blocks$confidence_set$rows), sep = "\n")
+cat(paste0("- ", LAGOtrials:::.lago_md_escape(blocks$confidence_set$rows)), sep = "\n")
 ```
 
 ```{r confidence-set-head, eval=!is.null(x$confidence_set_size_percentage) && cs_present}
 knitr::kable(
-  utils::head(x$cs),
+  LAGOtrials:::.lago_md_escape_df(utils::head(x$cs)),
   caption = "First rows of the confidence set"
 )
 ```
 
 ```{r test, results='asis', eval=!is.null(blocks$test)}
 cat("## ", blocks$test$title, "\n\n", sep = "")
-cat(paste0("- ", blocks$test$rows), sep = "\n")
+cat(paste0("- ", LAGOtrials:::.lago_md_escape(blocks$test$rows)), sep = "\n")
 ```
 
 ```{r model-heading, results='asis', eval=!is.null(x$model)}
@@ -172,9 +174,14 @@ cat("## Outcome model fit\n")
 
 ```{r model, eval=!is.null(x$model)}
 # each coefficient with the standard error the intervals use, as in the
-# console summary()
+# console summary(). The row names hold the names of the coefficients, such
+# as the center names of fixed center effects, so they are escaped. An
+# interaction term such as `a:b` is named with backticks for the model
+# formula, and is shown without them, as the inputs recap shows it.
+coef_table <- format(LAGOtrials:::lago_coef_table(x), digits = 4)
+rownames(coef_table) <- sub("^`(.*)`$", "\\1", rownames(coef_table))
 knitr::kable(
-  format(LAGOtrials:::lago_coef_table(x), digits = 4),
+  LAGOtrials:::.lago_md_escape_df(coef_table),
   caption = paste("Outcome model coefficients.", LAGOtrials:::lago_se_note(x))
 )
 ```

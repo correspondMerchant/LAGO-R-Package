@@ -177,14 +177,59 @@
 
   // An estimated outcome or a CI bound, rounded like R's
   // .lago_fmt_interval(): 3 decimals, or 4 significant digits below 0.1.
-  function fmtInterval(v) {
+  function roundInterval(v) {
     v = +v;
-    return numText(Math.abs(v) >= 0.1 || !isFinite(v) ? roundDec(v, 3, false) : roundDec(v, 4, true));
+    return Math.abs(v) >= 0.1 || !isFinite(v) ? roundDec(v, 3, false) : roundDec(v, 4, true);
   }
 
-  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures.
+  function fmtInterval(v) {
+    return numText(roundInterval(v));
+  }
+
+  // An estimated outcome next to the goal it reached, like R's
+  // .lago_fmt_estimate(). It is rounded with fmtInterval(), but when the goal
+  // was reached (reached is true) and the rounded estimate is on the missed
+  // side of the rounded goal (below it for "maximize", above it for
+  // "minimize") while the estimate is within 1e-5 times max(1, |goal|) of the
+  // goal, it shows as the rounded goal. The optimizer meets a goal up to a
+  // small tolerance, so an estimate a hair short of a goal of 0.8125 would
+  // show as 0.812 next to a goal shown as 0.813.
+  function fmtEstimate(est, goal, intention, reached) {
+    var e = roundInterval(est);
+    if (reached === true && goal != null && isFinite(+goal) && isFinite(e) &&
+      Math.abs(+est - +goal) <= 1e-5 * Math.max(1, Math.abs(+goal))) {
+      var g = roundInterval(goal);
+      if ((intention === "maximize" && e < g) || (intention === "minimize" && e > g)) {
+        e = g;
+      }
+    }
+    return numText(e);
+  }
+
+  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures, or 2
+  // decimals from 1e4 up, so a large fixed cost does not hide the part that
+  // changes with the dose.
+  function roundCost(v) {
+    v = +v;
+    return isFinite(v) && Math.abs(v) >= 1e4 ? roundDec(v, 2, false) : roundDec(v, 5, true);
+  }
+
   function fmtCost(v) {
-    return numText(roundDec(v, 5, true));
+    return numText(roundCost(v));
+  }
+
+  // A cost rounded like fmtCost(), but never above a budget it fits in, like
+  // R's .lago_fmt_cost_within(). A cost just under the budget can round up
+  // past it, and it then shows one unit of its last digit lower, which is the
+  // cost rounded down to the same digits.
+  function fmtCostWithin(v, budget) {
+    v = +v;
+    var r = roundCost(v);
+    if (budget != null && isFinite(+budget) && isFinite(v) && v > 0 && v <= +budget && r > +budget) {
+      var unit = v >= 1e4 ? 0.01 : Math.pow(10, Math.floor(Math.log10(v)) - 4);
+      r = roundCost(r - unit);
+    }
+    return numText(r);
   }
 
   var math = {
@@ -193,7 +238,9 @@
     numText: numText,
     fmtValue: fmtValue,
     fmtInterval: fmtInterval,
+    fmtEstimate: fmtEstimate,
     fmtCost: fmtCost,
+    fmtCostWithin: fmtCostWithin,
     costAt: costAt,
     marginalAt: marginalAt,
     sampleCurve: sampleCurve,
@@ -697,10 +744,13 @@
   //
   // data.parameter  : the swept parameter name, used as the x-axis label
   //                   (e.g. "outcome_goal" or "cost_multiplier").
-  // data.points     : array of { value, cost, est, status, comps }, one per
-  //                   swept value; comps is an object of component name ->
-  //                   recommended value for that run (shown in the tooltip).
+  // data.points     : array of { value, cost, est, status, shrunk, comps },
+  //                   one per swept value; comps is an object of component
+  //                   name -> recommended value for that run (shown in the
+  //                   tooltip), and shrunk is whether the run used the
+  //                   shrinking method.
   // data.components : component names, giving the tooltip a stable order.
+  // data.intention  : "maximize" or "minimize", the direction of the goal.
   //
   // Draws the recommended cost against the swept value as a line with points:
   // a cost-of-stringency curve for an outcome_goal sweep, a straight line for a
@@ -772,7 +822,7 @@
       .style("cursor", "pointer")
       .on("mouseover", function (event, d) {
         d3.select(this).attr("fill-opacity", 1).attr("r", 6.5);
-        tip.show(sensTooltipLines(comps, data.parameter, d), xScale(+d.value), yScale(+d.cost));
+        tip.show(sensTooltipLines(comps, data.parameter, d, data.intention), xScale(+d.value), yScale(+d.cost));
       })
       .on("mouseout", function () {
         d3.select(this).attr("fill-opacity", 0.7).attr("r", 5);
@@ -785,11 +835,15 @@
   // goal and the estimated outcome are rounded with fmtInterval(), as R's
   // print() rounds them, so an estimate that meets its goal never shows
   // below it and a goal closer to 0 than 1e-6 does not show as 0.
-  function sensTooltipLines(comps, param, p) {
-    var fmtParam = param === "outcome_goal" ? fmtInterval : fmtValue;
+  // In an outcome goal sweep the estimate of a run that reached its goal
+  // (p.shrunk false) uses fmtEstimate(), so it never shows on the missed side
+  // of the goal shown above it, for the goal direction intention.
+  function sensTooltipLines(comps, param, p, intention) {
+    var goalSweep = param === "outcome_goal";
+    var fmtParam = goalSweep ? fmtInterval : fmtValue;
     var lines = [param + ": " + fmtParam(p.value), "cost: " + fmtCost(p.cost)];
     if (p.est != null && isFinite(+p.est)) {
-      lines.push("est. outcome: " + fmtInterval(p.est));
+      lines.push("est. outcome: " + (goalSweep ? fmtEstimate(p.est, p.value, intention, p.shrunk === false) : fmtInterval(p.est)));
     }
     (comps || []).forEach(function (c) {
       if (p.comps && p.comps[c] != null && isFinite(+p.comps[c])) {
@@ -877,8 +931,8 @@
       .on("mouseover", function (event, d) {
         d3.select(this).attr("fill-opacity", 1).attr("r", 6.5);
         tip.show([
-          "cost: " + fmtCost(d.rec_int_cost),
-          "est. outcome: " + fmtValue(d.est_outcome),
+          "cost: " + fmtCostWithin(d.rec_int_cost, data.budget),
+          "est. outcome: " + fmtInterval(d.est_outcome),
           d.affordable ? "within budget" : "over budget"
         ], xScale(+d.rec_int_cost), yScale(+d.est_outcome));
       })

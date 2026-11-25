@@ -283,7 +283,7 @@ check("formatSig(NaN) is NaN", m.formatSig(NaN) === "NaN");
 // ordinary cost, and the same text as lago-report.js for every value.
 var rep = require("../../inst/js/lago-report.js");
 check("fmtCost(23928) is 23928", m.fmtCost(23928) === "23928");
-check("fmtCost(12345.6) is 12346", m.fmtCost(12345.6) === "12346");
+check("fmtCost(12345.6) is 12345.6", m.fmtCost(12345.6) === "12345.6");
 check("fmtValue(1000.37) is 1000.37", m.fmtValue(1000.37) === "1000.37");
 check("fmtValue(5e6) is 5000000", m.fmtValue(5e6) === "5000000");
 [23928, 1000.37, 1000.999, 12345.6, 1e-7, 0.000123456, 5e6, -0, -2.5, 0.05,

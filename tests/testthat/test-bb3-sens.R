@@ -67,8 +67,10 @@ test_that("lago_budget() reports binding when the maximum costs more than the bu
   expect_gt(b$rec_int_cost, 107999 - 1e-4 * 107999)
   printed <- paste(cli::cli_fmt(print(b)), collapse = " ")
   expect_false(grepl("did not bind", printed))
-  # the cost is shown rounded down, so it does not read as over the budget
-  expect_match(printed, "Cost: 107990 \\(of 107999\\)")
+  # the cost is shown with 2 decimals (bug bash 6), and not over the budget
+  expect_match(printed, "Cost: 10799[0-9](\\.[0-9]{1,2})? \\(of 107999\\)")
+  shown <- as.numeric(sub(".*Cost: ([0-9.]+) .*", "\\1", printed))
+  expect_lte(shown, 107999)
   # a budget that covers the maximum does not bind and recommends it
   b <- suppressWarnings(lago_budget(opt, budget = 108000))
   expect_false(b$binding)
@@ -121,9 +123,16 @@ test_that("a printed budget cost is rounded down only when rounding passes the b
     frontier = data.frame(), component_names = "a", intention = "maximize",
     run_error = NULL
   ), class = "lago_budget")
-  expect_match(paste(cli::cli_fmt(print(b)), collapse = " "), "Cost: 107990")
+  # a cost of 1e4 or more shows 2 decimals (bug bash 6), which stay under
+  # the budget here
+  expect_match(paste(cli::cli_fmt(print(b)), collapse = " "), "Cost: 107997.4 ")
   b$rec_int_cost <- 107900.4
-  expect_match(paste(cli::cli_fmt(print(b)), collapse = " "), "Cost: 107900")
+  expect_match(paste(cli::cli_fmt(print(b)), collapse = " "), "Cost: 107900.4 ")
+  # a cost that rounds up past the budget is shown under it
+  b$budget <- 107998.999
+  b$rec_int_cost <- 107998.996
+  printed <- paste(cli::cli_fmt(print(b)), collapse = " ")
+  expect_lte(as.numeric(sub(".*Cost: ([0-9.]+) .*", "\\1", printed)), 107998.999)
 })
 
 test_that("a sweep shows each model fit warning once", {

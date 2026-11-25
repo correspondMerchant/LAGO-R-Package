@@ -115,10 +115,11 @@
 #' @description Full console display of the object returned by
 #' [lago_optimization()], rendered with boxed, colour-accented [cli][cli::cli]
 #' sections: an inputs recap (data dimensions, outcome, intervention components,
-#' model family/link and fixed effects, goals, costs and bounds), the fitted
+#' model family/link and fixed effects, goals, the power goal approach, next
+#' stage size and icc of a power goal, costs and bounds), the fitted
 #' outcome-model coefficient table, the overall intervention-effect test, the
 #' recommended intervention with its cost and the estimated outcome (and its
-#' confidence interval, 95\% by default), and the confidence set (size, cost
+#' confidence interval, 95% by default), and the confidence set (size, cost
 #' IQR, and first rows). Everything is shown on the console so results can be
 #' read without further calls. [summary.lago()] renders the same output.
 #'
@@ -200,7 +201,7 @@ summary.lago <- function(object, ...) {
 
 #' Plot a LAGO optimization result
 #'
-#' @description Visualizes the confidence set, 95\% by default. For a two-component
+#' @description Visualizes the confidence set, 95% by default. For a two-component
 #' intervention it plots the grid points in the confidence set with the
 #' recommended intervention highlighted; for a single component it plots the
 #' confidence interval bounds against the dose. A non-empty confidence set is

@@ -174,8 +174,8 @@ test_that("every control character of a report title becomes an entity", {
   for (code in codes) {
     expect_identical(.lago_report_title_yaml(paste0("a", intToUtf8(code), "b")), paste0("a&#", code, ";b"))
   }
-  # a line break stays the YAML escape it was
-  expect_identical(.lago_report_title_yaml("one\r\ntwo\rthree"), "one\\ntwo\\nthree")
+  # a line break becomes one space (bug bash 6)
+  expect_identical(.lago_report_title_yaml("one\r\ntwo\rthree"), "one two three")
 })
 
 test_that("a report title with control characters renders", {

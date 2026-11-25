@@ -1829,7 +1829,7 @@
               lb = I(as.numeric(res$intervention_lower_bounds)),
               ub = I(as.numeric(res$intervention_upper_bounds))
             )
-          ), auto_unbox = TRUE, dataframe = "rows", na = "null", digits = NA)
+          ), auto_unbox = TRUE, dataframe = "rows", na = "null", digits = I(17))
         }`);
         const data = JSON.parse(json);
         if (window.LAGOReport) {
@@ -1961,15 +1961,19 @@
               cost = as.numeric(sens$rec_int_cost[i]),
               est = as.numeric(sens$est_outcome_goal[i]),
               status = as.character(sens$status[i]),
+              shrunk = isTRUE(attr(sens, "shrinking_method_used")[i]),
               comps = as.list(stats::setNames(
                 as.numeric(unlist(sens[i, comp_idx, drop = FALSE])), comps))
             ))
-          ), auto_unbox = TRUE, na = "null", digits = NA)
+          ), auto_unbox = TRUE, na = "null", digits = I(17))
         }`);
         const data = JSON.parse(json);
         // normalize: jsonlite emits a scalar (not a length-1 array) for one value
         if (!Array.isArray(data.points)) data.points = [data.points];
         if (data.components && !Array.isArray(data.components)) data.components = [data.components];
+        // the goal direction of the sweep, so a hover never shows an estimate
+        // that reached its goal on the missed side of it
+        data.intention = $("intent").dataset.value;
         // guard the method's existence too: right after a deploy the installed
         // package may still carry an older lago-report.js without this renderer,
         // in which case we skip the chart but still show the table.
@@ -2088,7 +2092,7 @@
             est_outcome = as.numeric(bud$est_outcome),
             intention = bud$intention,
             frontier = bud$frontier
-          ), auto_unbox = TRUE, na = "null", digits = NA, dataframe = "rows")
+          ), auto_unbox = TRUE, na = "null", digits = I(17), dataframe = "rows")
         }`);
         const data = JSON.parse(json);
         if (data.components && !Array.isArray(data.components)) data.components = [data.components];

@@ -122,9 +122,10 @@ check("budgetFinitePoints keeps a legitimate zero cost/outcome",
 // 8. fmtValue / fmtCost: the hover read-outs round like the R text of the
 // report (.lago_fmt_value and .lago_fmt_cost) and do not use e notation for
 // ordinary numbers. The expected strings are what R writes for the same values.
-check("fmtCost(23927.77) is 23928", m.fmtCost(23927.77) === "23928");
+check("fmtCost(23927.77) is 23927.77", m.fmtCost(23927.77) === "23927.77");
+check("fmtCost(9999.77) is 9999.8", m.fmtCost(9999.77) === "9999.8");
 check("fmtCost(63600) is 63600", m.fmtCost(63600) === "63600");
-check("fmtCost(23927772138) is 23928000000", m.fmtCost(23927772138) === "23928000000");
+check("fmtCost(23927772138.456) is 23927772138.46", m.fmtCost(23927772138.456) === "23927772138.46");
 check("fmtCost(2.392777e-05) is 0.000023928", m.fmtCost(2.392777e-05) === "0.000023928");
 check("fmtValue(2.778472) is 2.7785", m.fmtValue(2.778472) === "2.7785");
 check("fmtValue(13.62331) is 13.6233", m.fmtValue(13.62331) === "13.6233");
@@ -218,5 +219,65 @@ check("the estimated outcome uses fmtInterval", tl[2] === "est. outcome: 0.85");
 check("a component value uses fmtValue", tl[3] === "a: 0.8505");
 tl = m.sensTooltipLines([], "cost_multiplier", { value: 5e-7, cost: 10, est: null });
 check("another swept value keeps fmtValue", tl[0] === "cost_multiplier: 0" && tl.length === 2);
+
+// 13. A cost of 1e4 or more shows 2 decimals, so the part that changes with
+// the dose is not hidden under a large fixed cost, as in R's .lago_fmt_cost().
+check("fmtCost(1000012.3456) is 1000012.35", m.fmtCost(1000012.3456) === "1000012.35");
+check("fmtCost(-1000012.3456) is -1000012.35", m.fmtCost(-1000012.3456) === "-1000012.35");
+check("fmtCost(1234.5678) keeps 5 significant digits", m.fmtCost(1234.5678) === "1234.6");
+check("fmtCost(NaN) is NaN", m.fmtCost(NaN) === "NaN");
+
+// 14. An estimate that reached its goal never shows on the missed side of it,
+// as in R's .lago_fmt_estimate(): 0.81249998723151962 reached a goal of 0.8125
+// to maximize, and shows as the goal does, 0.813, not as 0.812.
+check("a reached goal to maximize shows the goal's text",
+  m.fmtEstimate(0.81249998723151962, 0.8125, "maximize", true) === "0.813");
+check("a goal that was not reached keeps the estimate",
+  m.fmtEstimate(0.81249998723151962, 0.8125, "maximize", false) === "0.812");
+check("a reached goal to minimize shows the goal's text",
+  m.fmtEstimate(0.6125001, 0.6124999, "minimize", true) === "0.612");
+check("an estimate above a goal to maximize stays as it is",
+  m.fmtEstimate(0.9, 0.8125, "maximize", true) === "0.9");
+check("an estimate farther from the goal than the tolerance stays as it is",
+  m.fmtEstimate(0.8124, 0.8125, "maximize", true) === "0.812");
+check("an estimate below a goal to minimize stays as it is",
+  m.fmtEstimate(0.5, 0.6125, "minimize", true) === "0.5");
+check("an estimate on the met side to minimize stays as it is",
+  m.fmtEstimate(0.81249998723151962, 0.8125, "minimize", true) === "0.812");
+check("without a goal the estimate stays as it is",
+  m.fmtEstimate(0.81249998723151962, null, "maximize", true) === "0.812");
+check("a missing estimate stays missing",
+  m.fmtEstimate(NaN, 0.8125, "maximize", true) === "NaN");
+tl = m.sensTooltipLines([], "outcome_goal", { value: 0.8125, cost: 10, est: 0.81249998723151962, shrunk: false }, "maximize");
+check("a swept goal that was reached shows its estimate as the goal",
+  tl[0] === "outcome_goal: 0.813" && tl[2] === "est. outcome: 0.813");
+tl = m.sensTooltipLines([], "outcome_goal", { value: 0.8125, cost: 10, est: 0.81249998723151962, shrunk: true }, "maximize");
+check("a swept goal that was shrunk keeps its estimate", tl[2] === "est. outcome: 0.812");
+tl = m.sensTooltipLines([], "power_goal", { value: 0.8125, cost: 10, est: 0.81249998723151962, shrunk: false }, "maximize");
+check("another sweep keeps fmtInterval for the estimate", tl[2] === "est. outcome: 0.812");
+
+// 15. The budget hover never shows an affordable cost above the budget, as in
+// R's .lago_fmt_cost_within(): it rounds such a cost down to the same digits.
+check("a cost just under the budget rounds down", m.fmtCostWithin(1234.56, 1234.57) === "1234.5");
+check("a large cost just under the budget rounds down", m.fmtCostWithin(12345.678, 12345.679) === "12345.67");
+check("a cost that rounds under the budget is kept", m.fmtCostWithin(1234.54, 1234.57) === "1234.5");
+check("a cost over the budget is kept", m.fmtCostWithin(1234.58, 1234.57) === "1234.6");
+check("a cost without a budget is kept", m.fmtCostWithin(1234.56, null) === "1234.6");
+check("a cost below 1 just under the budget rounds down", m.fmtCostWithin(0.123456, 0.1234565) === "0.12345");
+check("a zero cost is kept", m.fmtCostWithin(0, 1) === "0");
+
+// 16. The formatters shared with cost-curves.js are the same code.
+var fs = require("fs");
+var path = require("path");
+function fnText(file, name) {
+  var src = fs.readFileSync(path.join(__dirname, "..", "..", "inst", "js", file), "utf8");
+  var at = src.indexOf("  function " + name + "(");
+  return at < 0 ? null : src.slice(at, src.indexOf("\n  }\n", at) + 5);
+}
+["roundCost", "fmtCost", "fmtValue", "numText", "roundDec", "decDigits"].forEach(function (name) {
+  var a = fnText("lago-report.js", name);
+  check(name + " is the same in lago-report.js and cost-curves.js",
+    a !== null && a === fnText("cost-curves.js", name));
+});
 
 console.log("\nAll " + passed + " JS report-math assertions passed.");

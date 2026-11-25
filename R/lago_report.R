@@ -6,7 +6,7 @@
 #' formatted lines as the console methods ([print.lago()] / [summary.lago()]),
 #' but the report orders them differently and adds plots. It shows the inputs
 #' recap, the recommended intervention, its cost, the estimated outcome (with
-#' its confidence interval, 95\% by default) and goal, the power goal (when
+#' its confidence interval, 95% by default) and goal, the power goal (when
 #' present), the confidence set (size, cost IQR, and first rows, or the reason
 #' there is no set), the overall intervention-effect test (when present), and
 #' the fitted outcome-model coefficient table. A `sessionInfo()` footer records
@@ -45,7 +45,8 @@
 #' `lago_report.html`. A file path must end in `.html` or `.htm`, since the
 #' report is always an HTML file.
 #' @param title A character string. The report title. Every character shows
-#' as typed, so markdown, HTML and math are not interpreted. An empty or
+#' as typed, so markdown, HTML and math are not interpreted. A line break
+#' becomes one space, and spaces at the start and end are dropped. An empty or
 #' missing title (`""`, `NA` or `NULL`) uses the default title. The title
 #' must be UTF-8 text, or text marked as latin1 with [Encoding()], which is
 #' converted to UTF-8.
@@ -152,13 +153,21 @@ lago_report <- function(x,
       "i" = "Create it first, or give a file path that ends in {.file .html}."
     ))
   }
-  # the folder of the report is created when it is missing, but a file in its
-  # place cannot become a folder
+  # The folder of the report is created when it is missing, from its nearest
+  # folder that exists. A file in the way cannot become a folder, and a folder
+  # that cannot be written in would make pandoc fail with a bare error code.
   parent <- dirname(output_file)
+  while (!file.exists(parent) && dirname(parent) != parent) parent <- dirname(parent)
   if (file.exists(parent) && !dir.exists(parent)) {
     cli::cli_abort(c(
       "The report cannot be written in {.file {parent}}, because it is a file and not a folder.",
       "i" = "Give a path in a folder for {.arg output_file}."
+    ))
+  }
+  if (dir.exists(parent) && file.access(parent, 2) != 0) {
+    cli::cli_abort(c(
+      "The report {.file {output_file}} cannot be written, because the folder {.file {parent}} cannot be written in.",
+      "i" = "Give a path in a folder you can write in for {.arg output_file}."
     ))
   }
   # The report is always HTML. Another extension would make pandoc fail (.pdf)
@@ -270,21 +279,56 @@ lago_report <- function(x,
 # escape or NEL) and the line and paragraph separators U+2028 and U+2029 become
 # an entity too, as YAML refuses most of them as they are and reads NEL and
 # the separators as a space. So do the Unicode noncharacters, such as U+FFFE
-# and U+FFFF, which YAML refuses too. The entities hold no backslash or double quote, so
-# only a line break needs escaping for YAML, which reads \n as one.
+# and U+FFFF, which YAML refuses too. The entities hold no backslash or double
+# quote, so nothing else needs escaping for YAML.
+# A title is one line: pandoc reads a title over several lines as markdown
+# blocks, where a line that starts with 4 spaces is code. So the line breaks,
+# with the spaces around them, become one space, and the spaces at the start
+# and end are dropped, since 4 of them at the start would be code too.
 .lago_report_title_yaml <- function(title) {
   title <- enc2utf8(paste(as.character(title), collapse = " "))
+  title <- gsub("[ \r\n]*[\r\n][ \r\n]*", " ", title, perl = TRUE)
+  title <- gsub("^ +| +$", "", title, perl = TRUE)
   chars <- strsplit(title, "", fixed = TRUE)[[1]]
   code <- vapply(chars, utf8ToInt, integer(1), USE.NAMES = FALSE)
   punct <- grepl("^[!-/:-@\\[-`{-~]$", chars, perl = TRUE)
-  line_break <- chars %in% c("\n", "\r")
   # the noncharacters U+FDD0 to U+FDEF and the last two code points of every
   # plane, such as U+FFFE and U+FFFF, which YAML refuses as they are
   nonchar <- (code >= 64976L & code <= 65007L) | code %% 65536L >= 65534L
-  control <- !line_break & (code < 32L | (code >= 127L & code <= 159L) | code %in% c(8232L, 8233L) | nonchar)
+  control <- code < 32L | (code >= 127L & code <= 159L) | code %in% c(8232L, 8233L) | nonchar
   escape <- punct | control
   chars[escape] <- paste0("&#", code[escape], ";")
-  gsub("\r?\n|\r", "\\\\n", paste(chars, collapse = ""))
+  paste(chars, collapse = "")
+}
+
+# Text built from the data, such as a center name in a row name of the
+# coefficient table, as markdown that shows it as typed. Every ASCII
+# punctuation character becomes a numeric HTML entity, as in the title, so
+# "*a*", "<b>a</b>", "$1$" and "A|B" are not read as emphasis, HTML, math or a
+# table cell border. A line break becomes a space, so a table row stays one
+# line. NA stays NA.
+.lago_md_escape <- function(x) {
+  x <- enc2utf8(as.character(x))
+  vapply(x, function(s) {
+    if (is.na(s)) return(NA_character_)
+    s <- gsub("[\r\n]+", " ", s, perl = TRUE)
+    chars <- strsplit(s, "", fixed = TRUE)[[1]]
+    punct <- grepl("^[!-/:-@\\[-`{-~]$", chars, perl = TRUE)
+    chars[punct] <- paste0("&#", vapply(chars[punct], utf8ToInt, integer(1)), ";")
+    paste(chars, collapse = "")
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# A data frame for knitr::kable() in the report, with its row names, column
+# names and text columns escaped with .lago_md_escape(). Numeric columns are
+# left as they are, so kable() still formats and aligns them.
+.lago_md_escape_df <- function(df) {
+  df <- as.data.frame(df, stringsAsFactors = FALSE)
+  text_cols <- vapply(df, function(v) is.character(v) || is.factor(v), logical(1))
+  df[text_cols] <- lapply(df[text_cols], .lago_md_escape)
+  names(df) <- .lago_md_escape(names(df))
+  if (.row_names_info(df) > 0) rownames(df) <- .lago_md_escape(rownames(df))
+  df
 }
 
 # The bundled report template, in a function of its own so a test can point it

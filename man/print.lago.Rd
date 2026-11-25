@@ -18,10 +18,11 @@
 Full console display of the object returned by
 \code{\link[=lago_optimization]{lago_optimization()}}, rendered with boxed, colour-accented \link[cli:cli]{cli}
 sections: an inputs recap (data dimensions, outcome, intervention components,
-model family/link and fixed effects, goals, costs and bounds), the fitted
+model family/link and fixed effects, goals, the power goal approach, next
+stage size and icc of a power goal, costs and bounds), the fitted
 outcome-model coefficient table, the overall intervention-effect test, the
 recommended intervention with its cost and the estimated outcome (and its
-confidence interval, 95\\% by default), and the confidence set (size, cost
+confidence interval, 95\% by default), and the confidence set (size, cost
 IQR, and first rows). Everything is shown on the console so results can be
 read without further calls. \code{\link[=summary.lago]{summary.lago()}} renders the same output.
 }

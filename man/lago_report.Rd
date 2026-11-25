@@ -22,7 +22,8 @@ If it is an existing folder, the report is written in it as
 report is always an HTML file.}
 
 \item{title}{A character string. The report title. Every character shows
-as typed, so markdown, HTML and math are not interpreted. An empty or
+as typed, so markdown, HTML and math are not interpreted. A line break
+becomes one space, and spaces at the start and end are dropped. An empty or
 missing title (\code{""}, \code{NA} or \code{NULL}) uses the default title. The title
 must be UTF-8 text, or text marked as latin1 with \code{\link[=Encoding]{Encoding()}}, which is
 converted to UTF-8.
@@ -51,7 +52,7 @@ Markdown template. Its text sections use the same labels and the same
 formatted lines as the console methods (\code{\link[=print.lago]{print.lago()}} / \code{\link[=summary.lago]{summary.lago()}}),
 but the report orders them differently and adds plots. It shows the inputs
 recap, the recommended intervention, its cost, the estimated outcome (with
-its confidence interval, 95\\% by default) and goal, the power goal (when
+its confidence interval, 95\% by default) and goal, the power goal (when
 present), the confidence set (size, cost IQR, and first rows, or the reason
 there is no set), the overall intervention-effect test (when present), and
 the fitted outcome-model coefficient table. A \code{sessionInfo()} footer records

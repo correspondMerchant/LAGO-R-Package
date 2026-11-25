@@ -404,9 +404,16 @@
     return numText(a >= 0.1 || a < 1e-6 || !isFinite(v) ? roundDec(v, 4, false) : roundDec(v, 4, true));
   }
 
-  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures.
+  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures, or 2
+  // decimals from 1e4 up, so a large fixed cost does not hide the part that
+  // changes with the dose.
+  function roundCost(v) {
+    v = +v;
+    return isFinite(v) && Math.abs(v) >= 1e4 ? roundDec(v, 2, false) : roundDec(v, 5, true);
+  }
+
   function fmtCost(v) {
-    return numText(roundDec(v, 5, true));
+    return numText(roundCost(v));
   }
 
   // A slider reports its value rounded to its step. The exact value the server
