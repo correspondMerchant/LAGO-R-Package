@@ -164,7 +164,10 @@ outcome_model_fitting <- function(
   # A center or period whose usable rows all have zero weight has a dummy glm()
   # cannot estimate. Its rows add nothing to the fit, so they are left out as rows
   # with a missing weight are, and the center is left out of the average.
+  # Under a global na.action of na.fail or na.pass a missing weight would stop
+  # the fit, so there the rows are taken out of the data instead.
   zero_weight_levels <- list()
+  drop_rows <- global_na_action_name() %in% c("na.fail", "na.pass")
   if (!is.null(weights) && !is.null(frame)) {
     for (term in effects) {
       # judged on the rows glm() keeps, as the check above is
@@ -173,7 +176,13 @@ outcome_model_fitting <- function(
       positive <- tapply(kept_weights > 0, kept, any)
       empty <- names(positive)[!positive %in% TRUE]
       if (length(empty) == 0) next
-      weights[as.character(data[[term]]) %in% empty] <- NA
+      in_empty <- as.character(data[[term]]) %in% empty
+      if (drop_rows) {
+        data <- data[!in_empty, , drop = FALSE]
+        weights <- weights[!in_empty]
+      } else {
+        weights[in_empty] <- NA
+      }
       zero_weight_levels[[term]] <- empty
       warning(paste0(
         "The ", term, "(s) ", paste0("'", empty, "'", collapse = ", "),
@@ -204,23 +213,30 @@ outcome_model_fitting <- function(
   # they can be surfaced as fit diagnostics instead of being swallowed. The
   # fit still proceeds; glm warnings are not fatal.
   fit_warnings <- character(0)
+  binomial_family <- family_object$family %in% c("binomial", "quasibinomial")
+  # an identity link on a binomial family needs every fitted probability
+  # inside 0 to 1, which glm() may fail to keep
+  identity_binomial_hint <- if (binomial_family && family_object$link == "identity") {
+    paste0(
+      "\nWith the identity link, glm() needs fitted probabilities between 0 ",
+      "and 1 at every row, and it found no fit that keeps them there on these ",
+      "data. Use the logit link, or narrow the data to rows where the model ",
+      "stays inside 0 to 1."
+    )
+  }
   model <- withCallingHandlers(
     tryCatch(
       {
         fit_glm(formula, contrasts = effect_contrasts)
       },
       error = function(e) {
-        # an identity or log link on a binomial family needs a start with
-        # every fitted probability inside 0 to 1, which glm() may not find
-        hint <- if (grepl("no valid set of coefficients", conditionMessage(e)) &&
-          family_object$family %in% c("binomial", "quasibinomial") &&
-          family_object$link %in% c("identity", "log")) {
-          paste0(
-            "\nWith the ", family_object$link, " link, glm() needs fitted ",
-            "probabilities between 0 and 1 at every row, and it found no start ",
-            "that gives them on these data. Use the logit link, or narrow the ",
-            "data to rows where the model stays inside 0 to 1."
-          )
+        # glm() fails this way when it cannot keep the fitted probabilities
+        # inside 0 to 1
+        hint <- if (grepl(
+          "no valid set of coefficients|cannot correct step size",
+          conditionMessage(e)
+        )) {
+          identity_binomial_hint
         }
         stop(paste0("Error occurred during model fitting step:\n ", e, hint))
       }
@@ -236,9 +252,24 @@ outcome_model_fitting <- function(
 
   # if model did not converge, stop the function
   if (!model$converged) {
-    stop(paste(
-      "Model did not converge. Please check",
-      "your input data and model specifications."
+    stop(paste0(
+      "Model did not converge. Please check ",
+      "your input data and model specifications.",
+      # glm() always warns when it does not converge
+      "\nglm() gave the following warning(s):\n",
+      paste0("  - ", unique(fit_warnings), collapse = "\n"),
+      if (!is.null(identity_binomial_hint)) {
+        identity_binomial_hint
+      } else if (binomial_family) {
+        paste0(
+          "\nWith a binomial or quasibinomial family this is most likely ",
+          "separation: some values of the predictors, or of a combination of ",
+          "them, give only 0s or only 1s, so a coefficient has no finite ",
+          "estimate. Look at the outcome against each intervention component, ",
+          "center and period, and drop or merge the ones whose rows all have ",
+          "the same outcome, or collect more data."
+        )
+      }
     ))
   }
 
@@ -496,19 +527,27 @@ refuse_duplicate_coef_names <- function(model) {
   ))
 }
 
-# Refuse a global na.action of na.pass or na.fail when a model row has a
-# missing value. glm() fails on such a row with an error that does not name
-# the option, while na.omit and na.exclude drop it.
-refuse_unusable_na_action <- function(frame) {
+# The name of the global na.action option, such as "na.omit", or "" when it
+# is a function other than na.pass and na.fail.
+global_na_action_name <- function() {
   action <- getOption("na.action")
-  name <- if (is.character(action) && length(action) == 1) {
+  if (is.character(action) && length(action) == 1) {
     action
   } else if (identical(action, stats::na.pass)) {
     "na.pass"
   } else if (identical(action, stats::na.fail)) {
     "na.fail"
+  } else {
+    ""
   }
-  if (is.null(name) || !name %in% c("na.pass", "na.fail")) {
+}
+
+# Refuse a global na.action of na.pass or na.fail when a model row has a
+# missing value. glm() fails on such a row with an error that does not name
+# the option, while na.omit and na.exclude drop it.
+refuse_unusable_na_action <- function(frame) {
+  name <- global_na_action_name()
+  if (!name %in% c("na.pass", "na.fail")) {
     return(invisible(NULL))
   }
   n_missing <- sum(!stats::complete.cases(frame))

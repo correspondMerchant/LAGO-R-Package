@@ -35,6 +35,11 @@ weighted_confidence_ci <- function(model, covariance, x, link = "identity") {
 weighted_confidence_oracle <- function(model, d, link, clusters = NULL) {
   X <- model.matrix(model)
   w <- model$prior.weights
+  # clustered on the identity link, a family other than gaussian weights each
+  # row by its IRLS working weight
+  if (!is.null(clusters) && link == "identity" && model$family$family != "gaussian") {
+    w <- model$weights
+  }
   A <- matrix(0, ncol(X), ncol(X))
   scores <- matrix(0, nrow(X), ncol(X))
   scale <- 0
@@ -67,6 +72,14 @@ weighted_confidence_oracle <- function(model, d, link, clusters = NULL) {
         cluster_meat(paste(clusters[[1]], clusters[[2]], sep = "_"))
     }
     V <- B %*% M %*% t(B)
+    # a two-way variance that is not positive semidefinite has its negative
+    # eigenvalues set to 0
+    if (length(clusters) == 2) {
+      e <- eigen((V + t(V)) / 2, symmetric = TRUE)
+      if (min(e$values) < -1e-12 * max(abs(e$values))) {
+        V <- e$vectors %*% (pmax(e$values, 0) * t(e$vectors))
+      }
+    }
   }
   dimnames(V) <- list(colnames(X), colnames(X))
   V

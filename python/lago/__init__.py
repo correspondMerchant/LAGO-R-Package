@@ -74,10 +74,11 @@ def optimize(
     outcome_goal : float, optional
         The desired outcome level. At least one of ``outcome_goal`` or
         ``power_goal`` (via kwargs) must be given.
-    cost_list : list[list[float]], optional
+    cost_list : list[list[float]] or dict[str, list[float]], optional
         The cost-function coefficients per component, as a Python list of
-        lists. Maps to R's ``cost_list_of_vectors`` (a list of numeric
-        vectors). Either this or ``unit_costs`` must be supplied.
+        lists, or as a dict of lists keyed by component, which R matches to
+        the components by name. Maps to R's ``cost_list_of_vectors`` (a list
+        of numeric vectors). Either this or ``unit_costs`` must be supplied.
     quiet : bool, default True
         Suppress R's paced console output. Defaults to True for programmatic
         use; the returned value is identical either way.
@@ -96,7 +97,9 @@ def optimize(
         ``rec_int_cost`` (float), ``est_outcome_ci`` (dict lower/upper when
         present), ``confidence_set_size_percentage`` (float when present),
         ``cs`` (pandas.DataFrame when a non-empty confidence set exists, else
-        None), plus echoed metadata. The fitted ``model`` is returned as the
+        None, whose index holds the number of each row in the grid of
+        interventions R searched, as text, such as "11"), plus echoed
+        metadata. The fitted ``model`` is returned as the
         raw rpy2 glm object (it does not convert cleanly). The underlying R
         result object is kept under ``"_r_object"`` for use with
         :func:`lago_report`.
@@ -196,8 +199,8 @@ def sensitivity(
     Returns
     -------
     pandas.DataFrame
-        One row per element of ``values``, matching R's ``lago_sensitivity()``
-        ``data.frame``: a ``value`` column, one numeric column per intervention
+        One row per element of ``values``, with the default index 0, 1, 2 and so on,
+        matching R's ``lago_sensitivity()`` ``data.frame``: a ``value`` column, one numeric column per intervention
         component (named by the component) holding its recommended value, a
         ``rec_int_cost`` column, an ``est_outcome_goal`` column, a
         ``status`` column (``"ok"`` for a successful run, ``"error"``
@@ -262,8 +265,8 @@ def budget(
         The most the intervention may cost, in the units of the costs.
     n_grid : int, default 25
         How many outcome goals the first pass tries. A second pass tries as
-        many again near the budget. It must be a whole number, such as 25 or
-        25.0. A fraction, text or true and false raises a ``TypeError``, and R
+        many again near the budget. It must be a whole number, such as 25,
+        25.0 or ``Decimal("25")``. A fraction, text or true and false raises a ``TypeError``, and R
         refuses a number below 2.
     cost_list : list[list[float]], optional
         The cost-function coefficients per component. Maps to R's
@@ -279,7 +282,8 @@ def budget(
         budget), ``binding`` (whether a better outcome would cost more),
         ``rec_int`` (the intervention, a list), ``rec_int_cost``,
         ``est_outcome``, ``outcome_goal``, ``frontier`` (a
-        ``pandas.DataFrame`` of the goals searched), ``component_names``,
+        ``pandas.DataFrame`` of the goals searched, with the default index
+        0, 1, 2 and so on), ``component_names``,
         ``intention`` and ``run_error`` (the error of the runs when every run
         failed, else ``None``).
     """
@@ -301,6 +305,9 @@ def budget(
     out = _bridge.scalarize_dict(_bridge.r_to_py(result))
     if isinstance(out.get("rec_int"), dict):
         out["rec_int"] = list(out["rec_int"].values())
+    if hasattr(out.get("frontier"), "reset_index"):
+        # R numbers the rows 1, 2, ..., which rpy2 makes a text index
+        out["frontier"] = out["frontier"].reset_index(drop=True)
     # R drops a list element set to NULL, so a search with no failed runs has
     # no run_error at all
     out.setdefault("run_error", None)
@@ -313,9 +320,14 @@ def _whole_number(value, name):
     ``int()`` would cut 2.9 to 2 and read the text "30", so a fraction or
     text would run a search the caller did not ask for.
     """
+    import decimal
     import numbers
 
-    if isinstance(value, numbers.Real) and not isinstance(value, bool) and float(value).is_integer():
+    if isinstance(value, decimal.Decimal):
+        # a Decimal is not a numbers.Real, and Decimal("NaN") or "Infinity" is not whole
+        if value.is_finite() and value == value.to_integral_value():
+            return int(value)
+    elif isinstance(value, numbers.Real) and not isinstance(value, bool) and float(value).is_integer():
         return int(value)
     raise TypeError(f"`{name}` must be a whole number, such as 25, and not {value!r}.")
 
@@ -378,7 +390,9 @@ def get_confidence_set(
     dict
         ``confidence_set_size_percentage`` (float),
         ``rec_int_ci`` (dict lower/upper, or None),
-        ``cs`` (pandas.DataFrame, or None when empty).
+        ``cs`` (pandas.DataFrame, or None when empty, whose index holds the
+        number of each row in the grid of interventions R searched, as
+        text).
     """
     call_kwargs = dict(
         predictors_data=predictors_data,

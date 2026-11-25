@@ -83,11 +83,15 @@ shrinking_method <- function(
   # With interaction terms the effect of each component depends on the others,
   # so the formula below, which reads one component at a time, can send them
   # to a corner where they cancel. The recommendation then moves from the
-  # stage 1 intervention towards the best reachable point, by the share of the
-  # way to the goal that point covers: all the way when the goal is just out
-  # of reach, and less the further the goal is. It is continuous at the best
-  # reachable outcome, and never below the stage 1 outcome when that point is
-  # better.
+  # stage 1 intervention towards the best reachable point. The share of the
+  # way to the goal that point covers sets an outcome target between the stage
+  # 1 outcome and the best one: the best outcome when the goal is just out of
+  # reach, and less the further the goal is. The recommendation is the first
+  # point on the line from the stage 1 intervention to the best point that
+  # reaches the target. The outcome along that line need not rise steadily,
+  # since interactions make it a polynomial, so the target is taken in outcome
+  # and not as a share of the distance. The result is never below the stage 1
+  # outcome, and it is continuous at the best reachable outcome.
   if (include_interaction_terms && !is.null(best_point)) {
     outcome_at <- function(x) {
       get_outcome(
@@ -102,7 +106,24 @@ shrinking_method <- function(
     } else {
       0
     }
-    return(stage_1_intervention + share * (best_point - stage_1_intervention))
+    if (share <= 0) {
+      return(stage_1_intervention)
+    }
+    target <- start + share * (best - start)
+    along <- function(t) stage_1_intervention + t * (best_point - stage_1_intervention)
+    reaches <- function(t) isTRUE(outcome_at(along(t)) >= target)
+    # the first of 200 steps that reaches the target, then bisection inside
+    # that step. The best point itself reaches it, and the stage 1
+    # intervention does not, since the target is above its outcome.
+    ts <- seq(0, 1, length.out = 201)
+    hit <- max(2, min(c(which(vapply(ts, reaches, logical(1))), length(ts))))
+    lo_t <- ts[hit - 1]
+    hi_t <- ts[hit]
+    for (i in seq_len(50)) {
+      mid <- (lo_t + hi_t) / 2
+      if (reaches(mid)) hi_t <- mid else lo_t <- mid
+    }
+    return(along(hi_t))
   }
 
   # Main optimization loop

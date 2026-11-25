@@ -72,7 +72,9 @@ of the dataset with that name, and that column must hold the product of its
 components, for example
 \code{data[["component1:component2"]] <- data$component1 * data$component2}.
 A column that is not that product is refused. A column saved with 4
-significant digits still counts as that product.
+significant digits still counts as that product. So does a column saved
+with 3 decimals, on the rows where the product, or the median product of
+the column, is 0.5 or more.
 A component cannot be named "cost", "CI_lower_bound" or "CI_upper_bound",
 the names of the other columns of the confidence set.}
 
@@ -340,7 +342,9 @@ effect, and at least two centers need a row the outcome model can use.
 Note, include_center_effects and center_characteristics cannot be used
 together at the same time.
 Default value without user specification (NULL): FALSE for individual level
-data, TRUE for center level data.}
+data, TRUE for center level data. For center level data with
+center_characteristics the default is FALSE, so the characteristics are
+used.}
 
 \item{center_effects_optimization_values}{A character string. The name of
 the center of interest (one of the values of the 'center' column) that will
@@ -384,9 +388,19 @@ Supplementary material of Nevo et al. (2021) for details).}
 
 \item{shrinkage_threshold}{A numeric value between 0 and 1. Not used, and
 kept so that existing calls still run. When the outcome goal is not
-estimated to be reachable within the bounds, the shrinkage method from
-Section 5.1 of the Supplementary Materials of Nevo et al. (2021) is always
-applied, whatever this value is.
+estimated to be reachable within the bounds, the shrinking method is always
+applied, whatever this value is. Without interaction terms it is the method
+of Section 5.1 of the Supplementary Materials of Nevo et al. (2021). That
+method solves for the coefficient each component would need at its upper
+bound, so its recommendation depends on where the component's 0 is: a
+component recorded with an offset, such as a dose with a floor, gets a
+different shrunk recommendation than the same component measured from 0.
+With
+interaction terms, where that method reads one component at a time, the
+package moves from the stage 1 intervention towards the best reachable
+point instead, and recommends the first point on that line that reaches an
+outcome between the stage 1 outcome and the best one. The closer the goal
+is to the best outcome, the closer that outcome is to the best one.
 Default value without user specification: 0.25.}
 
 \item{quiet}{A boolean. If TRUE, suppresses the progress messages, the paced

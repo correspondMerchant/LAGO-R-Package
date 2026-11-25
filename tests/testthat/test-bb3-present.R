@@ -56,7 +56,7 @@ test_that("the report title escapes punctuation as entities, not backslashes", {
   expect_identical(.lago_report_title_yaml("Plain title 2"), "Plain title 2")
   expect_identical(.lago_report_title_yaml("a (b) [c]"), "a &#40;b&#41; &#91;c&#93;")
   expect_identical(.lago_report_title_yaml('"\\'), "&#34;&#92;")
-  expect_identical(.lago_report_title_yaml("one\ntwo"), "one\\ntwo")
+  expect_identical(.lago_report_title_yaml("one\ntwo"), "one two")
   expect_identical(.lago_report_title_yaml("été"), "été")
 })
 
@@ -93,7 +93,8 @@ test_that("numbers in the text are written in full, as the JS report writes them
   )
   b <- lago_blocks(r)
   expect_no_match(unlist(b), "e[+-][0-9]")
-  expect_identical(b$cost$rows, paste0("Cost: ", format(signif(r$rec_int_cost, 5), scientific = FALSE)))
+  # a cost of 1e4 or more shows 2 decimals (bug bash 6)
+  expect_identical(b$cost$rows, paste0("Cost: ", format(round(r$rec_int_cost, 2), scientific = FALSE, nsmall = 0, digits = 15)))
   expect_match(b$confidence_set$rows[2], "IQR of the cost within the 95% confidence set: [0-9]+ - [0-9]+$")
 
   # bounds, the recommendation, the estimate and its interval, and the test

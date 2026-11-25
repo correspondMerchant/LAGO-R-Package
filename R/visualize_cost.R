@@ -57,7 +57,14 @@
 #' \code{lago_optimization(cost_list_of_vectors = ...)}. The same list can be
 #' copied from within the app.
 #'
-#' @details When the app is closed with the "Return list to R & close" button,
+#' @details The unit costs and the bounds are matched to the components as in
+#' \code{lago_optimization()}. An unnamed vector is matched by position. A
+#' named one is matched by name when a name is one of the components, or when
+#' it has two or more values that all have names. Its names must then be the
+#' component names, each once. Other names are ignored and the values are
+#' matched by position.
+#'
+#' When the app is closed with the "Return list to R & close" button,
 #' the coefficient list is also stored in the \code{lago_cost_list} option
 #' (overwriting any existing value) and a message reports this, so the list is
 #' available even when the app was launched with a bare
@@ -112,7 +119,23 @@ visualize_cost <- function(
     "intervention upper bounds must have the same length as component names." =
       length(intervention_upper_bounds) == length(component_names),
     "intervention upper bounds must all be finite." =
-      all(is.finite(intervention_upper_bounds)),
+      all(is.finite(intervention_upper_bounds))
+  )
+  # Named unit costs and bounds are matched to the components by name, as
+  # lago_optimization() matches them, and the names are dropped so they do not
+  # show up on the returned coefficients.
+  unit_costs <- match_by_names(
+    unit_costs, component_names, "unit_costs", "component names"
+  )
+  intervention_lower_bounds <- match_by_names(
+    intervention_lower_bounds, component_names, "intervention_lower_bounds",
+    "component names"
+  )
+  intervention_upper_bounds <- match_by_names(
+    intervention_upper_bounds, component_names, "intervention_upper_bounds",
+    "component names"
+  )
+  stopifnot(
     "intervention lower bounds must be less than intervention upper bounds." =
       all(intervention_lower_bounds < intervention_upper_bounds)
   )
@@ -256,10 +279,11 @@ visualize_cost <- function(
     if (i > n_coef(t, ci)) t <- "cubic"
     scales_by_type[[t]][[ci]][i]
   }
-  # a range in true units, as the slider of row i shows it under form t
+  # a range in the units the slider of row i shows under form t, widened to
+  # multiples of its step
   disp <- function(rng, t, ci, i) {
     s <- sc(t, ci, i)
-    list(min = rng$min * s, max = rng$max * s, step = slider_step(rng$min * s, rng$max * s))
+    .snap_slider_range(rng$min * s, rng$max * s)
   }
   # the label of slider row i, with the unit it is shown in
   row_label <- function(t, ci, i) {
@@ -666,7 +690,7 @@ visualize_cost <- function(
         assign(id, e, envir = exact)
       }
       if (!is.null(v) && !is.null(e) &&
-        (abs(v - e$value) <= e$step / 2 || isTRUE(v == e$stale))) {
+        (.within_half_step(v, e$value, e$step) || isTRUE(v == e$stale))) {
         e$value
       } else {
         v
@@ -792,16 +816,20 @@ visualize_cost <- function(
               # the range inputs are in the slider's units, the exact value in
               # the coefficient's
               s <- sc(cur_type(), component_idx, i)
+              # the slider gets the typed range widened to multiples of its
+              # step, and the exact value must lie in the typed range
+              rng <- .snap_slider_range(rmin, rmax)
               kept <- NULL
               if (exists(id, envir = exact, inherits = FALSE)) {
                 e <- get(id, envir = exact)
                 kept <- e$value
                 cur <- isolate(input[[id]])
                 if (!is.null(cur)) cur <- cur / s
-                unmoved <- is.null(cur) || abs(cur - e$value) <= e$step / 2 ||
+                unmoved <- is.null(cur) ||
+                  .within_half_step(cur, e$value, e$step) ||
                   isTRUE(cur == e$stale)
                 if (unmoved && kept * s >= rmin && kept * s <= rmax) {
-                  set_coef(id, kept, slider_step(rmin, rmax) / s, stale = cur)
+                  set_coef(id, kept, rng$step / s, stale = cur)
                 } else {
                   drop_coef(id)
                   kept <- NULL
@@ -813,18 +841,18 @@ visualize_cost <- function(
                 updateSliderInput(
                   session,
                   inputId = id,
-                  min = rmin,
-                  max = rmax,
-                  step = slider_step(rmin, rmax)
+                  min = rng$min,
+                  max = rng$max,
+                  step = rng$step
                 )
               } else {
                 updateSliderInput(
                   session,
                   inputId = id,
                   value = kept * s,
-                  min = rmin,
-                  max = rmax,
-                  step = slider_step(rmin, rmax)
+                  min = rng$min,
+                  max = rng$max,
+                  step = rng$step
                 )
               }
             },
@@ -970,31 +998,34 @@ visualize_cost <- function(
             if (is.null(new_max) || !is.finite(new_max) || val * s > new_max) {
               new_max <- wide$max * s
             }
+            # the slider gets the range widened to multiples of its step, and
+            # a side that was widened shows that in its range input
+            rng <- .snap_slider_range(new_min, new_max)
             if (!identical(new_min, cur_min)) {
               updateNumericInput(
                 session,
                 inputId = paste0("range_min_", component_idx, "_", i - 1),
-                value = new_min
+                value = rng$min
               )
             }
             if (!identical(new_max, cur_max)) {
               updateNumericInput(
                 session,
                 inputId = paste0("range_max_", component_idx, "_", i - 1),
-                value = new_max
+                value = rng$max
               )
             }
             set_coef(
               paste0("coef_", component_idx, "_", i - 1), val,
-              slider_step(new_min, new_max) / s
+              rng$step / s
             )
             updateSliderInput(
               session,
               inputId = paste0("coef_", component_idx, "_", i - 1),
               value = val * s,
-              min = new_min,
-              max = new_max,
-              step = slider_step(new_min, new_max)
+              min = rng$min,
+              max = rng$max,
+              step = rng$step
             )
           })
         },
@@ -1472,6 +1503,43 @@ slider_step <- function(lower, upper) {
   by_size <- 10^ceiling(log10(max(abs(lower), abs(upper)) * 1e-12))
   by_narrow <- 10^floor(log10(min((upper - lower) / 1000, 0.00001)))
   max(by_narrow, by_width, by_size, 1e-6)
+}
+
+# A slider range that starts and ends on multiples of its step, as
+# list(min, max, step). The slider rounds a value to its step counted from its
+# min and then rounds it again to the step's decimals. When min is not a
+# multiple of the step, the two roundings can disagree, and the slider then
+# reads a value more than half a step from the value the server set. The range
+# is widened outward to the nearest multiples, which are rounded to the step's
+# decimals. A wider range can have a larger step, so this repeats until the
+# step holds.
+.snap_slider_range <- function(lower, upper) {
+  step <- slider_step(lower, upper)
+  repeat {
+    # a ratio within round-off of a whole number is that whole number
+    snap <- function(r, outward) {
+      k <- round(r)
+      tol <- 4 * .Machine$double.eps * max(1, abs(r))
+      if (abs(r - k) <= tol) k else outward(r)
+    }
+    digits <- max(0, -round(log10(step)))
+    lo <- round(snap(lower / step, floor) * step, digits)
+    hi <- round(snap(upper / step, ceiling) * step, digits)
+    new_step <- slider_step(lo, hi)
+    if (new_step == step) {
+      return(list(min = lo, max = hi, step = step))
+    }
+    step <- new_step
+  }
+}
+
+# Whether a slider reading v is within half a step of the exact value. A
+# reading exactly half a step away is a tie the slider may round either way,
+# and round-off can put it a hair past half a step, so the test allows a small
+# relative slack. The browser uses the same test, see preferExact() in
+# cost-curves.js.
+.within_half_step <- function(v, value, step) {
+  abs(v - value) <= step / 2 * (1 + 1e-9)
 }
 
 # Format a coefficient for the code the user copies or reads back into R, at

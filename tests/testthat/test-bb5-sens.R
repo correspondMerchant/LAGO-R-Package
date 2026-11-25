@@ -117,7 +117,8 @@ test_that("print() writes the table numbers in full", {
   out <- utils::capture.output(suppressMessages(print(df)))
   expect_true(any(grepl("-1000000000", out, fixed = TRUE)))
   expect_true(any(grepl("4000000000", out, fixed = TRUE)))
-  expect_true(any(grepl("83.8084 ", out, fixed = TRUE)))
+  # the cost is rounded as print.lago() rounds it
+  expect_true(any(grepl("83.808 ", out, fixed = TRUE)))
   # a number below 1e-6 stays in e notation
   expect_true(any(grepl("1e-7", out, fixed = TRUE)))
   expect_false(any(grepl("e+", out, fixed = TRUE)))

@@ -590,7 +590,8 @@ get_recommended_interventions <- function(
       # each grid includes its upper bound, even when the step does not divide the range
       grids <- lapply(seq_along(cost_params), function(i) {
         grid <- seq(lo[i], up[i], by = step_size[i])
-        if (up[i] - grid[length(grid)] > 1e-8 * max(1, abs(up[i]))) grid <- c(grid, up[i])
+        # the gap is judged against the step, so it does not depend on the units
+        if (up[i] - grid[length(grid)] > 1e-8 * step_size[i]) grid <- c(grid, up[i])
         grid
       })
       # create the full grid
@@ -1075,15 +1076,27 @@ get_recommended_interventions <- function(
         }
         # solnl()'s tolerances are absolute in x, so a component in large units
         # can stop early. A last start from the best point, solved in each
-        # component's share of its range, is kept by the same rules.
-        if (is.finite(best_cost)) {
-          span <- ifelse(up > lo, up - lo, 1)
-          to_x <- function(t) lo + t * span
+        # component's share of its range, is kept by the same rules. Its cost
+        # is measured from the cost at the lower bounds, in units of the cost
+        # the best point adds to it: cost(upper bound) can be far larger than
+        # the cost of the answer, when one component has a wide range, and
+        # solnl() then reads the cost as flat and stops at once.
+        # It is repeated while it gives a cheaper point, up to three times, as
+        # solnl() can again stop a little short of the cheapest point.
+        span <- ifelse(up > lo, up - lo, 1)
+        to_x <- function(t) lo + t * span
+        base_cost <- cost_obj_fun(lo)
+        # no rounds when no restart reached the goal
+        for (polish_round in seq_len(3 * is.finite(best_cost))) {
+          improved <- FALSE
           best_point <- results_int_components[, which(cost_results == best_cost)[1]]
+          local_scale <- abs(best_cost - base_cost)
+          if (!is.finite(local_scale) || local_scale <= 0) local_scale <- abs(best_cost)
+          if (!is.finite(local_scale) || local_scale <= 0) local_scale <- 1
           scaled <- tryCatch(
             NlcOptim::solnl(
               X = (best_point - lo) / span,
-              objfun = function(t) cost_obj_fun_scaled(to_x(t)),
+              objfun = function(t) (cost_obj_fun(to_x(t)) - base_cost) / local_scale,
               confun = function(t) constraint_fun(to_x(t)),
               lb = rep(0, length(lo)), ub = (up - lo) / span, maxIter = 200
             ),
@@ -1098,8 +1111,10 @@ get_recommended_interventions <- function(
               results_int_components <- cbind(results_int_components, x)
               cost_results <- c(cost_results, cost)
               best_cost <- cost
+              improved <- TRUE
             }
           }
+          if (!improved) break
         }
         if (!is.finite(best_cost)) {
           results_int_components <- cbind(results_int_components, max_point)

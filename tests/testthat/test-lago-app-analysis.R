@@ -159,14 +159,14 @@ test_that("sweep values come from even steps or a typed list, and say what to fi
   expect_match(err("icc", "typed", NA, NA, NA, "0, 1"), "below 1")
 })
 
-test_that("a sweep adds the cost list and the center column it needs, in the run and the code", {
+test_that("a sweep adds the center column it needs, in the run and the code", {
   r <- list(cost_list_of_vectors = list(c(0, 2), c(0, 1)))
   s <- analysis_spec(cost_mode = "unit", cluster_col = "cyl")
-  expect_identical(.app_sweep_extra("cost_multiplier", s, r), list(cost_list_of_vectors = r$cost_list_of_vectors))
+  expect_identical(.app_sweep_extra("cost_multiplier", s, r), list())
   expect_identical(.app_sweep_extra("cost_multiplier", utils::modifyList(s, list(cost_mode = "coef")), r), list())
   expect_identical(.app_sweep_extra("icc", s, r), list(power_goal_cluster_id = "cyl"))
   code <- paste(.app_sweep_code("cost_multiplier", c(0.5, 1), s), collapse = "\n")
-  expect_match(code, "lago_sensitivity\\(\n  result,\n  parameter = \"cost_multiplier\",\n  values = c\\(0.5, 1\\),\n  cost_list_of_vectors = result\\$cost_list_of_vectors\n\\)")
+  expect_match(code, "lago_sensitivity\\(\n  result,\n  parameter = \"cost_multiplier\",\n  values = c\\(0.5, 1\\)\n\\)")
   expect_match(paste(.app_sweep_code("icc", c(0, 0.1), s), collapse = "\n"), "power_goal_cluster_id = \"cyl\"")
   expect_identical(.app_budget_code(120, 8), "budget_result <- lago_budget(result, budget = 120, n_grid = 8L)")
 })

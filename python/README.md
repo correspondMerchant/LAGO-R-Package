@@ -63,6 +63,8 @@ result["rec_int"]           # list[float], the recommended intervention
 result["est_outcome_goal"]  # float
 result["rec_int_cost"]      # float
 result["cs"]                # pandas.DataFrame (the confidence set), or None
+# The index of cs holds the number of each row in the grid of interventions R
+# searched, as text, such as "11". Use cs.reset_index(drop=True) for the index 0, 1, 2 and so on.
 result["est_outcome_ci"]    # {"lower": .., "upper": ..}, or None
 # Both are None when no confidence set is computed, which also happens when the
 # goal cannot be reached and result["shrinking_method_used"] is True.
@@ -192,12 +194,22 @@ unless the index is a `RangeIndex` (the default positions), so bounds such as
 `df[["gear", "qsec"]].max()` and center weights such as
 `pd.Series({"north": 0.6, "south": 0.4})` are matched to the components or
 the centers by name. A dict of numbers, such as `{"gear": 5, "qsec": 20}`, is
-a named vector too. A missing value (`None`, `pd.NA` or `NaT`) in a list
+a named vector too, and a dict of lists, such as the cost list
+`{"gear": [0, 4], "qsec": [0, 6]}`, is a named list, which R also matches to
+the components by name. A name that is a number, such as a center 1.0 in the
+index of `df.groupby("center").size()`, is written as R writes the level of
+that center, so 1.0 is `"1"` and 100000.0 is `"1e+05"`. When R refuses the
+names, give the values as a plain list instead. A missing value (`None`, `pd.NA` or `NaT`) in a list
 becomes the R `NA` of the type of the other elements. A categorical value
 becomes its text, and a date or a time becomes the text R gives for it, such as
 `"2020-01-01"` or `"2020-01-01 10:30:00.5"` (a fraction of a second is kept
 to the microsecond), so it names the same period as a date column of the data.
-A pandas `Period` becomes its label, such as `"2020Q1"`. A
+A pandas `Period` becomes its label, such as `"2020Q1"`. When the `period`
+column of the data holds times with a time zone, a time with a time zone given
+as a period is first moved to the zone of that column, so the same instant
+names the same period. A 0-d numpy array is the value it holds, and a time
+span (`timedelta`, `pd.Timedelta` or `np.timedelta64`) is its number of days,
+as in a data frame column. A
 float NaN in a list of text, or of true and false, is a missing value too. A
 missing value on its own becomes R's `NA`, and a `Decimal` becomes a number. A
 value that cannot be converted, such as a set or a dict of text, raises a
@@ -209,16 +221,31 @@ lost, with `""` for an empty name and `None` for an `NA` name.
 
 Each data frame passed to R is prepared first, without changing your copy. A
 column of dates or times (`datetime.date`, `datetime.datetime` or numpy
-datetimes) becomes the same text, so a date names its period. A whole number
-column with a value too large for R's integers becomes a float column, as R
-stores such numbers as doubles. A text column with missing values, written as
+datetimes) becomes the same text, so a date names its period. A time with a time
+zone is written in the zone of its column, and in a column of times in more
+than one zone, in the zone of the first. A whole number column with a value
+too large for R's integers becomes a float column, as R stores such numbers as
+doubles. An unsigned `uint32` or `uint64` column becomes an integer column
+when its values fit R's integers. A column of Python objects that are all
+numbers, such as `[1, None, 3]` or numpy numbers after `astype(object)`,
+becomes a float column with R's `NA` where a value is missing. A missing value
+(NaN) in a float column becomes R's `NA`, not `NaN`. A categorical column whose
+categories are numbers or dates becomes a factor whose levels are the text of
+the categories, in the same order, with dates written as above. A text column with missing values, written as
 `None`, NaN or `pd.NA`, becomes text with R's `NA`. A column of true and false
 values with missing values, as `pd.read_csv()` gives it, becomes a logical
 column with R's `NA` where a value is missing. A column of `Decimal` or
-`Fraction` numbers becomes a float column, and a sparse column is made dense. A
+`Fraction` numbers becomes a float column too, and a sparse column is made
+dense. A
 column of time spans (`timedelta`) becomes the number of days as a float, so
 36 hours is 1.5. A column of pandas `Period` values becomes the label of each
 period.
+
+The data frames that `lago.sensitivity()` and the `frontier` of `lago.budget()`
+return have the default index 0, 1, 2 and so on. In a sensitivity result, the
+`error_message` of each failed run is the error of that run, and a run that
+did not fail has `None`. `n_grid` of `lago.budget()` takes a whole number, such
+as 25, 25.0 or `Decimal("25")`.
 
 The `object` argument of R's `lago_sensitivity()` and `lago_budget()`, which
 reuses the arguments of an earlier `lago_optimization()` result, is not
@@ -315,7 +342,8 @@ result. Its `warnings` holds the warnings R gave before the error. An argument
 that does not fit the tool gives the same kind of error result: one of the
 wrong type, a missing required one, or one the tool does not take (the schema
 of each tool says `additionalProperties: false`). So does a call to a tool the
-server does not have.
+server does not have. A `sensitivity` sweep where every run failed is an error
+result too, with the message of its first run and its `runs`.
 
 `time_effect_optimization_value` names one period by its number or by its
 label, such as `"2024-Q2"`, and `center_effects_optimization_values` names one
@@ -325,7 +353,9 @@ R writes it. Neither takes `true` or `false`.
 such as `{"north": 0.6, "south": 0.4}`, which is matched to the centers by
 name. It also takes a list, which is matched to the centers in the order R
 sorts them: numbers from small to large, and text in the sort order of R's
-locale, which can differ from a plain sort of the characters. `confidence_level` is `1 - confidence_set_alpha`, rounded to 12
+locale, which can differ from a plain sort of the characters. A weight, and a
+value of the `weights_column`, must be a number, not `true` or `false`.
+`confidence_level` is `1 - confidence_set_alpha`, rounded to 12
 significant digits, so an alpha of 0.07 gives 0.93.
 
 JSON has no NaN or Infinity. The MCP SDK turns a NaN or an Infinity into null
@@ -335,7 +365,8 @@ given, and the default is used. For a required number, or a number in a list,
 null is an error, and its message says that a NaN or an Infinity would have
 become null, in case the client sent one. So does the error R gives when
 neither goal is given, when the call sent `outcome_goal` or `power_goal` as
-null.
+null, and so does the `error_message` of each sensitivity run that failed for
+that reason.
 
 The server also sends the agent short instructions on how to use the tools.
 They say to describe the data first, to report every warning, and to read an

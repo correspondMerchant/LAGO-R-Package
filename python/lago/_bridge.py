@@ -238,16 +238,43 @@ def _date_text(value):
     return value.strftime("%Y-%m-%d")
 
 
+def _r_labels(values):
+    """The labels as text, written the way R writes the levels of a column.
+
+    A label names a center or a period, as a name of a Series or a dict, or
+    as a category. The package labels a numeric center with up to 15
+    significant digits and no e notation, so 1.0 is "1" and 100000.0 is
+    "100000". A float label is written by R the same way here, and an int
+    label as Python writes it, as R does for a whole number column. A date or
+    a time is written by :func:`_date_text`, and anything else by ``str()``.
+    """
+    plain = [_plain(v) for v in values]
+    # a whole number too large for R's integers is a double in R
+    plain = [float(v) if type(v) is int and abs(v) > 2**31 - 1 else v for v in plain]
+    floats = [v for v in plain if isinstance(v, float)]
+    if floats:
+        from rpy2.robjects.vectors import FloatVector
+
+        label = _ensure()["ro"].r(
+            "function(x) vapply(x, format, '', scientific = FALSE, trim = TRUE, digits = 15)"
+        )
+        as_text = iter(label(FloatVector(floats)))
+    return [next(as_text) if isinstance(v, float) else str(v) for v in plain]
+
+
 def _plain(value):
     """Turn numpy and pandas values into plain Python values.
 
     A numpy scalar becomes its Python number, bool or str. A numpy array, a
     pandas Series, a pandas Index or a pandas array (such as the
     ``StringArray`` that ``Series.unique()`` gives, or an ``Int64`` array)
-    becomes a list (a 2D array a list of lists). A missing value of pandas
-    (``pd.NA`` or ``NaT``) becomes None, and a float NaN stays NaN. A
-    categorical value becomes its text. A date or a time becomes text, as
-    :func:`_date_text` writes it. The elements of a list or tuple are turned
+    becomes a list (a 2D array a list of lists), and a 0-d array the value it
+    holds. A missing value of pandas (``pd.NA`` or ``NaT``) becomes None, and
+    a float NaN stays NaN. A categorical value becomes its text, as
+    :func:`_r_labels` writes it. A date or a time becomes text, as
+    :func:`_date_text` writes it. A time span (``timedelta``, ``Timedelta``
+    or ``np.timedelta64``) becomes its number of days, as in a data frame
+    column. The elements of a list or tuple are turned
     too. A ``Decimal`` or a ``Fraction`` becomes a float, and a ``range``
     a list. A pandas ``Period`` becomes its text label, such as "2020Q1".
     Anything else is returned unchanged. numpy comes with pandas,
@@ -263,6 +290,14 @@ def _plain(value):
 
     if value is None or value is pd.NA or value is pd.NaT:
         return None
+    if isinstance(value, np.ndarray) and value.ndim == 0:
+        # a 0-d array, such as np.array(5.0), holds one value
+        return _plain(value[()])
+    if isinstance(value, np.timedelta64):
+        return None if np.isnat(value) else pd.Timedelta(value) / pd.Timedelta(days=1)
+    if isinstance(value, datetime.timedelta):
+        # a time span is its number of days, as in a data frame column
+        return value / datetime.timedelta(days=1)
     if isinstance(value, np.datetime64):
         return _date_text(pd.Timestamp(value))
     if isinstance(value, np.generic):
@@ -278,9 +313,10 @@ def _plain(value):
     if isinstance(value, (pd.Series, pd.Index)):
         value = value.array
     if isinstance(value, pd.Categorical):
-        return [None if pd.isna(el) else str(el) for el in value]
+        labels = dict(zip(value.categories, _r_labels(value.categories)))
+        return [None if pd.isna(el) else labels[el] for el in value]
     if isinstance(value, np.ndarray):
-        if value.dtype.kind == "M":
+        if value.dtype.kind in "Mm":
             return [_plain(el) for el in value]
         return [_plain(el) for el in value.tolist()]
     if isinstance(value, pd.api.extensions.ExtensionArray):
@@ -313,6 +349,10 @@ def py_to_r(value):
       by name
     - a dict of numbers, such as ``{"gear": 5, "qsec": 20}`` -> a named
       numeric vector, with the keys as its names
+    - a dict of lists, such as the cost list ``{"gear": [0, 4], "qsec": [0,
+      6]}`` -> a named R list of vectors, with the keys as its names
+    - a name that is a number, such as a center 1.0 in the index of a Series
+      -> the text R gives the same center as a level (see :func:`_r_labels`)
     - an existing rpy2 object -> passed through unchanged
 
     Anything else, such as a set or a dict of text, raises a ``TypeError``
@@ -339,6 +379,13 @@ def py_to_r(value):
             "Cannot convert a set to an R vector, as a set has no order. "
             "Give a list instead: {!r}".format(value)
         )
+
+    if isinstance(value, dict) and value and all(_is_sequence(v) for v in value.values()):
+        # a dict of lists, such as a cost list keyed by component, is a named
+        # R list, which R matches to the components by name
+        out = ro.r["list"](*[py_to_r(list(_plain(v))) for v in value.values()])
+        out.names = StrVector(_r_labels(list(value.keys())))
+        return out
 
     named = _named_numbers(value)
     if named is not None:
@@ -425,7 +472,17 @@ def _named_numbers(value):
                 "dict must hold numbers, one for each name: {!r}".format(" and ".join(kinds), value)
             )
         return None
-    return [str(_plain(n)) for n in names], [None if _is_missing(v) else v for v in values]
+    return _r_labels(names), [None if _is_missing(v) else v for v in values]
+
+
+def _is_sequence(value) -> bool:
+    """True for a list, a tuple, a range, or a numpy or pandas array of values."""
+    import numpy as np
+    import pandas as pd
+
+    if isinstance(value, np.ndarray):
+        return value.ndim > 0
+    return isinstance(value, (list, tuple, range, pd.Series, pd.Index, pd.api.extensions.ExtensionArray))
 
 
 def _is_missing(value) -> bool:
@@ -440,17 +497,27 @@ def _frame_for_r(df):
     and a column of very large whole numbers as text. So a column of
     ``datetime.date`` or ``datetime`` values, or of numpy datetimes, becomes
     text, as :func:`_date_text` writes it, which is how a date names a period
-    elsewhere in the wrapper. A whole number column with a value that does
-    not fit R's integers becomes a float column, as R itself stores such
-    numbers as doubles. A column of text with missing values, written as
-    None, NaN or ``pd.NA``, becomes text with None where a value is missing.
-    A column of true and false values with missing values, as ``read_csv``
-    gives it, becomes a nullable boolean column, so R gets ``NA`` where a
-    value is missing. A column of ``Decimal`` or ``Fraction`` numbers becomes
-    a float column. A sparse column is made dense first. A column of time
-    spans (``timedelta``) becomes a float column of the number of days, so 36
-    hours is 1.5. A column of pandas ``Period`` values becomes the text label
-    of each period, such as "2020Q1". The DataFrame given is not changed.
+    elsewhere in the wrapper. A time with a time zone is written in the zone
+    of its column, and in a column of such times in more than one zone, each
+    is written in the zone of the first, so the same instant names the same
+    period. A whole number column with a value that does not fit R's integers
+    becomes a float column, as R itself stores such numbers as doubles, and
+    an unsigned ``uint32`` or ``uint64`` column, which rpy2 cannot convert,
+    becomes an integer column when its values fit R's integers. A column of
+    text with missing values, written as None, NaN or ``pd.NA``, becomes text
+    with None where a value is missing. A column of true and false values
+    with missing values, as ``read_csv`` gives it, becomes a nullable boolean
+    column, so R gets ``NA`` where a value is missing. A column of Python
+    objects that are all numbers (int, float, numpy numbers, ``Decimal`` or
+    ``Fraction``), apart from missing values, becomes a float column. A
+    categorical column whose categories are not text, such as numbers or
+    dates, becomes a categorical column with the text of each category, as
+    :func:`_r_labels` writes it, in the same order. A sparse column is made
+    dense first. A column of time spans (``timedelta``) becomes a float column
+    of the number of days, so 36 hours is 1.5. A column of pandas ``Period``
+    values becomes the text label of each period, such as "2020Q1". A float
+    column with a missing value (NaN) becomes a nullable float column, so R
+    gets ``NA`` and not ``NaN``. The DataFrame given is not changed.
     """
     import datetime
     import decimal
@@ -462,6 +529,7 @@ def _frame_for_r(df):
     def missing(v):
         return v is None or v is pd.NA or v is pd.NaT or (isinstance(v, (float, np.floating)) and v != v)
 
+    numbers = (int, float, decimal.Decimal, fractions.Fraction, np.integer, np.floating)
     out = df
     limit = 2**31 - 1  # R's NA integer is -2**31, so this is R's range
     for i in range(df.shape[1]):
@@ -470,7 +538,16 @@ def _frame_for_r(df):
         if isinstance(col.dtype, pd.SparseDtype):
             # rpy2 cannot convert a sparse column, and falls back to text
             col = new = col.sparse.to_dense()
-        if isinstance(col.dtype, pd.PeriodDtype):
+        if isinstance(col.dtype, pd.CategoricalDtype):
+            categories = list(col.cat.categories)
+            labels = _r_labels(categories)
+            # rpy2 converts only text categories, and writes others as text
+            if not all(isinstance(c, str) for c in categories) and len(set(labels)) == len(labels):
+                new = pd.Series(
+                    pd.Categorical.from_codes(col.cat.codes, categories=labels, ordered=col.cat.ordered),
+                    index=col.index,
+                )
+        elif isinstance(col.dtype, pd.PeriodDtype):
             new = pd.Series([None if missing(v) else str(v) for v in col], index=col.index, dtype=object)
         elif pd.api.types.is_timedelta64_dtype(col.dtype):
             new = pd.Series(col / pd.Timedelta(days=1), index=col.index, dtype="float64")
@@ -480,32 +557,62 @@ def _frame_for_r(df):
             given = col.dropna()
             if len(given) and (given.max() > limit or given.min() < -limit):
                 new = pd.Series(col.to_numpy(dtype="float64", na_value=np.nan), index=col.index)
+            elif isinstance(col.dtype, np.dtype) and col.dtype.kind == "u" and col.dtype.itemsize >= 4:
+                new = col.astype("int32")
         elif col.dtype == object:
             values = col.tolist()
             given = [v for v in values if not missing(v)]
             if given and all(isinstance(v, datetime.date) for v in given):
-                new = pd.Series([None if missing(v) else _date_text(v) for v in values], index=col.index, dtype=object)
+                zone = _zone_of(given)
+                new = pd.Series(
+                    [None if missing(v) else _date_text(_in_zone(v, zone)) for v in values],
+                    index=col.index, dtype=object,
+                )
             elif given and all(isinstance(v, pd.Period) for v in given):
                 new = pd.Series([None if missing(v) else str(v) for v in values], index=col.index, dtype=object)
-            elif given and all(isinstance(v, datetime.timedelta) for v in given):
+            elif given and all(isinstance(v, (datetime.timedelta, np.timedelta64)) for v in given):
                 days = [np.nan if missing(v) else pd.Timedelta(v) / pd.Timedelta(days=1) for v in values]
                 new = pd.Series(days, index=col.index, dtype="float64")
             elif given and all(isinstance(v, (bool, np.bool_)) for v in given):
                 # rpy2 reads a NaN among true and false as TRUE
                 new = pd.Series(pd.array([None if missing(v) else bool(v) for v in values], dtype="boolean"), index=col.index)
-            elif given and any(isinstance(v, (decimal.Decimal, fractions.Fraction)) for v in given) and all(
-                isinstance(v, (int, float, decimal.Decimal, fractions.Fraction, np.number))
-                and not isinstance(v, (bool, np.bool_))
-                for v in given
-            ):
+            elif given and all(isinstance(v, numbers) and not isinstance(v, (bool, np.bool_)) for v in given):
+                # rpy2 writes a column of Python numbers with a None, or of
+                # numpy numbers, as text
                 new = pd.Series([np.nan if missing(v) else float(v) for v in values], index=col.index, dtype="float64")
             elif given and len(given) < len(values) and all(isinstance(v, str) for v in given):
                 new = pd.Series([None if missing(v) else v for v in values], index=col.index, dtype=object)
+        final = col if new is None else new
+        if isinstance(final.dtype, np.dtype) and final.dtype.kind == "f":
+            # rpy2 passes a NaN on as R's NaN, and R's NA is what is missing
+            floats = final.to_numpy(dtype="float64")
+            nan = np.isnan(floats)
+            if nan.any():
+                new = pd.Series(pd.arrays.FloatingArray(floats, nan), index=col.index)
         if new is not None:
             if out is df:
                 out = df.copy()
             out.isetitem(i, new)
     return out
+
+
+def _zone_of(values):
+    """The time zone of the first time in ``values`` that has one, or None."""
+    import datetime
+
+    for v in values:
+        if isinstance(v, datetime.datetime) and v.tzinfo is not None:
+            return v.tzinfo
+    return None
+
+
+def _in_zone(value, zone):
+    """A time with a time zone moved to ``zone``. Any other value is unchanged."""
+    import datetime
+
+    if zone is not None and isinstance(value, datetime.datetime) and value.tzinfo is not None:
+        return value.astimezone(zone)
+    return value
 
 
 def r_to_py(obj):
@@ -642,7 +749,64 @@ def _get_rfunc(name: str):
 
 def build_r_kwargs(kwargs: dict) -> dict:
     """Convert a dict of Python kwargs to a dict of R objects (no R call)."""
-    return {k: py_to_r(v) for k, v in kwargs.items()}
+    return {k: py_to_r(v) for k, v in _periods_in_data_zone(kwargs).items()}
+
+
+def _periods_in_data_zone(kwargs: dict) -> dict:
+    """The kwargs with the periods given moved to the time zone of the data.
+
+    A period is named by the text of its date and time in the zone of the
+    ``period`` column of ``data``. So when that column holds times with a
+    time zone, a time with a time zone given as
+    ``time_effect_optimization_value``, or among the ``values`` of a
+    sensitivity sweep, is moved to that zone first, and the same instant
+    names the same period. Any other value is unchanged.
+    """
+    import pandas as pd
+
+    data = kwargs.get("data")
+    if not isinstance(data, pd.DataFrame) or "period" not in data.columns:
+        return kwargs
+    period = data["period"]
+    if isinstance(period, pd.DataFrame):
+        return kwargs
+    if isinstance(period.dtype, pd.DatetimeTZDtype):
+        zone = period.dt.tz
+    elif period.dtype == object:
+        zone = _zone_of(period.tolist())
+    else:
+        return kwargs
+    if zone is None:
+        return kwargs
+
+    def move(value):
+        if not _is_sequence(value):
+            return _in_zone(value, zone)
+        items = list(value)
+        if _zone_of(items) is None:
+            return value
+        return [_in_zone(v, zone) for v in items]
+
+    out = dict(kwargs)
+    for name in ("time_effect_optimization_value", "values"):
+        if name in out:
+            out[name] = move(out[name])
+    return out
+
+
+def python_hint(message: str) -> str:
+    """An R error message with its advice for R users put in Python terms.
+
+    R says to drop the names of a vector with ``unname()``. A Python caller
+    gives a plain list instead of a pandas Series or a dict.
+    """
+    import re
+
+    return re.sub(
+        r"remove (them|the name) with unname\(\)",
+        "give the values without names, as a plain list in place of a pandas Series or a dict",
+        message,
+    )
 
 
 def call_lago(name: str, kwargs: dict):
@@ -672,7 +836,7 @@ def call_lago(name: str, kwargs: dict):
         # raised after the warnings, so a caller gets both
         from rpy2.rinterface_lib.embedded import RRuntimeError
 
-        raise RRuntimeError(str(failed[0]))
+        raise RRuntimeError(python_hint(str(failed[0])))
     return out.rx2("value")
 
 
@@ -714,27 +878,18 @@ def r_sensitivity_to_df(result):
     messages = [None] * n
     errors = r_to_py(attr(result, "error_messages"))
     # a dict, or (name, message) pairs when a value was swept twice
-    errors = list(errors.items()) if isinstance(errors, dict) else errors
-    if isinstance(errors, list):
-        # R names each error by its swept value, as as.character() writes it.
-        # A text value, such as a period label or a date, matches by its
-        # text, and a number by its value, as R writes a number with 15
-        # significant digits.
-        for value, message in errors:
-            for i, v in enumerate(out["value"]):
-                if isinstance(v, str):
-                    if v == value:
-                        messages[i] = message
-                    continue
-                try:
-                    if abs(float(value) - float(v)) <= 1e-9 * max(1.0, abs(float(v))):
-                        messages[i] = message
-                except (TypeError, ValueError):
-                    continue
+    errors = list(errors.values()) if isinstance(errors, dict) else [m for _, m in errors or []]
+    # R keeps the message of each failed run in the order of the runs, so the
+    # messages go to the failed rows in that order. Matching them by value
+    # would also give a message to a run whose value is close to a failed one.
+    failed = [i for i, status in enumerate(out["status"]) if status == "error"]
+    for i, message in zip(failed, errors):
+        messages[i] = python_hint(message)
     # object dtype keeps None for a run that did not fail, where pandas 3
     # would make a text column with NaN
     out["error_message"] = pd.Series(messages, index=out.index, dtype=object)
-    return out
+    # R numbers the rows 1, 2, ..., which rpy2 makes a text index
+    return out.reset_index(drop=True)
 
 
 def lago_result_to_dict(result) -> dict:

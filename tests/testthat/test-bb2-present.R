@@ -45,7 +45,7 @@ bb2_report <- function(x, ...) {
 test_that("a report title with quotes, backslashes or markdown shows literally", {
   expect_identical(.lago_report_title_yaml("Plain title"), "Plain title")
   expect_identical(.lago_report_title_yaml('a "b"'), "a &#34;b&#34;")
-  expect_identical(.lago_report_title_yaml("one\ntwo"), "one\\ntwo")
+  expect_identical(.lago_report_title_yaml("one\ntwo"), "one two")
   bb2_skip_report()
   r <- bb2_fit()
   html <- bb2_report(r, title = 'Trial "A" report')

@@ -94,7 +94,8 @@ test_that("the report data holds 17 significant digits, the double R formats", {
   lago_report(x, output_file = out)
   html <- bb5_html(out)
   expect_true(grepl('"rec_int_cost":404461827.45464969', html, fixed = TRUE))
-  expect_true(grepl("Cost: 404460000", html, fixed = TRUE))
+  # a cost of 1e4 or more shows 2 decimals (bug bash 6)
+  expect_true(grepl("Cost: 404461827.45", html, fixed = TRUE))
 })
 
 test_that("Unicode noncharacters of a report title become entities", {

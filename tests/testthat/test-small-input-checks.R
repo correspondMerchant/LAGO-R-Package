@@ -28,12 +28,14 @@ small_checks_missing_center <- function() {
 }
 
 test_that("NA_character_ is refused when no center is an explicit NA level", {
+  d <- small_checks_missing_center()
   expected <- paste0(
     "center_effects_optimization_values (NA_character_) must be one of the ",
-    "centers in the 'center' column. To select the rows with a missing center, ",
+    "centers in the 'center' column: ",
+    paste0("'", sort(unique(stats::na.omit(d$center))), "'", collapse = ", "),
+    ". To select the rows with a missing center, ",
     "make them an explicit level with addNA()."
   )
-  d <- small_checks_missing_center()
   expect_identical(
     small_checks_run(d, include_center_effects = TRUE, center_effects_optimization_values = NA_character_),
     expected
@@ -72,7 +74,8 @@ test_that("the center name refusals read as one sentence", {
     small_checks_run(d, include_center_effects = TRUE, center_effects_optimization_values = "Nowhere"),
     paste0(
       "center_effects_optimization_values (Nowhere) must be one of the ",
-      "centers in the 'center' column."
+      "centers in the 'center' column: ",
+      paste0("'", levels(factor(d$center)), "'", collapse = ", "), "."
     )
   )
 })

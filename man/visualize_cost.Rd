@@ -61,6 +61,13 @@ The user can copy the final coefficient list for use in the optimization
 function lago_optimization().
 }
 \details{
+The unit costs and the bounds are matched to the components as in
+\code{lago_optimization()}. An unnamed vector is matched by position. A
+named one is matched by name when a name is one of the components, or when
+it has two or more values that all have names. Its names must then be the
+component names, each once. Other names are ignored and the values are
+matched by position.
+
 When the app is closed with the "Return list to R & close" button,
 the coefficient list is also stored in the \code{lago_cost_list} option
 (overwriting any existing value) and a message reports this, so the list is

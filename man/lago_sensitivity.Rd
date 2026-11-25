@@ -42,7 +42,7 @@ would not change the recommendation.
 \item The special string \code{"cost_multiplier"}: each run multiplies every
 coefficient of every vector in the baseline \code{cost_list_of_vectors} by one
 element of \code{values}, so \code{values = c(0.8, 1, 1.2)} evaluates the costs at
-80\\%, 100\\%, and 120\\%. When the baseline gives \code{unit_costs} instead of
+80\%, 100\%, and 120\%. When the baseline gives \code{unit_costs} instead of
 \code{cost_list_of_vectors}, each run multiplies \code{unit_costs} by the value,
 which scales the linear or cubic cost built from them in the same way.
 This mode requires \code{cost_list_of_vectors} or \code{unit_costs} (in \code{...} or
@@ -52,9 +52,10 @@ stored on \code{object}), and all \code{values} must be positive.
 \item{values}{A non-empty numeric vector, all finite. One run per element.
 For \code{parameter = "time_effect_optimization_value"} it can also be a
 character vector of period labels, a factor, a Date vector, or a date-time
-(\code{POSIXct}) vector. It can hold \code{NA} only when the \code{period} column is a
-factor with an explicit \code{NA} level, made with \code{\link[=addNA]{addNA()}}, and \code{NA} then selects
-that level. A factor or a date-time is matched by its label, as in
+(\code{POSIXct}) vector. It can hold \code{NA}, or be a lone \code{NA}, only when the
+\code{period} column is a factor with an explicit \code{NA} level, made with
+\code{\link[=addNA]{addNA()}}, and \code{NA} then selects that level. The other values must then be
+finite. A factor or a date-time is matched by its label, as in
 \code{\link[=lago_optimization]{lago_optimization()}}, and the \code{value} column then holds the labels. A
 date-time is labeled in the time zone of a date-time \code{period} column.}
 
@@ -78,7 +79,9 @@ The object carries attributes \code{parameter} (the swept string),
 \code{component_names} (the component column names), \code{baseline} (the full
 \code{\link[=lago_optimization]{lago_optimization()}} result at the baseline value, i.e. multiplier 1 for
 \code{"cost_multiplier"} or the value supplied in \code{...} for a named parameter, or
-\code{NULL} if not present), \code{effective_outcome_goal} (one value per run: the
+\code{NULL} if not present; for a numeric value, the closest run within a
+tolerance of about 1.5e-8 times the baseline, and only an exact match for a
+baseline of 0), \code{effective_outcome_goal} (one value per run: the
 outcome goal the run targeted, which a power goal can raise above the
 outcome goal, or \code{NA} for a failed run and for a run without a power goal),
 \code{shrinking_method_used} (one value

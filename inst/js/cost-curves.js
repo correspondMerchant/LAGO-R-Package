@@ -404,14 +404,24 @@
     return numText(a >= 0.1 || a < 1e-6 || !isFinite(v) ? roundDec(v, 4, false) : roundDec(v, 4, true));
   }
 
-  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures.
+  // A cost, rounded like R's .lago_fmt_cost(): 5 significant figures, or 2
+  // decimals from 1e4 up, so a large fixed cost does not hide the part that
+  // changes with the dose.
+  function roundCost(v) {
+    v = +v;
+    return isFinite(v) && Math.abs(v) >= 1e4 ? roundDec(v, 2, false) : roundDec(v, 5, true);
+  }
+
   function fmtCost(v) {
-    return numText(roundDec(v, 5, true));
+    return numText(roundCost(v));
   }
 
   // A slider reports its value rounded to its step. The exact value the server
   // set is used while the slider sits within half a step of it, as the server
-  // reads it, so a small high order coefficient is not drawn as 0.
+  // reads it, so a small high order coefficient is not drawn as 0. A reading
+  // exactly half a step away is a tie the slider may round either way, and
+  // round-off can put it a hair past half a step, so the test allows a small
+  // relative slack, as the server's .within_half_step() does.
   // The server sends the stale reading with 16 significant digits, so it can
   // differ from the slider's reading in the last digit. Two readings are the
   // same when they agree to a relative tolerance of 1e-12.
@@ -422,7 +432,8 @@
 
   function preferExact(value, exact) {
     if (exact && isFinite(value) &&
-      (Math.abs(value - exact.value) <= exact.step / 2 || sameReading(value, exact.stale))) {
+      (Math.abs(value - exact.value) <= exact.step / 2 * (1 + 1e-9) ||
+        sameReading(value, exact.stale))) {
       return exact.value;
     }
     return value;

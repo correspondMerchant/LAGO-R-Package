@@ -324,14 +324,17 @@ test_that("shrinking moves a component with no term of its own towards the best 
     outcome_goal = 20, outcome_goal_intention = "maximize",
     include_confidence_set = FALSE, quiet = TRUE
   ))
-  # with interaction terms the recommendation moves from the stage 1 means
-  # towards the best reachable point, the corner (4, 4), by the share of the
-  # way to the goal that point covers
+  # with interaction terms the recommendation is the first point on the line
+  # from the stage 1 means to the best reachable point, the corner (4, 4),
+  # that reaches the outcome start + share * (best - start), where share is
+  # the part of the way to the goal that the corner covers
   b <- stats::coef(res$model)
   at <- function(x) b[[1]] + b[[2]] * x[1] + b[[3]] * x[1] * x[2]
   s1 <- colMeans(d[, c("a", "b")])
   share <- (at(c(4, 4)) - at(s1)) / (20 - at(s1))
-  expect_equal(unname(res$rec_int), unname(s1 + share * (c(4, 4) - s1)), tolerance = 1e-5)
+  target <- at(s1) + share * (at(c(4, 4)) - at(s1))
+  t <- stats::uniroot(function(t) at(s1 + t * (c(4, 4) - s1)) - target, c(0, 1), tol = 1e-12)$root
+  expect_equal(unname(res$rec_int), unname(s1 + t * (c(4, 4) - s1)), tolerance = 1e-5)
 })
 
 test_that("the shrunk recommendation does not depend on the order of the terms", {
@@ -354,14 +357,17 @@ test_that("the shrunk recommendation does not depend on the order of the terms",
     ))
     stats::setNames(res$rec_int, mains)[c("a", "b")]
   }
-  # with interaction terms the recommendation moves from the stage 1 means
-  # towards the best reachable point, the corner (4, 4), by the share of the
-  # way to the goal that point covers
+  # with interaction terms the recommendation is the first point on the line
+  # from the stage 1 means to the best reachable point, the corner (4, 4),
+  # that reaches the outcome start + share * (best - start), where share is
+  # the part of the way to the goal that the corner covers
   b <- stats::coef(stats::glm(y ~ a + b + a:b, data = d))
   at <- function(x) b[[1]] + b[[2]] * x[1] + b[[3]] * x[2] + b[[4]] * x[1] * x[2]
   s1 <- colMeans(d[, c("a", "b")])
   share <- (at(c(4, 4)) - at(s1)) / (9 - at(s1))
-  oracle <- unname(s1 + share * (c(4, 4) - s1))
+  target <- at(s1) + share * (at(c(4, 4)) - at(s1))
+  t <- stats::uniroot(function(t) at(s1 + t * (c(4, 4) - s1)) - target, c(0, 1), tol = 1e-12)$root
+  oracle <- unname(s1 + t * (c(4, 4) - s1))
   expect_equal(unname(run(c("a", "b", "a:b"), c("a", "b"))), oracle, tolerance = 1e-5)
   expect_equal(unname(run(c("a:b", "a", "b"), c("a", "b"))), oracle, tolerance = 1e-5)
   expect_equal(unname(run(c("a", "b", "a:b"), c("b", "a"))), oracle, tolerance = 1e-5)

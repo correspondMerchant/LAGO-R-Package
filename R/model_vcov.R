@@ -15,7 +15,7 @@ continuous_vcov <- function(X, model, outcome_data, link) {
   }
   # computed on a centered and scaled copy of X and turned back, see
   # conditioned_design()
-  conditioned <- conditioned_design(X)
+  conditioned <- conditioned_design(X, model$prior.weights)
   v <- continuous_vcov_raw(conditioned$Z, model, outcome_data, link)
   out <- conditioned$M %*% v %*% t(conditioned$M)
   dimnames(out) <- list(colnames(X), colnames(X))
@@ -28,13 +28,21 @@ continuous_vcov <- function(X, model, outcome_data, link) {
 # variance V of g is M V t(M) for b. The forms of the variance below are all
 # products of X, so they are the same up to round off, which is now small: a
 # component far from 0, or in very large or small units, otherwise makes X'X
-# nearly singular.
-conditioned_design <- function(X) {
+# nearly singular. The center and the spread are taken over the rows with a
+# positive weight, the rows glm() fits, so a row of weight 0 far from them
+# cannot undo the conditioning.
+conditioned_design <- function(X, weights = NULL) {
   p <- ncol(X)
   M <- diag(p)
-  intercept <- which(apply(X, 2, function(col) all(col == 1)))[1]
+  used <- if (is.null(weights) || length(weights) != nrow(X)) {
+    rep(TRUE, nrow(X))
+  } else {
+    !is.na(weights) & weights > 0
+  }
+  if (!any(used)) used <- rep(TRUE, nrow(X))
+  intercept <- which(apply(X[used, , drop = FALSE], 2, function(col) all(col == 1)))[1]
   for (j in seq_len(p)) {
-    col <- X[, j]
+    col <- X[used, j]
     if (!is.na(intercept) && j == intercept) next
     center <- if (!is.na(intercept)) mean(col) else 0
     spread <- stats::sd(col)
@@ -138,7 +146,10 @@ lago_se_note <- function(x) {
   if (identical(x$outcome_type, "binary")) {
     "Standard errors are those of the fitted glm()."
   } else if (identical(x$model$family$link, "logit")) {
-    "Standard errors are robust (sandwich, HC0), as the confidence set uses them."
+    paste(
+      "Standard errors are robust (a Gauss-Newton sandwich, HC0, as for a",
+      "least squares fit of the logit curve), as the confidence set uses them."
+    )
   } else {
     "Standard errors are model based, as the confidence set uses them."
   }

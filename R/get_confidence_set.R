@@ -15,7 +15,8 @@
 #' satisfy the outcome goal for an (weighted) average center.
 #' There is one weight per center the fitted model has, in the order of its
 #' center levels (\code{fitted_model$xlevels$center}), so the first weight is
-#' for the reference center.
+#' for the reference center. Named weights are matched to those centers by
+#' name instead, and their names must be the centers, each once.
 #' The weights need to sum up to 1, and must all be non-negative and finite.
 #' A weight of 0 is allowed and excludes that center from the average. Only
 #' used, and only checked, when include_center_effects is TRUE. A vector whose
@@ -77,13 +78,23 @@
 #' @param confidence_set_alpha A numeric value. The type I error considered in
 #' the confidence set calculations.
 #' @param cluster_id A list of one or two vectors, a single vector, or NULL.
-#' Specifies the columns of data that will be used as clustering effects when
-#' the "outcome_type" is continuous, with one entry per fitted row. [lago_optimization()] leaves it NULL, since its fixed
-#' center and time effects already model the centers and periods.
+#' The cluster vectors themselves, not column names, each with one entry per
+#' fitted row, used for a clustered variance when the "outcome_type" is
+#' continuous. An empty list is the same as NULL. [lago_optimization()] leaves
+#' it NULL, since its fixed center and time effects already model the centers
+#' and periods.
 #' @param cost_list_of_vectors A list of numeric vectors. The cost vectors
-#' used in the LAGO optimization.
+#' used in the LAGO optimization. Each must hold at least one finite number.
 #' @param rec_int A numeric vector, the recommended interventions calculated
 #' from the optimization step.
+#'
+#' Named values of rec_int, the bounds, the grid steps, the cost list and the
+#' center characteristic values are matched to the components (or the center
+#' characteristics) by name, with the rule lago_optimization() uses. The names
+#' are read when one of them is an expected name, or when there are two or more
+#' values and each has a name, and then they must be the expected names, each
+#' once. Other names, such as the "50%" that quantile() gives one value, are
+#' ignored.
 #'
 #' @return List(
 #'   confidence_set_size_percentage = <number, the size of the confidence set
@@ -137,14 +148,27 @@
 #' \eqn{w_i d_i (y_i - \mu_i)}. Without clusters the meat is the sum of row
 #' score outer products (HC0). With clusters, for either link, the meat is the
 #' sum of cluster score outer products (CR0). Two clustering dimensions use
-#' the first covariance plus the second minus the intersection covariance.
-#' No finite sample correction is added.
+#' the first covariance plus the second minus the intersection covariance,
+#' where the intersection is each pair of clusters that occurs in the data.
+#' That sum need not be positive semidefinite. When it is not, its negative
+#' eigenvalues are set to 0, as Cameron, Gelbach and Miller (2011) suggest,
+#' and a warning says so. They are the eigenvalues of the covariance of the
+#' fitted coefficients. No finite sample correction is added.
+#'
+#' On the identity link with a family other than gaussian, such as
+#' quasipoisson, the unclustered covariance is the model based one of
+#' stats::vcov(fitted_model). With clusters, \eqn{w_i} above is then the IRLS
+#' working weight of the fit (\code{fitted_model$weights}), the prior weight
+#' divided by the family's variance function, so the clustered covariance is
+#' the sandwich form of the same fit.
 #'
 #' These formulas extend the existing continuous covariance definition. They
 #' are not a frequency weight or survey design variance. In particular, the
-#' existing continuous quasibinomial covariance does not use that family's
-#' variance function, so this weight extension does not make it a general GLM
-#' covariance. Binary outcomes continue to use stats::vcov(fitted_model).
+#' existing continuous quasibinomial covariance on the logit link does not use
+#' that family's variance function: it is the Gauss-Newton sandwich of a least
+#' squares fit of the logit curve, for gaussian and quasibinomial fits alike,
+#' and not the sandwich of the quasibinomial estimating equation. This weight
+#' extension does not make it a general GLM covariance. Binary outcomes continue to use stats::vcov(fitted_model).
 #' Center weights for the outcome goal are separate from observation weights.
 #'
 #' @import stats
@@ -262,18 +286,11 @@ get_confidence_set <- function(
       "."
     ))
   }
-  # a named rec_int is matched to the components by name, not by position
-  if (!is.null(names(rec_int))) {
-    if (!setequal(names(rec_int), component_names) || anyDuplicated(names(rec_int)) > 0) {
-      stop(paste0(
-        "The names of rec_int must be the ",
-        if (include_interaction_terms) "main components" else "intervention components",
-        ", each once: ", paste0("'", component_names, "'", collapse = ", "),
-        ". Fix the names, or remove them with unname()."
-      ))
-    }
-    rec_int <- unname(rec_int[component_names])
-  }
+  # Named values are matched to the components by name, with the rule
+  # lago_optimization() uses, see match_by_names(). A single value with a
+  # name of another kind, such as the "50%" quantile() gives, keeps its value.
+  component_what <- if (include_interaction_terms) "main components" else "intervention components"
+  rec_int <- match_by_names(drop_1d_array(rec_int), component_names, "rec_int", component_what)
   # one cost function, and one bound and grid step each, per component
   if (!is.list(cost_list_of_vectors) || length(cost_list_of_vectors) != n_components) {
     stop(paste0(
@@ -281,17 +298,35 @@ get_confidence_set <- function(
       n_components, " in all."
     ))
   }
+  usable_costs <- vapply(cost_list_of_vectors, function(coefficients) {
+    is.numeric(coefficients) && length(coefficients) > 0 && all(is.finite(coefficients))
+  }, logical(1))
+  if (!all(usable_costs)) {
+    stop(paste0(
+      "Each vector in cost_list_of_vectors must hold at least one ",
+      "coefficient, and each coefficient must be a finite number, but the ",
+      "vector(s) at position(s) ", paste(which(!usable_costs), collapse = ", "),
+      " do not. NA, NaN, Inf, -Inf and text are not coefficients."
+    ))
+  }
+  cost_list_of_vectors <- match_by_names(
+    cost_list_of_vectors, component_names, "cost_list_of_vectors", component_what
+  )
   sizes <- list(
     intervention_lower_bounds = intervention_lower_bounds,
     intervention_upper_bounds = intervention_upper_bounds,
     confidence_set_grid_step_size = confidence_set_grid_step_size
   )
   for (size_name in names(sizes)) {
-    v <- sizes[[size_name]]
+    v <- drop_1d_array(sizes[[size_name]])
     if (!is.numeric(v) || length(v) != n_components || !all(is.finite(v))) {
       stop(paste0(size_name, " must be ", n_components, " finite number(s), one per component."))
     }
+    sizes[[size_name]] <- match_by_names(v, component_names, size_name, component_what)
   }
+  intervention_lower_bounds <- sizes$intervention_lower_bounds
+  intervention_upper_bounds <- sizes$intervention_upper_bounds
+  confidence_set_grid_step_size <- sizes$confidence_set_grid_step_size
   if (any(intervention_lower_bounds > intervention_upper_bounds)) {
     stop("Each intervention_lower_bounds must not be above its intervention_upper_bounds.")
   }
@@ -322,6 +357,25 @@ get_confidence_set <- function(
         "model without center effects."
       ))
     }
+    # named weights are matched to the model's centers by name, with the rule
+    # validate_inputs() uses
+    weight_names <- names(center_weights_for_outcome_goal)
+    if (include_center_effects && !is.null(levels_of("center")) && !is.null(weight_names)) {
+      center_levels <- levels_of("center")
+      level_keys <- ifelse(is.na(center_levels), "NA", center_levels)
+      name_keys <- ifelse(is.na(weight_names), "NA", weight_names)
+      if (anyDuplicated(name_keys) > 0 || !setequal(name_keys, level_keys)) {
+        stop(paste0(
+          "The names of center_weights_for_outcome_goal must be the centers ",
+          "of 'fitted_model', each once: ",
+          paste0("'", center_levels, "'", collapse = ", "),
+          ". Fix the names, or remove them with unname() to match the ",
+          "weights to the centers in this order."
+        ))
+      }
+      center_weights_for_outcome_goal <-
+        unname(center_weights_for_outcome_goal[match(level_keys, name_keys)])
+    }
     for (term in c(if (include_center_effects) "center", if (include_time_effects) "period")) {
       if (term %in% names(predictors_data) && !is.factor(predictors_data[[term]]) &&
         !is.null(levels_of(term))) {
@@ -339,10 +393,34 @@ get_confidence_set <- function(
   # rows the given model was fitted on, as lago_optimization() does for its
   # own fit. lago_optimization() calls the implementation below, so it warns
   # once and not twice.
+  # one finite value per center characteristic, matched to them by name as
+  # validate_inputs() does
+  if (length(center_characteristics) > 0) {
+    center_characteristics_optimization_values <-
+      drop_1d_array(center_characteristics_optimization_values)
+    if (!(is.vector(center_characteristics_optimization_values) &&
+      is.numeric(center_characteristics_optimization_values))) {
+      stop("center_characteristics_optimization_values must be a numeric vector.")
+    }
+    if (length(center_characteristics_optimization_values) != length(center_characteristics) ||
+      !all(is.finite(center_characteristics_optimization_values))) {
+      stop(paste0(
+        "center_characteristics_optimization_values must be finite numbers, ",
+        "one per center characteristic, ", length(center_characteristics),
+        " in all. NA, NaN, Inf and -Inf name no center."
+      ))
+    }
+    center_characteristics_optimization_values <- match_by_names(
+      center_characteristics_optimization_values, center_characteristics,
+      "center_characteristics_optimization_values", "center characteristics"
+    )
+  }
   if (!is.null(center_characteristics) && inherits(fitted_model, "glm")) {
     frame <- stats::model.frame(fitted_model)
-    # the prior weights, as glm() keeps them, and a row it fits has one above 0
-    w <- stats::weights(fitted_model) %||% rep(1, nrow(frame))
+    # the prior weights, as glm() keeps them, one per fitted row, and a row it
+    # fits has one above 0. stats::weights() pads them to the data rows under
+    # na.exclude, so the field is read directly.
+    w <- fitted_model$prior.weights %||% rep(1, nrow(frame))
     fitted <- !is.na(w) & w > 0
     # a characteristic the model does not have gives NULL, and is skipped
     columns <- lapply(center_characteristics, function(cc) frame[[cc]][fitted])
@@ -434,7 +512,8 @@ get_confidence_set <- function(
   sequences <- list()
   # Generate sequences for each intervention component
   # each grid includes its upper bound, even when the step does not divide the
-  # range, as the optimizer's grid does
+  # range, as the optimizer's grid does. The gap is measured against the step,
+  # so the rule does not depend on the units of the component.
   for (i in seq_along(intervention_lower_bounds)) {
     grid <- seq(
       from = intervention_lower_bounds[i],
@@ -442,7 +521,7 @@ get_confidence_set <- function(
       by = confidence_set_grid_step_size[i]
     )
     up <- intervention_upper_bounds[i]
-    if (up - grid[length(grid)] > 1e-8 * max(1, abs(up))) grid <- c(grid, up)
+    if (up - grid[length(grid)] > 1e-8 * confidence_set_grid_step_size[i]) grid <- c(grid, up)
     sequences[[i]] <- grid
   }
   # expand grid
@@ -1030,16 +1109,16 @@ get_confidence_set <- function(
                                                    cluster_id,
                                                    outcome,
                                                    fitted_values) {
-        if (unit_weights) {
+        if (identity_unit_weights) {
           residuals <- outcome - fitted_values
           bread <- xtx_inverse(X)
         } else {
-          positive <- prior_weights > 0
+          positive <- identity_weights > 0
           X_positive <- X[positive, , drop = FALSE]
           residuals <- numeric(nrow(X))
-          residuals[positive] <- prior_weights[positive] *
+          residuals[positive] <- identity_weights[positive] *
             (outcome[positive] - fitted_values[positive])
-          bread <- xtx_inverse(X_positive, prior_weights[positive])
+          bread <- xtx_inverse(X_positive, identity_weights[positive])
         }
 
         # Initialize cluster sum
@@ -1050,7 +1129,7 @@ get_confidence_set <- function(
 
         for (c in clusters) {
           cluster_idx <- which(cluster_id == c)
-          if (!unit_weights) cluster_idx <- cluster_idx[prior_weights[cluster_idx] > 0]
+          if (!identity_unit_weights) cluster_idx <- cluster_idx[identity_weights[cluster_idx] > 0]
           X_c <- X[cluster_idx, , drop = FALSE]
           e_c <- residuals[cluster_idx]
 
@@ -1091,6 +1170,8 @@ get_confidence_set <- function(
       # or paste(), and for both links -- this is the single point both the
       # one-way and the two-way paths pass through. The non-clustered path has
       # no cluster_id and is not reached (cluster_ids is NULL there).
+      # an empty list holds no clustering vector, so it is no clustering
+      if (is.list(cluster_ids) && length(cluster_ids) == 0) cluster_ids <- NULL
       if (!is.null(cluster_ids)) {
         # one clustering vector may be given on its own, and at most two are
         # supported
@@ -1133,6 +1214,24 @@ get_confidence_set <- function(
         ))
       }
       unit_weights <- all(prior_weights == 1)
+      # On the identity link a family other than gaussian weights each row by
+      # its variance function, and the unclustered path uses glm()'s own model
+      # based variance for it. The IRLS working weights model$weights are the
+      # prior weight over that variance, so the clustered bread and score use
+      # them, and the clustered variance is the sandwich form of the same fit.
+      # For a gaussian family they equal the prior weights.
+      identity_weights <- prior_weights
+      if (link == "identity" && !identical(model$family$family, "gaussian")) {
+        identity_weights <- model$weights
+        if (!is.numeric(identity_weights) || length(identity_weights) != n ||
+          any(!is.finite(identity_weights)) || any(identity_weights < 0)) {
+          stop(paste0(
+            "fitted_model$weights, the working weights of the fit, must be a ",
+            "finite nonnegative numeric vector with one entry per fitted row."
+          ))
+        }
+      }
+      identity_unit_weights <- all(identity_weights == 1)
 
       # The variance is computed on a centered and scaled copy of X and turned
       # back at the end. A component far from 0, such as values near 100000,
@@ -1143,7 +1242,7 @@ get_confidence_set <- function(
       conditioned <- if (is.null(cluster_ids)) {
         list(Z = X, M = diag(ncol(X)))
       } else {
-        conditioned_design(X)
+        conditioned_design(X, prior_weights)
       }
       X <- conditioned$Z
 
@@ -1174,6 +1273,12 @@ get_confidence_set <- function(
         # Two-way clustering
         cluster_id1 <- cluster_ids[[1]]
         cluster_id2 <- cluster_ids[[2]]
+        # The intersection cell of each row, from the index of its cluster in
+        # each dimension. Pasting the labels would merge cells whose labels
+        # paste alike, such as "A_1" with "x" and "A" with "1_x".
+        index1 <- match(cluster_id1, unique(cluster_id1))
+        index2 <- match(cluster_id2, unique(cluster_id2))
+        intersection_id <- (index1 - 1) * length(unique(cluster_id2)) + index2
 
         if (link == "identity") {
           vcov1 <- get_single_cluster_vcov_identity(
@@ -1188,7 +1293,6 @@ get_confidence_set <- function(
             outcome_data,
             fitted_values
           )
-          intersection_id <- paste(cluster_id1, cluster_id2, sep = "_")
           vcov12 <- get_single_cluster_vcov_identity(
             X,
             intersection_id,
@@ -1210,7 +1314,6 @@ get_confidence_set <- function(
             fitted_values,
             outcome_data
           )
-          intersection_id <- paste(cluster_id1, cluster_id2, sep = "_")
           vcov12 <- get_single_cluster_vcov(
             X,
             intersection_id,
@@ -1224,7 +1327,12 @@ get_confidence_set <- function(
         vcov_matrix <- vcov1 + vcov2 - vcov12
       }
 
+      # Whether a two-way variance is positive semidefinite is read on the
+      # centered and scaled design, where its eigenvalues are on one scale.
+      # The answer is the same in the original units, as M is invertible.
+      clip <- length(cluster_ids) == 2 && !is_psd(vcov_matrix)
       vcov_matrix <- conditioned$M %*% vcov_matrix %*% t(conditioned$M)
+      if (clip) vcov_matrix <- clip_two_way_vcov(vcov_matrix)
       rownames(vcov_matrix) <- design_names
       colnames(vcov_matrix) <- design_names
       return(vcov_matrix)
@@ -1483,10 +1591,36 @@ get_confidence_set <- function(
   ))
 }
 
+# Whether a symmetric variance matrix is positive semidefinite, up to round
+# off: no eigenvalue below -1e-12 times the largest in absolute value.
+is_psd <- function(v) {
+  values <- eigen((v + t(v)) / 2, symmetric = TRUE, only.values = TRUE)$values
+  min(values) >= -1e-12 * max(abs(values))
+}
+
+# The two-way clustered variance V1 + V2 - V12 need not be positive
+# semidefinite, and then a standard error can be the square root of a negative
+# number. As Cameron, Gelbach and Miller (2011) suggest, its negative
+# eigenvalues are set to 0, in the units of the coefficients, with a warning.
+clip_two_way_vcov <- function(v) {
+  warning(paste0(
+    "The two-way clustered variance is not positive semidefinite, so its ",
+    "negative eigenvalues were set to 0 (Cameron, Gelbach and Miller, 2011). ",
+    "This can happen with few clusters in a dimension. The confidence set ",
+    "uses the corrected variance."
+  ), call. = FALSE)
+  e <- eigen((v + t(v)) / 2, symmetric = TRUE)
+  out <- e$vectors %*% (pmax(e$values, 0) * t(e$vectors))
+  dimnames(out) <- dimnames(v)
+  out
+}
+
 # An interval bound to 3 decimals, or to 4 significant digits when it is below
-# 0.1, so a rare outcome or one in small units keeps its digits.
+# 0.1, so a rare outcome or one in small units keeps its digits. It rounds
+# with the rule the printed estimate uses, .lago_fmt_interval(), so an
+# estimate never prints outside a zero width interval.
 round_interval_bound <- function(x) {
-  ifelse(abs(x) >= 0.1 | !is.finite(x), round(x, 3), signif(x, 4))
+  .lago_fmt_interval(x)
 }
 
 # the coefficient names glm() gave each term of a fitted model, as a list whose

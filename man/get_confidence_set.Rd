@@ -44,7 +44,8 @@ weights that will be used for calculating recommended interventions that
 satisfy the outcome goal for an (weighted) average center.
 There is one weight per center the fitted model has, in the order of its
 center levels (\code{fitted_model$xlevels$center}), so the first weight is
-for the reference center.
+for the reference center. Named weights are matched to those centers by
+name instead, and their names must be the centers, each once.
 The weights need to sum up to 1, and must all be non-negative and finite.
 A weight of 0 is allowed and excludes that center from the average. Only
 used, and only checked, when include_center_effects is TRUE. A vector whose
@@ -124,15 +125,25 @@ center_characteristics.}
 the confidence set calculations.}
 
 \item{cluster_id}{A list of one or two vectors, a single vector, or NULL.
-Specifies the columns of data that will be used as clustering effects when
-the "outcome_type" is continuous, with one entry per fitted row. \code{\link[=lago_optimization]{lago_optimization()}} leaves it NULL, since its fixed
-center and time effects already model the centers and periods.}
+The cluster vectors themselves, not column names, each with one entry per
+fitted row, used for a clustered variance when the "outcome_type" is
+continuous. An empty list is the same as NULL. \code{\link[=lago_optimization]{lago_optimization()}} leaves
+it NULL, since its fixed center and time effects already model the centers
+and periods.}
 
 \item{cost_list_of_vectors}{A list of numeric vectors. The cost vectors
-used in the LAGO optimization.}
+used in the LAGO optimization. Each must hold at least one finite number.}
 
 \item{rec_int}{A numeric vector, the recommended interventions calculated
-from the optimization step.}
+from the optimization step.
+
+Named values of rec_int, the bounds, the grid steps, the cost list and the
+center characteristic values are matched to the components (or the center
+characteristics) by name, with the rule lago_optimization() uses. The names
+are read when one of them is an expected name, or when there are two or more
+values and each has a name, and then they must be the expected names, each
+once. Other names, such as the "50\%" that quantile() gives one value, are
+ignored.}
 }
 \value{
 List(
@@ -192,14 +203,27 @@ For the logit link, the existing Gauss Newton sandwich is retained. Set
 \eqn{w_i d_i (y_i - \mu_i)}. Without clusters the meat is the sum of row
 score outer products (HC0). With clusters, for either link, the meat is the
 sum of cluster score outer products (CR0). Two clustering dimensions use
-the first covariance plus the second minus the intersection covariance.
-No finite sample correction is added.
+the first covariance plus the second minus the intersection covariance,
+where the intersection is each pair of clusters that occurs in the data.
+That sum need not be positive semidefinite. When it is not, its negative
+eigenvalues are set to 0, as Cameron, Gelbach and Miller (2011) suggest,
+and a warning says so. They are the eigenvalues of the covariance of the
+fitted coefficients. No finite sample correction is added.
+
+On the identity link with a family other than gaussian, such as
+quasipoisson, the unclustered covariance is the model based one of
+stats::vcov(fitted_model). With clusters, \eqn{w_i} above is then the IRLS
+working weight of the fit (\code{fitted_model$weights}), the prior weight
+divided by the family's variance function, so the clustered covariance is
+the sandwich form of the same fit.
 
 These formulas extend the existing continuous covariance definition. They
 are not a frequency weight or survey design variance. In particular, the
-existing continuous quasibinomial covariance does not use that family's
-variance function, so this weight extension does not make it a general GLM
-covariance. Binary outcomes continue to use stats::vcov(fitted_model).
+existing continuous quasibinomial covariance on the logit link does not use
+that family's variance function: it is the Gauss-Newton sandwich of a least
+squares fit of the logit curve, for gaussian and quasibinomial fits alike,
+and not the sandwich of the quasibinomial estimating equation. This weight
+extension does not make it a general GLM covariance. Binary outcomes continue to use stats::vcov(fitted_model).
 Center weights for the outcome goal are separate from observation weights.
 }
 \examples{

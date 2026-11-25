@@ -40,7 +40,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23928
+      Cost: 23927.77
       Estimated outcome: 0.85
       95% CI for the estimated outcome: 0.802 - 0.898
       Outcome goal: 0.85
@@ -107,7 +107,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23928
+      Cost: 23927.77
       Estimated outcome: 0.85
       95% CI for the estimated outcome: 0.802 - 0.898
       Outcome goal: 0.85
@@ -266,6 +266,9 @@
       Fixed time effects: FALSE
       Outcome goal: not specified
       Power goal: 0.8
+      Power goal approach: unconditional
+      Next stage size: 10 centers, 30 patients per center
+      ICC: not specified (independent observations)
       Effective outcome goal (max of outcome goal and power-implied outcome): 0.243
       Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
       8000)
@@ -318,6 +321,9 @@
       Fixed time effects: FALSE
       Outcome goal: not specified
       Power goal: 0.8
+      Power goal approach: unconditional
+      Next stage size: 10 centers, 30 patients per center
+      ICC: not specified (independent observations)
       Effective outcome goal (max of outcome goal and power-implied outcome): 0.243
       Intervention component costs: coaching_updt (0, 1700), launch_duration (0,
       8000)
@@ -492,7 +498,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23928
+      Cost: 23927.77
       Estimated outcome: 0.85
       95% CI for the estimated outcome: not available (set include_confidence_set =
       TRUE)
@@ -543,7 +549,7 @@
       -- Recommended intervention 
       coaching_updt: 1
       launch_duration: 2.7785
-      Cost: 23928
+      Cost: 23927.77
       Estimated outcome: 0.85
       95% CI for the estimated outcome: not available (set include_confidence_set =
       TRUE)

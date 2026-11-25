@@ -28,11 +28,13 @@ across the outcome's range. Larger values give a finer, more precise answer
 at the cost of more optimization runs. A second refinement pass tries
 \code{n_grid} more goals strictly inside the gap at the affordability boundary,
 and that gap is then halved one run at a time until it is narrower than
-1/10000 of the goal range and the cost at the boundary is known to within
-1/10000 of the budget, so the answer does not depend much on \code{n_grid}. Near
-the best reachable outcome, where the cost is not known until the goal gets
-very close to that outcome, the halving goes on until the gap is narrower
-than 1e-9 of the goal range.
+1/10000 of the range of the reached estimated outcomes and the cost at the
+boundary is known to within 1/10000 of the spread of the reached costs, so
+the answer does not depend much on \code{n_grid}. These tolerances are never
+looser than 1/10000 of the goal range and of the budget. Near the best
+reachable outcome, where the cost is not known until the goal gets very
+close to that outcome, the halving goes on until the gap is narrower than
+1e-9 of that range of reached outcomes.
 Default 25.}
 
 \item{quiet}{A boolean forwarded to \code{\link[=lago_optimization]{lago_optimization()}} via
@@ -62,6 +64,10 @@ cost/outcome tradeoff curve): \code{outcome_goal}, \code{rec_int_cost}, \code{es
 \item{run_error}{The error of the first failed run when every run of a
 sweep failed, otherwise \code{NULL}.}
 }
+The object carries the attribute \code{power_goal_used}, \code{TRUE} when the search
+had a power goal. Every run then has to reach the outcome the power goal
+implies, so the cheapest intervention named when no recommendation fits the
+budget is the cheapest one that reaches that outcome.
 }
 \description{
 Answers the reverse of the usual LAGO question. Instead of "what
@@ -105,7 +111,8 @@ cheapest reachable intervention), the result has \code{feasible = FALSE} and \co
 recommendation fields. If every reachable goal is affordable, the budget does
 not bind (\code{binding = FALSE}) and the maximum reachable outcome is returned.
 If \code{\link[=lago_optimization]{lago_optimization()}} fails for every goal of a sweep, for example because
-the outcome model cannot be fitted, the result has \code{feasible = FALSE}, the
+the outcome model cannot be fitted or the outcome has no finite value, the
+result has \code{feasible = FALSE}, the
 warning and the printed result give the error of the first failed run, and
 \code{run_error} holds it.
 }

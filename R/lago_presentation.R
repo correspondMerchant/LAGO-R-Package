@@ -16,7 +16,8 @@
 #   - recommendation values: .lago_fmt_value()
 #   - estimated outcome, its interval and the outcome goal:
 #     .lago_fmt_interval()
-#   - recommended cost: 5 significant digits (.lago_fmt_cost())
+#   - recommended cost: 5 significant digits, or 2 decimals from 1e4 up
+#     (.lago_fmt_cost())
 #   - confidence-set cost IQR: .lago_fmt_cost_range()
 #   - p-values: 4 significant digits, or "< 2.2e-16" when the p-value is below
 #     the machine precision (it then underflows to 0, which is not a true
@@ -125,16 +126,67 @@
   )
 }
 
+# The estimated outcome rounded as .lago_fmt_interval() rounds it, next to the
+# goal it reached. The optimizer meets a goal up to a small tolerance, so an
+# estimate a hair short of a goal such as 0.8125 rounds to 0.812 while the goal
+# rounds to 0.813, and a goal that was reached would look missed. When the
+# goal was reached (reached is TRUE), the estimate is within that tolerance
+# of the goal (1e-5 times the goal, or 1e-5 for a goal closer to 0 than 1, as
+# lago_budget() allows), and the rounded estimate is below the rounded goal for
+# a goal to maximize, or above it for a goal to minimize, the estimate is shown
+# as the rounded goal. An estimate farther from the goal keeps its own text.
+# The JS fmtEstimate() of the report does the same.
+.lago_fmt_estimate <- function(est, goal, intention, reached) {
+  out <- .lago_fmt_interval(est)
+  if (!isTRUE(reached) || length(goal) != 1 || !is.numeric(goal) || !is.finite(goal) ||
+    length(out) != 1 || !is.finite(out)) {
+    return(out)
+  }
+  shown_goal <- .lago_fmt_interval(goal)
+  near <- abs(as.numeric(est) - goal) <= 1e-5 * max(1, abs(goal))
+  missed_side <- (identical(intention, "maximize") && out < shown_goal) ||
+    (identical(intention, "minimize") && out > shown_goal)
+  if (near && missed_side) shown_goal else out
+}
+
 # The recommended cost is produced by the numerical optimizer, whose trailing
 # digits differ across platforms and BLAS builds. At 4 decimals those
 # platform-specific digits become visible once costs are in the thousands
 # (e.g. 23927.7721 vs 23927.7723), which breaks reproducible snapshots and
-# reports. Showing 5 significant figures keeps the value stable regardless of
-# the magnitude of the caller's cost units while staying precise enough for a
-# cost. The confidence-set costs are evaluated at exact grid points, so their
+# reports. A cost below 1e4 shows 5 significant figures, which keeps the value
+# stable in any cost units while staying precise enough for a cost. A cost of
+# 1e4 or more shows 2 decimals, as the confidence set costs do, since 5
+# significant figures would hide its variable part under a large fixed cost:
+# a fixed cost of 1000000 plus 12.34 per unit would show as 1000000 for every
+# dose. The confidence-set costs are evaluated at exact grid points, so their
 # IQR stays on 2 decimals, with 3 significant digits for a cost below 1 so a
 # cost in small units does not show as 0.
-.lago_fmt_cost <- function(v) .lago_round_dec(v, 5, sig = TRUE)
+.lago_fmt_cost <- function(v) {
+  v <- as.numeric(v)
+  ifelse(
+    is.finite(v) & abs(v) >= 1e4,
+    .lago_round_dec(v, 2, sig = FALSE),
+    .lago_round_dec(v, 5, sig = TRUE)
+  )
+}
+
+# A cost rounded as .lago_fmt_cost() rounds it, but never above a budget it
+# fits in. A cost just under the budget can round up past it. It is then shown
+# one unit of its last digit lower, which is the cost rounded down to the same
+# digits. The JS fmtCostWithin() of the report does the same.
+.lago_fmt_cost_within <- function(v, budget) {
+  v <- as.numeric(v)
+  budget <- as.numeric(budget)
+  out <- .lago_fmt_cost(v)
+  over <- is.finite(v) & v > 0 & is.finite(budget) & v <= budget & out > budget
+  if (!any(over)) return(out)
+  # the unit of the last digit shown: 0.01 from 1e4 up, else that of the 5th
+  # significant digit
+  vo <- v[over]
+  unit <- ifelse(vo >= 1e4, 0.01, 10^(floor(log10(vo)) - 4))
+  out[over] <- .lago_fmt_cost(out[over] - unit)
+  out
+}
 
 .lago_fmt_cost_range <- function(v) {
   v <- as.numeric(v)
@@ -199,7 +251,42 @@
 # from 1e21 up or closer to 0 than 1e-6 uses e notation, such as 1e+25, so it
 # shows no made up digits.
 .lago_fmt_cost_coefs <- function(v) {
-  paste(.lago_num_text(.lago_fmt_cost(v)), collapse = ", ")
+  paste(.lago_num_text(.lago_round_dec(v, 5, sig = TRUE)), collapse = ", ")
+}
+
+# The power settings of a result with a power goal, one line each, from the
+# arguments it recorded: the approach, the size of the next stage and the icc.
+# An object that did not record an argument shows no line for it.
+.lago_power_rows <- function(args) {
+  rows <- character(0)
+  approach <- args$power_goal_approach
+  if (is.character(approach) && length(approach) >= 1) {
+    rows <- c(rows, paste0("Power goal approach: ", approach[1]))
+  }
+  n_centers <- args$num_centers_in_next_stage
+  n_patients <- args$patients_per_center_in_next_stage
+  if (is.numeric(n_centers) && is.numeric(n_patients)) {
+    rows <- c(rows, paste0(
+      "Next stage size: ", .lago_num_text(n_centers[1]), " centers, ",
+      .lago_num_text(n_patients[1]), " patients per center"
+    ))
+  }
+  if (!is.null(args) && is.null(args$icc)) {
+    rows <- c(rows, "ICC: not specified (independent observations)")
+  } else if (is.numeric(args$icc) && length(args$icc) == 1) {
+    rows <- c(rows, paste0("ICC: ", .lago_num_text(args$icc)))
+  } else if (is.numeric(args$icc) && length(args$icc) == 2) {
+    icc <- args$icc
+    # a named pair is matched by name, as lago_optimization() matches it
+    if (!is.null(names(icc)) && all(c("control", "treatment") %in% names(icc))) {
+      icc <- icc[c("control", "treatment")]
+    }
+    rows <- c(rows, paste0(
+      "ICC: ", .lago_num_text(icc[[1]]), " (control), ",
+      .lago_num_text(icc[[2]]), " (treatment)"
+    ))
+  }
+  rows
 }
 
 # --- the shared formatter -----------------------------------------------------
@@ -328,6 +415,9 @@ lago_blocks <- function(x) {
         if (is.null(x[["power_goal"]])) "not specified" else .lago_num_text(x[["power_goal"]])
       )
     )
+    if (!is.null(x[["power_goal"]])) {
+      input_rows <- c(input_rows, .lago_power_rows(attr(x, "lago_call_args")))
+    }
     if (!is.null(x[["power_goal"]]) && !is.null(x[["effective_outcome_goal"]])) {
       input_rows <- c(
         input_rows,
@@ -406,10 +496,20 @@ lago_blocks <- function(x) {
   # recommended intervention, which get_confidence_set() reports in its own
   # rec_int_ci field, carried on the object as est_outcome_ci.
   # The estimate is shown with the rounding of its interval, so it never
-  # shows outside the interval (see .lago_fmt_interval()).
-  outcome_rows <- paste0(
-    "Estimated outcome: ", .lago_num_text(.lago_fmt_interval(x[["est_outcome_goal"]]))
+  # shows outside the interval (see .lago_fmt_interval()). When the goal was
+  # reached, it never shows on the missed side of its goal (see
+  # .lago_fmt_estimate()).
+  # The goal the run targeted is the effective outcome goal of a power goal,
+  # which is at least as strict as the outcome goal, so an estimate that does
+  # not show on its missed side does not show on that of the outcome goal.
+  intention <- x[["outcome_goal_intention"]] %||% attr(x, "lago_call_args")$outcome_goal_intention
+  est_shown <- .lago_fmt_estimate(
+    x[["est_outcome_goal"]],
+    x[["effective_outcome_goal"]] %||% x[["outcome_goal"]],
+    intention,
+    reached = !isTRUE(x[["shrinking_method_used"]])
   )
+  outcome_rows <- paste0("Estimated outcome: ", .lago_num_text(est_shown))
   # Always show a CI line, with the old fallback wording when the interval is
   # not available. The interval no longer depends on the confidence set being
   # non-empty, so with the set requested it is missing only when the interval

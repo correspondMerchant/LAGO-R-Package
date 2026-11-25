@@ -278,7 +278,7 @@ test_that("loading names the values that do not fit the data, and the kind of a 
   d <- as.data.frame(main_pulesa_data)
   s <- utils::modifyList(.app_defaults(d, "main_pulesa_data"), list(center_for = "Nowhere", period_value = "99"))
   expect_match(.app_spec_misfits(s, d)[1], "the center Nowhere to optimize for, which this data does not have")
-  expect_match(.app_spec_misfits(s, d)[2], "the period 99, which this data does not have, so the last period is used")
+  expect_match(.app_spec_misfits(s, d)[2], "the period 99, which this data does not have, so the latest period with rows the model can use is used")
   s2 <- utils::modifyList(.app_defaults(d, "main_pulesa_data"), list(cw_on = TRUE, cw = c(0.5, 0.5)))
   expect_match(.app_spec_misfits(s2, d), "for 2 centers while this data has 16")
   bb <- as.data.frame(BB_data)

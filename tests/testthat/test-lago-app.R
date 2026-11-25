@@ -626,12 +626,12 @@ test_that("the cost designer starts on the costs now in use", {
   expect_identical(start$form, "cubic")
   expect_equal(start$coefs[[1]], c(0, 4, 0, 0, 0))
   expect_length(start$unfit, 0)
-  # a polynomial the designer has no form for is named
+  # fewer than 5 coefficients are the same curve padded with zeros
   spec$coefs <- list(c(0, 2), c(0, 1, 1))
   start <- .app_designer_start(spec)
-  expect_identical(start$form, "linear")
-  expect_null(start$coefs[[2]])
-  expect_identical(start$unfit, "qsec")
+  expect_identical(start$form, "cubic")
+  expect_equal(start$coefs[[2]], c(0, 1, 1, 0, 0))
+  expect_length(start$unfit, 0)
   # the unit cost is the average cost per unit over the bounds
   expect_equal(start$unit_costs[1], 2)
   q <- function(x) x + x^2
@@ -709,7 +709,7 @@ test_that("the designer opens with a note when costs do not fit it", {
     session$setInputs(source = "mtcars", sep = ",", dec = ".")
     session$setInputs(outcome = "mpg", components = c("gear", "qsec"), cost_mode = "coef")
     app_server_inputs(session, col_id, c("gear", "qsec"), list(c(3, 5), c(14, 20)))
-    do.call(session$setInputs, stats::setNames(list("0, 1, 0.5", "0, 2"), c(coef_id("gear"), coef_id("qsec"))))
+    do.call(session$setInputs, stats::setNames(list("0, 1, 0.5, 0, 0, 1", "0, 2"), c(coef_id("gear"), coef_id("qsec"))))
     session$setInputs(open_designer = 1)
     expect_identical(.app_designer_start(spec())$unfit, "gear")
     session$setInputs(`designer_1-coef_1_0` = 0, `designer_1-coef_1_1` = 1, `designer_1-coef_2_0` = 0,
