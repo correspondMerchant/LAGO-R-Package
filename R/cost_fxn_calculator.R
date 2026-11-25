@@ -121,21 +121,24 @@ cost_fxn_calculator <- function(
         solve(A, b_vec)
       }
 
-      # whether the total cost sum_k c_k x^k, evaluated in x, rises across the
-      # bounds as x times the cost per unit does, and never falls by more than
-      # a small part of that rise. The rise is taken from the curve solved in
-      # u, which has no cancellation: with p(u) the cost per unit,
-      # hi p(1) - lo p(0) = lo (p(1) - p(0)) + width p(1).
+      # whether the total cost sum_k c_k x^k, evaluated in x, matches the
+      # total x p(u) of the curve solved in u, which has no cancellation, to
+      # 1e-3 of its rise across the bounds, and whether that total itself never
+      # falls. The test is far from round off, so it gives the same answer in
+      # any units of the cost or of the dose. With p(u) the cost per unit, the
+      # rise is hi p(1) - lo p(0) = lo (p(1) - p(0)) + width p(1).
       total_is_accurate <- function(final_coeff, delta) {
         x <- seq(range_min, range_max, length.out = 2001)
         total <- vapply(x, function(v) sum(final_coeff * v^(seq_along(final_coeff) - 1)), numeric(1))
-        scaled <- solve_in(range_min, range_max - range_min, delta)
-        rise <- range_min * sum(scaled[1:3]) + (range_max - range_min) * sum(scaled)
-        steps <- diff(total)
+        w <- range_max - range_min
+        scaled <- solve_in(range_min, w, delta)
+        u <- (x - range_min) / w
+        exact <- x * (scaled[1] * u^3 + scaled[2] * u^2 + scaled[3] * u + scaled[4])
+        rise <- range_min * sum(scaled[1:3]) + w * sum(scaled)
         # a positive cost per unit gives a total that rises, so a curve whose
         # rise is not positive is not accurate either
-        isTRUE(rise > 0) && all(is.finite(total)) && min(steps) >= -1e-6 * rise &&
-          abs((total[length(total)] - total[1]) - rise) <= 1e-3 * rise
+        isTRUE(rise > 0) && all(is.finite(total)) && all(is.finite(exact)) &&
+          max(abs(total - exact)) <= 1e-3 * rise && min(diff(exact)) >= -1e-9 * rise
       }
 
       # the linear cost, with a warning that the cubic could not be used
@@ -161,6 +164,11 @@ cost_fxn_calculator <- function(
         return(4 * coeff[1] * x^3 + 3 * coeff[2] * x^2 + 2 * coeff[3] * x + coeff[4])
       }
 
+      # bounds only a few round off units apart give the same point twice, so
+      # no cubic can be solved there
+      if (anyDuplicated(c(x1, x2, x3)) > 0) {
+        return(linear_instead())
+      }
       # Iteratively reduce |delta| if necessary
       first_delta <- delta
       while (TRUE) {
@@ -188,11 +196,9 @@ cost_fxn_calculator <- function(
           # The total cost is evaluated as the sum of c_k x^k, so on narrow
           # bounds far from 0 its large terms nearly cancel and round off can
           # swamp its rise across the bounds. The curve is kept only when its
-          # total, as evaluated, rises by what its cost per unit gives and never
-          # falls by more than a small part of that rise.
-          # Otherwise the linear cost is used, as for a component held at one
-          # dose: over bounds this narrow a cubic cannot differ from it in a
-          # way the optimizer could use.
+          # total, as evaluated, matches the total of the curve solved in u.
+          # Otherwise the linear cost is used, with a warning, since the
+          # optimizer could not use the cubic as evaluated.
           if (unit_cost != 0 && !total_is_accurate(final_coeff, delta)) {
             return(linear_instead())
           }

@@ -92,3 +92,29 @@ test_that("rows of weight 0 far from the fitted rows do not change the logit var
   expect_equal(lago_coef_table(run(apart))["b", 2], lago_coef_table(run(same))["b", 2], tolerance = 1e-6)
   expect_equal(nrow(run(apart)$cs), nrow(run(same)$cs))
 })
+
+test_that("the default cubic cost is kept or replaced the same way in any cost unit", {
+  lo <- as.numeric("0x1.8ad8d64a9505cp+13")
+  hi <- as.numeric("0x1.8b0bfce7183a5p+13")
+  uc <- as.numeric("0x1.6eed6d2751e3ep-1")
+  fell_back <- function(k) {
+    out <- FALSE
+    withCallingHandlers(
+      LAGOtrials:::cost_fxn_calculator(lo, hi, uc * k, "cubic"),
+      warning = function(w) {
+        out <<- TRUE
+        invokeRestart("muffleWarning")
+      }
+    )
+    out
+  }
+  expect_false(any(vapply(c(1, 3, 1 / 3, 1e-4, 1e4), fell_back, logical(1))))
+})
+
+test_that("bounds a few round off units apart get the linear cost", {
+  expect_warning(
+    k <- LAGOtrials:::cost_fxn_calculator(1, 1 + 2^-52, 3, "cubic"),
+    "so the linear cost"
+  )
+  expect_equal(k[[1]], c(0, 3, 0, 0, 0))
+})
