@@ -30,7 +30,9 @@
 #' components, for example
 #' \code{data[["component1:component2"]] <- data$component1 * data$component2}.
 #' A column that is not that product is refused. A column saved with 4
-#' significant digits still counts as that product.
+#' significant digits still counts as that product. So does a column saved
+#' with 3 decimals, on the rows where the product, or the median product of
+#' the column, is 0.5 or more.
 #' A component cannot be named "cost", "CI_lower_bound" or "CI_upper_bound",
 #' the names of the other columns of the confidence set.
 #' @param intervention_lower_bounds A numeric vector. Specifies the lower bounds
@@ -158,7 +160,9 @@
 #' Note, include_center_effects and center_characteristics cannot be used
 #' together at the same time.
 #' Default value without user specification (NULL): FALSE for individual level
-#' data, TRUE for center level data.
+#' data, TRUE for center level data. For center level data with
+#' center_characteristics the default is FALSE, so the characteristics are
+#' used.
 #' @param center_effects_optimization_values A character string. The name of
 #' the center of interest (one of the values of the 'center' column) that will
 #' be used for center-specific LAGO optimization. This is only used when

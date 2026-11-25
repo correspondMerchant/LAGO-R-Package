@@ -52,6 +52,26 @@ validate_inputs <- function(
   if (nrow(data) == 0 || ncol(data) == 0) {
     stop("The argument 'data' is empty.")
   }
+  # A POSIXlt column is a list of date parts, which complete.cases() and glm()
+  # cannot read as one value per row. It is read as the same date-times in
+  # POSIXct form.
+  posixlt_columns <- Filter(
+    function(column) inherits(data[[column]], "POSIXlt"),
+    intersect(unlist(Filter(is.character, list(
+      "center", "period", outcome_name, intervention_components,
+      center_characteristics, additional_covariates
+    ))), names(data))
+  )
+  for (column in posixlt_columns) {
+    data[[column]] <- as.POSIXct(data[[column]])
+  }
+  if (length(posixlt_columns) > 0) {
+    input_note(paste0(
+      "The column(s) ", paste0("'", posixlt_columns, "'", collapse = ", "),
+      " hold POSIXlt date-times. They have been converted to POSIXct, the ",
+      "form the outcome model can use."
+    ))
+  }
 
   # check if the input data structure is a character type
   if (!is.character(input_data_structure)) {
@@ -239,9 +259,10 @@ validate_inputs <- function(
   # check if the outcome goal optimization method is one of the defined methods
   optimization_method_list <- c("numerical", "grid_search")
   if (!(optimization_method %in% optimization_method_list)) {
-    stop(paste(
-      "optimization_method must be one of the supported methods.",
-      "The supported methods are:", optimization_method_list, "."
+    stop(paste0(
+      "optimization_method must be one of the supported methods, ",
+      paste0("\"", optimization_method_list, "\"", collapse = " or "),
+      ", not \"", optimization_method, "\"."
     ))
   }
 
@@ -296,8 +317,8 @@ validate_inputs <- function(
           paste0("'", missing_interactions, "'", collapse = ", "),
           " are not columns. An interaction term needs a column with that ",
           "name that holds the product of its components, for example ",
-          "data[[\"", missing_interactions[1], "\"]] <- ",
-          paste0("data$", example, collapse = " * "), "."
+          data_column_code(missing_interactions[1]), " <- ",
+          paste(vapply(example, data_column_code, ""), collapse = " * "), "."
         )
       }
     ))
@@ -405,6 +426,17 @@ validate_inputs <- function(
   # for center level data, FALSE otherwise. A value the user gave is kept.
   if (is.null(include_center_effects)) {
     include_center_effects <- input_data_structure == "center_level"
+    # the model takes center effects or center characteristics, not both, so
+    # the characteristics the user gave win over the default
+    if (include_center_effects && length(center_characteristics) > 0) {
+      include_center_effects <- FALSE
+      input_note(paste(
+        "Center level data includes fixed center effects by default, but the",
+        "outcome model cannot have both center effects and center",
+        "characteristics. As center_characteristics are given, center effects",
+        "are left out (include_center_effects = FALSE)."
+      ))
+    }
   }
   # check whether the include_center_effects indicator is boolean
   if (!is.logical(include_center_effects) || length(include_center_effects) != 1 ||
@@ -416,8 +448,9 @@ validate_inputs <- function(
   if (include_center_effects && !is.null(center_characteristics)) {
     stop(paste(
       "Fixed center effects and center characteristics cannot be",
-      "both included in the outcome model. Please",
-      "pick one to use."
+      "both included in the outcome model. Pick one: set",
+      "include_center_effects = FALSE to use the center characteristics, or",
+      "remove center_characteristics to use the center effects."
     ))
   }
 
@@ -442,7 +475,7 @@ validate_inputs <- function(
     # if "center" column of the input data is not a factor,
     # change it to factor and print a warning message
     if (!is.factor(data$center)) {
-      data$center <- as.factor(data$center)
+      data$center <- as_label_factor(data$center)
       input_note(paste(
         "'center' column is not a factor type. To ensure",
         "the correct model fit, it has been converted",
@@ -543,6 +576,11 @@ validate_inputs <- function(
       } else {
         # if center_effects_optimization_values is specified,
         # we set the weight for that specific center to 1, rest to 0
+        # a factor names its center by its label
+        if (is.factor(center_effects_optimization_values)) {
+          center_effects_optimization_values <-
+            as.character(center_effects_optimization_values)
+        }
         if (!is.character(center_effects_optimization_values)) {
           stop(paste(
             "center_effects_optimization_values must be a character string",
@@ -558,7 +596,8 @@ validate_inputs <- function(
           stop(paste0(
             "center_effects_optimization_values (",
             if (missing_name) "NA_character_" else center_effects_optimization_values,
-            ") must be one of the centers in the 'center' column.",
+            ") must be one of the centers in the 'center' column: ",
+            paste0("'", levels(data$center), "'", collapse = ", "), ".",
             if (missing_name) {
               paste(
                 " To select the rows with a missing center, make them an",
@@ -697,6 +736,8 @@ validate_inputs <- function(
     # if "period" column of the input data is not a factor,
     # change it to factor and print a warning message
     if (!is.factor(data$period)) {
+      # NaN is a missing period, not a level
+      if (is.numeric(data$period)) data$period[is.nan(data$period)] <- NA
       data$period <- as.factor(data$period)
       input_note(paste(
         "'period' column is not a factor type. To ensure",
@@ -1023,11 +1064,13 @@ validate_inputs <- function(
     product <- Reduce(`*`, lapply(parts, function(part) as.numeric(data[[part]])))
     rows <- which(fitted_rows & !is.na(product))
     difference <- abs(data[[term]][rows] - product[rows])
-    # a column saved with 4 significant digits, or with 3 decimals when the
-    # products are about 1 or more, still agrees. Each row is judged against
-    # the larger of its own product and the mean product, so a small product
-    # does not need more decimals than the column was saved with.
-    tolerance <- 1e-3 * pmax(abs(product[rows]), mean(abs(product[rows])))
+    # a column saved with 4 significant digits still agrees, as does one saved
+    # with 3 decimals on the rows where the product, or the median product, is
+    # 0.5 or more. Each row is judged against the larger of its own product and
+    # the median product, so a small product does not need more decimals than
+    # the column was saved with. The median, unlike the mean, does not grow
+    # with a few large products, so a wrong small row is still refused.
+    tolerance <- 1e-3 * pmax(abs(product[rows]), stats::median(abs(product[rows])))
     mismatch <- rows[difference > tolerance]
     if (length(mismatch) > 0) {
       row <- mismatch[1]
@@ -1037,8 +1080,8 @@ validate_inputs <- function(
         format(data[[term]][row], digits = 10), " while the product is ",
         format(product[row], digits = 10), ". The model reads the column as ",
         "that product, so the recommendation would be wrong. Set it with ",
-        "data[[\"", term, "\"]] <- ", paste0("data$", parts, collapse = " * "),
-        "."
+        data_column_code(term), " <- ",
+        paste(vapply(parts, data_column_code, ""), collapse = " * "), "."
       ))
     }
   }
@@ -1430,23 +1473,21 @@ validate_inputs <- function(
     lower_outcome_goal <- TRUE
     # a goal at the observed mean asks for no change, in either direction
     if (outcome_goal >= observed_mean - at_mean_tol) {
-      input_warning(paste(
-        "The specified outcome goal intention is",
-        "to minimize the outcome.",
-        "The observed mean of the outcome is",
-        observed_mean,
-        "and the specified outcome goal is", outcome_goal, "."
+      # the text does not name the goal, so a sweep over goals shows it once
+      input_warning(paste0(
+        "The specified outcome goal intention is to minimize the outcome, ",
+        "but the outcome goal is at or above the observed mean of the ",
+        "outcome, which is ", observed_mean, "."
       ), call = sys.call())
     }
   } else {
     lower_outcome_goal <- FALSE
     if (outcome_goal <= observed_mean + at_mean_tol) {
-      input_warning(paste(
-        "The specified outcome goal intention",
-        "is to maximize the outcome.",
-        "The observed mean of the outcome is",
-        observed_mean,
-        "and the specified outcome goal is", outcome_goal, "."
+      # the text does not name the goal, so a sweep over goals shows it once
+      input_warning(paste0(
+        "The specified outcome goal intention is to maximize the outcome, ",
+        "but the outcome goal is at or below the observed mean of the ",
+        "outcome, which is ", observed_mean, "."
       ), call = sys.call())
     }
   }
@@ -2042,6 +2083,37 @@ refuse_non_unit_weight_sum <- function(center_weights_for_outcome_goal) {
     ))
   }
   invisible(NULL)
+}
+
+# A factor of center labels. A number is labeled in full, such as 100000
+# rather than 1e+05, so the labels read as the ids in the data, and NaN is a
+# missing center rather than a level.
+as_label_factor <- function(x) {
+  if (!is.numeric(x)) {
+    return(as.factor(x))
+  }
+  x[is.nan(x)] <- NA
+  values <- sort(unique(x[!is.na(x)]))
+  labels <- vapply(
+    values, format, "",
+    scientific = FALSE, trim = TRUE, digits = 15
+  )
+  # two ids that print alike keep the labels as.factor() gives
+  if (anyDuplicated(labels) > 0) {
+    return(as.factor(x))
+  }
+  factor(x, levels = values, labels = labels)
+}
+
+# R code that reads a column of data: data$name for a syntactic name, and
+# data[["name"]] with the name quoted and escaped otherwise, so the code a
+# message suggests runs as written.
+data_column_code <- function(name) {
+  if (identical(make.names(name), name)) {
+    paste0("data$", name)
+  } else {
+    paste0("data[[", encodeString(name, quote = "\""), "]]")
+  }
 }
 
 # The rows the outcome model fits: those with every model column the data has
