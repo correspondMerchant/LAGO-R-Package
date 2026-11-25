@@ -390,7 +390,12 @@ Supplementary material of Nevo et al. (2021) for details).}
 kept so that existing calls still run. When the outcome goal is not
 estimated to be reachable within the bounds, the shrinking method is always
 applied, whatever this value is. Without interaction terms it is the method
-of Section 5.1 of the Supplementary Materials of Nevo et al. (2021). With
+of Section 5.1 of the Supplementary Materials of Nevo et al. (2021). That
+method solves for the coefficient each component would need at its upper
+bound, so its recommendation depends on where the component's 0 is: a
+component recorded with an offset, such as a dose with a floor, gets a
+different shrunk recommendation than the same component measured from 0.
+With
 interaction terms, where that method reads one component at a time, the
 package moves from the stage 1 intervention towards the best reachable
 point instead, and recommends the first point on that line that reaches an
