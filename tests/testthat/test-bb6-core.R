@@ -1,0 +1,27 @@
+# Round 5 bug bash: core fixes
+
+test_that("shrinking with interactions never recommends a point worse than the stage 1 intervention", {
+  set.seed(5)
+  d <- data.frame(x1 = stats::runif(300), x2 = stats::runif(300))
+  d$y <- -d$x1 - d$x2 + 4 * d$x1 * d$x2 + stats::rnorm(300, 0, 0.1)
+  d[["x1:x2"]] <- d$x1 * d$x2
+  for (goal in c(2.5, 13, 30)) {
+    for (method in c("grid_search", "numerical")) {
+      r <- suppressWarnings(lago_optimization(
+        data = d, outcome_name = "y", outcome_type = "continuous",
+        glm_family = "gaussian", link = "identity",
+        intervention_components = c("x1", "x2", "x1:x2"), main_components = c("x1", "x2"),
+        include_interaction_terms = TRUE, intervention_lower_bounds = c(0, 0),
+        intervention_upper_bounds = c(1, 1), cost_list_of_vectors = list(c(0, 1), c(0, 1)),
+        prev_recommended_interventions = c(0.1, 0.1), outcome_goal = goal,
+        optimization_method = method,
+        optimization_grid_search_step_size = if (method == "grid_search") c(0.05, 0.05),
+        include_confidence_set = FALSE, quiet = TRUE
+      ))
+      b <- stats::coef(r$model)
+      at <- function(x) b[[1]] + b[[2]] * x[1] + b[[3]] * x[2] + b[[4]] * x[1] * x[2]
+      expect_true(r$shrinking_method_used)
+      expect_gte(at(r$rec_int), at(c(0.1, 0.1)) - 1e-9)
+    }
+  }
+})
