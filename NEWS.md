@@ -1,6 +1,146 @@
 # LAGOtrials (development version)
 
-* With interaction terms, the shrinking method now moves the recommendation from the stage 1 intervention towards the best point found, by the share of the goal that the best point reaches. Before, each component was moved towards its own best corner, so opposing interactions could combine into a point worse than the stage 1 intervention, and a component with no term of its own stayed at its stage 1 value.
+* With interaction terms, the shrinking method now recommends the first point on the line from the stage 1 intervention to the best reachable point that reaches an outcome between the stage 1 outcome and the best one. Before, it read one component at a time, so opposing interactions could send the recommendation to a point worse than the stage 1 intervention, and a component with no term of its own stayed at its stage 1 value. The outcome along the line can dip, since interactions make it a polynomial, so the point is chosen by its outcome and never falls below the stage 1 outcome.
+
+* The numerical optimizer now finishes its cost search on a scale near the answer. Before, when one component had a wide range, the cost at the upper bounds could be far larger than the cost of the answer, the search stopped early, and the recommendation could cost 20% to 70% more than needed and change with the units of that component.
+
+* The grid search now keeps each upper bound whenever the step does not reach it, by a gap measured against the step. Before, a component in very small units, such as 1e-9, could lose its upper bound, so a reachable goal was called out of reach.
+
+* The variance of the outcome model is now scaled on the rows with a positive weight. Before, rows of weight 0 far from the fitted rows could undo the scaling, so a logit fit gave a wrong confidence set or stopped as singular.
+
+* The default cubic cost is now judged by how closely its total, as evaluated, matches the total of the well conditioned curve, so whether it falls back to the linear cost no longer changes with the units of the cost. Bounds only a few round off units apart now get the linear cost with a warning, where they stopped with a LAPACK error.
+
+* `get_confidence_set()` called directly now matches named `rec_int`, bounds, grid steps, cost list and center characteristic values to the components by name, as `lago_optimization()` does. A single value named by `quantile()`, such as "50%", is accepted.
+
+* `get_confidence_set()` called directly now matches named `center_weights_for_outcome_goal` to the model's centers by name, and refuses names that are not centers.
+
+* `get_confidence_set()` called directly now refuses center characteristic values that are not finite numbers, one per characteristic, and cost vectors that are not finite numbers.
+
+* Two-way clustering in `get_confidence_set()` no longer merges cells whose labels paste alike, such as "A_1" with "x" and "A" with "1_x".
+
+* A two-way clustered variance that is not positive semidefinite now has its negative eigenvalues set to 0 (Cameron, Gelbach and Miller, 2011), with a warning. Before, some intervals became NaN and were dropped from the confidence set.
+
+* On the identity link with a family other than gaussian, the clustered variance now uses the working weights of the fit, so it matches the unclustered variance of the same fit.
+
+* `cluster_id = list()` is now the same as no clustering, instead of an error.
+
+* The check for center characteristic values outside the data now reads the fitted prior weights, so it is correct for models fitted with `na.exclude`.
+
+* Confidence interval bounds now round with the same rule as the printed estimate, so an estimate never prints outside a zero-width interval.
+
+* The confidence set grid now adds the upper bound by a gap measured against the step, so the grid no longer depends on the units of the component.
+
+* The warning that the outcome goal is at or past the observed mean no longer names the goal, so a `lago_sensitivity()` sweep over `outcome_goal` shows it once instead of once per goal.
+
+* A POSIXlt column in the model, such as the period, is now converted to POSIXct with a note. It used to fail with "not all arguments have the same length".
+
+* For center level data with `center_characteristics`, `include_center_effects` now defaults to FALSE, with a note, instead of failing with an error asking to pick one. When center effects are set to TRUE, that error now says to set `include_center_effects = FALSE`.
+
+* `center_effects_optimization_values` now accepts a factor that names one center.
+
+* Numeric center ids are now labeled in full, so a center 100000 is "100000" rather than "1e+05", and weights or a center chosen by that id are matched. The message for a center that is not in the data now lists the centers.
+
+* NaN in a numeric center or period column is now read as a missing value instead of becoming a center or period named "NaN".
+
+* The error for an unknown `optimization_method` now names the supported methods in one clear sentence.
+
+* The hint for a missing interaction column now gives code that runs as written, also for column names that are not syntactic.
+
+* When the outcome model does not converge, the error now lists the warnings from `glm()`. For a binomial or quasibinomial family it names separation as the likely cause and says what to do.
+
+* The hint for the identity link on a binomial family now also appears when `glm()` cannot correct its step size, and when such a fit does not converge.
+
+* Under `options(na.action = "na.fail")` or `"na.pass"`, a center or period whose rows all have weight 0 no longer causes a false error about missing values.
+
+* `lago_sensitivity()` now picks the baseline run within a tolerance relative to the baseline value, and takes the closest value within it, so a sweep of very small values reports the right baseline. A baseline of 0 matches only 0.
+
+* A numeric `time_effect_optimization_value` sweep in `lago_sensitivity()` now accepts `NA`, or a lone `NA`, when the `period` column is a factor with an explicit `NA` level. `NA` then selects that level, as it does for period labels.
+
+* `print()` of a `lago_sensitivity()` result now lists the swept values whose goal could not be reached, where the shrinking method gave the recommendation. `plot()` draws those runs as triangles and adds a note.
+
+* `print()` of a `lago_sensitivity()` result now rounds the estimated outcome of a run that reached its goal as `print.lago()` does, so a goal of 0.75 met by 0.7499995 shows as 0.75.
+
+* `print()` of a `lago_budget()` result now rounds the estimated outcome as `print.lago()` does.
+
+* `lago_budget()` with an outcome that has no finite value now reports the error of `lago_optimization()` in its warning and in `run_error`, instead of a cryptic error.
+
+* `lago_budget()` now sets its search tolerances from the frontier it finds, so a narrow reachable outcome range is searched closely and the budget buys the reachable gain.
+
+* With a power goal, the `lago_budget()` warning and `print()` for a budget that is too small now name the cheapest intervention that reaches the outcome the power goal implies.
+
+* `print()` and `lago_report()` now show an estimated outcome that reached its goal on a rounding tie with the goal's text, so a met goal such as 0.8125 no longer looks missed. Report hovers do the same.
+
+* A cost of 1e4 or more is now shown with 2 decimals in `print()`, the report, the hovers, and the `lago_sensitivity()` and `lago_budget()` prints, so a large fixed cost no longer hides the part that changes with the dose.
+
+* The budget hover now shows the estimated outcome rounded like `print()`, and never shows a cost that fits the budget above it.
+
+* The playground now sends 17 significant digits to the report plots, so hovers round the same numbers as the R text.
+
+* `lago_report()` now shows data text, such as center names in the coefficient table, as typed, not as markdown, HTML or math.
+
+* Line breaks in a `lago_report()` title now become one space, and spaces at the start and end are dropped, so a title can no longer turn into markdown code.
+
+* `lago_report()` now gives a clear message naming `output_file` when a file is in the way of its folder, or when the folder cannot be written in.
+
+* The help pages no longer lose the rest of a line after a percent sign.
+
+* With a power goal, `print()` and `lago_report()` now show the power goal approach, the next stage size and the icc in the inputs recap.
+
+* `visualize_cost()` now matches named `unit_costs`, `intervention_lower_bounds` and `intervention_upper_bounds` to the components by name, as `lago_optimization()` does. Before, it used their positions, and the names showed up on the returned coefficients.
+
+* The cost designer now puts each slider's range on whole multiples of its step. Before, a slider whose range started between steps could round a coefficient twice and lose its exact value.
+
+* The cost designer now keeps the exact coefficient when the slider sits exactly half a step from it. Before, rounding noise could make such a tie count as a slider move.
+
+* `lago_app()` now sorts text periods in time order: labels with month names (such as "Jan 2021" or "Mar-21"), dates in one clear order (such as 15/01/2021 or 2021-01-15), and labels without a number (such as "baseline") first. So the default period and the period coding follow time.
+
+* `lago_app()` now offers a TRUE/FALSE outcome column as a binary outcome.
+
+* `lago_app()` now refuses an uploaded file with a NUL byte and says how to save it again. Before, it silently lost or merged values.
+
+* The `lago_app()` hint about the decimal mark now also reads numbers with a power of ten, such as 2,5e-3.
+
+* `lago_app()` started from a result now opens a POSIXct period given in another time zone on the right period. It lists a period or center it cannot match among the settings it cannot show.
+
+* `lago_app()` started from a result with weights equal to a component now uses a matching column it offers as weights, or lists the weights as not shown. It no longer takes weights from a center level result, which the package does not use.
+
+* `lago_app()` started from a result with an ICC now keeps all its digits.
+
+* `lago_app()` now saves center weights named by center and loads them by name, so loaded weights stay with their centers. Weights for other centers are reported.
+
+* `lago_app()` now refuses a period column that is also the outcome, a component, a covariate, a center characteristic or the center column. It also refuses a covariate that is also the center column or a center characteristic.
+
+* A cost multiplier sweep in `lago_app()` with unit costs now scales the unit costs directly. This drops a false warning about `unit_cost_doses` and a needless line of the shown code.
+
+* The `lago_app()` message for a loaded period the data does not have now says the latest period with rows the model can use is used.
+
+* The cost designer in `lago_app()` now opens on cost coefficients of any length from 1 to 5, padded with zeros. Only longer ones are treated as not fitting.
+
+* The Python wrapper now sends a data frame column of Python or numpy numbers, such as `[1, None, 3]` or a column after `astype(object)`, to R as a numeric column, and no longer as text.
+
+* The Python wrapper now sends a `uint32` or `uint64` column to R as an integer column when its values fit, and as a numeric column otherwise, instead of as text.
+
+* In Python, a number used as a name, such as a center 1.0 in the index of a Series or a dict key, is now written as R writes the level of that center, so center weights from `groupby()` on a float center column match the centers. When R refuses names, the Python error now says to give a plain list, and no longer says to use `unname()`.
+
+* The Python wrapper now sends a categorical column whose categories are numbers or dates to R as a factor with the same levels in the same order, with dates written as the bridge writes them elsewhere.
+
+* In Python, a period given as a time with a time zone is now moved to the time zone of the `period` column before it is matched, so the same instant names the same period. A column of times in more than one zone is written in the zone of its first time.
+
+* The Python wrapper now accepts a 0-d numpy array as the value it holds, and a `Timedelta` or `np.timedelta64` value as its number of days.
+
+* The Python wrapper now sends a missing value in a float column to R as `NA`, not `NaN`.
+
+* In `lago.sensitivity()`, an error message now goes only to the runs that failed. Before, a run whose value was close to a failed value could get that message too.
+
+* `lago.budget()` now accepts a whole `Decimal` for `n_grid`.
+
+* The data frames from `lago.sensitivity()` and the `frontier` of `lago.budget()` now have the default index 0, 1, 2 and so on.
+
+* The MCP server now refuses `true` and `false` as center weights and in the weights column, which it used to read as 1 and 0.
+
+* In the MCP `sensitivity` tool, a run that failed because a goal was sent as null now says so in its error message. A sweep where every run failed now returns an error result.
+
+* The Python wrapper now accepts a cost list given as a dict of lists keyed by component, which R matches to the components by name.
 
 * The variance of the outcome model is now computed on a centered and scaled copy of the design in its clustered and logit forms too. Before, a component far from 0 (such as values near 1e5 or 1e6) could change a clustered interval, make a quasibinomial logit fit stop as singular, or make an identity fit near 1e7 be called rank deficient.
 
@@ -20,7 +160,7 @@
 
 * An intervention component, main component or center characteristic named "cost", "CI_lower_bound" or "CI_upper_bound" is now refused, because the confidence set has its own columns with those names. These used to collide in the confidence set and the report.
 
-* An interaction column saved with rounding, for example to 4 significant digits or to 3 decimals, is now accepted as the product of its components. Each row is compared with its own product, so a clearly wrong column is still refused.
+* An interaction column saved with rounding is now accepted as the product of its components. A column saved with 4 significant digits is accepted, and so is one saved with 3 decimals on the rows where the product, or the median product of the column, is 0.5 or more. Each row is compared with the larger of its own product and the median product, so a clearly wrong row is still refused, also when a few products are very large.
 
 * The interaction column check now multiplies integer columns in double precision, so large integer components no longer overflow to NA and skip the check.
 
