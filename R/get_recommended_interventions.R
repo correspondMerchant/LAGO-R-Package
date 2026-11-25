@@ -590,7 +590,8 @@ get_recommended_interventions <- function(
       # each grid includes its upper bound, even when the step does not divide the range
       grids <- lapply(seq_along(cost_params), function(i) {
         grid <- seq(lo[i], up[i], by = step_size[i])
-        if (up[i] - grid[length(grid)] > 1e-8 * max(1, abs(up[i]))) grid <- c(grid, up[i])
+        # the gap is judged against the step, so it does not depend on the units
+        if (up[i] - grid[length(grid)] > 1e-8 * step_size[i]) grid <- c(grid, up[i])
         grid
       })
       # create the full grid
