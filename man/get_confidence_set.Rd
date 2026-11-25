@@ -220,8 +220,10 @@ the sandwich form of the same fit.
 These formulas extend the existing continuous covariance definition. They
 are not a frequency weight or survey design variance. In particular, the
 existing continuous quasibinomial covariance on the logit link does not use
-that family's variance function, so this weight extension does not make it
-a general GLM covariance. Binary outcomes continue to use stats::vcov(fitted_model).
+that family's variance function: it is the Gauss-Newton sandwich of a least
+squares fit of the logit curve, for gaussian and quasibinomial fits alike,
+and not the sandwich of the quasibinomial estimating equation. This weight
+extension does not make it a general GLM covariance. Binary outcomes continue to use stats::vcov(fitted_model).
 Center weights for the outcome goal are separate from observation weights.
 }
 \examples{

@@ -133,3 +133,8 @@ test_that("a sweep shows costs with a large fixed term as print() does", {
   expect_match(out, .lago_num_text(.lago_fmt_cost(s$rec_int_cost[2])), fixed = TRUE)
   expect_false(identical(.lago_fmt_cost(s$rec_int_cost[1]), .lago_fmt_cost(s$rec_int_cost[2])))
 })
+
+test_that("the standard error note says the logit sandwich is Gauss-Newton", {
+  x <- list(outcome_type = "continuous", model = list(family = list(link = "logit")))
+  expect_match(LAGOtrials:::lago_se_note(x), "Gauss-Newton sandwich")
+})

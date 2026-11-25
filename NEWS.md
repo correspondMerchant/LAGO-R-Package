@@ -1,5 +1,7 @@
 # LAGOtrials (development version)
 
+* The note under the coefficient table of a continuous outcome on the logit link now says the standard errors are a Gauss-Newton sandwich, the form a least squares fit of the logit curve uses, and the `get_confidence_set()` details say that quasibinomial fits use this form too. The formula is unchanged.
+
 * With interaction terms, the shrinking method now recommends the first point on the line from the stage 1 intervention to the best reachable point that reaches an outcome between the stage 1 outcome and the best one. Before, it read one component at a time, so opposing interactions could send the recommendation to a point worse than the stage 1 intervention, and a component with no term of its own stayed at its stage 1 value. The outcome along the line can dip, since interactions make it a polynomial, so the point is chosen by its outcome and never falls below the stage 1 outcome.
 
 * The numerical optimizer now finishes its cost search on a scale near the answer. Before, when one component had a wide range, the cost at the upper bounds could be far larger than the cost of the answer, the search stopped early, and the recommendation could cost 20% to 70% more than needed and change with the units of that component.

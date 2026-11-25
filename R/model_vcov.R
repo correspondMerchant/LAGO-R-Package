@@ -146,7 +146,10 @@ lago_se_note <- function(x) {
   if (identical(x$outcome_type, "binary")) {
     "Standard errors are those of the fitted glm()."
   } else if (identical(x$model$family$link, "logit")) {
-    "Standard errors are robust (sandwich, HC0), as the confidence set uses them."
+    paste(
+      "Standard errors are robust (a Gauss-Newton sandwich, HC0, as for a",
+      "least squares fit of the logit curve), as the confidence set uses them."
+    )
   } else {
     "Standard errors are model based, as the confidence set uses them."
   }
