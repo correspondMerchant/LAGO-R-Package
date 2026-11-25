@@ -297,6 +297,12 @@ check("fmtValue(5e6) is 5000000", m.fmtValue(5e6) === "5000000");
 // 17. a curve fitted through dragged points on narrow bounds far from 0 misses
 // its points by more than it rises, which validate flags as not accurate. The
 // other checks pass there, so before only the miss went unflagged.
+// A slider that sits exactly half a step from the exact value is a tie it may
+// round either way, and round-off can put the reading a hair past half a step.
+var tie = { value: 0.091105, step: 1.0000000000000001e-5 };
+check("the tie reading is a hair past half a step", Math.abs(0.0911 - tie.value) > tie.step / 2);
+check("preferExact keeps the exact value at a half step tie", m.preferExact(0.0911, tie) === 0.091105);
+check("preferExact reads a slider a full step away as moved", m.preferExact(0.09109, tie) === 0.09109);
 var farXs = m.anchorXs(1e4, 1e4 + 1, 5);
 var farFit = m.solveVandermonde(farXs, [10, 11, 12.5, 14, 20]);
 var farMiss = Math.max.apply(null, farXs.map(function (x, i) {

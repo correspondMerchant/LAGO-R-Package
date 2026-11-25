@@ -411,7 +411,10 @@
 
   // A slider reports its value rounded to its step. The exact value the server
   // set is used while the slider sits within half a step of it, as the server
-  // reads it, so a small high order coefficient is not drawn as 0.
+  // reads it, so a small high order coefficient is not drawn as 0. A reading
+  // exactly half a step away is a tie the slider may round either way, and
+  // round-off can put it a hair past half a step, so the test allows a small
+  // relative slack, as the server's .within_half_step() does.
   // The server sends the stale reading with 16 significant digits, so it can
   // differ from the slider's reading in the last digit. Two readings are the
   // same when they agree to a relative tolerance of 1e-12.
@@ -422,7 +425,8 @@
 
   function preferExact(value, exact) {
     if (exact && isFinite(value) &&
-      (Math.abs(value - exact.value) <= exact.step / 2 || sameReading(value, exact.stale))) {
+      (Math.abs(value - exact.value) <= exact.step / 2 * (1 + 1e-9) ||
+        sameReading(value, exact.stale))) {
       return exact.value;
     }
     return value;
