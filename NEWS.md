@@ -306,8 +306,6 @@
 
 * `lago_optimization()` caps every start of its cost search. A start that landed on a saddle point of an interaction model, which cannot reach the goal, used to run 4000 iterations, so a run could take 30 to 40 seconds. Such a run now takes about 2 seconds, with the same recommendation.
 
-* With interaction terms, the shrinking method now holds the other components at the corner of their bounds with the highest outcome, and reads each component's slope there, its own coefficient plus its interaction coefficients times the other components. A goal just out of reach used to send the recommendation back to the stage 1 intervention. It now stays near the best corner. Without interaction terms the result is unchanged.
-
 * The confidence set of a continuous outcome no longer fails with "system is computationally singular" when a component sits far from 0, such as values near 100000. The variance is now computed from a QR decomposition, as `glm()` fits the model.
 
 * The default cubic cost now falls back to the linear cost, with a warning, on bounds so narrow and far from 0 that round off would swamp the cubic. Its total used to rise and fall at random there, and the recommended cost could be below the cost at either bound.

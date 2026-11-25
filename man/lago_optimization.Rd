@@ -388,9 +388,14 @@ Supplementary material of Nevo et al. (2021) for details).}
 
 \item{shrinkage_threshold}{A numeric value between 0 and 1. Not used, and
 kept so that existing calls still run. When the outcome goal is not
-estimated to be reachable within the bounds, the shrinkage method from
-Section 5.1 of the Supplementary Materials of Nevo et al. (2021) is always
-applied, whatever this value is.
+estimated to be reachable within the bounds, the shrinking method is always
+applied, whatever this value is. Without interaction terms it is the method
+of Section 5.1 of the Supplementary Materials of Nevo et al. (2021). With
+interaction terms, where that method reads one component at a time, the
+package moves from the stage 1 intervention towards the best reachable
+point instead, and recommends the first point on that line that reaches an
+outcome between the stage 1 outcome and the best one. The closer the goal
+is to the best outcome, the closer that outcome is to the best one.
 Default value without user specification: 0.25.}
 
 \item{quiet}{A boolean. If TRUE, suppresses the progress messages, the paced
