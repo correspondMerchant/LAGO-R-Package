@@ -498,8 +498,9 @@ ref_cluster_vcov <- function(x, cluster, outcome, fitted) {
   bread %*% meat %*% bread
 }
 
-# Cameron-Gelbach-Miller two-way estimator: V1 + V2 - V12
-ref_two_way_vcov <- function(data, model, predictors) {
+# Cameron-Gelbach-Miller two-way estimator: V1 + V2 - V12, with its negative
+# eigenvalues set to 0 when clip is TRUE
+ref_two_way_vcov <- function(data, model, predictors, clip = TRUE) {
   x <- ref_design_matrix(data[, predictors, drop = FALSE])
   v <- ref_cluster_vcov(x, data$center, data$mpg, model$fitted.values) +
     ref_cluster_vcov(x, data$period, data$mpg, model$fitted.values) -
@@ -507,13 +508,19 @@ ref_two_way_vcov <- function(data, model, predictors) {
       x, paste(data$center, data$period, sep = "_"), data$mpg,
       model$fitted.values
     )
+  if (clip) {
+    e <- eigen((v + t(v)) / 2, symmetric = TRUE)
+    if (min(e$values) < -1e-12 * max(abs(e$values))) {
+      v <- e$vectors %*% (pmax(e$values, 0) * t(e$vectors))
+    }
+  }
   dimnames(v) <- list(colnames(x), colnames(x))
   v
 }
 
 # the 95% interval of the continuous/identity branch at ONE intervention, at
 # center "c2" and the requested period
-ref_two_way_ci_at <- function(data, model, gear, qsec, period = 2) {
+ref_two_way_ci_at <- function(data, model, gear, qsec, period = 2, clip = TRUE) {
   b <- coef(model)
   centers <- levels(data$center)
   periods <- levels(data$period)
@@ -523,7 +530,7 @@ ref_two_way_ci_at <- function(data, model, gear, qsec, period = 2) {
     setNames(as.numeric(periods[-1] == period), paste0("period", periods[-1])),
     gear = gear, qsec = qsec
   )[names(b)]
-  v <- ref_two_way_vcov(data, model, c("center", "period", "gear", "qsec"))
+  v <- ref_two_way_vcov(data, model, c("center", "period", "gear", "qsec"), clip)
   point <- sum(row * b)
   se <- suppressWarnings(
     sqrt(as.numeric(t(row) %*% v[names(b), names(b)] %*% row))
@@ -553,9 +560,9 @@ two_way_cs <- function(d, res) {
 test_that("two-way clustering pairs every row's interval with its OWN coordinates", {
   # The interval matrix was indexed by post-complete.cases() row numbers while
   # the grid was indexed by original ones, so every row after a dropped one
-  # carried an earlier row's bounds. Reaching it needs rows to actually be
-  # dropped, which the two-way estimator supplies: it is not positive
-  # semi-definite here, so some rows get a NaN standard error.
+  # carried an earlier row's bounds. The two-way estimator is not positive
+  # semi-definite here, so before its negative eigenvalues were set to 0 some
+  # rows got a NaN standard error and were dropped.
   d <- two_way_data()
   res <- two_way_cs(d, two_way_optimize(d))
 
@@ -567,19 +574,21 @@ test_that("two-way clustering pairs every row's interval with its OWN coordinate
   reference <- cbind(grid, t(apply(grid, 1, function(r) {
     ref_two_way_ci_at(d, res$model, r[["gear"]], r[["qsec"]])
   })))
-  # the fixture must really drop rows, or there is nothing to mispair: the
-  # two-way estimator is not positive semi-definite here, so some rows get a
-  # NaN standard error and complete.cases() removes them.
-  expect_true(any(is.nan(reference$lower)))
-  expect_true(any(!is.nan(reference$lower)))
+  unclipped <- cbind(grid, t(apply(grid, 1, function(r) {
+    ref_two_way_ci_at(d, res$model, r[["gear"]], r[["qsec"]], clip = FALSE)
+  })))
+  # the unclipped estimator is not positive semi-definite here, so some rows
+  # have a NaN standard error, and the clipped one gives every row a bound
+  expect_true(any(is.nan(unclipped$lower)))
+  expect_true(any(!is.nan(unclipped$lower)))
+  expect_false(anyNA(reference$lower))
 
-  qualifies <- !is.nan(reference$lower) &
-    reference$lower <= 30 & 30 <= reference$upper
+  qualifies <- reference$lower <= 30 & 30 <= reference$upper
   expected <- reference[qualifies, ]
-  # the independently derived set is non-empty and comes from BOTH sides of a
-  # dropped row, which is exactly the case a shifted index gets wrong
+  # the independently derived set is non-empty and has rows after one whose
+  # unclipped standard error is NaN
   expect_gt(nrow(expected), 0)
-  expect_true(any(which(qualifies) > min(which(is.nan(reference$lower)))))
+  expect_true(any(which(qualifies) > min(which(is.nan(unclipped$lower)))))
 
   # the reported set is that set: same membership, in the same grid order,
   # each row carrying the bounds computed at its own coordinates
