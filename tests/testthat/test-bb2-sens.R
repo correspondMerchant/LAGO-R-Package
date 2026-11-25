@@ -95,7 +95,7 @@ test_that("print.lago_budget rounds the cost and the estimated outcome", {
   skip_on_cran()
   b <- bb2_budget(budget = 50, n_grid = 2L)
   out <- paste(cli::cli_fmt(print(b)), collapse = " ")
-  expect_match(out, sprintf("Estimated outcome: %s", .lago_fmt_value(b$est_outcome)), fixed = TRUE)
+  expect_match(out, sprintf("Estimated outcome: %s", .lago_fmt_interval(b$est_outcome)), fixed = TRUE)
   expect_match(out, sprintf("Cost: %s", .lago_fmt_cost(b$rec_int_cost)), fixed = TRUE)
   expect_no_match(out, "[0-9]\\.[0-9]{6}")
 })
